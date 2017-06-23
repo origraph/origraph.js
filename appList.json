@@ -1,0 +1,7 @@
+{
+  "data-binder": {
+    "name": "data-binder",
+    "description": "A Mure app that is responsible for (re)binding data to graphics",
+    "author": "Alex Bigelow"
+  }
+}
