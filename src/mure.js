@@ -1,6 +1,6 @@
 import PouchDB from 'pouchdb';
 import appList from './appList.json';
-import Model from '../lib/Model/index.js';
+import { Model } from 'uki';
 
 class Mure extends Model {
   constructor () {
