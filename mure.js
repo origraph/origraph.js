@@ -19,6 +19,7 @@ class Mure extends Model {
     }
 
     // Create / load the local database of files
+    this.lastFile = null;
     this.db = this.getOrInitDb();
 
     this.loadUserLibraries = false;
@@ -34,7 +35,9 @@ class Mure extends Model {
   }
   getOrInitDb () {
     let db = new PouchDB('mure');
-    db.get('userPrefs').catch(errorObj => {
+    db.get('userPrefs').then(prefs => {
+      this.lastFile = prefs.currentFile;
+    }).catch(errorObj => {
       if (errorObj.message === 'missing') {
         return db.put({
           _id: 'userPrefs',
@@ -44,14 +47,40 @@ class Mure extends Model {
         this.catchDbError(errorObj);
       }
     });
+    db.changes({
+      since: 'now',
+      live: true,
+      include_docs: true
+    }).on('change', change => {
+      if (change.id === 'userPrefs') {
+        if (this.lastFile !== change.doc.currentFile) {
+          // Different filename... a new one was opened, or the current file was deleted
+          this.lastFile = change.doc.currentFile;
+          // This will have changed the current file list
+          this.getFileList().then(fileList => {
+            this.trigger('fileListChange', fileList);
+          });
+        }
+        // Whether we have a new file, or the current one was updated, fire a fileChange event
+        this.getFile(change.doc.currentFile).then(fileBlob => {
+          this.trigger('fileChange', fileBlob);
+        });
+      } else if (change.deleted && change.id !== this.lastFile) {
+        // If a file is deleted that wasn't opened, it won't ever cause a change
+        // to userPrefs. So we need to fire fileListChange immediately.
+        this.getFileList().then(fileList => {
+          this.trigger('fileListChange', fileList);
+        });
+      }
+    }).on('error', errorObj => {
+      this.catchDbError(errorObj);
+    });
     return db;
   }
   setCurrentFile (filename) {
     return this.db.get('userPrefs').then(prefs => {
       prefs.currentFile = filename;
-      return this.db.put(prefs).then(() => {
-        this.triggerFileChange();
-      });
+      return this.db.put(prefs);
     }).catch(this.catchDbError);
   }
   getCurrentFilename () {
@@ -110,11 +139,7 @@ class Mure extends Model {
     }).catch(errorObj => {
       if (errorObj.message === 'missing') {
         // the file doesn't exist yet...
-        return this.db.put(dbEntry).then(putResponse => {
-          this.triggerFileChange();
-          this.triggerFileListChange();
-          return putResponse;
-        });
+        return this.db.put(dbEntry);
       } else {
         this.catchDbError(errorObj);
       }
@@ -131,18 +156,6 @@ class Mure extends Model {
         });
         return result;
       }).catch(this.catchDbError);
-  }
-  triggerFileChange () {
-    return this.getCurrentFilename().then(filename => {
-      return this.getFile(filename).then(fileBlob => {
-        this.trigger('fileChange', fileBlob);
-      });
-    });
-  }
-  triggerFileListChange () {
-    return this.getFileList().then(fileList => {
-      this.trigger('fileListChange', fileList);
-    });
   }
   getFileRevisions () {
     return this.db.allDocs()
@@ -188,13 +201,9 @@ class Mure extends Model {
         let currentFile = promiseResults[1];
         return this.db.remove(existingDoc._id, existingDoc._rev)
           .then(removeResponse => {
-            let p = Promise.resolve();
             if (filename === currentFile) {
-              p = this.setCurrentFile(null);
+              this.setCurrentFile(null).catch(this.catchDbError);
             }
-            p.then(() => {
-              this.triggerFileListChange();
-            }).catch(this.catchDbError);
             return removeResponse;
           });
       }).catch(this.catchDbError);
