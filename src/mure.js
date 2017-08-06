@@ -8,7 +8,7 @@ class Mure extends Model {
     this.appList = appList;
     // Check if we're even being used in the browser (mostly useful for getting
     // access to the applist in all-apps-dev-server.js)
-    if (!document || !window) {
+    if (typeof document === 'undefined' || typeof window === undefined) {
       return;
     }
 
