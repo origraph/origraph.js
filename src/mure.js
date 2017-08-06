@@ -6,6 +6,12 @@ class Mure extends Model {
   constructor () {
     super();
     this.appList = appList;
+    // Check if we're even being used in the browser (mostly useful for getting
+    // access to the applist in all-apps-dev-server.js)
+    if (!document || !window) {
+      return;
+    }
+
     // Funky stuff to figure out if we're debugging (if that's the case, we want to use
     // localhost instead of the github link for all links)
     let windowTitle = document.getElementsByTagName('title')[0];
@@ -233,5 +239,4 @@ Mure.VALID_EVENTS = {
 };
 
 let mure = new Mure();
-window.mure = mure;
 export default mure;
