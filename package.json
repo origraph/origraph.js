@@ -1,6 +1,6 @@
 {
   "name": "mure",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An integration library for the mure ecosystem of apps",
   "main": "build/mure.umd.min.js",
   "module": "build/mure.es.js",
