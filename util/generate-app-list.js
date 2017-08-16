@@ -32,7 +32,7 @@ fs.readdir(path.join(__dirname, '../../apps'), function (err, appNames) {
                 name: appName,
                 description: packageJson.description || '',
                 author: packageJson.author || '',
-                icon: imageData.toString('base64')
+                icon: 'data:image/svg+xml;base64,' + imageData.toString('base64')
               };
               console.log(logColor + appName + ' app added successfully!' + colors.reset);
             }
