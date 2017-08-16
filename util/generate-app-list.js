@@ -16,6 +16,28 @@ fs.readdir(path.join(__dirname, '../../apps'), function (err, appNames) {
     process.exit();
   }
 
+  // Add the main "docs" app
+  appPromises.push(new Promise(function (resolve, reject) {
+    fs.readFile(path.join(__dirname, '../../img/app.svg'),
+      function (err, imageData) {
+        if (err) {
+          console.log(errorColor + 'Error loading main app icon:' + colors.reset);
+          console.log(err.message);
+        } else {
+          // Add an entry
+          appDirectory.docs = {
+            name: 'docs',
+            description: 'The core app / landing page for Mure',
+            author: 'Alex Bigelow',
+            icon: 'data:image/svg+xml;base64,' + imageData.toString('base64')
+          };
+          console.log(logColor + 'Main ("docs") app added successfully!' + colors.reset);
+        }
+        resolve();
+      });
+  }));
+
+  // Scan the apps directory
   appNames.forEach(function (appName) {
     appPromises.push(new Promise(function (resolve, reject) {
       // Validate that both package.json and webpack.config.js exist
