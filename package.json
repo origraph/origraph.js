@@ -2,14 +2,14 @@
   "name": "mure",
   "version": "0.1.1",
   "description": "An integration library for the mure ecosystem of apps",
+  "esnext": "src/mure.js",
   "main": "build/mure.umd.min.js",
-  "module": "build/mure.es.js",
-  "jsnext:main": "build/mure.es.js",
+  "module": "src/mure.js",
+  "jsnext:main": "src/mure.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build_umd": "./node_modules/.bin/rollup -c rollup.umd.config.js && ./node_modules/.bin/uglifyjs ./build/mure.umd.js -c -m -o ./build/mure.umd.min.js",
-    "build_es": "./node_modules/.bin/rollup -c rollup.es.config.js",
-    "build": "npm run build_umd; npm run build_es"
+    "build": "npm run build_umd"
   },
   "repository": {
     "type": "git",

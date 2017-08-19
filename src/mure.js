@@ -68,8 +68,8 @@ class Mure extends Model {
           });
         }
         // Whether we have a new file, or the current one was updated, fire a fileChange event
-        this.getFile(change.doc.currentFile).then(fileBlob => {
-          this.trigger('fileChange', fileBlob);
+        this.getFile(change.doc.currentFile).then(mureFile => {
+          this.trigger('fileChange', mureFile);
         });
       } else if (change.deleted && change.id !== this.lastFile) {
         // If a file is deleted that wasn't opened, it won't ever cause a change
@@ -95,6 +95,19 @@ class Mure extends Model {
     });
   }
   getFile (filename) {
+    if (filename) {
+      return this.db.get(filename, { attachments: true }).then(dbEntry => {
+        return {
+          filename: filename,
+          base64data: dbEntry._attachments[filename].data,
+          metadata: dbEntry.metadata
+        };
+      });
+    } else {
+      return Promise.resolve(null);
+    }
+  }
+  getFileBlob (filename) {
     if (filename) {
       return this.db.getAttachment(filename, filename);
     } else {
@@ -125,18 +138,15 @@ class Mure extends Model {
   openApp (appName) {
     window.open('/' + appName, '_blank');
   }
-  getSvgBlob (filename) {
-    return this.db.getAttachment(filename, filename)
-      .catch(this.catchDbError);
-  }
-  saveSvgBlob (filename, blob) {
+  saveFile (filename, blobOrBase64string, metadata) {
     let dbEntry = {
       _id: filename,
-      _attachments: {}
+      _attachments: {},
+      metadata: metadata || {}
     };
     dbEntry._attachments[filename] = {
-      content_type: blob.type,
-      data: blob
+      content_type: 'image/svg+xml',
+      data: blobOrBase64string
     };
     return this.db.get(filename).then(existingDoc => {
       // the file exists... overwrite the document
@@ -194,7 +204,10 @@ class Mure extends Model {
       return filename;
     }).then(filename => {
       if (filename) {
-        return this.saveSvgBlob(filename, fileObj).then(() => {
+        // TODO: extract the XML metadata from the file (if it exists... also deal width
+        // the case that it existed before, but something (Illustrator, I'm looking at you)
+        // trashed it)
+        return this.saveFile(filename, fileObj).then(() => {
           return this.setCurrentFile(filename);
         });
       }
@@ -216,11 +229,13 @@ class Mure extends Model {
     }
   }
   downloadSvg (filename) {
-    this.getSvgBlob(filename).then(blob => {
-      // create a fake link...
+    this.getFile(filename).then(mureFile => {
+      let xmlText = window.atob(mureFile.base64data);
+      // TODO: embed fileObj.metadata as XML inside fileObj.base64data
+      // create a fake link to initiate the download
       let a = document.createElement('a');
       a.style = 'display:none';
-      let url = window.URL.createObjectURL(blob);
+      let url = window.URL.createObjectURL(new window.Blob(xmlText, { type: 'image/svg+xml' }));
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
