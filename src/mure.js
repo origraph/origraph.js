@@ -1,6 +1,8 @@
+import * as d3 from 'd3';
 import PouchDB from 'pouchdb';
-import appList from './appList.json';
 import { Model } from 'uki';
+import appList from './appList.json';
+import mureInteractivityRunnerText from './mureInteractivityRunner.js';
 
 class Mure extends Model {
   constructor () {
@@ -11,6 +13,9 @@ class Mure extends Model {
     if (typeof document === 'undefined' || typeof window === undefined) {
       return;
     }
+
+    // The namespace string for our custom XML
+    this.NSString = 'http://mure-apps.github.io';
 
     // Funky stuff to figure out if we're debugging (if that's the case, we want to use
     // localhost instead of the github link for all links)
@@ -138,7 +143,8 @@ class Mure extends Model {
   openApp (appName) {
     window.open('/' + appName, '_blank');
   }
-  saveFile (filename, blobOrBase64string, metadata) {
+  saveFile (filename, blobOrBase64string, metadata, attemptToPreserveOldMetadata) {
+    // TODO: allow saving just the blob/base64 string, just the metadata, or both
     let dbEntry = {
       _id: filename,
       _attachments: {},
@@ -150,6 +156,14 @@ class Mure extends Model {
     };
     return this.db.get(filename).then(existingDoc => {
       // the file exists... overwrite the document
+
+      if (attemptToPreserveOldMetadata &&
+          Object.keys(metadata) === 0 &&
+          Object.keys(existingDoc.metadata) > 0) {
+        // TODO: deal with the case that metadata existed before, but something
+        // (Illustrator, I'm looking at you) trashed it (i.e. ask the user)
+        console.warn('Old metadata was trashed!');
+      }
       dbEntry._rev = existingDoc._rev;
       return this.db.put(dbEntry);
     }).catch(errorObj => {
@@ -186,32 +200,57 @@ class Mure extends Model {
       }).catch(this.catchDbError);
   }
   uploadSvg (fileObj) {
-    let filename = fileObj.name;
-    return this.getFileRevisions().then(revisionDict => {
-      // Ask multiple times if the user happens to enter another filename that already exists
-      while (revisionDict[filename]) {
-        let newName = this.prompt.call(window,
-          fileObj.name + ' already exists. Pick a new name, or leave it the same to overwrite:',
-          fileObj.name);
-        if (!newName) {
-          return null;
-        } else if (newName === filename) {
-          return filename;
-        } else {
-          filename = newName;
+    let reader = new window.FileReader();
+    let contentsPromise = new Promise((resolve, reject) => {
+      reader.onloadend = xmlText => {
+        resolve(xmlText.target.result);
+      };
+      reader.onerror = error => {
+        reject(error);
+      };
+      reader.onabort = () => {
+        reject(Mure.SIGNALS.cancelled);
+      };
+      reader.readAsText(fileObj);
+    }).then(xmlText => {
+      let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
+      let contents = { metadata: this.extractMetadata(dom, true) };
+      contents.base64data = window.btoa(new window.XMLSerializer().serializeToString(dom));
+      return contents;
+    });
+
+    let filenamePromise = this.getFileRevisions()
+      .catch(this.catchDbError)
+      .then(revisionDict => {
+        // Ask multiple times if the user happens to enter another filename that already exists
+        let filename = fileObj.name;
+        while (revisionDict[filename]) {
+          let newName = this.prompt.call(window,
+            fileObj.name + ' already exists. Pick a new name, or leave it the same to overwrite:',
+            fileObj.name);
+          if (!newName) {
+            reader.abort();
+            return Promise.reject(Mure.SIGNALS.cancelled);
+          } else if (newName === filename) {
+            return filename;
+          } else {
+            filename = newName;
+          }
         }
+        return filename;
+      });
+
+    return Promise.all([filenamePromise, contentsPromise]).then(([filename, contents]) => {
+      return this.saveFile(filename, contents.base64data, contents.metadata, true).then(() => {
+        return this.setCurrentFile(filename);
+      });
+    }).catch(([fileErr, nameErr]) => {
+      if (fileErr === Mure.SIGNALS.cancelled && nameErr === Mure.SIGNALS.cancelled) {
+        return; // cancelling is not a problem
+      } else {
+        return Promise.reject([fileErr, nameErr]);
       }
-      return filename;
-    }).then(filename => {
-      if (filename) {
-        // TODO: extract the XML metadata from the file (if it exists... also deal width
-        // the case that it existed before, but something (Illustrator, I'm looking at you)
-        // trashed it)
-        return this.saveFile(filename, fileObj).then(() => {
-          return this.setCurrentFile(filename);
-        });
-      }
-    }).catch(this.catchDbError);
+    });
   }
   deleteSvg (filename) {
     if (this.confirm.call(window, 'Are you sure you want to delete ' + filename + '?')) {
@@ -228,21 +267,116 @@ class Mure extends Model {
       }).catch(this.catchDbError);
     }
   }
-  downloadSvg (filename) {
-    this.getFile(filename).then(mureFile => {
-      let xmlText = window.atob(mureFile.base64data);
-      // TODO: embed fileObj.metadata as XML inside fileObj.base64data
-      // create a fake link to initiate the download
-      let a = document.createElement('a');
-      a.style = 'display:none';
-      let url = window.URL.createObjectURL(new window.Blob(xmlText, { type: 'image/svg+xml' }));
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.parentNode.removeChild(a);
-    }).catch(this.catchDbError);
+  extractMetadata (dom, remove) {
+    let metadata = {};
+    let d3dom = d3.select(dom);
+
+    // Extract the container for our metadata, if it exists
+    let root = d3dom.select('#mure');
+    if (root.size() === 0) {
+      return metadata;
+    }
+    let nsElement = root.select('mure');
+    if (nsElement.size() === 0) {
+      return metadata;
+    }
+
+    // Any libraries?
+    nsElement.selectAll('library').each(function (d) {
+      if (!metadata.libraries) {
+        metadata.libraries = [];
+      }
+      metadata.libraries.push(d3.select(this).attr('src'));
+    });
+
+    // Any scripts?
+    nsElement.selectAll('script').each(function (d) {
+      let el = d3.select(this);
+      let script = {
+        text: el.text().replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '')
+      };
+      let id = el.attr('id');
+      if (id) {
+        if (id === 'mureInteractivityRunner') {
+          // Don't store our interactivity runner script
+          return;
+        }
+        script.id = id;
+      }
+      if (!metadata.scripts) {
+        metadata.scripts = [];
+      }
+      metadata.scripts.push(script);
+    });
+
+    // TODO: extract data bindings, encodings?
+
+    if (remove) {
+      root.remove();
+    }
+
+    return metadata;
+  }
+  embedMetadata (dom, metadata) {
+    let d3dom = d3.select(dom);
+
+    // Top: need a metadata tag
+    let root = d3dom.selectAll('#mure').data([0]);
+    root.exit().remove();
+    root = root.enter().append('metadata').attr('id', 'mure').merge(root);
+
+    // Next down: a tag to define the namespace
+    let nsElement = root.selectAll('mure').data([0]);
+    nsElement.exit().remove();
+    nsElement = nsElement.enter().append('mure').attr('xmlns', this.NSString).merge(nsElement);
+
+    // Okay, we're in our custom namespace... let's figure out the libraries
+    let libraryList = metadata.libraries || [];
+    let libraries = nsElement.selectAll('library').data(libraryList);
+    libraries.exit().remove();
+    libraries = libraries.enter().append('library').merge(libraries);
+    libraries.attr('src', d => d);
+
+    // Let's deal with any user scripts; and include the mureInteractivityRunner script if necessary
+    let scriptList = libraryList.concat(metadata.scripts || []);
+    if (scriptList.length > 0) {
+      scriptList.push({
+        id: 'mureInteractivityRunner',
+        text: mureInteractivityRunnerText
+      });
+    }
+    let scripts = nsElement.selectAll('script').data(scriptList);
+    scripts.exit().remove();
+    scripts = scripts.enter().append('script').merge(scripts);
+    scripts.attr('id', d => d.id || null);
+    scripts.attr('text', d => '<![CDATA[' + d.text + ']]>');
+
+    // TODO: Store data binding, encoding metadata
+  }
+  async downloadSvg (filename) {
+    let mureFile;
+    try {
+      // Embed mureFile.metadata as XML inside mureFile.base64data
+      mureFile = await this.getFile(filename);
+    } catch (error) {
+      this.catchDbError(error);
+      return;
+    }
+    let xmlText = window.atob(mureFile.base64data);
+    let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
+    this.embedMetadata(dom, mureFile.metadata);
+    xmlText = new window.XMLSerializer().serializeToString(dom);
+
+    // create a fake link to initiate the download
+    let a = document.createElement('a');
+    a.style = 'display:none';
+    let url = window.URL.createObjectURL(new window.Blob([xmlText], { type: 'image/svg+xml' }));
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.parentNode.removeChild(a);
   }
 }
 
@@ -251,6 +385,10 @@ Mure.VALID_EVENTS = {
   fileChange: true,
   error: true,
   svgLoaded: true
+};
+
+Mure.SIGNALS = {
+  cancelled: true
 };
 
 let mure = new Mure();

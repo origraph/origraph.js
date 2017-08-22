@@ -1,7 +1,10 @@
+// There isn't an easy way to import this file as raw text using only ES6,
+// so it's just simpler to comment the first and last lines when editing.
+
+export default `
 /* globals XMLHttpRequest, ActiveXObject */
 /* eslint no-eval: 0 */
 /* exported mureInteractivity */
-
 var mureInteractivity = {
   getData: function () {
     return 'TODO';
@@ -102,3 +105,4 @@ var mureInteractivity = {
     loadUserLibraries(runUserScripts);
   }
 })();
+`;
