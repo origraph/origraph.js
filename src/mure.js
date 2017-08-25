@@ -1,3 +1,4 @@
+/* eslint no-useless-escape: 0 */
 import * as d3 from 'd3';
 import PouchDB from 'pouchdb';
 import { Model } from 'uki';
@@ -16,6 +17,7 @@ class Mure extends Model {
 
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
+    d3.namespaces.mure = this.NSString;
 
     // Funky stuff to figure out if we're debugging (if that's the case, we want to use
     // localhost instead of the github link for all links)
@@ -269,7 +271,7 @@ class Mure extends Model {
   }
   extractMetadata (dom, remove) {
     let metadata = {};
-    let d3dom = d3.select(dom);
+    let d3dom = d3.select(dom.rootElement);
 
     // Extract the container for our metadata, if it exists
     let root = d3dom.select('#mure');
@@ -318,7 +320,7 @@ class Mure extends Model {
     return metadata;
   }
   embedMetadata (dom, metadata) {
-    let d3dom = d3.select(dom);
+    let d3dom = d3.select(dom.rootElement);
 
     // Top: need a metadata tag
     let root = d3dom.selectAll('#mure').data([0]);
@@ -338,8 +340,8 @@ class Mure extends Model {
     libraries.attr('src', d => d);
 
     // Let's deal with any user scripts; and include the mureInteractivityRunner script if necessary
-    let scriptList = libraryList.concat(metadata.scripts || []);
-    if (scriptList.length > 0) {
+    let scriptList = metadata.scripts || [];
+    if (scriptList.length > 0 || libraryList.length > 0) {
       scriptList.push({
         id: 'mureInteractivityRunner',
         text: mureInteractivityRunnerText
@@ -347,9 +349,12 @@ class Mure extends Model {
     }
     let scripts = nsElement.selectAll('script').data(scriptList);
     scripts.exit().remove();
-    scripts = scripts.enter().append('script').merge(scripts);
+    let scriptsEnter = scripts.enter().append('script');
+    scripts = scriptsEnter.merge(scripts);
     scripts.attr('id', d => d.id || null);
-    scripts.attr('text', d => '<![CDATA[' + d.text + ']]>');
+    scripts.each(function (d) {
+      this.innerHTML = '<![CDATA[' + d.text + ']]>';
+    });
 
     // TODO: Store data binding, encoding metadata
   }
@@ -366,6 +371,7 @@ class Mure extends Model {
     let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
     this.embedMetadata(dom, mureFile.metadata);
     xmlText = new window.XMLSerializer().serializeToString(dom);
+    xmlText = xmlText.replace(/&lt;!\[CDATA\[/g, '<!\[CDATA\[').replace(/]]&gt;/g, ']]>');
 
     // create a fake link to initiate the download
     let a = document.createElement('a');
