@@ -39,12 +39,22 @@ class Mure extends Model {
     this.runUserScripts = false;
 
     // default error handling (apps can listen for / display error messages in addition to this):
-    this.on('error', errorMessage => { console.warn(errorMessage); });
+    this.on('error', errorMessage => {
+      console.warn(errorMessage);
+    });
     this.catchDbError = errorObj => { this.trigger('error', 'Unexpected error reading PouchDB:\n' + errorObj.stack); };
 
-    // in the absence of a custom dialogs, just use window.prompt:
-    this.prompt = window.prompt;
-    this.confirm = window.confirm;
+    // in the absence of a custom dialogs, just use window.prompt and window.confirm:
+    this.prompt = (message, defaultValue) => {
+      return new Promise((resolve, reject) => {
+        resolve(window.prompt(message, defaultValue));
+      });
+    };
+    this.confirm = (message) => {
+      return new Promise((resolve, reject) => {
+        resolve(window.confirm(message));
+      });
+    };
   }
   getOrInitDb () {
     let db = new PouchDB('mure');
@@ -60,63 +70,59 @@ class Mure extends Model {
         this.catchDbError(errorObj);
       }
     });
+
     db.changes({
       since: 'now',
       live: true,
       include_docs: true
-    }).on('change', change => {
+    }).on('change', async change => {
       if (change.id === 'userPrefs') {
         if (this.lastFile !== change.doc.currentFile) {
           // Different filename... a new one was opened, or the current file was deleted
           this.lastFile = change.doc.currentFile;
           // This will have changed the current file list
-          this.getFileList().then(fileList => {
-            this.trigger('fileListChange', fileList);
-          });
+          this.trigger('fileListChange', await this.getFileList());
         }
         // Whether we have a new file, or the current one was updated, fire a fileChange event
-        this.getFile(change.doc.currentFile).then(mureFile => {
-          this.trigger('fileChange', mureFile);
-        });
+        this.trigger('fileChange', await this.getFile(change.doc.currentFile));
       } else if (change.deleted && change.id !== this.lastFile) {
         // If a file is deleted that wasn't opened, it won't ever cause a change
         // to userPrefs. So we need to fire fileListChange immediately.
-        this.getFileList().then(fileList => {
-          this.trigger('fileListChange', fileList);
-        });
+        this.trigger('fileListChange', await this.getFileList());
       }
     }).on('error', errorObj => {
       this.catchDbError(errorObj);
     });
     return db;
   }
-  setCurrentFile (filename) {
+  async setCurrentFile (filename) {
     return this.db.get('userPrefs').then(prefs => {
       prefs.currentFile = filename;
       return this.db.put(prefs);
     }).catch(this.catchDbError);
   }
-  getCurrentFilename () {
+  async getCurrentFilename () {
     return this.db.get('userPrefs').then(prefs => {
       return prefs.currentFile;
     });
   }
-  getFile (filename) {
+  async getFile (filename) {
     if (filename) {
-      return this.db.get(filename, { attachments: true }).then(dbEntry => {
-        return {
-          filename: filename,
-          base64data: dbEntry._attachments[filename].data,
-          metadata: dbEntry.metadata
-        };
-      });
+      return this.db.get(filename, { attachments: true })
+        .then(dbEntry => {
+          return {
+            base64string: dbEntry._attachments[filename].data,
+            metadata: dbEntry.metadata
+          };
+        }).catch(this.catchDbError);
     } else {
       return Promise.resolve(null);
     }
   }
-  getFileBlob (filename) {
+  async getFileBlob (filename) {
     if (filename) {
-      return this.db.getAttachment(filename, filename);
+      return this.db.getAttachment(filename, filename)
+        .catch(this.catchDbError);
     } else {
       return Promise.resolve(null);
     }
@@ -145,39 +151,52 @@ class Mure extends Model {
   openApp (appName) {
     window.open('/' + appName, '_blank');
   }
-  saveFile (filename, blobOrBase64string, metadata, attemptToPreserveOldMetadata) {
-    // TODO: allow saving just the blob/base64 string, just the metadata, or both
-    let dbEntry = {
-      _id: filename,
-      _attachments: {},
-      metadata: metadata || {}
-    };
-    dbEntry._attachments[filename] = {
-      content_type: 'image/svg+xml',
-      data: blobOrBase64string
-    };
-    return this.db.get(filename).then(existingDoc => {
-      // the file exists... overwrite the document
-
-      if (attemptToPreserveOldMetadata &&
-          Object.keys(metadata) === 0 &&
+  async saveFile (filename, options) {
+    try {
+      let existingDoc;
+      if (!options.blobOrBase64string) {
+        existingDoc = await this.db.get(filename);
+      } else {
+        existingDoc = await this.db.get(filename, { attachments: true });
+        existingDoc._attachments[filename].data = options.blobOrBase64string;
+        if ((!options.metadata || Object.keys(options.metadata).length === 0) &&
           Object.keys(existingDoc.metadata) > 0) {
-        // TODO: deal with the case that metadata existed before, but something
-        // (Illustrator, I'm looking at you) trashed it (i.e. ask the user)
-        console.warn('Old metadata was trashed!');
+          let userConfirmation = await this.confirm(
+            'It appears that the file you\'re uploading has lost its Mure metadata. ' +
+            'This is fairly common when you\'ve edited it with an external program.\n\n' +
+            'Restore the most recent metadata?');
+          if (!userConfirmation) {
+            existingDoc.metadata = {};
+          }
+        }
       }
-      dbEntry._rev = existingDoc._rev;
-      return this.db.put(dbEntry);
-    }).catch(errorObj => {
+      if (options.metadata) {
+        existingDoc.metadata = options.metadata;
+      }
+      return await this.db.put(existingDoc);
+    } catch (errorObj) {
       if (errorObj.message === 'missing') {
-        // the file doesn't exist yet...
-        return this.db.put(dbEntry);
+        // The file doesn't exist yet...
+        let newDoc = {
+          _id: filename,
+          _attachments: {},
+          metadata: options.metadata || {}
+        };
+        if (!options.blobOrBase64string) {
+          this.trigger('error', 'Attempted to save a file without contents!');
+        }
+        newDoc._attachments[filename] = {
+          content_type: 'image/svg+xml',
+          data: options.blobOrBase64string
+        };
+        return await this.db.put(newDoc);
       } else {
         this.catchDbError(errorObj);
+        return Promise.resolve(null);
       }
-    });
+    }
   }
-  getFileList () {
+  async getFileList () {
     return this.db.allDocs()
       .then(response => {
         let result = [];
@@ -189,7 +208,7 @@ class Mure extends Model {
         return result;
       }).catch(this.catchDbError);
   }
-  getFileRevisions () {
+  async getFileRevisions () {
     return this.db.allDocs()
       .then(response => {
         let result = {};
@@ -201,7 +220,7 @@ class Mure extends Model {
         return result;
       }).catch(this.catchDbError);
   }
-  uploadSvg (fileObj) {
+  async uploadSvg (fileObj) {
     let reader = new window.FileReader();
     let contentsPromise = new Promise((resolve, reject) => {
       reader.onloadend = xmlText => {
@@ -223,27 +242,31 @@ class Mure extends Model {
 
     let filenamePromise = this.getFileRevisions()
       .catch(this.catchDbError)
-      .then(revisionDict => {
+      .then(async revisionDict => {
         // Ask multiple times if the user happens to enter another filename that already exists
         let filename = fileObj.name;
         while (revisionDict[filename]) {
-          let newName = this.prompt.call(window,
+          let filename = await this.prompt(
             fileObj.name + ' already exists. Pick a new name, or leave it the same to overwrite:',
             fileObj.name);
-          if (!newName) {
+          if (filename === null) {
             reader.abort();
             return Promise.reject(Mure.SIGNALS.cancelled);
-          } else if (newName === filename) {
+          } else if (filename === '') {
+            filename = await this.prompt('You must enter a file name (or hit cancel to cancel the upload)');
+          } else if (filename === fileObj.name) {
+            // They left it the same... overwrite!
             return filename;
-          } else {
-            filename = newName;
           }
         }
         return filename;
       });
 
     return Promise.all([filenamePromise, contentsPromise]).then(([filename, contents]) => {
-      return this.saveFile(filename, contents.base64data, contents.metadata, true).then(() => {
+      return this.saveFile(filename, {
+        blobOrBase64string: contents.base64data,
+        metadata: contents.metadata
+      }).then(() => {
         return this.setCurrentFile(filename);
       });
     }).catch(([fileErr, nameErr]) => {
@@ -254,8 +277,9 @@ class Mure extends Model {
       }
     });
   }
-  deleteSvg (filename) {
-    if (this.confirm.call(window, 'Are you sure you want to delete ' + filename + '?')) {
+  async deleteSvg (filename) {
+    let userConfirmation = await this.confirm('Are you sure you want to delete ' + filename + '?');
+    if (userConfirmation) {
       return Promise.all([this.db.get(filename), this.getCurrentFilename()]).then(promiseResults => {
         let existingDoc = promiseResults[0];
         let currentFile = promiseResults[1];
@@ -267,6 +291,8 @@ class Mure extends Model {
             return removeResponse;
           });
       }).catch(this.catchDbError);
+    } else {
+      return Promise.resolve(false);
     }
   }
   extractMetadata (dom, remove) {
@@ -311,7 +337,28 @@ class Mure extends Model {
       metadata.scripts.push(script);
     });
 
-    // TODO: extract data bindings, encodings?
+    // Any data bindings?
+    nsElement.selectAll('binding').each(function (d) {
+      let el = d3.select(this);
+      let binding = {
+        dataRoot: el.attr('dataroot'),
+        svgRoot: el.attr('svgroot')
+      };
+      let keyFunction = el.attr('keyfunction');
+      if (keyFunction) {
+        binding.keyFunction = keyFunction;
+      } else {
+        let customMatching = el.text().replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '');
+        binding.customMatching = JSON.parse(customMatching);
+      }
+
+      if (!metadata.bindings) {
+        metadata.bindings = [];
+      }
+      metadata.bindings.push(binding);
+    });
+
+    // TODO: Any encodings?
 
     if (remove) {
       root.remove();
@@ -356,7 +403,24 @@ class Mure extends Model {
       this.innerHTML = '<![CDATA[' + d.text + ']]>';
     });
 
-    // TODO: Store data binding, encoding metadata
+    // Store data bindings
+    let bindings = nsElement.selectAll('binding').data(metadata.bindings || []);
+    bindings.exit().remove();
+    let bindingsEnter = bindings.enter().append('binding');
+    bindings = bindingsEnter.merge(bindings);
+    bindings
+      .attr('dataroot', d => d.dataRoot)
+      .attr('svgroot', d => d.svgRoot)
+      .attr('keyfunction', d => d.keyFunction || null)
+      .each(function (d) {
+        if (d.customMatching) {
+          this.innerHTML = '<![CDATA[' + JSON.stringify(d.customMatching) + ']]>';
+        } else {
+          this.innerHTML = '';
+        }
+      });
+
+    // TODO: Store encoding metadata
   }
   async downloadSvg (filename) {
     let mureFile;
@@ -367,7 +431,7 @@ class Mure extends Model {
       this.catchDbError(error);
       return;
     }
-    let xmlText = window.atob(mureFile.base64data);
+    let xmlText = window.atob(mureFile.base64string);
     let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
     this.embedMetadata(dom, mureFile.metadata);
     xmlText = new window.XMLSerializer().serializeToString(dom);
