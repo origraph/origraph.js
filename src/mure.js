@@ -1,5 +1,6 @@
 /* eslint no-useless-escape: 0 */
 import * as d3 from 'd3';
+import datalib from 'datalib';
 import PouchDB from 'pouchdb';
 import { Model } from 'uki';
 import appList from './appList.json';
@@ -42,17 +43,25 @@ class Mure extends Model {
     this.on('error', errorMessage => {
       console.warn(errorMessage);
     });
-    this.catchDbError = errorObj => { this.trigger('error', 'Unexpected error reading PouchDB:\n' + errorObj.stack); };
+    this.catchDbError = errorObj => {
+      this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
+    };
 
-    // in the absence of a custom dialogs, just use window.prompt and window.confirm:
-    this.prompt = (message, defaultValue) => {
+    // in the absence of a custom dialogs, just use window.alert, window.confirm and window.prompt:
+    this.alert = (message) => {
       return new Promise((resolve, reject) => {
-        resolve(window.prompt(message, defaultValue));
+        window.alert(message);
+        resolve(true);
       });
     };
     this.confirm = (message) => {
       return new Promise((resolve, reject) => {
         resolve(window.confirm(message));
+      });
+    };
+    this.prompt = (message, defaultValue) => {
+      return new Promise((resolve, reject) => {
+        resolve(window.prompt(message, defaultValue));
       });
     };
   }
@@ -75,20 +84,26 @@ class Mure extends Model {
       since: 'now',
       live: true,
       include_docs: true
-    }).on('change', async change => {
+    }).on('change', change => {
       if (change.id === 'userPrefs') {
         if (this.lastFile !== change.doc.currentFile) {
           // Different filename... a new one was opened, or the current file was deleted
           this.lastFile = change.doc.currentFile;
           // This will have changed the current file list
-          this.trigger('fileListChange', await this.getFileList());
+          (async () => {
+            this.trigger('fileListChange', await this.getFileList());
+          })().catch(this.catchDbError);
         }
         // Whether we have a new file, or the current one was updated, fire a fileChange event
-        this.trigger('fileChange', await this.getFile(change.doc.currentFile));
+        (async () => {
+          this.trigger('fileChange', await this.getFile(change.doc.currentFile));
+        })().catch(this.catchDbError);
       } else if (change.deleted && change.id !== this.lastFile) {
         // If a file is deleted that wasn't opened, it won't ever cause a change
         // to userPrefs. So we need to fire fileListChange immediately.
-        this.trigger('fileListChange', await this.getFileList());
+        (async () => {
+          this.trigger('fileListChange', await this.getFileList());
+        })().catch(this.catchDbError);
       }
     }).on('error', errorObj => {
       this.catchDbError(errorObj);
@@ -106,18 +121,25 @@ class Mure extends Model {
       return prefs.currentFile;
     });
   }
-  async getFile (filename) {
+  async getFile (filename, excludeData) {
     if (filename) {
-      return this.db.get(filename, { attachments: true })
+      return this.db.get(filename, { attachments: !excludeData })
         .then(dbEntry => {
-          return {
-            base64string: dbEntry._attachments[filename].data,
+          let mureFile = {
             metadata: dbEntry.metadata
           };
+          if (dbEntry._attachments[filename].data) {
+            mureFile.base64string = dbEntry._attachments[filename].data;
+          }
+          return mureFile;
         }).catch(this.catchDbError);
     } else {
       return Promise.resolve(null);
     }
+  }
+  async getCurrentMetadata (filename) {
+    let currentFile = await this.getFile(await this.getCurrentFilename(), true);
+    return currentFile !== null ? currentFile.metadata : null;
   }
   async getFileBlob (filename) {
     if (filename) {
@@ -142,6 +164,9 @@ class Mure extends Model {
       super.on(eventName, callback);
     }
   }
+  customizeAlertDialog (showDialogFunction) {
+    this.alert = showDialogFunction;
+  }
   customizeConfirmDialog (showDialogFunction) {
     this.confirm = showDialogFunction;
   }
@@ -151,14 +176,17 @@ class Mure extends Model {
   openApp (appName) {
     window.open('/' + appName, '_blank');
   }
-  async saveFile (filename, options) {
+  async saveFile (options) {
     try {
       let existingDoc;
+      if (!options.filename) {
+        options.filename = await this.getCurrentFilename();
+      }
       if (!options.blobOrBase64string) {
-        existingDoc = await this.db.get(filename);
+        existingDoc = await this.db.get(options.filename);
       } else {
-        existingDoc = await this.db.get(filename, { attachments: true });
-        existingDoc._attachments[filename].data = options.blobOrBase64string;
+        existingDoc = await this.db.get(options.filename, { attachments: true });
+        existingDoc._attachments[options.filename].data = options.blobOrBase64string;
         if ((!options.metadata || Object.keys(options.metadata).length === 0) &&
           Object.keys(existingDoc.metadata) > 0) {
           let userConfirmation = await this.confirm(
@@ -178,21 +206,21 @@ class Mure extends Model {
       if (errorObj.message === 'missing') {
         // The file doesn't exist yet...
         let newDoc = {
-          _id: filename,
+          _id: options.filename,
           _attachments: {},
           metadata: options.metadata || {}
         };
         if (!options.blobOrBase64string) {
           this.trigger('error', 'Attempted to save a file without contents!');
         }
-        newDoc._attachments[filename] = {
+        newDoc._attachments[options.filename] = {
           content_type: 'image/svg+xml',
           data: options.blobOrBase64string
         };
         return await this.db.put(newDoc);
       } else {
         this.catchDbError(errorObj);
-        return Promise.resolve(null);
+        return Promise.reject();
       }
     }
   }
@@ -220,9 +248,8 @@ class Mure extends Model {
         return result;
       }).catch(this.catchDbError);
   }
-  async uploadSvg (fileObj) {
-    let reader = new window.FileReader();
-    let contentsPromise = new Promise((resolve, reject) => {
+  async readFile (reader, fileObj) {
+    return new Promise((resolve, reject) => {
       reader.onloadend = xmlText => {
         resolve(xmlText.target.result);
       };
@@ -233,7 +260,69 @@ class Mure extends Model {
         reject(Mure.SIGNALS.cancelled);
       };
       reader.readAsText(fileObj);
-    }).then(xmlText => {
+    });
+  }
+  async validateFileName (originalName, takenNames, abortFunction) {
+    // Ask multiple times if the user happens to enter another filename that already exists
+    let filename = originalName;
+    while (takenNames[filename]) {
+      let filename = await this.prompt(
+        filename + ' already exists. Pick a new name, or leave it the same to overwrite:',
+        filename);
+      if (filename === null) {
+        if (abortFunction) {
+          abortFunction();
+        }
+        return Promise.reject(Mure.SIGNALS.cancelled);
+      } else if (filename === '') {
+        filename = await this.prompt('You must enter a file name (or hit cancel to cancel the upload)');
+      } else if (filename === originalName) {
+        // They left it the same... overwrite!
+        return filename;
+      }
+    }
+    return filename;
+  }
+  inferParser (fileObj) {
+    let ext = fileObj.type.split('/')[1];
+    if (ext === 'csv') {
+      return (contents) => { return datalib.read(contents, {type: 'csv', parse: 'auto'}); };
+    } else if (ext === 'tsv') {
+      return (contents) => { return datalib.read(contents, {type: 'tsv', parse: 'auto'}); };
+    } else if (ext === 'dsv') {
+      return (contents) => { return datalib.read(contents, {type: 'dsv', parse: 'auto'}); };
+    } else if (ext === 'json') {
+      // TODO: attempt to auto-discover topojson or treejson?
+      return (contents) => { return datalib.read(contents, {type: 'json', parse: 'auto'}); };
+    } else {
+      return null;
+    }
+  }
+  async uploadDataset (fileObj) {
+    let parser = this.inferParser(fileObj);
+    if (!parser) {
+      this.trigger('error', 'Unknown data file type: ' + fileObj.type);
+      return Promise.reject();
+    }
+
+    let metadata = await this.getCurrentMetadata();
+    if (metadata === null) {
+      this.trigger('error', 'Can\'t embed a data file without an SVG file already open');
+      return Promise.reject();
+    }
+    metadata.datasets = metadata.datasets || {};
+
+    let reader = new window.FileReader();
+    let fileText = await this.readFile(reader, fileObj);
+    let dataFileName = await this.validateFileName(fileObj.name, metadata.datasets, reader.abort);
+
+    metadata.datasets[dataFileName] = parser(fileText);
+    return this.saveFile({ metadata });
+  }
+  async uploadSvg (fileObj) {
+    let reader = new window.FileReader();
+    let contentsPromise = this.readFile(reader, fileObj)
+    .then(xmlText => {
       let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
       let contents = { metadata: this.extractMetadata(dom, true) };
       contents.base64data = window.btoa(new window.XMLSerializer().serializeToString(dom));
@@ -242,28 +331,13 @@ class Mure extends Model {
 
     let filenamePromise = this.getFileRevisions()
       .catch(this.catchDbError)
-      .then(async revisionDict => {
-        // Ask multiple times if the user happens to enter another filename that already exists
-        let filename = fileObj.name;
-        while (revisionDict[filename]) {
-          let filename = await this.prompt(
-            fileObj.name + ' already exists. Pick a new name, or leave it the same to overwrite:',
-            fileObj.name);
-          if (filename === null) {
-            reader.abort();
-            return Promise.reject(Mure.SIGNALS.cancelled);
-          } else if (filename === '') {
-            filename = await this.prompt('You must enter a file name (or hit cancel to cancel the upload)');
-          } else if (filename === fileObj.name) {
-            // They left it the same... overwrite!
-            return filename;
-          }
-        }
-        return filename;
+      .then(revisionDict => {
+        return this.validateFileName(fileObj.name, revisionDict, reader.abort);
       });
 
     return Promise.all([filenamePromise, contentsPromise]).then(([filename, contents]) => {
-      return this.saveFile(filename, {
+      return this.saveFile({
+        filename,
         blobOrBase64string: contents.base64data,
         metadata: contents.metadata
       }).then(() => {
@@ -321,7 +395,7 @@ class Mure extends Model {
     nsElement.selectAll('script').each(function (d) {
       let el = d3.select(this);
       let script = {
-        text: el.text().replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '')
+        text: this.extractCDATA(el.text())
       };
       let id = el.attr('id');
       if (id) {
@@ -337,6 +411,15 @@ class Mure extends Model {
       metadata.scripts.push(script);
     });
 
+    // Any datasets?
+    nsElement.selectAll('datasets').each(function (d) {
+      let el = d3.select(this);
+      if (!metadata.datasets) {
+        metadata.datasets = {};
+      }
+      metadata.datasets[el.attr('name')] = JSON.parse(this.extractCDATA(el.text()));
+    });
+
     // Any data bindings?
     nsElement.selectAll('binding').each(function (d) {
       let el = d3.select(this);
@@ -348,8 +431,7 @@ class Mure extends Model {
       if (keyFunction) {
         binding.keyFunction = keyFunction;
       } else {
-        let customMatching = el.text().replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '');
-        binding.customMatching = JSON.parse(customMatching);
+        binding.customMatching = JSON.parse(this.extractCDATA(el.text()));
       }
 
       if (!metadata.bindings) {
@@ -365,6 +447,9 @@ class Mure extends Model {
     }
 
     return metadata;
+  }
+  extractCDATA (str) {
+    return str.replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '');
   }
   embedMetadata (dom, metadata) {
     let d3dom = d3.select(dom.rootElement);
@@ -402,6 +487,16 @@ class Mure extends Model {
     scripts.each(function (d) {
       this.innerHTML = '<![CDATA[' + d.text + ']]>';
     });
+
+    // We always store datasets as JSON
+    let datasets = nsElement.selectAll('dataset').data(d3.entries(metadata.datasets || {}));
+    datasets.exit().remove();
+    let datasetsEnter = datasets.enter().append('dataset');
+    datasets = datasetsEnter.merge(datasets);
+    datasets.attr('name', d => d.key)
+      .each(function (d) {
+        this.innerHTML = '<![CDATA[' + JSON.stringify(d.value) + ']]>';
+      });
 
     // Store data bindings
     let bindings = nsElement.selectAll('binding').data(metadata.bindings || []);
