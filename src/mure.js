@@ -173,8 +173,12 @@ class Mure extends Model {
   customizePromptDialog (showDialogFunction) {
     this.prompt = showDialogFunction;
   }
-  openApp (appName) {
-    window.open('/' + appName, '_blank');
+  openApp (appName, newTab) {
+    if (newTab) {
+      window.open('/' + appName, '_blank');
+    } else {
+      window.location.pathname = '/' + appName;
+    }
   }
   async saveFile (options) {
     try {
