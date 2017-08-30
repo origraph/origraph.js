@@ -91,18 +91,21 @@ class Mure extends Model {
           this.lastFile = change.doc.currentFile;
           // This will have changed the current file list
           (async () => {
-            this.trigger('fileListChange', await this.getFileList());
+            let fileList = await this.getFileList();
+            this.trigger('fileListChange', fileList);
           })().catch(this.catchDbError);
         }
         // Whether we have a new file, or the current one was updated, fire a fileChange event
         (async () => {
-          this.trigger('fileChange', await this.getFile(change.doc.currentFile));
+          let currentFile = await this.getFile(change.doc.currentFile);
+          this.trigger('fileChange', currentFile);
         })().catch(this.catchDbError);
       } else if (change.deleted && change.id !== this.lastFile) {
         // If a file is deleted that wasn't opened, it won't ever cause a change
         // to userPrefs. So we need to fire fileListChange immediately.
         (async () => {
-          this.trigger('fileListChange', await this.getFileList());
+          let fileList = await this.getFileList();
+          this.trigger('fileListChange', fileList);
         })().catch(this.catchDbError);
       }
     }).on('error', errorObj => {
@@ -126,6 +129,7 @@ class Mure extends Model {
       return this.db.get(filename, { attachments: !excludeData })
         .then(dbEntry => {
           let mureFile = {
+            filename,
             metadata: dbEntry.metadata
           };
           if (dbEntry._attachments[filename].data) {
@@ -137,7 +141,7 @@ class Mure extends Model {
       return Promise.resolve(null);
     }
   }
-  async getCurrentMetadata (filename) {
+  async getCurrentMetadata () {
     let currentFile = await this.getFile(await this.getCurrentFilename(), true);
     return currentFile !== null ? currentFile.metadata : null;
   }
