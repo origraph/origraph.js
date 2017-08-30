@@ -94,12 +94,8 @@ var mureInteractivity = {
   }
 
   // Where we actually start executing stuff:
-  if (window.parent !== window && window.parent.mure) {
-    // This SVG is getting edited in a mure app! In that case, the parent mure library
-    // is responsible to figure out whether or not our libraries / scripts should
-    // even be loaded
-    window.parent.mure.signalSvgLoaded(loadUserLibraries, runUserScripts);
-  } else {
+  if (!window.frameElement ||
+      !window.frameElement.__suppressInteractivity__) {
     // We've been loaded directly into a browser, or embedded in a normal page;
     // load all the libraries, and then run all the scripts
     loadUserLibraries(runUserScripts);

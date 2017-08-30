@@ -36,9 +36,6 @@ class Mure extends Model {
     this.lastFile = null;
     this.db = this.getOrInitDb();
 
-    this.loadUserLibraries = false;
-    this.runUserScripts = false;
-
     // default error handling (apps can listen for / display error messages in addition to this):
     this.on('error', errorMessage => {
       console.warn(errorMessage);
@@ -124,9 +121,13 @@ class Mure extends Model {
       return prefs.currentFile;
     });
   }
-  async getFile (filename, excludeData) {
-    if (filename) {
-      return this.db.get(filename, { attachments: !excludeData })
+  async getFile (filename, includeData) {
+    if (!filename) {
+      filename = await this.getCurrentFilename();
+    }
+
+    if (filename !== null) {
+      return this.db.get(filename, { attachments: !!includeData })
         .then(dbEntry => {
           let mureFile = {
             filename,
@@ -141,25 +142,31 @@ class Mure extends Model {
       return Promise.resolve(null);
     }
   }
-  async getCurrentMetadata () {
-    let currentFile = await this.getFile(await this.getCurrentFilename(), true);
+  async getMetadata (filename) {
+    let currentFile = await this.getFile(filename);
     return currentFile !== null ? currentFile.metadata : null;
   }
-  async getFileBlob (filename) {
-    if (filename) {
+  async getFileAsBlob (filename) {
+    if (!filename) {
+      filename = await this.getCurrentFilename();
+    }
+    if (filename !== null) {
       return this.db.getAttachment(filename, filename)
         .catch(this.catchDbError);
     } else {
       return Promise.resolve(null);
     }
   }
-  signalSvgLoaded (loadUserLibrariesFunc, runUserScriptsFunc) {
-    // Only load the SVG's linked libraries + embedded scripts if we've been told to
-    let callback = this.runUserScripts ? runUserScriptsFunc : () => {};
-    if (this.loadUserLibraries) {
-      loadUserLibrariesFunc(callback);
+  async getFileAsDOM (filename) {
+    let mureFile = this.getFile(filename, true);
+    if (mureFile !== null) {
+      let xmlText = window.atob(mureFile.base64string);
+      return new Promise((resolve, reject) => {
+        resolve(new window.DOMParser().parseFromString(xmlText, 'image/svg+xml'));
+      });
+    } else {
+      return Promise.resolve(null);
     }
-    this.trigger('svgLoaded');
   }
   on (eventName, callback) {
     if (!Mure.VALID_EVENTS[eventName]) {
@@ -313,7 +320,7 @@ class Mure extends Model {
       return Promise.reject();
     }
 
-    let metadata = await this.getCurrentMetadata();
+    let metadata = await this.getMetadata();
     if (metadata === null) {
       this.trigger('error', 'Can\'t embed a data file without an SVG file already open');
       return Promise.reject();
@@ -332,7 +339,7 @@ class Mure extends Model {
     let contentsPromise = this.readFile(reader, fileObj)
     .then(xmlText => {
       let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
-      let contents = { metadata: this.extractMetadata(dom, true) };
+      let contents = { metadata: this.extractMetadata(dom) };
       contents.base64data = window.btoa(new window.XMLSerializer().serializeToString(dom));
       return contents;
     });
@@ -351,11 +358,11 @@ class Mure extends Model {
       }).then(() => {
         return this.setCurrentFile(filename);
       });
-    }).catch(([fileErr, nameErr]) => {
-      if (fileErr === Mure.SIGNALS.cancelled && nameErr === Mure.SIGNALS.cancelled) {
+    }).catch((errList) => {
+      if (errList[0] === Mure.SIGNALS.cancelled && errList[1] === Mure.SIGNALS.cancelled) {
         return; // cancelling is not a problem
       } else {
-        return Promise.reject([fileErr, nameErr]);
+        return Promise.reject(errList);
       }
     });
   }
@@ -377,7 +384,8 @@ class Mure extends Model {
       return Promise.resolve(false);
     }
   }
-  extractMetadata (dom, remove) {
+  extractMetadata (dom) {
+    let self = this;
     let metadata = {};
     let d3dom = d3.select(dom.rootElement);
 
@@ -403,7 +411,7 @@ class Mure extends Model {
     nsElement.selectAll('script').each(function (d) {
       let el = d3.select(this);
       let script = {
-        text: this.extractCDATA(el.text())
+        text: self.extractCDATA(el.text())
       };
       let id = el.attr('id');
       if (id) {
@@ -425,7 +433,7 @@ class Mure extends Model {
       if (!metadata.datasets) {
         metadata.datasets = {};
       }
-      metadata.datasets[el.attr('name')] = JSON.parse(this.extractCDATA(el.text()));
+      metadata.datasets[el.attr('name')] = JSON.parse(self.extractCDATA(el.text()));
     });
 
     // Any data bindings?
@@ -439,7 +447,7 @@ class Mure extends Model {
       if (keyFunction) {
         binding.keyFunction = keyFunction;
       } else {
-        binding.customMatching = JSON.parse(this.extractCDATA(el.text()));
+        binding.customMatching = JSON.parse(self.extractCDATA(el.text()));
       }
 
       if (!metadata.bindings) {
@@ -449,10 +457,6 @@ class Mure extends Model {
     });
 
     // TODO: Any encodings?
-
-    if (remove) {
-      root.remove();
-    }
 
     return metadata;
   }
@@ -479,14 +483,8 @@ class Mure extends Model {
     libraries = libraries.enter().append('library').merge(libraries);
     libraries.attr('src', d => d);
 
-    // Let's deal with any user scripts; and include the mureInteractivityRunner script if necessary
+    // Let's deal with any user scripts
     let scriptList = metadata.scripts || [];
-    if (scriptList.length > 0 || libraryList.length > 0) {
-      scriptList.push({
-        id: 'mureInteractivityRunner',
-        text: mureInteractivityRunnerText
-      });
-    }
     let scripts = nsElement.selectAll('script').data(scriptList);
     scripts.exit().remove();
     let scriptsEnter = scripts.enter().append('script');
@@ -495,6 +493,16 @@ class Mure extends Model {
     scripts.each(function (d) {
       this.innerHTML = '<![CDATA[' + d.text + ']]>';
     });
+
+    // Remove mureInteractivityRunner by default to ensure it always comes after the
+    // metadata tag (of course, only bother adding it if we have any libraries or scripts)
+    d3dom.select('#mureInteractivityRunner').remove();
+    if (libraryList.length > 0 || scriptList.length > 0) {
+      d3dom.append('script')
+        .attr('id', 'mureInteractivityRunner')
+        .attr('type', 'text/javascript')
+        .text('<![CDATA[' + mureInteractivityRunnerText + ']]');
+    }
 
     // We always store datasets as JSON
     let datasets = nsElement.selectAll('dataset').data(d3.entries(metadata.datasets || {}));
@@ -529,7 +537,7 @@ class Mure extends Model {
     let mureFile;
     try {
       // Embed mureFile.metadata as XML inside mureFile.base64data
-      mureFile = await this.getFile(filename);
+      mureFile = await this.getFile(filename, true);
     } catch (error) {
       this.catchDbError(error);
       return;
@@ -556,8 +564,7 @@ class Mure extends Model {
 Mure.VALID_EVENTS = {
   fileListChange: true,
   fileChange: true,
-  error: true,
-  svgLoaded: true
+  error: true
 };
 
 Mure.SIGNALS = {
