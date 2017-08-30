@@ -158,7 +158,7 @@ class Mure extends Model {
     }
   }
   async getFileAsDOM (filename) {
-    let mureFile = this.getFile(filename, true);
+    let mureFile = await this.getFile(filename, true);
     if (mureFile !== null) {
       let xmlText = window.atob(mureFile.base64string);
       return new Promise((resolve, reject) => {
