@@ -131,7 +131,8 @@ class Mure extends Model {
         .then(dbEntry => {
           let mureFile = {
             filename,
-            metadata: dbEntry.metadata
+            metadata: dbEntry.metadata,
+            _rev: dbEntry._rev
           };
           if (dbEntry._attachments[filename].data) {
             mureFile.base64string = dbEntry._attachments[filename].data;
