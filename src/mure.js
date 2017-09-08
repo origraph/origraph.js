@@ -104,6 +104,9 @@ class Mure extends Model {
           let fileList = await this.getFileList();
           this.trigger('fileListChange', fileList);
         })().catch(this.catchDbError);
+      } else {
+        // The current file was changed in some way (without changing the file name)
+        this.trigger('fileSave');
       }
     }).on('error', errorObj => {
       this.catchDbError(errorObj);
@@ -236,7 +239,7 @@ class Mure extends Model {
         return await this.db.put(newDoc);
       } else {
         this.catchDbError(errorObj);
-        return Promise.reject();
+        return Promise.reject(errorObj);
       }
     }
   }
@@ -444,12 +447,7 @@ class Mure extends Model {
         dataRoot: el.attr('dataroot'),
         svgRoot: el.attr('svgroot')
       };
-      let keyFunction = el.attr('keyfunction');
-      if (keyFunction) {
-        binding.keyFunction = keyFunction;
-      } else {
-        binding.customMatching = JSON.parse(self.extractCDATA(el.text()));
-      }
+      binding.keyFunction = JSON.parse(self.extractCDATA(el.text()));
 
       if (!metadata.bindings) {
         metadata.bindings = [];
@@ -523,14 +521,7 @@ class Mure extends Model {
     bindings
       .attr('dataroot', d => d.dataRoot)
       .attr('svgroot', d => d.svgRoot)
-      .attr('keyfunction', d => d.keyFunction || null)
-      .each(function (d) {
-        if (d.customMatching) {
-          this.innerHTML = '<![CDATA[' + JSON.stringify(d.customMatching) + ']]>';
-        } else {
-          this.innerHTML = '';
-        }
-      });
+      .html(d => '<![CDATA[' + JSON.stringify(d.keyFunction) + ']]>');
 
     // TODO: Store encoding metadata
   }
@@ -565,6 +556,7 @@ class Mure extends Model {
 Mure.VALID_EVENTS = {
   fileListChange: true,
   fileChange: true,
+  fileSave: true,
   error: true
 };
 
