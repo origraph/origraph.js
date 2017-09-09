@@ -444,23 +444,81 @@ class Mure extends Model {
     nsElement.selectAll('binding').each(function (d) {
       let el = d3.select(this);
       let binding = {
+        id: el.attr('id'),
         dataRoot: el.attr('dataroot'),
-        svgRoot: el.attr('svgroot')
+        svgRoot: el.attr('svgroot'),
+        keyFunction: JSON.parse(self.extractCDATA(el.text()))
       };
-      binding.keyFunction = JSON.parse(self.extractCDATA(el.text()));
 
       if (!metadata.bindings) {
-        metadata.bindings = [];
+        metadata.bindings = {};
       }
-      metadata.bindings.push(binding);
+      metadata.bindings[binding.id] = binding;
     });
 
-    // TODO: Any encodings?
+    // Any encodings?
+    nsElement.selectAll('encoding').each(function (d) {
+      let el = d3.select(this);
+      let encoding = {
+        id: el.attr('id'),
+        bindingId: el.attr('for'),
+        spec: JSON.parse(self.extractCDATA(el.text()))
+      };
+
+      if (!metadata.encodings) {
+        metadata.encodings = {};
+      }
+      metadata.encodings[encoding.id] = encoding;
+    });
 
     return metadata;
   }
   extractCDATA (str) {
     return str.replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '');
+  }
+  getEmptyBinding (metadata, add) {
+    let id = 1;
+    /* eslint-disable no-unmodified-loop-condition */
+    while (metadata.bindings && metadata.bindings['Binding' + id]) {
+      id++;
+    }
+    /* eslint-enable no-unmodified-loop-condition */
+    let newBinding = {
+      id: 'Binding' + id,
+      svgRoot: '',
+      dataRoot: '',
+      keyFunction: {
+        dataExpression: '(d, i) => i',
+        svgExpression: '(el, d3el, $el, i) => i'
+      }
+    };
+    if (add) {
+      if (!metadata.bindings) {
+        metadata.bindings = {};
+      }
+      metadata.bindings[newBinding.id] = newBinding;
+    }
+    return newBinding;
+  }
+  getEmptyEncoding (metadata, add) {
+    let id = 1;
+    /* eslint-disable no-unmodified-loop-condition */
+    while (metadata.encodings && metadata.encodings['Encoding' + id]) {
+      id++;
+    }
+    /* eslint-enable no-unmodified-loop-condition */
+    let newEncoding = {
+      id: 'Encoding' + id,
+      bindingId: null,
+      spec: {}
+    };
+    if (add) {
+      if (!metadata.encodings) {
+        metadata.encodings = {};
+      }
+      metadata.encodings[newEncoding.id] = newEncoding;
+    }
+    return newEncoding;
   }
   embedMetadata (dom, metadata) {
     let d3dom = d3.select(dom.rootElement);
@@ -509,21 +567,28 @@ class Mure extends Model {
     let datasetsEnter = datasets.enter().append('dataset');
     datasets = datasetsEnter.merge(datasets);
     datasets.attr('name', d => d.key)
-      .each(function (d) {
-        this.innerHTML = '<![CDATA[' + JSON.stringify(d.value) + ']]>';
-      });
+      .html(d => '<![CDATA[' + JSON.stringify(d.value) + ']]>');
 
     // Store data bindings
-    let bindings = nsElement.selectAll('binding').data(metadata.bindings || []);
+    let bindings = nsElement.selectAll('binding').data(d3.values(metadata.bindings || {}));
     bindings.exit().remove();
     let bindingsEnter = bindings.enter().append('binding');
     bindings = bindingsEnter.merge(bindings);
     bindings
+      .attr('id', d => d.id)
       .attr('dataroot', d => d.dataRoot)
       .attr('svgroot', d => d.svgRoot)
       .html(d => '<![CDATA[' + JSON.stringify(d.keyFunction) + ']]>');
 
-    // TODO: Store encoding metadata
+    // Store encoding metadata
+    let encodings = nsElement.selectAll('encoding').data(d3.values(metadata.encodings || {}));
+    encodings.exit().remove();
+    let encodingsEnter = encodings.enter().append('encoding');
+    encodings = encodingsEnter.merge(encodings);
+    encodings
+      .attr('id', d => d.id)
+      .attr('bindingid', d => d.bindingId)
+      .html(d => '<![CDATA[' + JSON.stringify(d.spec) + ']]>');
   }
   async downloadSvg (filename) {
     let mureFile;
