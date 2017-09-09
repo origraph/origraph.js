@@ -1,6 +1,10 @@
+/* eslint no-useless-escape: 0 */
+import * as d3 from 'd3';
+import datalib from 'datalib';
 import PouchDB from 'pouchdb';
-import appList from './appList.json';
 import { Model } from 'uki';
+import appList from './appList.json';
+import mureInteractivityRunnerText from './mureInteractivityRunner.js';
 
 class Mure extends Model {
   constructor () {
@@ -11,6 +15,10 @@ class Mure extends Model {
     if (typeof document === 'undefined' || typeof window === undefined) {
       return;
     }
+
+    // The namespace string for our custom XML
+    this.NSString = 'http://mure-apps.github.io';
+    d3.namespaces.mure = this.NSString;
 
     // Funky stuff to figure out if we're debugging (if that's the case, we want to use
     // localhost instead of the github link for all links)
@@ -28,16 +36,31 @@ class Mure extends Model {
     this.lastFile = null;
     this.db = this.getOrInitDb();
 
-    this.loadUserLibraries = false;
-    this.runUserScripts = false;
-
     // default error handling (apps can listen for / display error messages in addition to this):
-    this.on('error', errorMessage => { console.warn(errorMessage); });
-    this.catchDbError = errorObj => { this.trigger('error', 'Unexpected error reading PouchDB:\n' + errorObj.stack); };
+    this.on('error', errorMessage => {
+      console.warn(errorMessage);
+    });
+    this.catchDbError = errorObj => {
+      this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
+    };
 
-    // in the absence of a custom dialogs, just use window.prompt:
-    this.prompt = window.prompt;
-    this.confirm = window.confirm;
+    // in the absence of a custom dialogs, just use window.alert, window.confirm and window.prompt:
+    this.alert = (message) => {
+      return new Promise((resolve, reject) => {
+        window.alert(message);
+        resolve(true);
+      });
+    };
+    this.confirm = (message) => {
+      return new Promise((resolve, reject) => {
+        resolve(window.confirm(message));
+      });
+    };
+    this.prompt = (message, defaultValue) => {
+      return new Promise((resolve, reject) => {
+        resolve(window.prompt(message, defaultValue));
+      });
+    };
   }
   getOrInitDb () {
     let db = new PouchDB('mure');
@@ -53,6 +76,7 @@ class Mure extends Model {
         this.catchDbError(errorObj);
       }
     });
+
     db.changes({
       since: 'now',
       live: true,
@@ -63,64 +87,90 @@ class Mure extends Model {
           // Different filename... a new one was opened, or the current file was deleted
           this.lastFile = change.doc.currentFile;
           // This will have changed the current file list
-          this.getFileList().then(fileList => {
+          (async () => {
+            let fileList = await this.getFileList();
             this.trigger('fileListChange', fileList);
-          });
+          })().catch(this.catchDbError);
         }
         // Whether we have a new file, or the current one was updated, fire a fileChange event
-        this.getFile(change.doc.currentFile).then(mureFile => {
-          this.trigger('fileChange', mureFile);
-        });
+        (async () => {
+          let currentFile = await this.getFile(change.doc.currentFile);
+          this.trigger('fileChange', currentFile);
+        })().catch(this.catchDbError);
       } else if (change.deleted && change.id !== this.lastFile) {
         // If a file is deleted that wasn't opened, it won't ever cause a change
         // to userPrefs. So we need to fire fileListChange immediately.
-        this.getFileList().then(fileList => {
+        (async () => {
+          let fileList = await this.getFileList();
           this.trigger('fileListChange', fileList);
-        });
+        })().catch(this.catchDbError);
+      } else {
+        // The current file was changed in some way (without changing the file name)
+        this.trigger('fileSave');
       }
     }).on('error', errorObj => {
       this.catchDbError(errorObj);
     });
     return db;
   }
-  setCurrentFile (filename) {
+  async setCurrentFile (filename) {
     return this.db.get('userPrefs').then(prefs => {
       prefs.currentFile = filename;
       return this.db.put(prefs);
     }).catch(this.catchDbError);
   }
-  getCurrentFilename () {
+  async getCurrentFilename () {
     return this.db.get('userPrefs').then(prefs => {
       return prefs.currentFile;
     });
   }
-  getFile (filename) {
-    if (filename) {
-      return this.db.get(filename, { attachments: true }).then(dbEntry => {
-        return {
-          filename: filename,
-          base64data: dbEntry._attachments[filename].data,
-          metadata: dbEntry.metadata
-        };
+  async getFile (filename, includeData) {
+    if (!filename) {
+      filename = await this.getCurrentFilename();
+    }
+
+    if (filename !== null) {
+      return this.db.get(filename, { attachments: !!includeData })
+        .then(dbEntry => {
+          let mureFile = {
+            filename,
+            metadata: dbEntry.metadata,
+            _rev: dbEntry._rev
+          };
+          if (dbEntry._attachments[filename].data) {
+            mureFile.base64string = dbEntry._attachments[filename].data;
+          }
+          return mureFile;
+        }).catch(this.catchDbError);
+    } else {
+      return Promise.resolve(null);
+    }
+  }
+  async getMetadata (filename) {
+    let currentFile = await this.getFile(filename);
+    return currentFile !== null ? currentFile.metadata : null;
+  }
+  async getFileAsBlob (filename) {
+    if (!filename) {
+      filename = await this.getCurrentFilename();
+    }
+    if (filename !== null) {
+      return this.db.getAttachment(filename, filename)
+        .catch(this.catchDbError);
+    } else {
+      return Promise.resolve(null);
+    }
+  }
+  async getFileAsDOM (filename) {
+    let mureFile = await this.getFile(filename, true);
+    if (mureFile !== null) {
+      let xmlText = window.atob(mureFile.base64string);
+      return new Promise((resolve, reject) => {
+        resolve(new window.DOMParser().parseFromString(xmlText, 'image/svg+xml'));
       });
     } else {
       return Promise.resolve(null);
     }
-  }
-  getFileBlob (filename) {
-    if (filename) {
-      return this.db.getAttachment(filename, filename);
-    } else {
-      return Promise.resolve(null);
-    }
-  }
-  signalSvgLoaded (loadUserLibrariesFunc, runUserScriptsFunc) {
-    // Only load the SVG's linked libraries + embedded scripts if we've been told to
-    let callback = this.runUserScripts ? runUserScriptsFunc : () => {};
-    if (this.loadUserLibraries) {
-      loadUserLibrariesFunc(callback);
-    }
-    this.trigger('svgLoaded');
   }
   on (eventName, callback) {
     if (!Mure.VALID_EVENTS[eventName]) {
@@ -129,39 +179,71 @@ class Mure extends Model {
       super.on(eventName, callback);
     }
   }
+  customizeAlertDialog (showDialogFunction) {
+    this.alert = showDialogFunction;
+  }
   customizeConfirmDialog (showDialogFunction) {
     this.confirm = showDialogFunction;
   }
   customizePromptDialog (showDialogFunction) {
     this.prompt = showDialogFunction;
   }
-  openApp (appName) {
-    window.open('/' + appName, '_blank');
+  openApp (appName, newTab) {
+    if (newTab) {
+      window.open('/' + appName, '_blank');
+    } else {
+      window.location.pathname = '/' + appName;
+    }
   }
-  saveFile (filename, blobOrBase64string, metadata) {
-    let dbEntry = {
-      _id: filename,
-      _attachments: {},
-      metadata: metadata || {}
-    };
-    dbEntry._attachments[filename] = {
-      content_type: 'image/svg+xml',
-      data: blobOrBase64string
-    };
-    return this.db.get(filename).then(existingDoc => {
-      // the file exists... overwrite the document
-      dbEntry._rev = existingDoc._rev;
-      return this.db.put(dbEntry);
-    }).catch(errorObj => {
+  async saveFile (options) {
+    try {
+      let existingDoc;
+      if (!options.filename) {
+        options.filename = await this.getCurrentFilename();
+      }
+      if (!options.blobOrBase64string) {
+        existingDoc = await this.db.get(options.filename);
+      } else {
+        existingDoc = await this.db.get(options.filename, { attachments: true });
+        existingDoc._attachments[options.filename].data = options.blobOrBase64string;
+        if ((!options.metadata || Object.keys(options.metadata).length === 0) &&
+          Object.keys(existingDoc.metadata) > 0) {
+          let userConfirmation = await this.confirm(
+            'It appears that the file you\'re uploading has lost its Mure metadata. ' +
+            'This is fairly common when you\'ve edited it with an external program.\n\n' +
+            'Restore the most recent metadata?');
+          if (!userConfirmation) {
+            existingDoc.metadata = {};
+          }
+        }
+      }
+      if (options.metadata) {
+        existingDoc.metadata = options.metadata;
+      }
+      return await this.db.put(existingDoc);
+    } catch (errorObj) {
       if (errorObj.message === 'missing') {
-        // the file doesn't exist yet...
-        return this.db.put(dbEntry);
+        // The file doesn't exist yet...
+        let newDoc = {
+          _id: options.filename,
+          _attachments: {},
+          metadata: options.metadata || {}
+        };
+        if (!options.blobOrBase64string) {
+          this.trigger('error', 'Attempted to save a file without contents!');
+        }
+        newDoc._attachments[options.filename] = {
+          content_type: 'image/svg+xml',
+          data: options.blobOrBase64string
+        };
+        return await this.db.put(newDoc);
       } else {
         this.catchDbError(errorObj);
+        return Promise.reject(errorObj);
       }
-    });
+    }
   }
-  getFileList () {
+  async getFileList () {
     return this.db.allDocs()
       .then(response => {
         let result = [];
@@ -173,7 +255,7 @@ class Mure extends Model {
         return result;
       }).catch(this.catchDbError);
   }
-  getFileRevisions () {
+  async getFileRevisions () {
     return this.db.allDocs()
       .then(response => {
         let result = {};
@@ -185,36 +267,112 @@ class Mure extends Model {
         return result;
       }).catch(this.catchDbError);
   }
-  uploadSvg (fileObj) {
-    let filename = fileObj.name;
-    return this.getFileRevisions().then(revisionDict => {
-      // Ask multiple times if the user happens to enter another filename that already exists
-      while (revisionDict[filename]) {
-        let newName = this.prompt.call(window,
-          fileObj.name + ' already exists. Pick a new name, or leave it the same to overwrite:',
-          fileObj.name);
-        if (!newName) {
-          return null;
-        } else if (newName === filename) {
-          return filename;
-        } else {
-          filename = newName;
-        }
-      }
-      return filename;
-    }).then(filename => {
-      if (filename) {
-        // TODO: extract the XML metadata from the file (if it exists... also deal width
-        // the case that it existed before, but something (Illustrator, I'm looking at you)
-        // trashed it)
-        return this.saveFile(filename, fileObj).then(() => {
-          return this.setCurrentFile(filename);
-        });
-      }
-    }).catch(this.catchDbError);
+  async readFile (reader, fileObj) {
+    return new Promise((resolve, reject) => {
+      reader.onloadend = xmlText => {
+        resolve(xmlText.target.result);
+      };
+      reader.onerror = error => {
+        reject(error);
+      };
+      reader.onabort = () => {
+        reject(Mure.SIGNALS.cancelled);
+      };
+      reader.readAsText(fileObj);
+    });
   }
-  deleteSvg (filename) {
-    if (this.confirm.call(window, 'Are you sure you want to delete ' + filename + '?')) {
+  async validateFileName (originalName, takenNames, abortFunction) {
+    // Ask multiple times if the user happens to enter another filename that already exists
+    let filename = originalName;
+    while (takenNames[filename]) {
+      let filename = await this.prompt(
+        filename + ' already exists. Pick a new name, or leave it the same to overwrite:',
+        filename);
+      if (filename === null) {
+        if (abortFunction) {
+          abortFunction();
+        }
+        return Promise.reject(Mure.SIGNALS.cancelled);
+      } else if (filename === '') {
+        filename = await this.prompt('You must enter a file name (or hit cancel to cancel the upload)');
+      } else if (filename === originalName) {
+        // They left it the same... overwrite!
+        return filename;
+      }
+    }
+    return filename;
+  }
+  inferParser (fileObj) {
+    let ext = fileObj.type.split('/')[1];
+    if (ext === 'csv') {
+      return (contents) => { return datalib.read(contents, {type: 'csv', parse: 'auto'}); };
+    } else if (ext === 'tsv') {
+      return (contents) => { return datalib.read(contents, {type: 'tsv', parse: 'auto'}); };
+    } else if (ext === 'dsv') {
+      return (contents) => { return datalib.read(contents, {type: 'dsv', parse: 'auto'}); };
+    } else if (ext === 'json') {
+      // TODO: attempt to auto-discover topojson or treejson?
+      return (contents) => { return datalib.read(contents, {type: 'json', parse: 'auto'}); };
+    } else {
+      return null;
+    }
+  }
+  async uploadDataset (fileObj) {
+    let parser = this.inferParser(fileObj);
+    if (!parser) {
+      this.trigger('error', 'Unknown data file type: ' + fileObj.type);
+      return Promise.reject();
+    }
+
+    let metadata = await this.getMetadata();
+    if (metadata === null) {
+      this.trigger('error', 'Can\'t embed a data file without an SVG file already open');
+      return Promise.reject();
+    }
+    metadata.datasets = metadata.datasets || {};
+
+    let reader = new window.FileReader();
+    let fileText = await this.readFile(reader, fileObj);
+    let dataFileName = await this.validateFileName(fileObj.name, metadata.datasets, reader.abort);
+
+    metadata.datasets[dataFileName] = parser(fileText);
+    return this.saveFile({ metadata });
+  }
+  async uploadSvg (fileObj) {
+    let reader = new window.FileReader();
+    let contentsPromise = this.readFile(reader, fileObj)
+    .then(xmlText => {
+      let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
+      let contents = { metadata: this.extractMetadata(dom) };
+      contents.base64data = window.btoa(new window.XMLSerializer().serializeToString(dom));
+      return contents;
+    });
+
+    let filenamePromise = this.getFileRevisions()
+      .catch(this.catchDbError)
+      .then(revisionDict => {
+        return this.validateFileName(fileObj.name, revisionDict, reader.abort);
+      });
+
+    return Promise.all([filenamePromise, contentsPromise]).then(([filename, contents]) => {
+      return this.saveFile({
+        filename,
+        blobOrBase64string: contents.base64data,
+        metadata: contents.metadata
+      }).then(() => {
+        return this.setCurrentFile(filename);
+      });
+    }).catch((errList) => {
+      if (errList[0] === Mure.SIGNALS.cancelled && errList[1] === Mure.SIGNALS.cancelled) {
+        return; // cancelling is not a problem
+      } else {
+        return Promise.reject(errList);
+      }
+    });
+  }
+  async deleteSvg (filename) {
+    let userConfirmation = await this.confirm('Are you sure you want to delete ' + filename + '?');
+    if (userConfirmation) {
       return Promise.all([this.db.get(filename), this.getCurrentFilename()]).then(promiseResults => {
         let existingDoc = promiseResults[0];
         let currentFile = promiseResults[1];
@@ -226,31 +384,249 @@ class Mure extends Model {
             return removeResponse;
           });
       }).catch(this.catchDbError);
+    } else {
+      return Promise.resolve(false);
     }
   }
-  downloadSvg (filename) {
-    this.getFile(filename).then(mureFile => {
-      let xmlText = window.atob(mureFile.base64data);
-      // TODO: embed fileObj.metadata as XML inside fileObj.base64data
-      // create a fake link to initiate the download
-      let a = document.createElement('a');
-      a.style = 'display:none';
-      let url = window.URL.createObjectURL(new window.Blob(xmlText, { type: 'image/svg+xml' }));
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.parentNode.removeChild(a);
-    }).catch(this.catchDbError);
+  extractMetadata (dom) {
+    let self = this;
+    let metadata = {};
+    let d3dom = d3.select(dom.rootElement);
+
+    // Extract the container for our metadata, if it exists
+    let root = d3dom.select('#mure');
+    if (root.size() === 0) {
+      return metadata;
+    }
+    let nsElement = root.select('mure');
+    if (nsElement.size() === 0) {
+      return metadata;
+    }
+
+    // Any libraries?
+    nsElement.selectAll('library').each(function (d) {
+      if (!metadata.libraries) {
+        metadata.libraries = [];
+      }
+      metadata.libraries.push(d3.select(this).attr('src'));
+    });
+
+    // Any scripts?
+    nsElement.selectAll('script').each(function (d) {
+      let el = d3.select(this);
+      let script = {
+        text: self.extractCDATA(el.text())
+      };
+      let id = el.attr('id');
+      if (id) {
+        if (id === 'mureInteractivityRunner') {
+          // Don't store our interactivity runner script
+          return;
+        }
+        script.id = id;
+      }
+      if (!metadata.scripts) {
+        metadata.scripts = [];
+      }
+      metadata.scripts.push(script);
+    });
+
+    // Any datasets?
+    nsElement.selectAll('datasets').each(function (d) {
+      let el = d3.select(this);
+      if (!metadata.datasets) {
+        metadata.datasets = {};
+      }
+      metadata.datasets[el.attr('name')] = JSON.parse(self.extractCDATA(el.text()));
+    });
+
+    // Any data bindings?
+    nsElement.selectAll('binding').each(function (d) {
+      let el = d3.select(this);
+      let binding = {
+        id: el.attr('id'),
+        dataRoot: el.attr('dataroot'),
+        svgRoot: el.attr('svgroot'),
+        keyFunction: JSON.parse(self.extractCDATA(el.text()))
+      };
+
+      if (!metadata.bindings) {
+        metadata.bindings = {};
+      }
+      metadata.bindings[binding.id] = binding;
+    });
+
+    // Any encodings?
+    nsElement.selectAll('encoding').each(function (d) {
+      let el = d3.select(this);
+      let encoding = {
+        id: el.attr('id'),
+        bindingId: el.attr('for'),
+        spec: JSON.parse(self.extractCDATA(el.text()))
+      };
+
+      if (!metadata.encodings) {
+        metadata.encodings = {};
+      }
+      metadata.encodings[encoding.id] = encoding;
+    });
+
+    return metadata;
+  }
+  extractCDATA (str) {
+    return str.replace(/(<!\[CDATA\[)/g, '').replace(/]]>/g, '');
+  }
+  getEmptyBinding (metadata, add) {
+    let id = 1;
+    /* eslint-disable no-unmodified-loop-condition */
+    while (metadata.bindings && metadata.bindings['Binding' + id]) {
+      id++;
+    }
+    /* eslint-enable no-unmodified-loop-condition */
+    let newBinding = {
+      id: 'Binding' + id,
+      svgRoot: '',
+      dataRoot: '',
+      keyFunction: {
+        dataExpression: '(d, i) => i',
+        svgExpression: '(el, d3el, $el, i) => i'
+      }
+    };
+    if (add) {
+      if (!metadata.bindings) {
+        metadata.bindings = {};
+      }
+      metadata.bindings[newBinding.id] = newBinding;
+    }
+    return newBinding;
+  }
+  getEmptyEncoding (metadata, add) {
+    let id = 1;
+    /* eslint-disable no-unmodified-loop-condition */
+    while (metadata.encodings && metadata.encodings['Encoding' + id]) {
+      id++;
+    }
+    /* eslint-enable no-unmodified-loop-condition */
+    let newEncoding = {
+      id: 'Encoding' + id,
+      bindingId: null,
+      spec: {}
+    };
+    if (add) {
+      if (!metadata.encodings) {
+        metadata.encodings = {};
+      }
+      metadata.encodings[newEncoding.id] = newEncoding;
+    }
+    return newEncoding;
+  }
+  embedMetadata (dom, metadata) {
+    let d3dom = d3.select(dom.rootElement);
+
+    // Top: need a metadata tag
+    let root = d3dom.selectAll('#mure').data([0]);
+    root.exit().remove();
+    root = root.enter().append('metadata').attr('id', 'mure').merge(root);
+
+    // Next down: a tag to define the namespace
+    let nsElement = root.selectAll('mure').data([0]);
+    nsElement.exit().remove();
+    nsElement = nsElement.enter().append('mure').attr('xmlns', this.NSString).merge(nsElement);
+
+    // Okay, we're in our custom namespace... let's figure out the libraries
+    let libraryList = metadata.libraries || [];
+    let libraries = nsElement.selectAll('library').data(libraryList);
+    libraries.exit().remove();
+    libraries = libraries.enter().append('library').merge(libraries);
+    libraries.attr('src', d => d);
+
+    // Let's deal with any user scripts
+    let scriptList = metadata.scripts || [];
+    let scripts = nsElement.selectAll('script').data(scriptList);
+    scripts.exit().remove();
+    let scriptsEnter = scripts.enter().append('script');
+    scripts = scriptsEnter.merge(scripts);
+    scripts.attr('id', d => d.id || null);
+    scripts.each(function (d) {
+      this.innerHTML = '<![CDATA[' + d.text + ']]>';
+    });
+
+    // Remove mureInteractivityRunner by default to ensure it always comes after the
+    // metadata tag (of course, only bother adding it if we have any libraries or scripts)
+    d3dom.select('#mureInteractivityRunner').remove();
+    if (libraryList.length > 0 || scriptList.length > 0) {
+      d3dom.append('script')
+        .attr('id', 'mureInteractivityRunner')
+        .attr('type', 'text/javascript')
+        .text('<![CDATA[' + mureInteractivityRunnerText + ']]');
+    }
+
+    // We always store datasets as JSON
+    let datasets = nsElement.selectAll('dataset').data(d3.entries(metadata.datasets || {}));
+    datasets.exit().remove();
+    let datasetsEnter = datasets.enter().append('dataset');
+    datasets = datasetsEnter.merge(datasets);
+    datasets.attr('name', d => d.key)
+      .html(d => '<![CDATA[' + JSON.stringify(d.value) + ']]>');
+
+    // Store data bindings
+    let bindings = nsElement.selectAll('binding').data(d3.values(metadata.bindings || {}));
+    bindings.exit().remove();
+    let bindingsEnter = bindings.enter().append('binding');
+    bindings = bindingsEnter.merge(bindings);
+    bindings
+      .attr('id', d => d.id)
+      .attr('dataroot', d => d.dataRoot)
+      .attr('svgroot', d => d.svgRoot)
+      .html(d => '<![CDATA[' + JSON.stringify(d.keyFunction) + ']]>');
+
+    // Store encoding metadata
+    let encodings = nsElement.selectAll('encoding').data(d3.values(metadata.encodings || {}));
+    encodings.exit().remove();
+    let encodingsEnter = encodings.enter().append('encoding');
+    encodings = encodingsEnter.merge(encodings);
+    encodings
+      .attr('id', d => d.id)
+      .attr('bindingid', d => d.bindingId)
+      .html(d => '<![CDATA[' + JSON.stringify(d.spec) + ']]>');
+  }
+  async downloadSvg (filename) {
+    let mureFile;
+    try {
+      // Embed mureFile.metadata as XML inside mureFile.base64data
+      mureFile = await this.getFile(filename, true);
+    } catch (error) {
+      this.catchDbError(error);
+      return;
+    }
+    let xmlText = window.atob(mureFile.base64string);
+    let dom = new window.DOMParser().parseFromString(xmlText, 'image/svg+xml');
+    this.embedMetadata(dom, mureFile.metadata);
+    xmlText = new window.XMLSerializer().serializeToString(dom);
+    xmlText = xmlText.replace(/&lt;!\[CDATA\[/g, '<!\[CDATA\[').replace(/]]&gt;/g, ']]>');
+
+    // create a fake link to initiate the download
+    let a = document.createElement('a');
+    a.style = 'display:none';
+    let url = window.URL.createObjectURL(new window.Blob([xmlText], { type: 'image/svg+xml' }));
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.parentNode.removeChild(a);
   }
 }
 
 Mure.VALID_EVENTS = {
   fileListChange: true,
   fileChange: true,
-  error: true,
-  svgLoaded: true
+  fileSave: true,
+  error: true
+};
+
+Mure.SIGNALS = {
+  cancelled: true
 };
 
 let mure = new Mure();
