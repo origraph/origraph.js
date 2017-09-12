@@ -1,6 +1,8 @@
 /* eslint no-useless-escape: 0 */
+import 'babel-polyfill';
 import * as d3 from 'd3';
 import datalib from 'datalib';
+import * as jsonpath from 'jsonpath';
 import PouchDB from 'pouchdb';
 import { Model } from 'uki';
 import appList from './appList.json';
@@ -302,6 +304,25 @@ class Mure extends Model {
     }
     return filename;
   }
+  matchDataPaths (path1, path2, metadata) {
+    if (!metadata || !metadata.datasets || !path1 || !path2) {
+      return false;
+    }
+    let result1 = jsonpath.query(metadata.datasets, path1);
+    let result2 = jsonpath.query(metadata.datasets, path2);
+    if (result1.length !== 1 || result2.length !== 1) {
+      return false;
+    }
+    return result1[0] === result2[0];
+  }
+  matchDomSelectors (selector1, selector2, dom) {
+    if (!selector1 || !selector2) {
+      return false;
+    }
+    let result1 = dom.querySelector(selector1);
+    let result2 = dom.querySelector(selector2);
+    return result1 === result2;
+  }
   inferParser (fileObj) {
     let ext = fileObj.type.split('/')[1];
     if (ext === 'csv') {
@@ -489,7 +510,7 @@ class Mure extends Model {
       dataRoot: '',
       keyFunction: {
         dataExpression: '(d, i) => i',
-        svgExpression: '(el, d3el, $el, i) => i'
+        svgExpression: '(el, i, d3el, $el) => i'
       }
     };
     if (add) {

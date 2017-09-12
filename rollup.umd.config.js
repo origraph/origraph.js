@@ -2,11 +2,13 @@ import json from 'rollup-plugin-json';
 import babel from 'rollup-plugin-babel';
 
 export default {
-  entry: 'src/mure.js',
-  dest: 'build/mure.umd.js',
-  format: 'umd',
-  moduleName: 'mure',
-  sourceMap: 'inline',
+  input: 'src/mure.js',
+  name: 'mure',
+  sourcemap: 'inline',
+  output: {
+    file: 'build/mure.umd.js',
+    format: 'umd'
+  },
   plugins: [
     json(),
     babel({
@@ -15,10 +17,16 @@ export default {
   ],
   globals: {
     pouchdb: 'PouchDB',
-    uki: 'uki'
+    uki: 'uki',
+    d3: 'd3',
+    datalib: 'datalib',
+    jsonpath: 'jsonpath'
   },
   external: [
     'pouchdb',
-    'uki'
+    'uki',
+    'd3',
+    'datalib',
+    'jsonpath'
   ]
 };
