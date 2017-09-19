@@ -20,13 +20,18 @@ export default {
     uki: 'uki',
     d3: 'd3',
     datalib: 'datalib',
-    jsonpath: 'jsonpath'
+    jsonpath: 'jsonpath',
+    md5: 'md5',
+    jquery: 'jQuery'
   },
   external: [
     'pouchdb',
     'uki',
     'd3',
     'datalib',
-    'jsonpath'
+    'jsonpath',
+    'md5',
+    'jquery',
+    'babel-polyfill'
   ]
 };
