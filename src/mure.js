@@ -1,7 +1,6 @@
 /* eslint no-useless-escape: 0 */
 import 'babel-polyfill';
 import * as d3 from 'd3';
-import jQuery from 'jquery';
 import datalib from 'datalib';
 import md5 from 'md5';
 import * as jsonpath from 'jsonpath';
@@ -529,12 +528,12 @@ class Mure extends Model {
     }
     /* eslint-enable no-unmodified-loop-condition */
     let newBinding = {
-      id: 'Binding' + id,
-      svgRoot: '',
-      dataRoot: '',
+      id: 'Binding Set ' + id,
+      svgRoot: ':root',
+      dataRoot: metadata.datasets && Object.keys(metadata.datasets).length > 0
+        ? '$["' + Object.keys(metadata.datasets)[0] + '"]' : '',
       keyFunction: {
-        dataExpression: '(d, k) => k',
-        svgExpression: '(el, i) => i'
+        expression: '(data, element) => data.key === element.index'
       }
     };
     if (add) {
@@ -680,24 +679,21 @@ class Mure extends Model {
     let connections = [];
     if (metadata && metadata.bindings && metadata.datasets && dom) {
       d3.values(metadata.bindings).forEach(binding => {
-        if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction || !binding.keyFunction.dataExpression) {
+        if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
           return;
         }
-        /* eslint-disable no-eval */
-        let dataExpression = (0, eval)(binding.keyFunction.dataExpression);
-        /* eslint-enable no-eval */
 
         let dataRoot = jsonpath.query(metadata.datasets, binding.dataRoot)[0];
-        let dataItems;
+        let dataEntries;
         if (dataRoot instanceof Array) {
-          dataItems = dataRoot.map((d, i) => {
+          dataEntries = dataRoot.map((d, i) => {
             return {
               key: i,
               value: d
             };
           });
         } else if (typeof dataRoot === 'object') {
-          dataItems = d3.entries(dataRoot);
+          dataEntries = d3.entries(dataRoot);
         } else {
           return; // a leaf was picked as a root... no connections possible
         }
@@ -705,42 +701,39 @@ class Mure extends Model {
         let svgRoot = dom.querySelector(binding.svgRoot);
         let svgItems = Array.from(svgRoot.children);
 
-        dataItems.forEach(dataItem => {
-          let dataKeyValue = dataExpression(dataItem.value, dataItem.key);
+        dataEntries.forEach(dataEntry => {
           if (binding.keyFunction.customMapping) {
-            connections.push(...this.getManualConnections(binding, dataKeyValue, dataItem.value, svgItems));
-          } else if (binding.keyFunction.svgExpression !== undefined) {
-            connections.push(...this.getExpressionConnections(binding, dataKeyValue, dataItem.value, svgItems));
+            connections.push(...this.getManualConnections(binding, dataEntry, svgItems));
           } else {
-            connections.push(...this.getInferredConnections(binding, dataKeyValue, dataItem.value, svgItems));
+            connections.push(...this.getExpressionConnections(binding, dataEntry, svgItems));
           }
         });
       });
     }
     return connections;
   }
-  getManualConnections (binding, dataKeyValue, dataItem, svgItems) {
+  getManualConnections (binding, dataEntry, svgItems) {
     // TODO
     return [];
   }
-  getExpressionConnections (binding, dataKeyValue, dataItem, svgItems) {
+  getExpressionConnections (binding, dataEntry, svgItems) {
     /* eslint-disable no-eval */
-    let svgExpression = (0, eval)(binding.keyFunction.svgExpression);
+    let expression = (0, eval)(binding.keyFunction.expression);
     /* eslint-enable no-eval */
     let connections = [];
     svgItems.forEach((svgItem, itemIndex) => {
-      if (svgExpression(svgItem, itemIndex, d3.select(svgItem), jQuery(svgItem)) === dataKeyValue) {
+      let svgEntry = {
+        index: itemIndex,
+        element: svgItem
+      };
+      if (expression(dataEntry, svgEntry)) {
         connections.push({
-          dataItem,
-          svgItem
+          dataEntry,
+          svgEntry
         });
       }
     });
     return connections;
-  }
-  getInferredConnections (binding, dataKeyValue, dataItem, svgItems) {
-    // TODO
-    return [];
   }
 }
 
