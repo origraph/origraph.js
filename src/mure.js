@@ -533,7 +533,7 @@ class Mure extends Model {
       dataRoot: metadata.datasets && Object.keys(metadata.datasets).length > 0
         ? '$["' + Object.keys(metadata.datasets)[0] + '"]' : '',
       keyFunction: {
-        expression: '(data, element) => data.key === element.index'
+        expression: '(d, e) => d.key === e.index'
       }
     };
     if (add) {
@@ -679,37 +679,42 @@ class Mure extends Model {
     let connections = [];
     if (metadata && metadata.bindings && metadata.datasets && dom) {
       d3.values(metadata.bindings).forEach(binding => {
-        if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
-          return;
-        }
-
-        let dataRoot = jsonpath.query(metadata.datasets, binding.dataRoot)[0];
-        let dataEntries;
-        if (dataRoot instanceof Array) {
-          dataEntries = dataRoot.map((d, i) => {
-            return {
-              key: i,
-              value: d
-            };
-          });
-        } else if (typeof dataRoot === 'object') {
-          dataEntries = d3.entries(dataRoot);
-        } else {
-          return; // a leaf was picked as a root... no connections possible
-        }
-
-        let svgRoot = dom.querySelector(binding.svgRoot);
-        let svgItems = Array.from(svgRoot.children);
-
-        dataEntries.forEach(dataEntry => {
-          if (binding.keyFunction.customMapping) {
-            connections.push(...this.getManualConnections(binding, dataEntry, svgItems));
-          } else {
-            connections.push(...this.getExpressionConnections(binding, dataEntry, svgItems));
-          }
-        });
+        connections.push(...this.getMatchesForBinding(binding, metadata, dom));
       });
     }
+    return connections;
+  }
+  getMatchesForBinding (binding, metadata, dom) {
+    let connections = [];
+    if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
+      return connections;
+    }
+
+    let dataRoot = jsonpath.query(metadata.datasets, binding.dataRoot)[0];
+    let dataEntries;
+    if (dataRoot instanceof Array) {
+      dataEntries = dataRoot.map((d, i) => {
+        return {
+          key: i,
+          value: d
+        };
+      });
+    } else if (typeof dataRoot === 'object') {
+      dataEntries = d3.entries(dataRoot);
+    } else {
+      return; // a leaf was picked as a root... no connections possible
+    }
+
+    let svgRoot = dom.querySelector(binding.svgRoot);
+    let svgItems = Array.from(svgRoot.children);
+
+    dataEntries.forEach(dataEntry => {
+      if (binding.keyFunction.customMapping) {
+        connections.push(...this.getManualConnections(binding, dataEntry, svgItems));
+      } else {
+        connections.push(...this.getExpressionConnections(binding, dataEntry, svgItems));
+      }
+    });
     return connections;
   }
   getManualConnections (binding, dataEntry, svgItems) {
@@ -734,6 +739,50 @@ class Mure extends Model {
       }
     });
     return connections;
+  }
+  inferAllEncodings (binding, metadata, dom) {
+    let connections = this.getMatchesForBinding(binding, metadata, dom);
+
+    // Create / get cached distribution of values
+    let dataDistributions = {};
+    let svgDistributions = {};
+    connections.forEach(connection => {
+      dataDistributions._key = dataDistributions._key || {};
+      dataDistributions._key[connection.dataEntry.key] =
+        (dataDistributions._key[connection.dataEntry.key] || 0) + 1;
+
+      Object.keys(connection.dataEntry.value).forEach(attr => {
+        let value = connection.dataEntry.value;
+        if (typeof value === 'string' || typeof value === 'number') {
+          dataDistributions[attr] = dataDistributions[attr] || {};
+          dataDistributions[attr][value] =
+            (dataDistributions[attr][value] || 0) + 1;
+        }
+      });
+
+      svgDistributions._index = svgDistributions._index || {};
+      svgDistributions._index[connection.svgEntry.index] =
+        (svgDistributions._index[connection.svgEntry.index] || 0) + 1;
+
+      svgDistributions._tagName = svgDistributions._tagName || {};
+      svgDistributions._tagName[connection.svgEntry.element.tagName] =
+        (svgDistributions._tagName[connection.svgEntry.element.tagName] || 0) + 1;
+
+      Array.from(connection.svgEntry.element.attributes).forEach(attrObj => {
+        let attr = attrObj.name;
+        let value = connection.svgEntry.element.getAttribute(attr);
+        if (typeof value === 'string' || typeof value === 'number') {
+          svgDistributions[attr] = svgDistributions[attr] || {};
+          svgDistributions[attr][value] =
+            (svgDistributions[attr][value] || 0) + 1;
+        }
+      });
+    });
+
+    console.log(dataDistributions, svgDistributions);
+
+    let quantitativePool = {};
+    let categoricalPool = {};
   }
 }
 
