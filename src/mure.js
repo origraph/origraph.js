@@ -676,20 +676,30 @@ class Mure extends Model {
     return result1 === result2;
   }
   getMatches (metadata, dom) {
-    let connections = [];
+    let mapping = [];
     if (metadata && metadata.bindings && metadata.datasets && dom) {
       d3.values(metadata.bindings).forEach(binding => {
-        connections.push(...this.getMatchesForBinding(binding, metadata, dom));
+        mapping.push(...this.getMatchesForBinding(binding, metadata, dom));
       });
     }
-    return connections;
+    return mapping;
   }
   getMatchesForBinding (binding, metadata, dom) {
-    let connections = [];
     if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
-      return connections;
+      return [];
     }
 
+    if (binding.keyFunction.customMapping) {
+      return binding.keyFunction.customMapping;
+    }
+
+    /* eslint-disable no-eval */
+    let expression = (0, eval)(binding.keyFunction.expression);
+    /* eslint-enable no-eval */
+
+    // Need to evaluate the expression for each n^2 possible pairing, and assign
+    // mapping the first time the expression is true (but not after!
+    // mapping can only be one-to-one!)
     let dataRoot = jsonpath.query(metadata.datasets, binding.dataRoot)[0];
     let dataEntries;
     if (dataRoot instanceof Array) {
@@ -702,57 +712,59 @@ class Mure extends Model {
     } else if (typeof dataRoot === 'object') {
       dataEntries = d3.entries(dataRoot);
     } else {
-      return; // a leaf was picked as a root... no connections possible
+      return; // a leaf was picked as a root... no mapping possible
     }
 
     let svgRoot = dom.querySelector(binding.svgRoot);
     let svgItems = Array.from(svgRoot.children);
 
+    let mapping = {
+      links: [],
+      svgLookup: {},
+      dataLookup: {}
+    };
+
     dataEntries.forEach(dataEntry => {
-      if (binding.keyFunction.customMapping) {
-        connections.push(...this.getManualConnections(binding, dataEntry, svgItems));
-      } else {
-        connections.push(...this.getExpressionConnections(binding, dataEntry, svgItems));
+      for (let itemIndex = 0; itemIndex < svgItems.length; itemIndex += 1) {
+        if (mapping.svgLookup[itemIndex] !== undefined) {
+          // this svg element has already been matched with a different dataEntry
+          continue;
+        }
+        let svgEntry = {
+          index: itemIndex,
+          element: svgItems[itemIndex]
+        };
+        let expressionResult = null;
+        try {
+          expressionResult = expression(dataEntry, svgEntry);
+        } catch (errorObj) {
+          // todo: add interface helpers for debugging the expression
+          throw errorObj;
+        }
+        if (expressionResult === true) {
+          mapping.svgLookup[svgEntry.index] = mapping.links.length;
+          mapping.dataLookup[dataEntry.key] = mapping.links.length;
+          mapping.links.push({
+            dataEntry,
+            svgEntry
+          });
+          break;
+        } else if (expressionResult !== false) {
+          throw new Error('The expression must evaluate to true or false');
+        }
       }
     });
-    return connections;
-  }
-  getManualConnections (binding, dataEntry, svgItems) {
-    // TODO
-    return [];
-  }
-  getExpressionConnections (binding, dataEntry, svgItems) {
-    /* eslint-disable no-eval */
-    let expression = (0, eval)(binding.keyFunction.expression);
-    /* eslint-enable no-eval */
-    let connections = [];
-    svgItems.forEach((svgItem, itemIndex) => {
-      let svgEntry = {
-        index: itemIndex,
-        element: svgItem
-      };
-      if (expression(dataEntry, svgEntry)) {
-        connections.push({
-          dataEntry,
-          svgEntry
-        });
-      }
-    });
-    return connections;
+    return mapping;
   }
   inferAllEncodings (binding, metadata, dom) {
-    let connections = this.getMatchesForBinding(binding, metadata, dom);
+    let mapping = this.getMatchesForBinding(binding, metadata, dom);
 
     // Create / get cached distribution of values
     let dataDistributions = {};
     let svgDistributions = {};
-    connections.forEach(connection => {
-      dataDistributions._key = dataDistributions._key || {};
-      dataDistributions._key[connection.dataEntry.key] =
-        (dataDistributions._key[connection.dataEntry.key] || 0) + 1;
-
-      Object.keys(connection.dataEntry.value).forEach(attr => {
-        let value = connection.dataEntry.value;
+    mapping.links.forEach(link => {
+      Object.keys(link.dataEntry.value).forEach(attr => {
+        let value = link.dataEntry.value[attr];
         if (typeof value === 'string' || typeof value === 'number') {
           dataDistributions[attr] = dataDistributions[attr] || {};
           dataDistributions[attr][value] =
@@ -760,17 +772,13 @@ class Mure extends Model {
         }
       });
 
-      svgDistributions._index = svgDistributions._index || {};
-      svgDistributions._index[connection.svgEntry.index] =
-        (svgDistributions._index[connection.svgEntry.index] || 0) + 1;
-
       svgDistributions._tagName = svgDistributions._tagName || {};
-      svgDistributions._tagName[connection.svgEntry.element.tagName] =
-        (svgDistributions._tagName[connection.svgEntry.element.tagName] || 0) + 1;
+      svgDistributions._tagName[link.svgEntry.element.tagName] =
+        (svgDistributions._tagName[link.svgEntry.element.tagName] || 0) + 1;
 
-      Array.from(connection.svgEntry.element.attributes).forEach(attrObj => {
+      Array.from(link.svgEntry.element.attributes).forEach(attrObj => {
         let attr = attrObj.name;
-        let value = connection.svgEntry.element.getAttribute(attr);
+        let value = link.svgEntry.element.getAttribute(attr);
         if (typeof value === 'string' || typeof value === 'number') {
           svgDistributions[attr] = svgDistributions[attr] || {};
           svgDistributions[attr][value] =
@@ -778,8 +786,6 @@ class Mure extends Model {
         }
       });
     });
-
-    console.log(dataDistributions, svgDistributions);
 
     let quantitativePool = {};
     let categoricalPool = {};
