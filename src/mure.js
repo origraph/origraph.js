@@ -191,8 +191,8 @@ class Mure extends Model {
       }
       if (domChanged) {
         (async () => {
-          let blob = currentFile ? await this.getFileAsBlob(currentFile._id) : null;
-          this.trigger('domChange', blob);
+          let doc = currentFile ? await this.getFile(currentFile._id, this.CONTENT_FORMATS.blob) : null;
+          this.trigger('domChange', doc ? doc._attachments[doc._id].data : null);
         })();
       }
       if (metadataChanged) {
@@ -760,16 +760,34 @@ class Mure extends Model {
     });
     return mapping;
   }
-  inferAllEncodings (binding, metadata, dom) {
-    let mapping = this.getMatchesForBinding(binding, metadata, dom);
-
-    // Trash all previous encodings associated with this binding
-    if (metadata.encodings) {
+  purgeEncodings (binding, metadata) {
+    if (metadata && metadata.encodings) {
       Object.keys(metadata.encodings).forEach(encodingId => {
         if (metadata.encodings[encodingId].bindingId === binding.id) {
           delete metadata.encodings[encodingId];
         }
       });
+      return this.saveFile({ metadata });
+    }
+    return null;
+  }
+  renameBinding (binding, newId, metadata) {
+    if (metadata.encodings) {
+      Object.keys(metadata.encodings).forEach(encodingId => {
+        if (metadata.encodings[encodingId].bindingId === binding.id) {
+          metadata.encodings[encodingId].bindingId = newId;
+        }
+      });
+    }
+    binding.id = newId;
+    return this.saveFile({ metadata });
+  }
+  async inferAllEncodings (binding, metadata, dom) {
+    let mapping = this.getMatchesForBinding(binding, metadata, dom);
+
+    // Trash all previous encodings associated with this binding
+    if (metadata.encodings) {
+      await this.purgeEncodings(binding, metadata);
     } else {
       metadata.encodings = {};
     }
@@ -823,6 +841,17 @@ class Mure extends Model {
           maxBinCount = binCount;
         }
       });
+      if (totalCount < mapping.links.length) {
+        // Corner case: undefined is never going to be counted; we have to figure
+        // it out from the difference
+        let binCount = mapping.links.length - totalCount;
+        svgDistributions[attr].undefined = binCount;
+        totalCount += binCount;
+        if (binCount > maxBinCount) {
+          maxBinCount = binCount;
+          value = 'undefined';
+        }
+      }
       encoding.spec.value = value;
       encoding.spec.error = (totalCount - maxBinCount) / totalCount;
 
