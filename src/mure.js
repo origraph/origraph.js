@@ -39,6 +39,10 @@ class Mure extends Model {
       cancelled: {}
     };
 
+    this.ENCODING_TYPES = {
+      constant: 0
+    };
+
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
     d3.namespaces.mure = this.NSString;
@@ -523,7 +527,7 @@ class Mure extends Model {
   getEmptyBinding (metadata, add) {
     let id = 1;
     /* eslint-disable no-unmodified-loop-condition */
-    while (metadata.bindings && metadata.bindings['Binding' + id]) {
+    while (metadata.bindings && metadata.bindings['Binding Set ' + id]) {
       id++;
     }
     /* eslint-enable no-unmodified-loop-condition */
@@ -547,12 +551,12 @@ class Mure extends Model {
   getEmptyEncoding (metadata, add) {
     let id = 1;
     /* eslint-disable no-unmodified-loop-condition */
-    while (metadata.encodings && metadata.encodings['Encoding' + id]) {
+    while (metadata.encodings && metadata.encodings['Encoding ' + id]) {
       id++;
     }
     /* eslint-enable no-unmodified-loop-condition */
     let newEncoding = {
-      id: 'Encoding' + id,
+      id: 'Encoding ' + id,
       bindingId: '',
       spec: {}
     };
@@ -759,6 +763,17 @@ class Mure extends Model {
   inferAllEncodings (binding, metadata, dom) {
     let mapping = this.getMatchesForBinding(binding, metadata, dom);
 
+    // Trash all previous encodings associated with this binding
+    if (metadata.encodings) {
+      Object.keys(metadata.encodings).forEach(encodingId => {
+        if (metadata.encodings[encodingId].bindingId === binding.id) {
+          delete metadata.encodings[encodingId];
+        }
+      });
+    } else {
+      metadata.encodings = {};
+    }
+
     // Create / get cached distribution of values
     let dataDistributions = {};
     let svgDistributions = {};
@@ -787,8 +802,36 @@ class Mure extends Model {
       });
     });
 
-    let quantitativePool = {};
-    let categoricalPool = {};
+    // Generate all potential svg constant rules
+    // TODO: infer data constants as well if we ever get around to
+    // supporting the data cleaning use case
+    Object.keys(svgDistributions).forEach(attr => {
+      let encoding = this.getEmptyEncoding(metadata, true);
+      encoding.bindingId = binding.id;
+      encoding.spec.type = this.ENCODING_TYPES.constant;
+      encoding.spec.attribute = attr;
+
+      // Figure out the bin with the highest count, while calculating the error
+      let value = null;
+      let maxBinCount = 0;
+      let totalCount = 0;
+      Object.keys(svgDistributions[attr]).forEach(binLabel => {
+        let binCount = svgDistributions[attr][binLabel];
+        totalCount += binCount;
+        if (binCount > maxBinCount) {
+          value = binLabel;
+          maxBinCount = binCount;
+        }
+      });
+      encoding.spec.value = value;
+      encoding.spec.error = (totalCount - maxBinCount) / totalCount;
+
+      // Don't initially enable constants unless they're 100% accurate
+      encoding.spec.enabled = encoding.spec.error === 0;
+    });
+
+    // TODO: generate linear, log, other model rules
+    this.saveFile({ metadata });
   }
 }
 
