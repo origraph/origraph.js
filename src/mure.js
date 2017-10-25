@@ -5,6 +5,7 @@ import datalib from 'datalib';
 import md5 from 'md5';
 import * as jsonpath from 'jsonpath';
 import PouchDB from 'pouchdb';
+import regression from 'regression';
 import { Model } from 'uki';
 import appList from './appList.json';
 import mureInteractivityRunnerText from './mureInteractivityRunner.js';
@@ -40,7 +41,11 @@ class Mure extends Model {
     };
 
     this.ENCODING_TYPES = {
-      constant: 0
+      constant: 0,
+      categoricalCategorical: 1,
+      quantitativeCategorical: 2,
+      categoricalQuantitative: 3,
+      linear: 4
     };
 
     // The namespace string for our custom XML
@@ -792,16 +797,22 @@ class Mure extends Model {
       metadata.encodings = {};
     }
 
-    // Create / get cached distribution of values
+    // Get distributions of values
     let dataDistributions = {};
     let svgDistributions = {};
+    // let dataSvgDistributions = {};
+    // let svgDataDistributions = {};
     mapping.links.forEach(link => {
       Object.keys(link.dataEntry.value).forEach(attr => {
         let value = link.dataEntry.value[attr];
         if (typeof value === 'string' || typeof value === 'number') {
+          // Create / add to an aggregate histogram of the data value alone
           dataDistributions[attr] = dataDistributions[attr] || {};
           dataDistributions[attr][value] =
             (dataDistributions[attr][value] || 0) + 1;
+
+          // Create / add to a more detailed histogram of the svg values seen
+          // with this specific data value
         }
       });
 
@@ -821,46 +832,117 @@ class Mure extends Model {
     });
 
     // Generate all potential svg constant rules
-    // TODO: infer data constants as well if we ever get around to
+    // todo someday: infer data constants as well if we ever get around to
     // supporting the data cleaning use case
-    Object.keys(svgDistributions).forEach(attr => {
-      let encoding = this.getEmptyEncoding(metadata, true);
-      encoding.bindingId = binding.id;
-      encoding.spec.type = this.ENCODING_TYPES.constant;
-      encoding.spec.attribute = attr;
-
-      // Figure out the bin with the highest count, while calculating the error
-      let value = null;
-      let maxBinCount = 0;
-      let totalCount = 0;
-      Object.keys(svgDistributions[attr]).forEach(binLabel => {
-        let binCount = svgDistributions[attr][binLabel];
-        totalCount += binCount;
-        if (binCount > maxBinCount) {
-          value = binLabel;
-          maxBinCount = binCount;
-        }
-      });
-      if (totalCount < mapping.links.length) {
-        // Corner case: undefined is never going to be counted; we have to figure
-        // it out from the difference
-        let binCount = mapping.links.length - totalCount;
-        svgDistributions[attr].undefined = binCount;
-        totalCount += binCount;
-        if (binCount > maxBinCount) {
-          maxBinCount = binCount;
-          value = 'undefined';
-        }
-      }
-      encoding.spec.value = value;
-      encoding.spec.error = (totalCount - maxBinCount) / totalCount;
-
-      // Don't initially enable constants unless they're 100% accurate
-      encoding.spec.enabled = encoding.spec.error === 0;
+    Object.keys(svgDistributions).forEach(svgAttr => {
+      let svgDistribution = svgDistributions[svgAttr];
+      this.createConstantEncoding(
+        {
+          svgDistribution,
+          svgAttr,
+          binding,
+          mapping,
+          metadata
+        });
     });
 
-    // TODO: generate linear, log, other model rules
+    // Generate all pairwise rules
+    Object.keys(svgDistributions).forEach(svgAttr => {
+      let svgDistribution = svgDistributions[svgAttr];
+      Object.keys(dataDistributions).forEach(dataAttr => {
+        let dataDistribution = dataDistributions[dataAttr];
+        let optionsObj = {
+          svgDistribution,
+          svgAttr,
+          dataDistribution,
+          dataAttr,
+          binding,
+          mapping,
+          metadata
+        };
+        // Generate categorical dataAttr -> categorical svgAttr rules
+        // todo someday: categorical svgAttr -> categorical dataAttr
+        this.generateCategoricalCategoricalEncoding(optionsObj);
+
+        // Generate quantitative dataAttr -> categorical svgAttr rules
+        // todo someday: categorical svgAttr -> quantitative dataAttr
+        this.generateQuantitativeCategoricalEncoding(optionsObj);
+
+        // Generate categorical dataAttr -> quantitative svgAttr rules
+        // todo someday: quantitative svgAttr -> categorical dataAttr
+        this.generateCategoricalQuantitativeEncoding(optionsObj);
+
+        // Generate quantitative dataAttr -> quantitative svgAttr rules
+        // todo someday: quantitative svgAttr -> quantitative dataAttr
+        // todo someday: non-linear rules
+        this.generateLinearEncoding(optionsObj);
+      });
+    });
+
     this.saveFile({ metadata });
+  }
+  createConstantEncoding (options) {
+    let encoding = this.getEmptyEncoding(options.metadata, false);
+    encoding.bindingId = options.binding.id;
+    encoding.spec.type = this.ENCODING_TYPES.constant;
+    encoding.spec.attribute = options.svgAttr;
+
+    // Figure out the bin with the highest count, while calculating the error
+    let value = null;
+    let maxBinCount = 0;
+    let totalCount = 0;
+    Object.keys(options.svgDistribution).forEach(binLabel => {
+      let binCount = options.svgDistribution[binLabel];
+      totalCount += binCount;
+      if (binCount > maxBinCount) {
+        value = binLabel;
+        maxBinCount = binCount;
+      }
+    });
+    if (totalCount < options.mapping.links.length) {
+      // Corner case: undefined is never going to be counted; we have to figure
+      // it out from the difference
+      let binCount = options.mapping.links.length - totalCount;
+      options.svgDistribution.undefined = binCount;
+      totalCount += binCount;
+      if (binCount > maxBinCount) {
+        maxBinCount = binCount;
+        value = 'undefined';
+      }
+    }
+    encoding.spec.value = value;
+    encoding.spec.error = (totalCount - maxBinCount) / totalCount;
+
+    // Don't initially enable constants unless they're 100% accurate
+    encoding.spec.enabled = encoding.spec.error === 0;
+
+    // Only add the rule unless at least two values actually are the same
+    if (maxBinCount > 1) {
+      options.metadata.encodings[encoding.id] = encoding;
+      mure.saveFile({ metadata: options.metadata });
+    }
+  }
+  generateCategoricalCategoricalEncoding (options) {
+    // TODO
+  }
+  generateQuantitativeCategoricalEncoding (options) {
+    // TODO
+  }
+  generateCategoricalQuantitativeEncoding (options) {
+    // TODO
+  }
+  generateLinearEncoding (options) {
+    /*
+    let encoding = this.getEmptyEncoding(options.metadata, false);
+    encoding.bindingId = options.binding.id;
+    encoding.spec.type = this.ENCODING_TYPES.linear;
+    encoding.spec.attribute = options.svgAttr;
+
+    let regressionData =
+
+    options.metadata.encodings[encoding.id] = encoding;
+    mure.saveFile({ metadata: options.metadata });
+    */
   }
 }
 
