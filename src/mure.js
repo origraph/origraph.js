@@ -685,13 +685,14 @@ class Mure extends Model {
     return result1 === result2;
   }
   getMatches (metadata, dom) {
-    let mapping = [];
+    let allMatches = [];
     if (metadata && metadata.bindings && metadata.datasets && dom) {
       d3.values(metadata.bindings).forEach(binding => {
-        mapping.push(...this.getMatchesForBinding(binding, metadata, dom));
+        let bindingMatches = this.getMatchesForBinding(binding, metadata, dom);
+        allMatches.push(bindingMatches);
       });
     }
-    return mapping;
+    return allMatches;
   }
   getMatchesForBinding (binding, metadata, dom) {
     if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
@@ -721,7 +722,7 @@ class Mure extends Model {
     } else if (typeof dataRoot === 'object') {
       dataEntries = d3.entries(dataRoot);
     } else {
-      return; // a leaf was picked as a root... no mapping possible
+      return []; // a leaf was picked as a root... no mapping possible
     }
 
     let svgRoot = dom.querySelector(binding.svgRoot);
@@ -786,6 +787,12 @@ class Mure extends Model {
     }
     binding.id = newId;
     return this.saveFile({ metadata });
+  }
+  async inferTemplate (rootElement, metadata, dom) {
+    let template = [];
+
+    let mapping = this.getMatchesForBinding(binding, metadata, dom);
+
   }
   async inferAllEncodings (binding, metadata, dom) {
     let mapping = this.getMatchesForBinding(binding, metadata, dom);
@@ -921,28 +928,6 @@ class Mure extends Model {
       options.metadata.encodings[encoding.id] = encoding;
       mure.saveFile({ metadata: options.metadata });
     }
-  }
-  generateCategoricalCategoricalEncoding (options) {
-    // TODO
-  }
-  generateQuantitativeCategoricalEncoding (options) {
-    // TODO
-  }
-  generateCategoricalQuantitativeEncoding (options) {
-    // TODO
-  }
-  generateLinearEncoding (options) {
-    /*
-    let encoding = this.getEmptyEncoding(options.metadata, false);
-    encoding.bindingId = options.binding.id;
-    encoding.spec.type = this.ENCODING_TYPES.linear;
-    encoding.spec.attribute = options.svgAttr;
-
-    let regressionData =
-
-    options.metadata.encodings[encoding.id] = encoding;
-    mure.saveFile({ metadata: options.metadata });
-    */
   }
 }
 
