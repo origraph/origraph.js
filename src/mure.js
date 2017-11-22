@@ -685,13 +685,14 @@ class Mure extends Model {
     return result1 === result2;
   }
   getMatches (metadata, dom) {
-    let mapping = [];
+    let allMatches = [];
     if (metadata && metadata.bindings && metadata.datasets && dom) {
       d3.values(metadata.bindings).forEach(binding => {
-        mapping.push(...this.getMatchesForBinding(binding, metadata, dom));
+        let bindingMatches = this.getMatchesForBinding(binding, metadata, dom);
+        allMatches.push(bindingMatches);
       });
     }
-    return mapping;
+    return allMatches;
   }
   getMatchesForBinding (binding, metadata, dom) {
     if (!binding.dataRoot || !binding.svgRoot || !binding.keyFunction) {
@@ -721,7 +722,7 @@ class Mure extends Model {
     } else if (typeof dataRoot === 'object') {
       dataEntries = d3.entries(dataRoot);
     } else {
-      return; // a leaf was picked as a root... no mapping possible
+      return []; // a leaf was picked as a root... no mapping possible
     }
 
     let svgRoot = dom.querySelector(binding.svgRoot);
