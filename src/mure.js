@@ -5,7 +5,7 @@ import datalib from 'datalib';
 import md5 from 'md5';
 import * as jsonpath from 'jsonpath';
 import PouchDB from 'pouchdb';
-import regression from 'regression';
+// import regression from 'regression';
 import { Model } from 'uki';
 import appList from './appList.json';
 import mureInteractivityRunnerText from './mureInteractivityRunner.js';
@@ -196,8 +196,8 @@ class Mure extends Model {
       }
       if (domChanged) {
         (async () => {
-          let doc = currentFile ? await this.getFile(currentFile._id, this.CONTENT_FORMATS.blob) : null;
-          this.trigger('domChange', doc ? doc._attachments[doc._id].data : null);
+          let blob = currentFile ? await this.getFile(currentFile._id, this.CONTENT_FORMATS.blob) : null;
+          this.trigger('domChange', blob);
         })();
       }
       if (metadataChanged) {
@@ -787,12 +787,6 @@ class Mure extends Model {
     }
     binding.id = newId;
     return this.saveFile({ metadata });
-  }
-  async inferTemplate (rootElement, metadata, dom) {
-    let template = [];
-
-    let mapping = this.getMatchesForBinding(binding, metadata, dom);
-
   }
   async inferAllEncodings (binding, metadata, dom) {
     let mapping = this.getMatchesForBinding(binding, metadata, dom);
