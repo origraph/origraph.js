@@ -2,13 +2,18 @@
   "name": "mure",
   "version": "0.1.2",
   "description": "An integration library for the mure ecosystem of apps",
-  "main": "build/mure.umd.min.js",
-  "module": "build/mure.es.min.js",
-  "jsnext:main": "build/mure.es.min.js",
+  "main": "dist/mure.cjs.js",
+  "module": "dist/mure.esm.js",
+  "browser": "dist/mure.umd.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "bash build.sh"
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "node test/dbTests.js",
+    "pretest": "npm run build"
   },
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mure-apps/mure-library.git"
@@ -21,25 +26,24 @@
   "homepage": "https://github.com/mure-apps/mure-library#readme",
   "devDependencies": {
     "ansi-256-colors": "^1.1.0",
-    "babel-core": "^6.26.0",
-    "babel-plugin-external-helpers": "^6.22.0",
-    "babel-preset-env": "^1.6.1",
-    "rollup": "^0.53.3",
-    "rollup-plugin-babel": "^3.0.3",
+    "d3-node": "^1.1.3",
+    "pouchdb-node": "^6.4.1",
+    "rollup": "^0.50.0",
+    "rollup-plugin-auto-external": "^1.0.0",
     "rollup-plugin-commonjs": "^8.2.6",
     "rollup-plugin-json": "^2.3.0",
-    "rollup-plugin-node-globals": "^1.1.0",
-    "rollup-plugin-node-resolve": "^3.0.1",
-    "rollup-plugin-string": "^2.0.2",
-    "uglify-es": "^3.3.5"
+    "rollup-plugin-node-resolve": "^3.0.2",
+    "rollup-plugin-string": "^2.0.2"
   },
   "dependencies": {
-    "d3": "^4.12.2",
     "datalib": "^1.8.0",
-    "pouchdb": "^6.4.1",
-    "pouchdb-authentication": "^1.1.0",
     "scalpel": "^2.1.0",
     "uki": "^0.1.0",
     "xml-js": "^1.6.2"
+  },
+  "peerDependencies": {
+    "d3": "^4.12.2",
+    "pouchdb": "^6.4.1",
+    "pouchdb-authentication": "^1.1.0"
   }
 }

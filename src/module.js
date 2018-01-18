@@ -1,5 +1,7 @@
+import Mure from './Mure/index.js';
+import * as d3 from 'd3';
 import PouchDB from 'pouchdb';
-console.log(PouchDB);
 import PouchDBAuthentication from 'pouchdb-authentication';
 PouchDB.plugin(PouchDBAuthentication);
-export default PouchDB;
+
+export default new Mure(PouchDB, d3);

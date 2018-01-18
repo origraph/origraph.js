@@ -1,18 +1,13 @@
-import * as d3 from 'd3';
-import PouchDB from './pouchDbConfig.js';
 import { Model } from 'uki';
-import appList from './appList.json';
-import docH from './docHandler.js';
+import docH from '../DocHandler/index.js';
 
 class Mure extends Model {
-  constructor () {
+  constructor (PouchDB, d3, d3n) {
     super();
-    this.appList = appList;
-    // Check if we're even being used in the browser (mostly useful for getting
-    // access to the applist in all-apps-dev-server.js)
-    if (typeof document === 'undefined' || typeof window === 'undefined') {
-      return;
-    }
+
+    this.PouchDB = PouchDB; // for Node.js, this will be pouchdb-node, not the regular one
+    this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
+    this.d3n = d3n; // in Node, we also need access to the higher-level stuff from d3-node
 
     // Enumerations...
     this.CONTENT_FORMATS = {
@@ -24,22 +19,10 @@ class Mure extends Model {
 
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
-    d3.namespaces.mure = this.NSString;
-
-    // Funky stuff to figure out if we're debugging (if that's the case, we want to use
-    // localhost instead of the github link for all links)
-    let windowTitle = document.getElementsByTagName('title')[0];
-    windowTitle = windowTitle ? windowTitle.textContent : '';
-    this.debugMode = window.location.hostname === 'localhost' && windowTitle.startsWith('Mure');
-
-    // Figure out which app we are (or null if the mure library is being used somewhere else)
-    this.currentApp = window.location.pathname.replace(/\//g, '');
-    if (!this.appList[this.currentApp]) {
-      this.currentApp = null;
-    }
+    this.d3.namespaces.mure = this.NSString;
 
     // Create / load the local database of files
-    this.db = new PouchDB('mure');
+    this.db = new this.PouchDB('mure');
 
     // default error handling (apps can listen for / display error messages in addition to this):
     this.on('error', errorMessage => {
@@ -84,11 +67,11 @@ class Mure extends Model {
     }
   }
   getOrInitDb () {
-    let db = new PouchDB('mure');
+    let db = new this.PouchDB('mure');
     let couchDbUrl = window.localStorage.getItem('couchDbUrl');
     if (couchDbUrl) {
       (async () => {
-        let couchDb = new PouchDB(couchDbUrl, {skip_setup: true});
+        let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
         return db.sync(couchDb, {live: true, retry: true});
       })().catch(err => {
         this.alert('Error syncing with ' + couchDbUrl + ': ' +
@@ -141,4 +124,4 @@ class Mure extends Model {
   }
 }
 
-export default new Mure();
+export default Mure;

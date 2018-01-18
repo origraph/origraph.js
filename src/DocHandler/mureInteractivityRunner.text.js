@@ -121,7 +121,7 @@
 
   // Where we actually start executing stuff:
   if (!window.frameElement ||
-      !window.frameElement.__suppressInteractivity__) {
+      !window.frameElement.__suppressMureInteractivity__) {
     // We've been loaded directly into a browser, or embedded in a normal page;
     // load all the libraries, and then run all the scripts
     loadUserLibraries(runUserScripts);

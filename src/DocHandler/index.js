@@ -5,7 +5,7 @@ import defaultSvgDocTemplate from './default.text.svg';
 import minimumSvgDoc from './minimum.text.svg';
 
 // sneakily embed the interactivity-running script
-const defaultSvgDoc = eval('`' + defaultSvgDocTemplate + '`'); // eslint-disable-line no-eval
+const defaultSvgDoc = defaultSvgDocTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
 
 class DocHandler {
   /**
