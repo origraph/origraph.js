@@ -2,14 +2,12 @@
   "name": "mure",
   "version": "0.1.2",
   "description": "An integration library for the mure ecosystem of apps",
-  "esnext": "src/mure.js",
   "main": "build/mure.umd.min.js",
-  "module": "src/mure.js",
-  "jsnext:main": "src/mure.js",
+  "module": "build/mure.es.min.js",
+  "jsnext:main": "build/mure.es.min.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build_umd": "./node_modules/.bin/rollup -c rollup.umd.config.js && ./node_modules/.bin/uglifyjs ./build/mure.umd.js -c -m -o ./build/mure.umd.min.js",
-    "build": "npm run build_umd"
+    "build": "bash build.sh"
   },
   "repository": {
     "type": "git",
@@ -24,21 +22,22 @@
   "devDependencies": {
     "ansi-256-colors": "^1.1.0",
     "babel-core": "^6.26.0",
-    "babel-plugin-external-helpers": "^6.22.0",
-    "babel-polyfill": "^6.26.0",
-    "babel-preset-env": "^1.6.0",
-    "rollup": "^0.49.3",
-    "rollup-plugin-babel": "^3.0.2",
+    "rollup": "^0.53.3",
+    "rollup-plugin-babel": "^3.0.3",
+    "rollup-plugin-commonjs": "^8.2.6",
     "rollup-plugin-json": "^2.3.0",
-    "uglify-js": "^3.1.0"
+    "rollup-plugin-node-globals": "^1.1.0",
+    "rollup-plugin-node-resolve": "^3.0.1",
+    "rollup-plugin-string": "^2.0.2",
+    "uglify-es": "^3.3.5"
   },
   "dependencies": {
-    "d3": "^4.10.2",
+    "d3": "^4.12.2",
     "datalib": "^1.8.0",
-    "jsonpath": "^0.2.12",
-    "md5": "^2.2.1",
-    "pouchdb": "^6.3.4",
-    "regression": "^2.0.0",
-    "uki": "^0.1.0"
+    "pouchdb": "^6.4.1",
+    "pouchdb-authentication": "^1.1.0",
+    "scalpel": "^2.1.0",
+    "uki": "^0.1.0",
+    "xml-js": "^1.6.2"
   }
 }
