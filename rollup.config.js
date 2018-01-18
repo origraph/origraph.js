@@ -6,14 +6,22 @@ import json from 'rollup-plugin-json';
 import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 
-// const packageJson = require('./package.json');
-// const external = Object.keys(packageJson.dependencies);
+const packageJson = require('./package.json');
+const external = Object.keys(packageJson.dependencies);
 
 export default {
   input: 'src/mure.js',
   output: {
     name: 'mure',
-    sourcemap: 'inline'
+    sourcemap: 'inline',
+    globals: {
+      d3: 'd3',
+      pouchdb: 'PouchDB',
+      'pouchdb-authentication': 'PouchDBAuthentication',
+      'xml-js': 'xmlJs',
+      uki: 'uki',
+      scalpel: 'scalpel'
+    }
   },
   plugins: [
     nodeResolve({
@@ -22,20 +30,18 @@ export default {
       browser: true,
       preferBuiltins: false
     }),
-    commonjs({
-      ignoreGlobal: true
-    }),
+    commonjs(),
     globals(),
     json(),
-    babel({
-      exclude: 'node_modules/**'
-    }),
     string({
-      include: [
-        '**/*.text.*'
-      ]
+      include: '**/*.text.*'
+    }),
+    babel({
+      exclude: 'node_modules/**',
+      externalHelpers: true
     })
   ],
+  external: external,
   onwarn: warning => {
     if (warning.code !== 'EVAL' ||
           !(/eslint-disable-line no-eval/.test(warning.frame))) {
