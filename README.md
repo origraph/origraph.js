@@ -1,5 +1,6 @@
 mure.js
 =======
+[![Build Status](https://travis-ci.org/mure-apps/mure-library.svg?branch=master)](https://travis-ci.org/mure-apps/mure-library)
 
 An integration library for the mure ecosystem of apps
 
