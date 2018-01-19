@@ -9,15 +9,6 @@ const tests = [
       svg.append('g');
       svg.select('g').classed('test', true);
       return logging.testStringEquality(mure.d3n.svgString(),
-        '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><gclass="test"></g></svg>');
-    }
-  },
-  {
-    execute: () => {
-      let svg = mure.d3n.createSVG(500, 500);
-      svg.append('g');
-      svg.select('g').classed('test', true);
-      return logging.testStringEquality(mure.d3n.svgString(),
         '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><g class="test"></g></svg>');
     }
   }
