@@ -3,3 +3,4 @@ node_js:
   - '9'
 notifications:
     slack: mure-apps:9SXKuestEVdHAevzd5JQf2J1
+    email: false
