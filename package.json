@@ -8,8 +8,9 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "test": "node test/dbTests.js",
-    "pretest": "npm run build"
+    "test": "node test/test.js",
+    "pretest": "npm run build",
+    "posttest": "rm -rf mure"
   },
   "files": [
     "dist"
@@ -25,8 +26,9 @@
   },
   "homepage": "https://github.com/mure-apps/mure-library#readme",
   "devDependencies": {
-    "ansi-256-colors": "^1.1.0",
+    "chalk": "^2.3.0",
     "d3-node": "^1.1.3",
+    "diff": "^3.4.0",
     "pouchdb-node": "^6.4.1",
     "rollup": "^0.50.0",
     "rollup-plugin-auto-external": "^1.0.0",
