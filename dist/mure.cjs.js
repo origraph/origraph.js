@@ -2,9 +2,9 @@
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-var uki = require('uki');
 var xmlJs = _interopDefault(require('xml-js'));
 var scalpel = require('scalpel');
+var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
 var PouchDB = _interopDefault(require('pouchdb-node'));
 

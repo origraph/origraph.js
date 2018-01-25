@@ -31,6 +31,7 @@ export default [
   {
     input: 'src/module.js',
     output: {
+      sourcemap: 'inline',
       name: 'mure',
       file: pkg.browser,
       format: 'umd'
