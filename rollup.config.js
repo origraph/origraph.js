@@ -1,6 +1,7 @@
 import autoExternal from 'rollup-plugin-auto-external';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
+import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
 import pkg from './package.json';
@@ -10,7 +11,8 @@ import pkg from './package.json';
 const commonPlugins = [
   autoExternal(),
   string({ include: '**/*.text.*' }), // allow us to import files as strings
-  json() // import json files as modules
+  json(), // import json files as modules
+  babel({ exclude: ['node_modules/**'] })
 ];
 
 const filterWarnings = warning => {

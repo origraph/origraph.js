@@ -11,14 +11,139 @@ var defaultSvgDocTemplate = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone
 
 var minimumSvgDoc = "<svg>\n  <metadata id=\"mure\">\n    <mure xmlns=\"http://mure-apps.github.io\">\n    </mure>\n  </metadata>\n</svg>\n";
 
-// sneakily embed the interactivity-running script
-const defaultSvgDoc = defaultSvgDocTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
+var asyncToGenerator = function (fn) {
+  return function () {
+    var gen = fn.apply(this, arguments);
+    return new Promise(function (resolve, reject) {
+      function step(key, arg) {
+        try {
+          var info = gen[key](arg);
+          var value = info.value;
+        } catch (error) {
+          reject(error);
+          return;
+        }
 
-class DocHandler {
+        if (info.done) {
+          resolve(value);
+        } else {
+          return Promise.resolve(value).then(function (value) {
+            step("next", value);
+          }, function (err) {
+            step("throw", err);
+          });
+        }
+      }
+
+      return step("next");
+    });
+  };
+};
+
+var classCallCheck = function (instance, Constructor) {
+  if (!(instance instanceof Constructor)) {
+    throw new TypeError("Cannot call a class as a function");
+  }
+};
+
+var createClass = function () {
+  function defineProperties(target, props) {
+    for (var i = 0; i < props.length; i++) {
+      var descriptor = props[i];
+      descriptor.enumerable = descriptor.enumerable || false;
+      descriptor.configurable = true;
+      if ("value" in descriptor) descriptor.writable = true;
+      Object.defineProperty(target, descriptor.key, descriptor);
+    }
+  }
+
+  return function (Constructor, protoProps, staticProps) {
+    if (protoProps) defineProperties(Constructor.prototype, protoProps);
+    if (staticProps) defineProperties(Constructor, staticProps);
+    return Constructor;
+  };
+}();
+
+
+
+
+
+
+
+
+
+var inherits = function (subClass, superClass) {
+  if (typeof superClass !== "function" && superClass !== null) {
+    throw new TypeError("Super expression must either be null or a function, not " + typeof superClass);
+  }
+
+  subClass.prototype = Object.create(superClass && superClass.prototype, {
+    constructor: {
+      value: subClass,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    }
+  });
+  if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass;
+};
+
+
+
+
+
+
+
+
+
+
+
+var possibleConstructorReturn = function (self, call) {
+  if (!self) {
+    throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
+  }
+
+  return call && (typeof call === "object" || typeof call === "function") ? call : self;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var toConsumableArray = function (arr) {
+  if (Array.isArray(arr)) {
+    for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
+
+    return arr2;
+  } else {
+    return Array.from(arr);
+  }
+};
+
+// sneakily embed the interactivity-running script
+var defaultSvgDoc = defaultSvgDocTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
+
+var DocHandler = function () {
   /**
    *
    */
-  constructor () {
+  function DocHandler() {
+    classCallCheck(this, DocHandler);
+
     this.selectorParser = createParser();
     // todo: for efficiency, I should rename all of xml-js's default (lengthy!) key names
     this.keyNames = {};
@@ -35,60 +160,93 @@ class DocHandler {
     this.defaultJsonDoc = this.xml2json(defaultSvgDoc);
     this.minimumJsDoc = this.xml2js(minimumSvgDoc);
   }
-  xml2js (text) { return xmlJs.xml2js(text, this.xml2jsonSettings); }
-  xml2json (text) { return xmlJs.xml2json(text, this.xml2jsonSettings); }
-  json2xml (text) { return xmlJs.json2xml(text, this.json2xmlSettings); }
-  js2xml (text) { return xmlJs.js2xml(text, this.json2xmlSettings); }
-  standardize (testObj, standardObj) {
-    if (!standardObj) {
-      if (!testObj._id) {
-        throw new Error('You must at least supply an id to standardize the document');
+
+  createClass(DocHandler, [{
+    key: 'xml2js',
+    value: function xml2js(text) {
+      return xmlJs.xml2js(text, this.xml2jsonSettings);
+    }
+  }, {
+    key: 'xml2json',
+    value: function xml2json(text) {
+      return xmlJs.xml2json(text, this.xml2jsonSettings);
+    }
+  }, {
+    key: 'json2xml',
+    value: function json2xml(text) {
+      return xmlJs.json2xml(text, this.json2xmlSettings);
+    }
+  }, {
+    key: 'js2xml',
+    value: function js2xml(text) {
+      return xmlJs.js2xml(text, this.json2xmlSettings);
+    }
+  }, {
+    key: 'standardize',
+    value: function standardize(testObj, standardObj) {
+      if (!standardObj) {
+        if (!testObj._id) {
+          throw new Error('You must at least supply an id to standardize the document');
+        }
+        testObj.currentSelection = testObj.currentSelection || null;
+        testObj.contents = this.standardize(testObj.contents || {}, this.minimumJsDoc);
+      } else {
+        // TODO
       }
-      testObj.currentSelection = testObj.currentSelection || null;
-      testObj.contents = this.standardize(testObj.contents || {}, this.minimumJsDoc);
-    } else {
+      return testObj;
+    }
+  }, {
+    key: 'iterate',
+    value: function iterate(obj, callback) {
+      var nodes = [];
+      nodes.push(obj);
+      do {
+        obj = nodes.shift();
+        callback(obj);
+        if (obj.elements) {
+          nodes.unshift.apply(nodes, toConsumableArray(obj.elements));
+        }
+      } while (nodes.length > 0);
+    }
+  }, {
+    key: 'matchObject',
+    value: function matchObject(obj, queryTokens) {
       // TODO
     }
-    return testObj;
-  }
-  iterate (obj, callback) {
-    const nodes = [];
-    nodes.push(obj);
-    do {
-      obj = nodes.shift();
-      callback(obj);
-      if (obj.elements) {
-        nodes.unshift(...obj.elements);
-      }
-    } while (nodes.length > 0);
-  }
-  matchObject (obj, queryTokens) {
-    // TODO
-  }
-  selectAll (root, selector) {
-    const queryTokens = this.selectorParser.parse(selector);
-    const elements = [];
-    this.iterate(root, obj => {
-      if (this.matchObject(obj, queryTokens)) {
-        elements.push(obj);
-      }
-    });
-    return elements;
-  }
-}
+  }, {
+    key: 'selectAll',
+    value: function selectAll(root, selector) {
+      var _this = this;
+
+      var queryTokens = this.selectorParser.parse(selector);
+      var elements = [];
+      this.iterate(root, function (obj) {
+        if (_this.matchObject(obj, queryTokens)) {
+          elements.push(obj);
+        }
+      });
+      return elements;
+    }
+  }]);
+  return DocHandler;
+}();
 
 var docH = new DocHandler();
 
-class Mure extends Model {
-  constructor (PouchDB, d3$$1, d3n) {
-    super();
+var Mure = function (_Model) {
+  inherits(Mure, _Model);
 
-    this.PouchDB = PouchDB; // for Node.js, this will be pouchdb-node, not the regular one
-    this.d3 = d3$$1; // for Node.js, this will be from d3-node, not the regular one
-    this.d3n = d3n; // in Node, we also need access to the higher-level stuff from d3-node
+  function Mure(PouchDB, d3$$1, d3n) {
+    classCallCheck(this, Mure);
+
+    var _this = possibleConstructorReturn(this, (Mure.__proto__ || Object.getPrototypeOf(Mure)).call(this));
+
+    _this.PouchDB = PouchDB; // for Node.js, this will be pouchdb-node, not the regular one
+    _this.d3 = d3$$1; // for Node.js, this will be from d3-node, not the regular one
+    _this.d3n = d3n; // in Node, we also need access to the higher-level stuff from d3-node
 
     // Enumerations...
-    this.CONTENT_FORMATS = {
+    _this.CONTENT_FORMATS = {
       exclude: 0,
       blob: 1,
       dom: 2,
@@ -96,77 +254,104 @@ class Mure extends Model {
     };
 
     // The namespace string for our custom XML
-    this.NSString = 'http://mure-apps.github.io';
-    this.d3.namespaces.mure = this.NSString;
+    _this.NSString = 'http://mure-apps.github.io';
+    _this.d3.namespaces.mure = _this.NSString;
 
     // Create / load the local database of files
-    this.db = new this.PouchDB('mure');
+    _this.db = new _this.PouchDB('mure');
 
     // default error handling (apps can listen for / display error messages in addition to this):
-    this.on('error', errorMessage => {
+    _this.on('error', function (errorMessage) {
       console.warn(errorMessage);
     });
-    this.catchDbError = errorObj => {
-      this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
+    _this.catchDbError = function (errorObj) {
+      _this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
     };
 
     // in the absence of a custom dialogs, just use window.alert, window.confirm and window.prompt:
-    this.alert = (message) => {
-      return new Promise((resolve, reject) => {
+    _this.alert = function (message) {
+      return new Promise(function (resolve, reject) {
         window.alert(message);
         resolve(true);
       });
     };
-    this.confirm = (message) => {
-      return new Promise((resolve, reject) => {
+    _this.confirm = function (message) {
+      return new Promise(function (resolve, reject) {
         resolve(window.confirm(message));
       });
     };
-    this.prompt = (message, defaultValue) => {
-      return new Promise((resolve, reject) => {
+    _this.prompt = function (message, defaultValue) {
+      return new Promise(function (resolve, reject) {
         resolve(window.prompt(message, defaultValue));
       });
     };
+    return _this;
   }
-  customizeAlertDialog (showDialogFunction) {
-    this.alert = showDialogFunction;
-  }
-  customizeConfirmDialog (showDialogFunction) {
-    this.confirm = showDialogFunction;
-  }
-  customizePromptDialog (showDialogFunction) {
-    this.prompt = showDialogFunction;
-  }
-  openApp (appName, newTab) {
-    if (newTab) {
-      window.open('/' + appName, '_blank');
-    } else {
-      window.location.pathname = '/' + appName;
+
+  createClass(Mure, [{
+    key: 'customizeAlertDialog',
+    value: function customizeAlertDialog(showDialogFunction) {
+      this.alert = showDialogFunction;
     }
-  }
-  getOrInitDb () {
-    let db = new this.PouchDB('mure');
-    let couchDbUrl = window.localStorage.getItem('couchDbUrl');
-    if (couchDbUrl) {
-      (async () => {
-        let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
-        return db.sync(couchDb, {live: true, retry: true});
-      })().catch(err => {
-        this.alert('Error syncing with ' + couchDbUrl + ': ' +
-          err.message);
-      });
+  }, {
+    key: 'customizeConfirmDialog',
+    value: function customizeConfirmDialog(showDialogFunction) {
+      this.confirm = showDialogFunction;
     }
-    return db;
-  }
-  /**
-   * A wrapper around PouchDB.get() that ensures that the returned document
-   * exists (uses default.text.svg when it doesn't), and has at least the
-   * elements specified by minimum.text.svg
-   * @return {object} A PouchDB document
-   */
-  getStandardizedDoc (docId) {
-    return this.db.get(docId)
-      .catch(err => {
+  }, {
+    key: 'customizePromptDialog',
+    value: function customizePromptDialog(showDialogFunction) {
+      this.prompt = showDialogFunction;
+    }
+  }, {
+    key: 'openApp',
+    value: function openApp(appName, newTab) {
+      if (newTab) {
+        window.open('/' + appName, '_blank');
+      } else {
+        window.location.pathname = '/' + appName;
+      }
+    }
+  }, {
+    key: 'getOrInitDb',
+    value: function getOrInitDb() {
+      var _this2 = this;
+
+      var db = new this.PouchDB('mure');
+      var couchDbUrl = window.localStorage.getItem('couchDbUrl');
+      if (couchDbUrl) {
+        asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
+          var couchDb;
+          return regeneratorRuntime.wrap(function _callee$(_context) {
+            while (1) {
+              switch (_context.prev = _context.next) {
+                case 0:
+                  couchDb = new _this2.PouchDB(couchDbUrl, { skip_setup: true });
+                  return _context.abrupt('return', db.sync(couchDb, { live: true, retry: true }));
+
+                case 2:
+                case 'end':
+                  return _context.stop();
+              }
+            }
+          }, _callee, _this2);
+        }))().catch(function (err) {
+          _this2.alert('Error syncing with ' + couchDbUrl + ': ' + err.message);
+        });
+      }
+      return db;
+    }
+    /**
+     * A wrapper around PouchDB.get() that ensures that the returned document
+     * exists (uses default.text.svg when it doesn't), and has at least the
+     * elements specified by minimum.text.svg
+     * @return {object} A PouchDB document
+     */
+
+  }, {
+    key: 'getStandardizedDoc',
+    value: function getStandardizedDoc(docId) {
+      return this.db.get(docId).catch(function (err) {
         if (err.name === 'not_found') {
           return {
             _id: docId,
@@ -176,31 +361,54 @@ class Mure extends Model {
         } else {
           throw err;
         }
-      }).then(doc => {
+      }).then(function (doc) {
         return docH.standardize(doc);
       });
-  }
-  /**
-   *
-   */
-  async downloadDoc (docId) {
-    return this.db.get(docId)
-      .then(doc => {
-        let xmlText = docH.js2xml(doc.contents);
+    }
+    /**
+     *
+     */
 
-        // create a fake link to initiate the download
-        let a = document.createElement('a');
-        a.style = 'display:none';
-        let url = window.URL.createObjectURL(new window.Blob([xmlText], { type: 'image/svg+xml' }));
-        a.href = url;
-        a.download = doc._id;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.parentNode.removeChild(a);
-      });
-  }
-}
+  }, {
+    key: 'downloadDoc',
+    value: function () {
+      var _ref2 = asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2(docId) {
+        return regeneratorRuntime.wrap(function _callee2$(_context2) {
+          while (1) {
+            switch (_context2.prev = _context2.next) {
+              case 0:
+                return _context2.abrupt('return', this.db.get(docId).then(function (doc) {
+                  var xmlText = docH.js2xml(doc.contents);
+
+                  // create a fake link to initiate the download
+                  var a = document.createElement('a');
+                  a.style = 'display:none';
+                  var url = window.URL.createObjectURL(new window.Blob([xmlText], { type: 'image/svg+xml' }));
+                  a.href = url;
+                  a.download = doc._id;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  a.parentNode.removeChild(a);
+                }));
+
+              case 1:
+              case 'end':
+                return _context2.stop();
+            }
+          }
+        }, _callee2, this);
+      }));
+
+      function downloadDoc(_x) {
+        return _ref2.apply(this, arguments);
+      }
+
+      return downloadDoc;
+    }()
+  }]);
+  return Mure;
+}(Model);
 
 PouchDB.plugin(PouchAuthentication);
 
