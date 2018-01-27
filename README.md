@@ -38,6 +38,7 @@ See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a ba
 - Update the release link in this README
 - `git commit -a -m "commit message"`
 - `git push`
+- (Verify Travis CI doesn't fail)
 - `git tag -a #.#.# -m "tag annotation"`
 - `git push --tags`
 - `npm publish`
