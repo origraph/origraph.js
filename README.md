@@ -28,12 +28,14 @@ npm install mure
 However, for the latter, be advised that some of the dependencies of this library result in webpack / rollup / whatever configuration hell. If you can figure out a configuration that actually works, I'd love to hear about it!
 
 # Releasing a new version
-(Mostly a section to make sure I don't forget any steps):
+(Mostly a list of reminders to make sure I don't forget any steps):
 
 - Update the release link in this README
 - Update the version in package.json
 - `git tag -a #.#.# -m "tag annotation"`
-- (going to finish this after I do it the first time ;) )
+- `git push --tags`
+- Edit the release on Github, add built files in `dist`
+- `npm publish`
 
 # Usage
 See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a basic example for how to use the library to create a mure editor
