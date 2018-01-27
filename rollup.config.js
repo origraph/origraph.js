@@ -5,24 +5,27 @@ import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
+import uglify from 'rollup-plugin-uglify';
+import uglifyEs from 'uglify-es';
 import pkg from './package.json';
 
-const dependencies = Object.keys(pkg.dependencies);
-const devDependencies = Object.keys(pkg.devDependencies);
+// Derive some of the configuration from package.json
 const peerDependencies = Object.keys(pkg.peerDependencies);
-
+const allExternals = peerDependencies.concat(
+  Object.keys(pkg.dependencies)).concat(
+  Object.keys(pkg.devDependencies));
 const commonPlugins = [
   string({ include: '**/*.text.*' }), // allow us to import files as strings
   json(), // import json files as modules
   babel({ exclude: ['node_modules/**'] }) // let us use fancy new things like async in our code
 ];
 
-export default [
+// Basic build formats, without minification
+let builds = [
   // browser-friendly UMD build
   {
     input: 'src/module.js',
     output: {
-      sourcemap: 'inline',
       name: 'mure',
       file: pkg.browser,
       format: 'umd',
@@ -48,7 +51,7 @@ export default [
       file: pkg.main,
       format: 'cjs'
     },
-    external: dependencies.concat(devDependencies).concat(peerDependencies),
+    external: allExternals,
     plugins: commonPlugins
   },
   // ES Module build for bundlers
@@ -58,7 +61,29 @@ export default [
       file: pkg.module,
       format: 'es'
     },
-    external: dependencies.concat(devDependencies).concat(peerDependencies),
+    external: allExternals,
     plugins: commonPlugins
   }
 ];
+
+// Create both minified and un-minified versions for
+// builds with 'min.js' in their filenames
+let minifiedBuilds = [];
+builds.forEach(build => {
+  if (build.output.file.endsWith('min.js')) {
+    // Deep copy the build spec, add uglification
+    let minBuild = Object.assign({}, build);
+    minBuild.output = Object.assign({}, build.output);
+    minBuild.plugins = minBuild.plugins.concat([
+      uglify({}, uglifyEs.minfier)
+    ]);
+    minifiedBuilds.push(minBuild);
+
+    // Keep the un-minified version for development,
+    // include a sourcemap
+    build.output.file = build.output.file.replace(/min\.js/, 'js');
+    build.output.sourcemap = 'inline';
+  }
+});
+
+export default builds.concat(minifiedBuilds);

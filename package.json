@@ -5,7 +5,7 @@
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
   "jsnext:main": "dist/mure.esm.js",
-  "browser": "dist/mure.umd.js",
+  "browser": "dist/mure.umd.min.js",
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
