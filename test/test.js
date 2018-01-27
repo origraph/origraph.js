@@ -1,9 +1,17 @@
 const chalk = require('chalk');
 const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
+const pkg = require('../package.json');
 
 const tests = [
   {
+    name: 'Version check',
+    execute: () => {
+      return logging.testStringEquality(pkg.version, mure.version);
+    }
+  },
+  {
+    name: 'Simple SVG + d3 test',
     execute: () => {
       let svg = mure.d3n.createSVG(500, 500);
       svg.append('g');

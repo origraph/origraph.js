@@ -213,9 +213,46 @@ class Mure extends uki.Model {
   }
 }
 
-var d3n = new D3Node();
-var PouchDB = require('pouchdb-node').plugin(require('pouchdb-authentication'));
+var name = "mure";
+var version = "0.2.2";
+var description = "An integration library for the mure ecosystem of apps";
+var main = "dist/mure.cjs.js";
+var module$1 = "dist/mure.esm.js";
+var browser = "dist/mure.umd.js";
+var scripts = { "build": "rollup -c", "dev": "rollup -c -w", "test": "node test/test.js", "pretest": "npm run build", "posttest": "rm -rf mure" };
+var files = ["dist"];
+var repository = { "type": "git", "url": "git+https://github.com/mure-apps/mure-library.git" };
+var author = "Alex Bigelow";
+var license = "MIT";
+var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
+var homepage = "https://github.com/mure-apps/mure-library#readme";
+var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.2", "rollup": "^0.55.0", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.2.6", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-string": "^2.0.2" };
+var dependencies = { "d3": "^4.12.2", "datalib": "^1.8.0", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.2", "scalpel": "^2.1.0", "uki": "^0.1.0", "xml-js": "^1.6.2" };
+var peerDependencies = { "d3": "^4.12.2" };
+var pkg = {
+	name: name,
+	version: version,
+	description: description,
+	main: main,
+	module: module$1,
+	browser: browser,
+	scripts: scripts,
+	files: files,
+	repository: repository,
+	author: author,
+	license: license,
+	bugs: bugs,
+	homepage: homepage,
+	devDependencies: devDependencies,
+	dependencies: dependencies,
+	peerDependencies: peerDependencies,
+	"jsnext:main": "dist/mure.esm.js"
+};
 
-var main = new Mure(PouchDB, d3n.d3, d3n);
+let d3n = new D3Node();
+let PouchDB = require('pouchdb-node').plugin(require('pouchdb-authentication'));
 
-module.exports = main;
+let mure = new Mure(PouchDB, d3n.d3, d3n);
+mure.version = pkg.version;
+
+module.exports = mure;
