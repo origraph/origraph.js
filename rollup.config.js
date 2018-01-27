@@ -33,8 +33,6 @@ let builds = [
     },
     plugins: [
       resolve({
-        module: true,
-        jsnext: true,
         browser: true,
         preferBuiltins: true
       }), // so Rollup can find dependencies

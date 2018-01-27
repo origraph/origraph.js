@@ -25,7 +25,7 @@ For server-side apps or pre-bundled browser apps:
 npm install mure
 ```
 
-However, for the latter, be advised that some of the dependencies of this library result in webpack / rollup / whatever configuration hell. If you can figure out a configuration that actually works, I'd love to hear about it!
+However, for the latter, be advised that some of the dependencies of this library result in webpack / rollup / whatever configuration hell. If you discover a configuration that actually works, I'd love to hear about it!
 
 # Usage
 See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a basic example for how to use the library to create a mure editor
@@ -39,5 +39,5 @@ See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a ba
 - `git commit -a -m "commit message"`
 - `git tag -a #.#.# -m "tag annotation"`
 - `git push --tags`
-- Edit the release on Github, add built files in `dist`
 - `npm publish`
+- (maybe optional) Edit / document the release on Github, add built files in `dist`

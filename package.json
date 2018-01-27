@@ -1,6 +1,6 @@
 {
   "name": "mure",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "An integration library for the mure ecosystem of apps",
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
@@ -41,7 +41,9 @@
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-globals": "^1.1.0",
     "rollup-plugin-node-resolve": "^3.0.2",
-    "rollup-plugin-string": "^2.0.2"
+    "rollup-plugin-string": "^2.0.2",
+    "rollup-plugin-uglify": "^3.0.0",
+    "uglify-es": "^3.3.9"
   },
   "dependencies": {
     "d3": "^4.12.2",
