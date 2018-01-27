@@ -28,12 +28,17 @@ export default [
       format: 'umd',
       globals: { 'd3': 'd3' }
     },
-    plugins: commonPlugins.concat([
+    plugins: [
+      resolve({
+        module: true,
+        jsnext: true,
+        browser: true,
+        preferBuiltins: true
+      }), // so Rollup can find dependencies
+      commonjs(), // so Rollup can convert dependencies to ES modules
       builtins(),
-      globals(),
-      resolve(), // so Rollup can find dependencies
-      commonjs() // so Rollup can convert dependencies to ES modules
-    ]),
+      globals()
+    ].concat(commonPlugins),
     external: peerDependencies
   },
   // CommonJS build for Node.js
