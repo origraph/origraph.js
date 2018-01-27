@@ -13,10 +13,10 @@ absorbed here as well.
 
 Installation
 ============
-For basic use in the browser:
+For basic use in the browser ():
 
 ```html
-<script src="https://github.com/mure-apps/mure-library/releases/download/0.2.1/mure.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mure@0.2.1/dist/mure.umd.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:
