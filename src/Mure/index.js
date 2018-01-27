@@ -5,9 +5,17 @@ class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
     super();
 
-    this.PouchDB = PouchDB; // for Node.js, this will be pouchdb-node, not the regular one
+    this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
-    this.d3n = d3n; // in Node, we also need access to the higher-level stuff from d3-node
+
+    // to run tests, we also need access to the d3-node wrapper (we don't
+    // import it directly into the tests to make sure that the namespace
+    // addition below works)
+    this.d3n = d3n;
+
+    // The namespace string for our custom XML
+    this.NSString = 'http://mure-apps.github.io';
+    this.d3.namespaces.mure = this.NSString;
 
     // Enumerations...
     this.CONTENT_FORMATS = {
@@ -16,10 +24,6 @@ class Mure extends Model {
       dom: 2,
       base64: 3
     };
-
-    // The namespace string for our custom XML
-    this.NSString = 'http://mure-apps.github.io';
-    this.d3.namespaces.mure = this.NSString;
 
     // Create / load the local database of files
     this.db = new this.PouchDB('mure');
