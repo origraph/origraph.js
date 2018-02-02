@@ -2,6 +2,7 @@ import builtins from 'rollup-plugin-node-builtins';
 import globals from 'rollup-plugin-node-globals';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
+import replace from 'rollup-plugin-replace';
 import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
@@ -32,6 +33,13 @@ let builds = [
       globals: { 'd3': 'd3' }
     },
     plugins: [
+      replace({
+        include: ['node_modules/uuid/**'],
+        delimiters: ['', ''],
+        values: {
+          'crypto.randomBytes': 'require(\'randombytes\')'
+        }
+      }),
       resolve({
         browser: true,
         preferBuiltins: true
