@@ -3,31 +3,34 @@ Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrar
 1. Mure uses an [adaptation of CSS selector syntax](#reference-syntax) for internal references. When strings begin with a `@` character, we recognize and parse them as references; this is a basic mechanism for objects and documents to contain references to each other
 2. For simple reference interpretation and file reshaping, arrays are always converted to objects on import (e.g. `['a','b']` becomes `{'0':'a','1':'b'}`). As long as the keys remain consecutive integers, these objects are converted back to arrays on export. For details, see [Importing and Exporting files](#importing-and-exporting-files).
 3. Consistent with PouchDB, all documents must have an `_id` property at their root; our convention is to store these with the file extension *reversed* (e.g. `svg.myChart`) to make PouchDB's built-in `_id` index slightly more useful.
-4. Mure apps often need to attach metadata outside a document's basic structure. Mure apps should create *shadow documents* (e.g. `_id: "svg.myChart/my-app-name"`) rather than store metadata in the document directly. Mure will include these in zipped downloads as `myChart.svg.my-app-name.mure.shadow` files.
+4. Mure apps often need to attach metadata outside a document's basic structure. Consequently, we use a `contents` attribute at the root level of every document—Mure apps can attach whatever metadata is necessary at the root level. Anything not under `contents` will be ignored by references, and will, at most, be imported / exported as separate files (e.g. `myChart.svg.my-app-name.mure`).
 
 # Reference Syntax
 While documents and objects can take any free-form JSON shape, references rely on specific attribute names to be more powerful. For example:
 
 ```js
 {
-  'combinator-reference': '@div > span', // Combinators treat JSON objects like CSS selectors treat elements
-  'id-reference': '@#foo', // The # ID selector selects an object by its key
-  'tag-reference': '@div', // Regular CSS tag selectors look for objects that have a matching 'tag' property
-  'class-reference': '@.a.b', // Class references look for objects that have a matching 'class' property
-  'attribute-reference': '@[some-attribute=3]', // Attribute references look for objects that have a matching attributeSelector
+  '_id': 'json.myFile',
+  'contents': {
+    'combinator-reference': '@div > span', // Combinators treat JSON objects like CSS selectors treat elements
+    'id-reference': '@#foo', // The # ID selector selects an object by its key
+    'tag-reference': '@div', // Regular CSS tag selectors look for objects that have a matching 'tag' property
+    'class-reference': '@.a.b', // Class references look for objects that have a matching 'class' property
+    'attribute-reference': '@[some-attribute=3]', // Attribute references look for objects that have a matching attributeSelector
 
-  'foo': { // foo is selected by @#foo, @div, @.a.b, and @[some-attribute=3]
-    'bar': { // bar is selected by @div > span
-      'tag': 'span'
-    },
-    'tag': 'div',
-    'class': 'a b',
-    'some-attribute': 3,
+    'foo': { // foo is selected by @#foo, @div, @.a.b, and @[some-attribute=3]
+      'bar': { // bar is selected by @div > span
+        'tag': 'span'
+      },
+      'tag': 'div',
+      'class': 'a b',
+      'some-attribute': 3,
+    }
   }
 }
 ```
 ## Keys vs IDs
-References treat actual `id` attributes are like any other string; to select by actual `id` attributes instead an object's key, you'd need to do something like `@[id="foo"]`.
+References treat XML `id` attributes like any other string; instead, the `#` selector picks up objects by their key. To select by actual `id` attributes instead an object's key, you'd need to do something like `@[id="foo"]` instead of `#foo`.
 
 ## Reference Scope
 Unless modifying syntactic sugar immediately follows the `@` character, all references are evaluated beginning at its containing document.
@@ -38,21 +41,23 @@ When parent (`<`) or sibling (`~`) syntactic sugar is present, the reference is 
 ```js
 {
   '_id': 'json.myFile',
-  'qux': {
-    'tag': 'div',
-
-    'foo': '@ div',
-    'bar': '@ < div',
-    'baz': '@ ~ div',
-
-    'quux': {
+  'contents': {
+    'qux': {
       'tag': 'div',
 
-      'corge': '@ < < div'
+      'foo': '@ div',
+      'bar': '@ < div',
+      'baz': '@ ~ div',
+
+      'quux': {
+        'tag': 'div',
+
+        'corge': '@ < < div'
+      }
+    },
+    'quuz': {
+      'tag': 'div'
     }
-  },
-  'quuz': {
-    'tag': 'div'
   }
 }
 ```
@@ -66,6 +71,8 @@ TODO: provide an example, not totally sure about that syntactic sugar up there
 
 
 # Importing and exporting files
+
+TODO: provide general guidance about separate metadata files, shadow trees, etc
 
 ## XML
 ### Export nuances
@@ -81,26 +88,24 @@ TODO: provide an example, not totally sure about that syntactic sugar up there
 ```js
 {
   '_id': 'svg.myImage',
-  'c': [
-    {
+  'contents': {
+    '0': {
       'xml': 'declaration',
       'version': '1.0',
       'encoding': 'UTF-8',
       'standalone': 'no'
     },
-    {
+    '1': {
       'tag': 'svg',
       'width': 500,
       'height': 500,
-      'c': [
-        {
-          'tag': 'metadata',
-          'id': 'mure',
-          'xmlns': 'http://mure-apps.github.io'
-        }
-      ]
+      '0': {
+        'tag': 'metadata',
+        'id': 'mure',
+        'xmlns': 'http://mure-apps.github.io'
+      }
     }
-  ]
+  }
 }
 ```
 
@@ -108,28 +113,15 @@ TODO: provide an example, not totally sure about that syntactic sugar up there
 ```js
 {
   '_id': 'csv.myData',
-  'n': {
-    'tag': 'metadata',
-    'n': {
-      'id': 'mure',
-      'xmlns': 'http://mure-apps.github.io'
+  'contents': {
+    '0': {
+      'foo': 3,
+      'bar': 'baz'
+    },
+    '1': {
+      'foo': 1,
+      'bar': 'qux'
     }
-  },
-  'o': [
-    {
-      {
-        'n': {
-          'foo': 3,
-          'bar': 'baz'
-        }
-      },
-      {
-        'n': {
-          'foo': 1,
-          'bar': 'qux'
-        }
-      }
-    }
-  ]
+  }
 }
 ```
