@@ -36,7 +36,8 @@ class Mure extends Model {
       this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
     };
 
-    // in the absence of a custom dialogs, just use window.alert, window.confirm and window.prompt:
+    // in the absence of a custom dialogs, just use window.alert,
+    // window.confirm, window.prompt, console.warn, and console.log:
     this.alert = (message) => {
       return new Promise((resolve, reject) => {
         window.alert(message);
@@ -52,6 +53,12 @@ class Mure extends Model {
       return new Promise((resolve, reject) => {
         resolve(window.prompt(message, defaultValue));
       });
+    };
+    this.warn = function () {
+      console.warn(...arguments);
+    };
+    this.log = function () {
+      console.log(...arguments);
     };
   }
   customizeAlertDialog (showDialogFunction) {
@@ -105,6 +112,9 @@ class Mure extends Model {
       }).then(doc => {
         return docH.standardize(doc);
       });
+  }
+  async uploadDoc (fileObj) {
+
   }
   /**
    *
