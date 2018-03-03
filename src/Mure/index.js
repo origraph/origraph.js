@@ -1,4 +1,5 @@
 import { Model } from 'uki';
+import Selection from '../Selection/index.js';
 import docH from '../DocHandler/index.js';
 
 class Mure extends Model {
@@ -17,16 +18,8 @@ class Mure extends Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Enumerations...
-    this.CONTENT_FORMATS = {
-      exclude: 0,
-      blob: 1,
-      dom: 2,
-      base64: 3
-    };
-
     // Create / load the local database of files
-    this.db = new this.PouchDB('mure');
+    this.getOrInitDb();
 
     // default error handling (apps can listen for / display error messages in addition to this):
     this.on('error', errorMessage => {
@@ -77,64 +70,120 @@ class Mure extends Model {
       window.location.pathname = '/' + appName;
     }
   }
-  getOrInitDb () {
-    let db = new this.PouchDB('mure');
+  async getOrInitDb () {
+    this.db = new this.PouchDB('mure');
+    let status = {
+      synced: false,
+      indexed: false
+    };
     let couchDbUrl = window.localStorage.getItem('couchDbUrl');
     if (couchDbUrl) {
-      (async () => {
-        let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
-        return db.sync(couchDb, {live: true, retry: true});
-      })().catch(err => {
-        this.alert('Error syncing with ' + couchDbUrl + ': ' +
-          err.message);
-      });
+      let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
+      status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})
+        .catch(err => {
+          this.alert('Error syncing with ' + couchDbUrl + ': ' +
+            err.message);
+          return false;
+        }));
     }
-    return db;
-  }
-  /**
-   * A wrapper around PouchDB.get() that ensures that the returned document
-   * exists (uses default.text.svg when it doesn't), and has at least the
-   * elements specified by minimum.text.svg
-   * @return {object} A PouchDB document
-   */
-  getStandardizedDoc (docId) {
-    return this.db.get(docId)
-      .catch(err => {
-        if (err.name === 'not_found') {
-          return {
-            _id: docId,
-            currentSelection: null,
-            contents: JSON.parse(docH.defaultJsonDoc)
-          };
-        } else {
-          throw err;
+    status.indexed = (await Promise.all([
+      this.db.createIndex({
+        index: {
+          fields: ['filename']
         }
-      }).then(doc => {
-        return docH.standardize(doc);
-      });
-  }
-  async uploadDoc (fileObj) {
-
+      }).catch(() => false)
+    ])).reduce((acc, result) => result && acc, true);
+    return status;
   }
   /**
-   *
+   * A wrapper around PouchDB.get() that ensures that the first matched
+   * document exists (optionally creates an empty document when it doesn't), and
+   * that it conforms to the specifications outlined in documentation/schema.md
+   * @param  {Object|string}  [docQuery]
+   * The `selector` component of a Mango query, or, if a string, the precise
+   * document _id
+   * @param  {{boolean}}  [init=true]
+   * If true (default), the document will be created if it does not exist. If
+   * false, the returned Promise will resolve to null
+   * @return {Promise}
+   * Resolves the document
    */
-  async downloadDoc (docId) {
-    return this.db.get(docId)
+  async getDoc (docQuery, { init = true } = {}) {
+    let doc;
+    if (!docQuery) {
+      doc = {};
+    } else {
+      if (typeof docQuery === 'string') {
+        docQuery = { '_id': docQuery };
+      }
+      let matchingDocs = await this.db.find({ selector: docQuery, limit: 1 });
+      if (matchingDocs.length === 0) {
+        if (init) {
+          // If missing, use the docQuery itself as the template for a new doc
+          doc = docQuery;
+        } else {
+          return null;
+        }
+      }
+    }
+    return docH.standardize(doc);
+  }
+  /**
+   * Downloads a given file, optionally specifying a particular format
+   * @param  {Object|string}  docQuery
+   * The `selector` component of a Mango query, or, if a string, the precise
+   * document _id
+   * @param  {{string|null}}  [mimeType=null]
+   * Overrides the document's mimeType in formatting the download
+   * @return {Promise}
+   * Resolves as `true` once the download is initiated
+   */
+  async downloadDoc (docQuery, { mimeType = null } = {}) {
+    return this.getDoc(docQuery)
       .then(doc => {
-        let xmlText = docH.js2xml(doc.contents);
+        mimeType = mimeType || doc.mimeType;
+        let contents = docH.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
         a.style = 'display:none';
-        let url = window.URL.createObjectURL(new window.Blob([xmlText], { type: 'image/svg+xml' }));
+        let url = window.URL.createObjectURL(new window.Blob([contents], { type: mimeType }));
         a.href = url;
         a.download = doc._id;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         a.parentNode.removeChild(a);
+
+        return true;
       });
+  }
+  /**
+   * Evaluate a selector string
+   *
+   * A context object must be provided, either directly via the `context`
+   * parameter, or a document can be specified as part of the selector
+   *
+   * @param  {string}  selector
+   * A selector string, as outlined in documentation/schema.md
+   * @param  {{Object}}  [context=null]
+   * The context in which the selector should be evaluated (will be
+   * overridden if the selector specifies a document)
+   * @return {Selection}
+   * A wrapper object for interacting / rehaping the selected object(s) / value(s)
+   */
+  selectAll (selector, { context = null } = {}) {
+    let docSelector = /@\s*({.*})/g.exec(selector);
+    if (docSelector && docSelector.length > 1) {
+      docSelector = docSelector[1];
+      selector = selector.replace(docSelector, '');
+      docSelector = JSON.parse(docSelector);
+      context = this.getDoc(docSelector, false);
+    }
+    if (!context) {
+      this.error('Could not find context for selection');
+    }
+    return new Selection(selector, context);
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "mure",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "An integration library for the mure ecosystem of apps",
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
@@ -51,6 +51,7 @@
     "datalib": "^1.8.0",
     "pouchdb-authentication": "^1.1.1",
     "pouchdb-browser": "^6.4.3",
+    "pouchdb-find": "^6.4.3",
     "scalpel": "^2.1.0",
     "uki": "^0.1.0"
   },

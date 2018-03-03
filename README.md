@@ -16,7 +16,7 @@ Installation
 For basic use in the browser ():
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/mure@0.2.3/dist/mure.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mure@0.2.4/dist/mure.umd.min.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:
@@ -30,8 +30,21 @@ However, for the latter, be advised that some of the dependencies of this librar
 # Usage
 See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a basic example for how to use the library to create a mure editor
 
+Development
+===========
+Setup:
+
+```bash
+git clone https://github.com/mure-apps/mure-library.git
+cd mure-library
+npm install
+npm run build
+```
+
+*For now, just use symlinks to the dist/ folder; worry about `npm link` / app-level bundling in the future*
+
 # Releasing a new version
-(Mostly a list of reminders to make sure I don't forget any steps):
+A list of reminders to make sure I don't forget any steps:
 
 - Update the version in package.json
 - `npm run test`

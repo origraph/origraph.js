@@ -1,22 +1,19 @@
 import datalib from 'datalib';
 import { createParser } from 'scalpel';
 import mureInteractivityRunnerText from './mureInteractivityRunner.text.js'; // eslint-disable-line no-unused-vars
-import defaultSvgDocTemplate from './default.text.svg';
-import minimumSvgDoc from './minimum.text.svg';
+import defaultSvgContentTemplate from './default.text.svg';
+import minimumSvgContent from './minimum.text.svg';
 
 // sneakily embed the interactivity-running script
-const defaultSvgDoc = defaultSvgDocTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
+const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
 
 class DocHandler {
-  /**
-   *
-   */
   constructor () {
     this.selectorParser = createParser();
     // todo: for efficiency, I should rename all of xml-js's default (lengthy!) key names
     this.keyNames = {};
-    this.defaultSvgDoc = this.parseXml(defaultSvgDoc);
-    this.minimumSvgDoc = this.parseXml(minimumSvgDoc);
+    this.defaultSvgContent = this.parseXml(defaultSvgContent);
+    this.minimumSvgContent = this.parseXml(minimumSvgContent);
   }
   parseXml (xml) {
     // TODO
@@ -29,41 +26,15 @@ class DocHandler {
     datalibOptions = datalibOptions || {type: 'json', parse: 'auto'};
     return datalib.read(json, datalibOptions);
   }
-  standardizeSvg (testObj, standardObj) {
-    if (!standardObj) {
-      if (!testObj._id) {
-        throw new Error('You must at least supply an id to standardize the document');
-      }
-      testObj.currentSelection = testObj.currentSelection || null;
-      testObj.contents = this.standardize(testObj.contents || {}, this.minimumJsDoc);
-    } else {
-      // TODO
-    }
-    return testObj;
-  }
-  iterate (obj, callback) {
-    const nodes = [];
-    nodes.push(obj);
-    do {
-      obj = nodes.shift();
-      callback(obj);
-      if (obj.elements) {
-        nodes.unshift(...obj.elements);
-      }
-    } while (nodes.length > 0);
-  }
-  matchObject (obj, queryTokens) {
+  formatDoc (doc) {
     // TODO
+    return 'todo';
   }
-  selectAll (root, selector) {
-    const queryTokens = this.selectorParser.parse(selector);
-    const elements = [];
-    this.iterate(root, obj => {
-      if (this.matchObject(obj, queryTokens)) {
-        elements.push(obj);
-      }
-    });
-    return elements;
+  standardize (doc) {
+    // TODO
+    return {
+      contents: doc
+    };
   }
 }
 
