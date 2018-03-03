@@ -9,10 +9,15 @@ class Mure extends Model {
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
 
-    // to run tests, we also need access to the d3-node wrapper (we don't
-    // import it directly into the tests to make sure that the namespace
-    // addition below works)
-    this.d3n = d3n;
+    if (d3n) {
+      // to run tests, we also need access to the d3-node wrapper (we don't
+      // import it directly into the tests to make sure that the namespace
+      // addition below works)
+      this.d3n = d3n;
+      this.window = this.d3n.window;
+    } else {
+      this.window = window;
+    }
 
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
@@ -33,18 +38,18 @@ class Mure extends Model {
     // window.confirm, window.prompt, console.warn, and console.log:
     this.alert = (message) => {
       return new Promise((resolve, reject) => {
-        window.alert(message);
+        this.window.alert(message);
         resolve(true);
       });
     };
     this.confirm = (message) => {
       return new Promise((resolve, reject) => {
-        resolve(window.confirm(message));
+        resolve(this.window.confirm(message));
       });
     };
     this.prompt = (message, defaultValue) => {
       return new Promise((resolve, reject) => {
-        resolve(window.prompt(message, defaultValue));
+        resolve(this.window.prompt(message, defaultValue));
       });
     };
     this.warn = function () {
@@ -65,9 +70,9 @@ class Mure extends Model {
   }
   openApp (appName, newTab) {
     if (newTab) {
-      window.open('/' + appName, '_blank');
+      this.window.open('/' + appName, '_blank');
     } else {
-      window.location.pathname = '/' + appName;
+      this.window.location.pathname = '/' + appName;
     }
   }
   async getOrInitDb () {
@@ -76,7 +81,7 @@ class Mure extends Model {
       synced: false,
       indexed: false
     };
-    let couchDbUrl = window.localStorage.getItem('couchDbUrl');
+    let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
     if (couchDbUrl) {
       let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
       status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})
@@ -86,13 +91,11 @@ class Mure extends Model {
           return false;
         }));
     }
-    status.indexed = (await Promise.all([
-      this.db.createIndex({
-        index: {
-          fields: ['filename']
-        }
-      }).catch(() => false)
-    ])).reduce((acc, result) => result && acc, true);
+    status.indexed = !!(await this.db.createIndex({
+      index: {
+        fields: ['filename']
+      }
+    }).catch(() => false));
     return status;
   }
   /**
@@ -117,13 +120,15 @@ class Mure extends Model {
         docQuery = { '_id': docQuery };
       }
       let matchingDocs = await this.db.find({ selector: docQuery, limit: 1 });
-      if (matchingDocs.length === 0) {
+      if (matchingDocs.docs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
           doc = docQuery;
         } else {
           return null;
         }
+      } else {
+        doc = matchingDocs.docs[0];
       }
     }
     return docH.standardize(doc);
@@ -147,12 +152,12 @@ class Mure extends Model {
         // create a fake link to initiate the download
         let a = document.createElement('a');
         a.style = 'display:none';
-        let url = window.URL.createObjectURL(new window.Blob([contents], { type: mimeType }));
+        let url = this.window.URL.createObjectURL(new window.Blob([contents], { type: mimeType }));
         a.href = url;
         a.download = doc._id;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+        this.window.URL.revokeObjectURL(url);
         a.parentNode.removeChild(a);
 
         return true;

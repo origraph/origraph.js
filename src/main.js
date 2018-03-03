@@ -2,6 +2,9 @@ import Mure from './Mure/index.js';
 import D3Node from 'd3-node';
 import pkg from '../package.json';
 let d3n = new D3Node();
+// Attach a few extra shims for testing
+d3n.window.localStorage = { getItem: () => null };
+
 let PouchDB = require('pouchdb-node')
   .plugin(require('pouchdb-find'))
   .plugin(require('pouchdb-authentication'));
