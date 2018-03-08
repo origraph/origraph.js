@@ -24,10 +24,10 @@ const tests = [
     }, 0);
   }, 0);
   if (numPassed === totalTests) {
-    console.log(chalk`{bold.hex('#666666') Passed ${numPassed} out of ${tests.length} tests\n\n}`);
+    console.log(chalk`{bold.hex('#666666') Passed ${numPassed} out of ${totalTests} tests\n\n}`);
     process.exit(0);
   } else {
-    console.error(chalk`{bold.hex('#e7298a') Failed ${tests.length - numPassed} of ${tests.length} tests\n\n}`);
+    console.error(chalk`{bold.hex('#e7298a') Failed ${totalTests - numPassed} of ${totalTests} tests\n\n}`);
     process.exit(1);
   }
 })();

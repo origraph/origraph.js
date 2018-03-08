@@ -1,6 +1,7 @@
+import mime from 'mime-types';
 import { Model } from 'uki';
 import Selection from '../Selection/index.js';
-import docH from '../DocHandler/index.js';
+import DocHandler from '../DocHandler/index.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -22,6 +23,8 @@ class Mure extends Model {
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
+
+    this.docHandler = new DocHandler(this);
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -131,7 +134,7 @@ class Mure extends Model {
         doc = matchingDocs.docs[0];
       }
     }
-    return docH.standardize(doc);
+    return this.docHandler.standardize(doc);
   }
   /**
    * Downloads a given file, optionally specifying a particular format
@@ -147,7 +150,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = docH.formatDoc(doc, { mimeType });
+        let contents = this.docHandler.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -163,8 +166,27 @@ class Mure extends Model {
         return true;
       });
   }
+  async uploadFileObj (fileObj, { encoding = mime.charset(fileObj.type) } = {}) {
+    return new Promise((resolve, reject) => {
+      let reader = new window.FileReader();
+      reader.onload = () => {
+        resolve(resolve);
+      };
+      reader.readAsText(fileObj, encoding);
+    }).then(string => {
+      return this.uploadString(fileObj.name, fileObj.type, string);
+    });
+  }
+  async uploadString (filename, mimeType, string) {
+    let doc = await this.docHandler.parse(string, { mimeType });
+    return this.uploadDoc(filename, mimeType, doc);
+  }
+  async uploadDoc (filename, mimeType, doc) {
+    doc = await this.docHandler.standardize(doc, { purgeArrays: true });
+    return this.db.put(doc);
+  }
   /**
-   * Evaluate a selector string
+   * Evaluate a reference string
    *
    * A context object must be provided, either directly via the `context`
    * parameter, or a document can be specified as part of the selector

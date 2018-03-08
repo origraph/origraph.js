@@ -10,8 +10,9 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "test": "node test/test.js",
-    "pretest": "npm run build",
-    "posttest": "rm -rf mure mure-mrview.*"
+    "pretest": "npm run build && rm -rf mure mure-mrview*",
+    "posttest": "rm -rf mure mure-mrview*",
+    "debug": "rm -rf mure mure-mrview* && node --inspect-brk test/test.js"
   },
   "files": [
     "dist"
@@ -49,6 +50,7 @@
   },
   "dependencies": {
     "datalib": "^1.8.0",
+    "mime-types": "^2.1.18",
     "pouchdb-authentication": "^1.1.1",
     "pouchdb-browser": "^6.4.3",
     "pouchdb-find": "^6.4.3",

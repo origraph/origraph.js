@@ -3,6 +3,7 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var scalpel = require('scalpel');
+var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
@@ -54,37 +55,116 @@ var minimumSvgContent = "<svg>\n  <metadata id=\"mure\" xmlns=\"http://mure-apps
 const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
 
 class DocHandler {
-  constructor() {
+  constructor(mure) {
+    this.mure = mure;
     this.selectorParser = scalpel.createParser();
-    // todo: for efficiency, I should rename all of xml-js's default (lengthy!) key names
     this.keyNames = {};
+    this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
     this.defaultSvgContent = this.parseXml(defaultSvgContent);
     this.minimumSvgContent = this.parseXml(minimumSvgContent);
   }
-  parseXml(xml) {
-    // TODO
+  async parse(text, { format = {}, mimeType } = {}) {
+    if (mimeType && (!format || !format.type)) {
+      format.type = mime.extension(mimeType);
+    }
+    if (format.type) {
+      format.type = format.type.toLowerCase();
+      if (this.datalibFormats.indexOf(format.type) !== -1) {
+        return new Promise((resolve, reject) => {
+          resolve(datalib.read(text, format));
+        });
+      } else if (format.type === 'xml') {
+        return this.parseXml(text, format);
+      }
+    }
   }
-  parseTabular(csv, datalibOptions) {
-    datalibOptions = datalibOptions || { type: 'dsv', parse: 'auto' };
-    return datalib.read(csv, datalibOptions);
-  }
-  parseJson(json, datalibOptions) {
-    datalibOptions = datalibOptions || { type: 'json', parse: 'auto' };
-    return datalib.read(json, datalibOptions);
+  async parseXml(text, { format = {} } = {}) {
+    return Promise.resolve({ todo: true });
   }
   formatDoc(doc) {
     // TODO
     return 'todo';
   }
-  standardize(doc) {
-    // TODO
-    return {
-      contents: doc
-    };
+  isValidId(docId) {
+    let parts = docId.split(';');
+    if (parts.length !== 2) {
+      return false;
+    }
+    return !!mime.extension(parts[0]);
+  }
+  async standardize(doc, { purgeArrays = false } = {}) {
+    if (!doc._id || !this.isValidId(doc._id)) {
+      if (!doc.mimeType && !doc.filename) {
+        // Without an id, filename, or mimeType, just assume it's application/json
+        doc.mimeType = 'application/json';
+      }
+      if (!doc.filename) {
+        if (doc._id) {
+          // We were given an invalid id; use it as the filename instead
+          doc.filename = doc._id;
+        } else {
+          // Without anything to go on, use "Untitled 1", etc
+          let existingUntitleds = await this.mure.db.allDocs({
+            startkey: doc.mimeType + ';Untitled ',
+            endkey: doc.mimeType + ';Untitled \uffff'
+          });
+          let minIndex = existingUntitleds.rows.reduce((minIndex, uDoc) => {
+            let index = /Untitled (\d+)/g.exec(uDoc._id);
+            index = index ? index[1] || Infinity : Infinity;
+            return index < minIndex ? index : minIndex;
+          }, Infinity);
+          minIndex = isFinite(minIndex) ? minIndex + 1 : 1;
+          doc.filename = 'Untitled ' + minIndex;
+        }
+      }
+      if (!doc.mimeType) {
+        // We were given a bit of info with the filename / bad _id;
+        // try to infer the mimeType from that (again use application/json
+        // if that fails)
+        doc.mimeType = mime.lookup(doc.filename) || 'application/json';
+      }
+      doc._id = doc.mimeType + ';' + doc.filename;
+    }
+    if (!doc.mimeType) {
+      doc.mimeType = doc._id.split(';')[0];
+    }
+    if (!mime.extension(doc.mimeType)) {
+      this.mure.warn('Unknown mimeType: ' + doc.mimeType);
+    }
+    if (!doc.filename) {
+      doc.filename = doc._id.split(';')[1];
+    }
+    if (!doc.contents) {
+      doc.contents = {};
+    }
+    if (purgeArrays) {
+      [doc.contents, doc.purgedArrays] = this.purgeArrays(doc.contents);
+    }
+    return doc;
+  }
+  purgeArrays(obj) {
+    if (typeof obj !== 'object') {
+      return [obj, false];
+    }
+    let foundArray = false;
+    if (obj instanceof Array) {
+      obj.forEach((element, index) => {
+        
+      });
+      foundArray = true;
+    }
+    Object.keys(obj).forEach(key => {
+      let foundChildArray, childObj;
+      [childObj, foundChildArray] = this.purgeArrays(obj[key]);
+      obj[key] = childObj;
+      foundArray = foundArray || foundChildArray;
+    });
+    return [obj, foundArray];
+  }
+  restoreArrays(obj) {
+    // todo
   }
 }
-
-var docH = new DocHandler();
 
 class Mure extends uki.Model {
   constructor(PouchDB, d3, d3n) {
@@ -106,6 +186,8 @@ class Mure extends uki.Model {
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
+
+    this.docHandler = new DocHandler(this);
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -213,7 +295,7 @@ class Mure extends uki.Model {
         doc = matchingDocs.docs[0];
       }
     }
-    return docH.standardize(doc);
+    return this.docHandler.standardize(doc);
   }
   /**
    * Downloads a given file, optionally specifying a particular format
@@ -228,7 +310,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = docH.formatDoc(doc, { mimeType });
+      let contents = this.docHandler.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -244,8 +326,27 @@ class Mure extends uki.Model {
       return true;
     });
   }
+  async uploadFileObj(fileObj, { encoding = mime.charset(fileObj.type) } = {}) {
+    return new Promise((resolve, reject) => {
+      let reader = new window.FileReader();
+      reader.onload = () => {
+        resolve(resolve);
+      };
+      reader.readAsText(fileObj, encoding);
+    }).then(string => {
+      return this.uploadString(fileObj.name, fileObj.type, string);
+    });
+  }
+  async uploadString(filename, mimeType, string) {
+    let doc = await this.docHandler.parse(string, { mimeType });
+    return this.uploadDoc(filename, mimeType, doc);
+  }
+  async uploadDoc(filename, mimeType, doc) {
+    doc = await this.docHandler.standardize(doc, { purgeArrays: true });
+    return this.db.put(doc);
+  }
   /**
-   * Evaluate a selector string
+   * Evaluate a reference string
    *
    * A context object must be provided, either directly via the `context`
    * parameter, or a document can be specified as part of the selector
@@ -279,7 +380,7 @@ var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
 var browser = "dist/mure.umd.min.js";
-var scripts = { "build": "rollup -c", "dev": "rollup -c -w", "test": "node test/test.js", "pretest": "npm run build", "posttest": "rm -rf mure mure-mrview.*" };
+var scripts = { "build": "rollup -c", "dev": "rollup -c -w", "test": "node test/test.js", "pretest": "npm run build && rm -rf mure mure-mrview*", "posttest": "rm -rf mure mure-mrview*", "debug": "rm -rf mure mure-mrview* && node --inspect-brk test/test.js" };
 var files = ["dist"];
 var repository = { "type": "git", "url": "git+https://github.com/mure-apps/mure-library.git" };
 var author = "Alex Bigelow";
@@ -287,7 +388,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.55.3", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.3.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.9" };
-var dependencies = { "datalib": "^1.8.0", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "scalpel": "^2.1.0", "uki": "^0.1.0" };
+var dependencies = { "datalib": "^1.8.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "scalpel": "^2.1.0", "uki": "^0.1.0" };
 var peerDependencies = { "d3": "^4.13.0" };
 var pkg = {
 	name: name,
