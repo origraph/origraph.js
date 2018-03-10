@@ -269,8 +269,8 @@ class Mure extends Model {
    * The `selector` component of a Mango query, or, if a string, the precise
    * document _id
    * @param  {{boolean}}  [init=true]
-   * If true (default), the document will be created if it does not exist. If
-   * false, the returned Promise will resolve to null
+   * If true (default), the document will be created (but not saved) if it does
+   * not exist. If false, the returned Promise will resolve to null
    * @return {Promise}
    * Resolves the document
    */
@@ -342,6 +342,17 @@ class Mure extends Model {
   async uploadDoc(filename, mimeType, doc) {
     doc = await this.docHandler.standardize(doc, { purgeArrays: true });
     return this.db.put(doc);
+  }
+  async saveDoc(doc) {
+    return this.db.put((await this.docHandler.standardize(doc)));
+  }
+  async deleteDoc(docQuery) {
+    let doc = await this.getDoc(docQuery);
+    return this.db.put({
+      _id: doc._id,
+      _rev: doc._rev,
+      _deleted: true
+    });
   }
   /**
    * Evaluate a reference string

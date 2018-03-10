@@ -28,12 +28,12 @@ module.exports = [
           let tests = [];
 
           // Make sure the document has been loaded and has a _rev property
-          let temp = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
+          let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
           let _revTestResult = {
-            passed: !!temp._rev
+            passed: !!dbDoc._rev
           };
           if (!_revTestResult.passed) {
-            _revTestResult.details = JSON.stringify(temp, null, 2);
+            _revTestResult.details = JSON.stringify(dbDoc, null, 2);
           }
           tests.push({
             name: 'blackJack_round1.json has _rev property',
@@ -42,14 +42,43 @@ module.exports = [
 
           // blackJack_round1 is correctly formatted; aside from _rev,
           // it should match the original exactly
-          delete temp._rev;
+          let rev = dbDoc._rev;
+          delete dbDoc._rev;
           let doc = JSON.parse(data);
           tests.push({
             name: 'upload blackJack_round1.json without change',
-            result: logging.testObjectEquality(temp, doc)
+            result: logging.testObjectEquality(dbDoc, doc)
+          });
+          dbDoc._rev = rev;
+
+          // make a change and save the document
+          delete dbDoc.contents['Player 1'];
+          let saveMessage = await mure.saveDoc(dbDoc);
+          let savedDoc = await mure.getDoc(dbDoc._id);
+          let saveTestResult = {
+            passed: saveMessage.ok && savedDoc._rev !== rev && !savedDoc.contents['Player 1']
+          };
+          if (!saveTestResult.passed) {
+            saveTestResult.details = 'Save message:\n' +
+              JSON.stringify(saveMessage, null, 2) + '\n\n' +
+              'State after save:' + '\n' +
+              JSON.stringify(savedDoc, null, 2);
+          }
+          tests.push({
+            name: 'delete "Player 1" from document and save it',
+            result: saveTestResult
           });
 
-          // TODO: any more tests with this file while we're at it?
+          // Delete the document, and validate that it was deleted
+          let deleteMessage = await mure.deleteDoc(savedDoc._id);
+          let deleteTestResult = { passed: deleteMessage.ok };
+          if (!deleteMessage.ok) {
+            deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
+          }
+          tests.push({
+            name: 'delete blackJack_round1.json',
+            result: deleteTestResult
+          });
           resolve(tests);
         })();
       });
