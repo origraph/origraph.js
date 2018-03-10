@@ -326,15 +326,14 @@ class Mure extends Model {
     });
   }
   async uploadFileObj(fileObj, { encoding = mime.charset(fileObj.type) } = {}) {
-    return new Promise((resolve, reject) => {
+    let string = await new Promise((resolve, reject) => {
       let reader = new window.FileReader();
       reader.onload = () => {
-        resolve(resolve);
+        resolve(reader.result);
       };
       reader.readAsText(fileObj, encoding);
-    }).then(string => {
-      return this.uploadString(fileObj.name, fileObj.type, string);
     });
+    return this.uploadString(fileObj.name, fileObj.type, string);
   }
   async uploadString(filename, mimeType, string) {
     let doc = await this.docHandler.parse(string, { mimeType });
