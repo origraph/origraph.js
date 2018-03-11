@@ -27,10 +27,10 @@ module.exports = [
           let uploadMessage = await mure.uploadString('blackJack_round1.json', 'application/json', data);
           let tests = [];
 
-          // Make sure the document has been loaded and has a _rev property
+          // Make sure the document has been loaded and has a _rev and purgedArrays property
           let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
           let _revTestResult = {
-            passed: uploadMessage && dbDoc._rev
+            passed: uploadMessage && dbDoc._rev && dbDoc.purgedArrays !== undefined
           };
           if (!_revTestResult.passed) {
             _revTestResult.details = 'Upload message:\n' +
@@ -39,7 +39,7 @@ module.exports = [
               JSON.stringify(dbDoc, null, 2);
           }
           tests.push({
-            name: 'blackJack_round1.json has _rev property',
+            name: 'blackJack_round1.json has _rev and purgedArrays properties',
             result: _revTestResult
           });
 
@@ -47,12 +47,15 @@ module.exports = [
           // it should match the original exactly
           let rev = dbDoc._rev;
           delete dbDoc._rev;
+          let purgedArrays = dbDoc.purgedArrays;
+          delete dbDoc.purgedArrays;
           let doc = JSON.parse(data);
           tests.push({
             name: 'upload blackJack_round1.json without change',
             result: logging.testObjectEquality(dbDoc, doc)
           });
           dbDoc._rev = rev;
+          dbDoc.purgedArrays = purgedArrays;
 
           // make a change and save the document
           delete dbDoc.contents['Player 1'];

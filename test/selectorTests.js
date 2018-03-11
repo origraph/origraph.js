@@ -10,7 +10,7 @@ module.exports = [
 
         let doc = JSON.parse(data);
         let selectors = {
-          '@ $["Player 1"]': doc.contents['Player 1']
+          '@ $["Player 1"]': [doc.contents['Player 1']]
         };
 
         (async () => {
@@ -27,10 +27,11 @@ module.exports = [
           // Direct selection tests
           tests.push(...await Promise.all(Object.keys(selectors)
             .map(selector => {
+              let expectedObjs = selectors[selector];
               selector = '@ { "filename": "blackJack_round1.json"}' + selector.slice(1);
               let selection = mure.selectAll(selector);
-              let expectedObjs = selectors[selector];
-              return selection.nodes().then(selectedObjs => {
+              return selection.nodes().then(nodes => {
+                let selectedObjs = nodes.map(n => n.value);
                 return {
                   name: 'mure.selectAll(\'' + selector + '\')',
                   result: logging.testObjectEquality(expectedObjs, selectedObjs)
@@ -44,7 +45,8 @@ module.exports = [
             .map(selector => {
               let selection = docSelection.selectAll(selector);
               let expectedObjs = selectors[selector];
-              return selection.nodes().then(selectedObjs => {
+              return selection.nodes().then(nodes => {
+                let selectedObjs = nodes.map(n => n.value);
                 return {
                   name: 'mure.selectDoc().selectAll(\'' + selector + '\')',
                   result: logging.testObjectEquality(expectedObjs, selectedObjs)
