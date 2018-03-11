@@ -13,10 +13,10 @@ absorbed here as well.
 
 Installation
 ============
-For basic use in the browser ():
+For basic use in the browser:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/mure@0.2.4/dist/mure.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mure@0.3.0/dist/mure.umd.min.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:
@@ -47,8 +47,8 @@ npm run build
 A list of reminders to make sure I don't forget any steps:
 
 - Update the version in package.json
-- `npm run test`
 - Update the release link in this README
+- `npm run test`
 - `git commit -a -m "commit message"`
 - `git push`
 - (Verify Travis CI doesn't fail)

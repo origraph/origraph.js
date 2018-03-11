@@ -10,13 +10,13 @@ class Selection {
       this.docQuery = parentSelection.docQuery;
       this.objQuery = parentSelection.objQuery;
       if (chunks[2]) {
-        this.objQuery += chunks[2].slice(1); // strip off the subquery's '$' character
+        this.objQuery += chunks[2].trim().slice(1); // strip off the subquery's '$' character
       }
     } else if (!chunks[1]) {
       throw new Error('Selection has no context; you must specify a document selector');
     } else {
       this.docQuery = chunks[1];
-      this.objQuery = chunks[2] || '$';
+      this.objQuery = chunks[2] ? chunks[2].trim() : '$';
     }
     this.parentShift = chunks[3] ? chunks[3].length : 0;
     this.mure = mure;
@@ -37,7 +37,7 @@ class Selection {
         if (this.parentShift) {
           node.path.splice(node.path.length - this.parentShift);
           let temp = jsonPath.stringify(node.path);
-          node.value = jsonPath.query(temp);
+          node.value = jsonPath.query(doc.contents, temp)[0];
         }
         node.path.unshift(docPathQuery);
         nodes.push(node);

@@ -89,5 +89,44 @@ module.exports = [
         })();
       });
     });
+  },
+  async () => {
+    return new Promise((resolve, reject) => {
+      fs.readFile('test/data/blackJack_round2.json', 'utf8', (err, data) => {
+        if (err) { reject(err); }
+        (async () => {
+          let uploadMessage = await mure.uploadString('blackJack_round2.json', 'application/json', data);
+          let tests = [];
+
+          // Make sure the document has been loaded and purgedArrays is true
+          let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round2.json' });
+          let _revTestResult = {
+            passed: uploadMessage && dbDoc._rev && dbDoc.purgedArrays === true
+          };
+          if (!_revTestResult.passed) {
+            _revTestResult.details = 'Upload message:\n' +
+              JSON.stringify(uploadMessage, null, 2) + '\n\n' +
+              'State after upload:' + '\n' +
+              JSON.stringify(dbDoc, null, 2);
+          }
+          tests.push({
+            name: 'blackJack_round2.json: purgedArrays === true',
+            result: _revTestResult
+          });
+
+          // Delete the document, and validate that it was deleted
+          let deleteMessage = await mure.deleteDoc(dbDoc._id);
+          let deleteTestResult = { passed: deleteMessage.ok };
+          if (!deleteMessage.ok) {
+            deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
+          }
+          tests.push({
+            name: 'delete blackJack_round2.json',
+            result: deleteTestResult
+          });
+          resolve(tests);
+        })();
+      });
+    });
   }
 ];

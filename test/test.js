@@ -15,7 +15,19 @@ let index = 0;
   while (tests.length > 0) {
     let testFunc = tests.shift();
     index += 1;
-    let testResults = await testFunc();
+    let testResults;
+    try {
+      testResults = await testFunc();
+    } catch (err) {
+      testResults = [{
+        passed: false,
+        result: {
+          name: 'Error thrown in test ' + index,
+          details: JSON.stringify(err, null, 2)
+        }
+      }];
+    }
+
     totalTests += testResults.length;
     numPassed += testResults.reduce((subCount, subTest, subIndex) => {
       let testName = subTest.name || 'Test ' + index + '.' + subIndex;

@@ -1,0 +1,31 @@
+{
+  "_id": "application/json;blackJack_round2.json",
+  "filename": "blackJack_round2.json",
+  "mimeType": "application/json",
+  "charset": "UTF-8",
+  "contents": {
+    "Player 1": [
+      { "suit": "♠", "value": "2" },
+      { "suit": "♣", "value": "Q" },
+      { "suit": "♣", "value": "7" }
+    ],
+    "Player 2": [
+      { "suit": "♠", "value": "J" },
+      { "suit": "♣", "value": "K" }
+    ],
+    "Player 3": [
+      { "suit": "♦", "value": "8" },
+      { "suit": "♥", "value": "A" }
+    ],
+    "Player 4": [
+      { "suit": "♦", "value": "3" },
+      { "suit": "♣", "value": "9" },
+      { "suit": "♠", "value": "Q" }
+    ],
+    "Player 5": [
+      { "suit": "♣", "value": "4" },
+      { "suit": "♥", "value": "5" },
+      { "suit": "♠", "value": "K" }
+    ]
+  }
+}
