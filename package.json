@@ -50,11 +50,11 @@
   },
   "dependencies": {
     "datalib": "^1.8.0",
+    "jsonpath": "^1.0.0",
     "mime-types": "^2.1.18",
     "pouchdb-authentication": "^1.1.1",
     "pouchdb-browser": "^6.4.3",
     "pouchdb-find": "^6.4.3",
-    "scalpel": "^2.1.0",
     "uki": "^0.1.0"
   },
   "peerDependencies": {

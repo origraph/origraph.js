@@ -8,9 +8,9 @@ Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrar
 # Reference Syntax
 References should follow the following syntax:
 
-`$ [ select all ] [ mango selector ] [ JSONPath ] [ parent selectors ]`
+`@ [ mango selector ] [ JSONPath ] [ parent selectors ]`
 
-At least the mango selector, or the JSONPath is required.
+The mango selector is required for `mure.select` and `mure.selectAll`, but optional/ignored for subselections (e.g. `mySelection.select` or `mySelection.selectAll`). When references are stored inside documents without a mango selector specified, its containing document is assumed as the context.
 
 ## Examples:
 Given this document:
@@ -60,31 +60,48 @@ Given this document:
 }
 ```
 
-1. `@ $["Player 1"]` would reference Player 1"s whole hand.
+1. This would return a `Selection` containing Player 1's whole hand:
+```js
+mure.selectDoc('application/json;blackJack_round1.json')
+       .select('@ $["Player 1"]');
+```
 
-2. `@ A $["Player 1"][?(@.suit==="♣")]` would reference both of Player 1"s card objects.
+2. This is an alternate way to select the same thing with a single selection:
+```js
+mure.select('@ { "filename": "blackJack_round1.json" } $["Player 1"]');
+```
 
-3. `@ A $[*][?(@.suit==="♥")] ^` would reference all of the Player hands that contain a heart card (in this case, Player 2 and 3).
+3. This would return a `Selection` of both of Player 1's card objects:
+```js
+mure.selectDoc('application/json;blackJack_round1.json')
+       .selectAll('@ $["Player 1"][?(@.suit==="♣")]');
+```
 
-4. `@ { filename: "blackJack_round1.json" } $["Player 1"]` is a way to reference Player 1"s hand from a different file.
+4. This would return a `Selection` of all of the Player hands that contain a heart card (in this case, Player 2 and Player 3):
+```js
+mure.selectAll('@ { "filename": "blackJack_round1.json" } $[*][?(@.suit==="♥")] ^')
+```
 
-5. `@ A { filename: {"$regex": "blackJack_round\d*.json"} }` would reference all of the `contents` of files matching the regular expression, including this one.
+5. This would return a `Selection` containing all of the `contents` of files matching the regular expression, including the one shown above:
+```js
+mure.selectAll('@ { "filename": {"$regex": "blackJack_round\d*.json"} }');
+```
 
-## Select all
-Immediately following the `@` character, an optional capital `A` indicates that this reference should include all matching objects, not just the first match. You can see it used in examples 2, 3, and 5 above.
+## `select`, `selectAll`
+`select` returns a `Selection` containing only the first match, whereas `selectAll` returns a `Selection` containing all matches.
 
 ## Mango selectors
 References can point across documents. This is particularly useful, for example, when connecting relational CSV files.
 
-To referencing another document, a selector should begin with the `selector` part of a [Mango query](https://pouchdb.com/guides/mango-queries.html). Note that this is the only part of a reference that is exposed to the whole document, including any arbitrary metadata attached at the root level. This also means that you need to include the `contents` attribute in this part of the reference if you want to select documents by their data content.
+To referencing another document, a selector should begin with the `selector` part of a `JSON.parse`able [Mango query](https://pouchdb.com/guides/mango-queries.html). Note that this is the only part of a reference that is exposed to the whole document, including any arbitrary metadata attached at the root level. This also means that you need to include the `contents` attribute in this part of the reference if you want to search for documents by their data content.
 
-You can see mango selectors in use in examples 4 and 5 above.
+You can see mango selectors in use in examples 2, 4, and 5 above.
 
 ## JSONPath
-By default (without a preceding Mango selector), the JSONPath is evaluated from its containing document"s `contents` object. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector. Examples 1, 2, 3, and 4 demonstrate JSONPaths in use.
+By default (without a preceding Mango selector), the JSONPath is evaluated from its containing document's `contents` object. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector. Examples 1 - 4 demonstrate JSONPaths in use.
 
 ## Parent selectors
-A query can end with a series of `^` symbols to refer to the parent object containing the matched result. This is useful when you want to filter objects based on nested child values attributes. If the series of `^` characters reach beyond the `contents`, an empty result will be returned. Example 3 demonstrates a parent selector being used.
+A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child values attributes. If the series of `^` characters reach beyond the `contents`, an empty result will be returned. Example 4 demonstrates a parent selector being used.
 
 # File IDs
 Our convention is to format document IDs similar to what you"d see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:

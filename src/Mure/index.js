@@ -195,32 +195,14 @@ class Mure extends Model {
       _deleted: true
     });
   }
-  /**
-   * Evaluate a reference string
-   *
-   * A context object must be provided, either directly via the `context`
-   * parameter, or a document can be specified as part of the selector
-   *
-   * @param  {string}  selector
-   * A selector string, as outlined in documentation/schema.md
-   * @param  {{Object}}  [context=null]
-   * The context in which the selector should be evaluated (will be
-   * overridden if the selector specifies a document)
-   * @return {Selection}
-   * A wrapper object for interacting / rehaping the selected object(s) / value(s)
-   */
-  selectAll (selector, { context = null } = {}) {
-    let docSelector = /@\s*({.*})/g.exec(selector);
-    if (docSelector && docSelector.length > 1) {
-      docSelector = docSelector[1];
-      selector = selector.replace(docSelector, '');
-      docSelector = JSON.parse(docSelector);
-      context = this.getDoc(docSelector, false);
-    }
-    if (!context) {
-      this.error('Could not find context for selection');
-    }
-    return new Selection(selector, context);
+  selectDoc (docId) {
+    return this.select('@{"_id":"' + docId + '"}');
+  }
+  select (selector) {
+    return new Selection(selector, this, { selectSingle: true });
+  }
+  selectAll (selector, { parentSelection } = {}) {
+    return new Selection(selector, this);
   }
 }
 

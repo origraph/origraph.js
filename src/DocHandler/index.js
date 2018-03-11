@@ -1,6 +1,5 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
-import { createParser } from 'scalpel';
 import mureInteractivityRunnerText from './mureInteractivityRunner.text.js'; // eslint-disable-line no-unused-vars
 import defaultSvgContentTemplate from './default.text.svg';
 import minimumSvgContent from './minimum.text.svg';
@@ -11,7 +10,6 @@ const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivit
 class DocHandler {
   constructor (mure) {
     this.mure = mure;
-    this.selectorParser = createParser();
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
     this.defaultSvgContent = this.parseXml(defaultSvgContent);

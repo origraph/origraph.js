@@ -2,46 +2,69 @@
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-var scalpel = require('scalpel');
+var jsonPath = _interopDefault(require('jsonpath'));
 var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
 
 class Selection {
-  constructor(selector, context) {
-    let parser = scalpel.createParser();
-    this.queryTokens = parser.parse(selector);
-    this.context = context;
-  }
-  iterate(callback) {
-    /*
-    if (selector instanceof Selection)
-    const queryTokens = this.selectorParser.parse(selector);
-    const elements = [];
-    this.iterateObj(root, obj => {
-      if (this.matchObject(obj, queryTokens)) {
-        elements.push(obj);
+  constructor(selector, mure, { selectSingle = false, parentSelection = null } = {}) {
+    let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
+    if (!chunks) {
+      throw new Error('Invalid selector: ' + selector);
+    }
+    if (parentSelection) {
+      this.docQuery = parentSelection.docQuery;
+      this.objQuery = parentSelection.objQuery;
+      if (chunks[2]) {
+        this.objQuery += chunks[2].slice(1); // strip off the subquery's '$' character
       }
+    } else if (!chunks[1]) {
+      throw new Error('Selection has no context; you must specify a document selector');
+    } else {
+      this.docQuery = chunks[1];
+      this.objQuery = chunks[2] || '$';
+    }
+    this.parentShift = chunks[3] ? chunks[3].length : 0;
+    this.mure = mure;
+    this.selectSingle = selectSingle;
+  }
+  select(selector) {
+    return new Selection(selector, this.mure, { selectSingle: true, parentSelection: this });
+  }
+  selectAll(selector) {
+    return new Selection(selector, this.mure, { parentSelection: this });
+  }
+  async nodes(docQueryAdditions = null) {
+    let docs = await this.docs(docQueryAdditions);
+    let nodes = [];
+    docs.some(doc => {
+      let docPathQuery = '{"_id":"' + doc._id + '"}';
+      return jsonPath.nodes(doc.contents, this.objQuery).some(node => {
+        if (this.parentShift) {
+          node.path.splice(node.path.length - this.parentShift);
+          let temp = jsonPath.stringify(node.path);
+          node.value = jsonPath.query(temp);
+        }
+        node.path.unshift(docPathQuery);
+        nodes.push(node);
+        return this.selectSingle; // when true, exits both loops after the first match is found
+      });
     });
-    return elements;
-    */
+    return nodes;
   }
-  iterateObj(obj, callback) {
-    /*
-    const nodes = [];
-    nodes.push(obj);
-    do {
-      obj = nodes.shift();
-      callback(obj);
-      if (obj.elements) {
-        nodes.unshift(...obj.elements);
-      }
-    } while (nodes.length > 0);
-    */
-  }
-  matchObject(obj, queryTokens) {
-    // TODO
+  async docs(docQueryAdditions = null) {
+    let docQuery = JSON.parse(this.docQuery); // TODO: can't JSON.parse queries...
+    if (docQueryAdditions) {
+      docQuery = Object.assign(docQuery, docQueryAdditions);
+    }
+    let query = { selector: docQuery };
+    let queryResult = await this.mure.db.find(query);
+    if (queryResult.warning) {
+      this.mure.warn(queryResult.warning);
+    }
+    return queryResult.docs;
   }
 }
 
@@ -57,7 +80,6 @@ const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivit
 class DocHandler {
   constructor(mure) {
     this.mure = mure;
-    this.selectorParser = scalpel.createParser();
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
     this.defaultSvgContent = this.parseXml(defaultSvgContent);
@@ -355,32 +377,14 @@ class Mure extends uki.Model {
       _deleted: true
     });
   }
-  /**
-   * Evaluate a reference string
-   *
-   * A context object must be provided, either directly via the `context`
-   * parameter, or a document can be specified as part of the selector
-   *
-   * @param  {string}  selector
-   * A selector string, as outlined in documentation/schema.md
-   * @param  {{Object}}  [context=null]
-   * The context in which the selector should be evaluated (will be
-   * overridden if the selector specifies a document)
-   * @return {Selection}
-   * A wrapper object for interacting / rehaping the selected object(s) / value(s)
-   */
-  selectAll(selector, { context = null } = {}) {
-    let docSelector = /@\s*({.*})/g.exec(selector);
-    if (docSelector && docSelector.length > 1) {
-      docSelector = docSelector[1];
-      selector = selector.replace(docSelector, '');
-      docSelector = JSON.parse(docSelector);
-      context = this.getDoc(docSelector, false);
-    }
-    if (!context) {
-      this.error('Could not find context for selection');
-    }
-    return new Selection(selector, context);
+  selectDoc(docId) {
+    return this.select('@{"_id":"' + docId + '"}');
+  }
+  select(selector) {
+    return new Selection(selector, this, { selectSingle: true });
+  }
+  selectAll(selector, { parentSelection } = {}) {
+    return new Selection(selector, this);
   }
 }
 
@@ -398,7 +402,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.55.3", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.3.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.9" };
-var dependencies = { "datalib": "^1.8.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "scalpel": "^2.1.0", "uki": "^0.1.0" };
+var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.1.0" };
 var peerDependencies = { "d3": "^4.13.0" };
 var pkg = {
 	name: name,

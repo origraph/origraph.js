@@ -46,7 +46,7 @@ let logging = {
     if (logging.testBasicEquality(a, b).passed) {
       return { passed: true };
     }
-    let result = { passed: true };
+    let result = { passed: false };
 
     try {
       let aType = typeof a;
@@ -79,7 +79,9 @@ let logging = {
       }
     } catch (error) {
       result.details = error.message;
+      return result;
     }
+    result.passed = true;
     return result;
   }
 };

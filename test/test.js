@@ -1,18 +1,23 @@
 const chalk = require('chalk');
 const basicTests = require('./basicTests.js');
-const defaultDocTests = require('./defaultDocTests.js');
+const docTests = require('./docTests.js');
+const selectorTests = require('./selectorTests.js');
 
 const tests = [
   ...basicTests,
-  ...defaultDocTests
+  ...docTests,
+  ...selectorTests
 ];
-
+let totalTests = 0;
+let numPassed = 0;
+let index = 0;
 (async () => {
-  let totalTests = 0;
-  let allResults = await Promise.all(tests.map(f => { return f(); }));
-  let numPassed = allResults.reduce((count, subResults, index) => {
-    totalTests += subResults.length;
-    return count + subResults.reduce((subCount, subTest, subIndex) => {
+  while (tests.length > 0) {
+    let testFunc = tests.shift();
+    index += 1;
+    let testResults = await testFunc();
+    totalTests += testResults.length;
+    numPassed += testResults.reduce((subCount, subTest, subIndex) => {
       let testName = subTest.name || 'Test ' + index + '.' + subIndex;
       let mainMessage = subTest.result.passed ? chalk`{bold.hex('#666666') Passed ${testName}}` : chalk`{bold.hex('#e7298a') Failed ${testName}}`;
       console.log(mainMessage);
@@ -22,7 +27,7 @@ const tests = [
       console.log('');
       return subTest.result.passed ? subCount + 1 : subCount;
     }, 0);
-  }, 0);
+  }
   if (numPassed === totalTests) {
     console.log(chalk`{bold.hex('#666666') Passed ${numPassed} out of ${totalTests} tests\n\n}`);
     process.exit(0);
