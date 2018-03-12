@@ -11,7 +11,8 @@ class Selection {
   constructor(selector, mure, { selectSingle = false, parentSelection = null } = {}) {
     let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
     if (!chunks) {
-      throw new Error('Invalid selector: ' + selector);
+      let err = new Error('Invalid selector: ' + selector);
+      err.INVALID_SELECTOR = true;
     }
     if (parentSelection) {
       this.docQuery = parentSelection.docQuery;
