@@ -13,6 +13,7 @@ class Selection {
     if (!chunks) {
       let err = new Error('Invalid selector: ' + selector);
       err.INVALID_SELECTOR = true;
+      throw err;
     }
     if (parentSelection) {
       this.docQuery = parentSelection.docQuery;
@@ -89,19 +90,22 @@ class DocHandler {
     if (mimeType && (!format || !format.type)) {
       format.type = mime.extension(mimeType);
     }
+    let contents;
     if (format.type) {
       format.type = format.type.toLowerCase();
       if (this.datalibFormats.indexOf(format.type) !== -1) {
-        return new Promise((resolve, reject) => {
-          resolve(datalib.read(text, format));
-        });
+        contents = datalib.read(text, format);
       } else if (format.type === 'xml') {
-        return this.parseXml(text, format);
+        contents = this.parseXml(text, format);
       }
     }
+    if (!contents.contents) {
+      contents = { contents: contents };
+    }
+    return contents;
   }
-  async parseXml(text, { format = {} } = {}) {
-    return Promise.resolve({ todo: true });
+  parseXml(text, { format = {} } = {}) {
+    return { todo: true };
   }
   formatDoc(doc) {
     // TODO
@@ -363,6 +367,8 @@ class Mure extends Model {
     return this.uploadDoc(filename, mimeType, doc);
   }
   async uploadDoc(filename, mimeType, doc) {
+    doc.filename = filename || doc.filename;
+    doc.mimeType = mimeType || doc.mimeType;
     doc = await this.docHandler.standardize(doc, { purgeArrays: true });
     return this.db.put(doc);
   }

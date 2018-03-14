@@ -6,6 +6,7 @@ class Selection {
     if (!chunks) {
       let err = new Error('Invalid selector: ' + selector);
       err.INVALID_SELECTOR = true;
+      throw err;
     }
     if (parentSelection) {
       this.docQuery = parentSelection.docQuery;

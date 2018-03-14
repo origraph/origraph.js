@@ -181,6 +181,8 @@ class Mure extends Model {
     return this.uploadDoc(filename, mimeType, doc);
   }
   async uploadDoc (filename, mimeType, doc) {
+    doc.filename = filename || doc.filename;
+    doc.mimeType = mimeType || doc.mimeType;
     doc = await this.docHandler.standardize(doc, { purgeArrays: true });
     return this.db.put(doc);
   }

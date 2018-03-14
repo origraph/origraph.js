@@ -19,19 +19,22 @@ class DocHandler {
     if (mimeType && (!format || !format.type)) {
       format.type = mime.extension(mimeType);
     }
+    let contents;
     if (format.type) {
       format.type = format.type.toLowerCase();
       if (this.datalibFormats.indexOf(format.type) !== -1) {
-        return new Promise((resolve, reject) => {
-          resolve(datalib.read(text, format));
-        });
+        contents = datalib.read(text, format);
       } else if (format.type === 'xml') {
-        return this.parseXml(text, format);
+        contents = this.parseXml(text, format);
       }
     }
+    if (!contents.contents) {
+      contents = { contents: contents };
+    }
+    return contents;
   }
-  async parseXml (text, { format = {} } = {}) {
-    return Promise.resolve({ todo: true });
+  parseXml (text, { format = {} } = {}) {
+    return { todo: true };
   }
   formatDoc (doc) {
     // TODO
