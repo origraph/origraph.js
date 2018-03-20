@@ -5,7 +5,6 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 var jsonPath = _interopDefault(require('jsonpath'));
 var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
-var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
 
 class Selection {
@@ -223,10 +222,8 @@ class DocHandler {
   }
 }
 
-class Mure extends uki.Model {
+class Mure {
   constructor(PouchDB, d3, d3n) {
-    super();
-
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
 
@@ -248,14 +245,6 @@ class Mure extends uki.Model {
 
     // Create / load the local database of files
     this.getOrInitDb();
-
-    // default error handling (apps can listen for / display error messages in addition to this):
-    this.on('error', errorMessage => {
-      console.warn(errorMessage);
-    });
-    this.catchDbError = errorObj => {
-      this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
-    };
 
     // in the absence of a custom dialogs, just use window.alert,
     // window.confirm, window.prompt, console.warn, and console.log:
@@ -443,7 +432,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.55.3", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.3.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.9" };
-var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.1.0" };
+var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3" };
 var peerDependencies = { "d3": "^4.13.0" };
 var pkg = {
 	name: name,

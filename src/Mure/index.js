@@ -1,12 +1,9 @@
 import mime from 'mime-types';
-import { Model } from 'uki';
 import Selection from '../Selection/index.js';
 import DocHandler from '../DocHandler/index.js';
 
-class Mure extends Model {
+class Mure {
   constructor (PouchDB, d3, d3n) {
-    super();
-
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
 
@@ -28,14 +25,6 @@ class Mure extends Model {
 
     // Create / load the local database of files
     this.getOrInitDb();
-
-    // default error handling (apps can listen for / display error messages in addition to this):
-    this.on('error', errorMessage => {
-      console.warn(errorMessage);
-    });
-    this.catchDbError = errorObj => {
-      this.trigger('error', 'Unexpected error reading PouchDB: ' + errorObj.message + '\n' + errorObj.stack);
-    };
 
     // in the absence of a custom dialogs, just use window.alert,
     // window.confirm, window.prompt, console.warn, and console.log:
