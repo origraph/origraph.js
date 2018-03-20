@@ -120,7 +120,11 @@ class Mure extends Model {
       doc = {};
     } else {
       if (typeof docQuery === 'string') {
-        docQuery = { '_id': docQuery };
+        if (docQuery[0] === '@') {
+          docQuery = docQuery.slice(1);
+        } else {
+          docQuery = { '_id': docQuery };
+        }
       }
       let matchingDocs = await this.db.find({ selector: docQuery, limit: 1 });
       if (matchingDocs.docs.length === 0) {
@@ -203,7 +207,7 @@ class Mure extends Model {
   select (selector) {
     return new Selection(selector, this, { selectSingle: true });
   }
-  selectAll (selector, { parentSelection } = {}) {
+  selectAll (selector) {
     return new Selection(selector, this);
   }
 }
