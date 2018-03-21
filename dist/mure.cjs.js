@@ -7,45 +7,32 @@ var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var D3Node = _interopDefault(require('d3-node'));
 
+let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
+
 class Selection {
-  constructor(selector, mure, { selectSingle = false, parentSelection = null } = {}) {
-    if (!selector) {
-      this.isRootSelection = true;
-      this.docQuery = null;
-      this.objQuery = '$';
-      this.parentShift = 0;
-    } else {
-      let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
-      if (!chunks) {
-        let err = new Error('Invalid selector: ' + selector);
-        err.INVALID_SELECTOR = true;
-        throw err;
-      }
-      if (parentSelection) {
-        this.docQuery = parentSelection.docQuery;
-        this.objQuery = parentSelection.objQuery;
-        if (chunks[2]) {
-          this.objQuery += chunks[2].trim().slice(1); // strip off the subquery's '$' character
-        }
-      } else if (!chunks[1]) {
-        throw new Error('Selection has no context; you must specify a document selector');
-      } else {
-        this.docQuery = chunks[1];
-        this.objQuery = chunks[2] ? chunks[2].trim() : '$';
-      }
-      this.parentShift = chunks[3] ? chunks[3].length : 0;
+  constructor(mure, selector = '@' + DEFAULT_DOC_QUERY + '$', { selectSingle = false, parentSelection = null } = {}) {
+    let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
+    if (!chunks) {
+      let err = new Error('Invalid selector: ' + selector);
+      err.INVALID_SELECTOR = true;
+      throw err;
     }
+    this.docQuery = chunks[1] ? chunks[1].trim() : parentSelection ? parentSelection.docQuery : DEFAULT_DOC_QUERY;
+    this.objQuery = parentSelection ? parentSelection.objQuery : '$';
+    this.objQuery += chunks[2] ? chunks[2].trim().slice(1) : '';
+    this.parentShift = chunks[3] ? chunks[3].length : 0;
 
     this.mure = mure;
     this.selectSingle = selectSingle;
   }
+  get headless() {
+    return this.docQuery === DEFAULT_DOC_QUERY;
+  }
   select(selector) {
-    let parentSelection = this.isRootSelection ? null : this;
-    return new Selection(selector, this.mure, { selectSingle: true, parentSelection });
+    return new Selection(this.mure, selector, { selectSingle: true, parentSelection: this });
   }
   selectAll(selector) {
-    let parentSelection = this.isRootSelection ? null : this;
-    return new Selection(selector, this.mure, { parentSelection });
+    return new Selection(this.mure, selector, { parentSelection: this });
   }
   async nodes({ includeMetadata = [], docQueryAdditions = null } = {}) {
     let docs = await this.docs({ docQueryAdditions });
@@ -79,13 +66,6 @@ class Selection {
     return nodes;
   }
   async docs({ docQueryAdditions = null } = {}) {
-    if (!this.docQuery && !docQueryAdditions) {
-      let queryResult = await this.mure.db.allDocs({
-        include_docs: true,
-        startkey: '_design\uffff'
-      });
-      return queryResult.rows;
-    }
     let docQuery = this.docQuery ? JSON.parse(this.docQuery) : {}; // TODO: can't JSON.parse queries...
     if (docQueryAdditions) {
       docQuery = Object.assign(docQuery, docQueryAdditions);
@@ -411,10 +391,10 @@ class Mure {
     return this.select('@{"_id":"' + docId + '"}');
   }
   select(selector) {
-    return new Selection(selector, this, { selectSingle: true });
+    return new Selection(this, selector, { selectSingle: true });
   }
   selectAll(selector) {
-    return new Selection(selector, this);
+    return new Selection(this, selector);
   }
 }
 

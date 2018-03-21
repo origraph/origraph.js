@@ -10,7 +10,7 @@ References should follow the following syntax:
 
 `@ [ mango selector ] [ JSONPath ] [ parent selectors ]`
 
-The mango selector is required for `mure.select` and `mure.selectAll`, but optional/ignored for subselections (e.g. `mySelection.select` or `mySelection.selectAll`). When references are stored inside documents without a mango selector specified, its containing document is assumed as the context.
+All of the above parameters are optional; only the initial `@` symbol is required.
 
 ## Examples:
 Given this document:
@@ -97,8 +97,16 @@ To referencing another document, a selector should begin with the `selector` par
 
 You can see mango selectors in use in examples 2, 4, and 5 above.
 
+When no mango selector is provided, all documents are queried (**warning**: you can imagine how this might be expensive!).
+
+With respect to storing selectors as values inside files, please follow the convention (there's no way to enforce this via the library) that stored references should only apply locally to that document. External references to other files should be explicitly use some kind of external file query (or, in the event that you *really* want a stored reference to refer across *all* files, use the document selector `{"_id":{"$gt":"_\uffff"}}` to avoid picking up internal PouchDB documents).
+
 ## JSONPath
-By default (without a preceding Mango selector), the JSONPath is evaluated from its containing document's `contents` object. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector. Examples 1 - 4 demonstrate JSONPaths in use.
+By default (without a preceding Mango selector), the JSONPath is evaluated from its containing document's `contents` object. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector.
+
+Examples 1 - 4 demonstrate JSONPaths in use.
+
+When no JSONPath is provided, the the document's `contents` object is referenced.
 
 ## Parent selectors
 A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child values attributes. If the series of `^` characters reach beyond the `contents`, an empty result will be returned. Example 4 demonstrates a parent selector being used.

@@ -194,10 +194,10 @@ class Mure {
     return this.select('@{"_id":"' + docId + '"}');
   }
   select (selector) {
-    return new Selection(selector, this, { selectSingle: true });
+    return new Selection(this, selector, { selectSingle: true });
   }
   selectAll (selector) {
-    return new Selection(selector, this);
+    return new Selection(this, selector);
   }
 }
 

@@ -122,5 +122,17 @@ module.exports = [
         })();
       });
     });
+  },
+  async () => {
+    return new Promise((resolve, reject) => {
+      let selection = mure.selectAll();
+      resolve([{
+        name: 'headless selection test',
+        result: {
+          passed: selection.headless === true,
+          details: selection.headless ? undefined : 'Headless value: ' + selection.headless
+        }
+      }]);
+    });
   }
 ];
