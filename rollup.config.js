@@ -48,7 +48,11 @@ let builds = [
       builtins(),
       globals()
     ].concat(commonPlugins),
-    external: peerDependencies
+    external: peerDependencies,
+    onwarn: message => {
+      if (/Circular dependency/.test(message)) return;
+      console.error(message);
+    }
   },
   // CommonJS build for Node.js
   {
