@@ -114,6 +114,19 @@ module.exports = [
             result: _revTestResult
           });
 
+          // Validate that the array was actually converted
+          let _purgedArraysResult = {
+            passed: !(dbDoc.contents['Player 1'] instanceof Array)
+          };
+          if (!_purgedArraysResult.passed) {
+            _purgedArraysResult.details = 'State after upload:' + '\n' +
+              JSON.stringify(dbDoc, null, 2);
+          }
+          tests.push({
+            name: 'verify that Player 1 in blackJack_round2.json is no longer an array',
+            result: _purgedArraysResult
+          });
+
           // Delete the document, and validate that it was deleted
           let deleteMessage = await mure.deleteDoc(dbDoc._id);
           let deleteTestResult = { passed: deleteMessage.ok };

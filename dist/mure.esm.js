@@ -183,9 +183,11 @@ class DocHandler {
     }
     let foundArray = false;
     if (obj instanceof Array) {
+      let temp = {};
       obj.forEach((element, index) => {
-        
+        temp[index] = element;
       });
+      obj = temp;
       foundArray = true;
     }
     Object.keys(obj).forEach(key => {
