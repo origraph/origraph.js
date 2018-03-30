@@ -72,4 +72,5 @@ class Selection {
     return queryResult.docs;
   }
 }
+Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 export default Selection;

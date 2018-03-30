@@ -1,4 +1,5 @@
 import mime from 'mime-types';
+import jsonPath from 'jsonpath';
 import Selection from '../Selection/index.js';
 import DocHandler from '../DocHandler/index.js';
 
@@ -189,6 +190,12 @@ class Mure {
       _rev: doc._rev,
       _deleted: true
     });
+  }
+  pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
+    let docQuery = path[0];
+    let objQuery = path.slice(1);
+    objQuery = objQuery.length > 0 ? jsonPath.stringify(objQuery) : '';
+    return '@' + docQuery + objQuery;
   }
   selectDoc (docId) {
     return this.select('@{"_id":"' + docId + '"}');
