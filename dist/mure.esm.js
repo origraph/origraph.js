@@ -20,7 +20,6 @@ class Selection extends Model {
     }
     this.docQuery = chunks[1] ? chunks[1].trim() : parentSelection ? parentSelection.docQuery : DEFAULT_DOC_QUERY;
     this.parsedDocQuery = this.docQuery ? JSON.parse(this.docQuery) : {};
-    this.isIdBasedQuery = this.parsedDocQuery._id && Object.keys(this.parsedDocQuery).length === 1;
     this.objQuery = parentSelection ? parentSelection.objQuery : '$';
     this.objQuery += chunks[2] ? chunks[2].trim().slice(1) : '';
     this.parentShift = chunks[3] ? chunks[3].length : 0;
@@ -28,8 +27,14 @@ class Selection extends Model {
     this.mure = mure;
     this.selectSingle = selectSingle;
 
-    this.mure.db.changes({ since: 'now', live: true }).on('change', change => {
-      this.handleDbChange(change);
+    this.mure.db.changes({
+      since: 'now',
+      live: true,
+      selector: this.parsedDocQuery
+    }).on('change', change => {
+      delete this._docs;
+      delete this._nodes;
+      this.trigger('change');
     });
   }
   get headless() {
@@ -40,32 +45,6 @@ class Selection extends Model {
   }
   selectAll(selector) {
     return new Selection(this.mure, selector, { parentSelection: this });
-  }
-  async handleDbChange(change) {
-    if (this._docs) {
-      let cacheInvalidated = false;
-      if (!this.isIdBasedQuery || change.deleted === true && change._id === this.parsedDocQuery._id) {
-        // As this isn't a standard id-based query, it's possible that the
-        // changed or new document happens to fit this.docQuery, so we need
-        // to update this part of the cache
-        let temp = this._docs;
-        delete this._docs;
-        let temp2 = await this.docs();
-        if (Object.keys(temp).length !== Object.keys(temp2)) {
-          cacheInvalidated = true;
-        }
-      }
-      if (this._docs[change._id]) {
-        // Only need to trash this part of the cache if the change affects
-        // one of our matching documents (this._nodes will be re-evaluated
-        // lazily the next time this.nodes() is called)
-        delete this._nodes;
-        cacheInvalidated = true;
-      }
-      if (cacheInvalidated) {
-        this.trigger('change');
-      }
-    }
   }
   async nodes({ includeMetadata = [] } = {}) {
     let docs;
@@ -90,6 +69,7 @@ class Selection extends Model {
             let temp = jsonPath.stringify(node.path);
             node.value = jsonPath.query(doc.contents, temp)[0];
           }
+          node.docId = docId;
           node.uniqueJsonPath = jsonPath.stringify(node.path);
           node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
           node.path.unshift(docPathQuery);
@@ -105,9 +85,12 @@ class Selection extends Model {
     if (includeMetadata.length > 0) {
       nodes.forEach(node => {
         node.metadata = {};
-        let doc = docs[node.path[0]];
+        let doc = docs[node.docId];
         includeMetadata.forEach(metadataLabel => {
-          node.metadata[metadataLabel] = jsonPath.value(doc[metadataLabel], node.uniqueSelector);
+          let metaTree = doc[metadataLabel];
+          if (metaTree) {
+            node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueSelector);
+          }
         });
       });
     }
@@ -174,6 +157,9 @@ class DocHandler {
     return 'todo';
   }
   isValidId(docId) {
+    if (docId[0].toLowerCase() !== docId[0]) {
+      return false;
+    }
     let parts = docId.split(';');
     if (parts.length !== 2) {
       return false;
@@ -186,6 +172,7 @@ class DocHandler {
         // Without an id, filename, or mimeType, just assume it's application/json
         doc.mimeType = 'application/json';
       }
+      doc.mimeType = doc.mimeType.toLowerCase();
       if (!doc.filename) {
         if (doc._id) {
           // We were given an invalid id; use it as the filename instead
@@ -212,6 +199,9 @@ class DocHandler {
         doc.mimeType = mime.lookup(doc.filename) || 'application/json';
       }
       doc._id = doc.mimeType + ';' + doc.filename;
+    }
+    if (doc._id[0] === '_' || doc._id[0] === '$') {
+      throw new Error('Document _ids may not start with ' + doc._id[0] + ': ' + doc._id);
     }
     if (!doc.mimeType) {
       doc.mimeType = doc._id.split(';')[0];
@@ -256,8 +246,9 @@ class DocHandler {
   }
 }
 
-class Mure {
+class Mure extends Model {
   constructor(PouchDB$$1, d3$$1, d3n) {
+    super();
     this.PouchDB = PouchDB$$1; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3$$1; // for Node.js, this will be from d3-node, not the regular one
 
@@ -323,10 +314,7 @@ class Mure {
   }
   async getOrInitDb() {
     this.db = new this.PouchDB('mure');
-    let status = {
-      synced: false,
-      indexed: false
-    };
+    let status = { synced: false };
     let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
     if (couchDbUrl) {
       let couchDb = new this.PouchDB(couchDbUrl, { skip_setup: true });
@@ -340,6 +328,21 @@ class Mure {
         fields: ['filename']
       }
     }).catch(() => false));
+    status.selectionAdded = !!(await this.db.put({
+      _id: '$currentSelector',
+      selector: null
+    }).catch(() => false));
+    this.db.changes({
+      since: 'now',
+      live: true,
+      selector: { _id: { '$gt': '$', '$lt': '$\uffff' } }
+    }).on('change', change => {
+      if (change.id === '$currentSelector') {
+        this.trigger('selectionChange', change.selector);
+      }
+    }).on('error', err => {
+      this.warn(err);
+    });
     return status;
   }
   /**
@@ -458,6 +461,11 @@ class Mure {
   }
   selectAll(selector) {
     return new Selection(this, selector);
+  }
+  async setSelector(selector) {
+    let currentSelector = await this.db.get('$currentSelector');
+    currentSelector.selector = selector;
+    return this.db.put(currentSelector);
   }
 }
 

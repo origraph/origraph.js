@@ -1,10 +1,12 @@
 import mime from 'mime-types';
 import jsonPath from 'jsonpath';
+import { Model } from 'uki';
 import Selection from '../Selection/index.js';
 import DocHandler from '../DocHandler/index.js';
 
-class Mure {
+class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
+    super();
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
 
@@ -70,10 +72,7 @@ class Mure {
   }
   async getOrInitDb () {
     this.db = new this.PouchDB('mure');
-    let status = {
-      synced: false,
-      indexed: false
-    };
+    let status = { synced: false };
     let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
     if (couchDbUrl) {
       let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
@@ -89,6 +88,21 @@ class Mure {
         fields: ['filename']
       }
     }).catch(() => false));
+    status.selectionAdded = !!(await this.db.put({
+      _id: '$currentSelector',
+      selector: null
+    }).catch(() => false));
+    this.db.changes({
+      since: 'now',
+      live: true,
+      selector: { _id: {'$gt': '$', '$lt': '$\uffff'} }
+    }).on('change', change => {
+      if (change.id === '$currentSelector') {
+        this.trigger('selectionChange', change.selector);
+      }
+    }).on('error', err => {
+      this.warn(err);
+    });
     return status;
   }
   /**
@@ -208,6 +222,11 @@ class Mure {
   }
   selectAll (selector) {
     return new Selection(this, selector);
+  }
+  async setSelector (selector) {
+    let currentSelector = await this.db.get('$currentSelector');
+    currentSelector.selector = selector;
+    return this.db.put(currentSelector);
   }
 }
 

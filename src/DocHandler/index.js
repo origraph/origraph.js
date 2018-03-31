@@ -41,6 +41,9 @@ class DocHandler {
     return 'todo';
   }
   isValidId (docId) {
+    if (docId[0].toLowerCase() !== docId[0]) {
+      return false;
+    }
     let parts = docId.split(';');
     if (parts.length !== 2) {
       return false;
@@ -53,6 +56,7 @@ class DocHandler {
         // Without an id, filename, or mimeType, just assume it's application/json
         doc.mimeType = 'application/json';
       }
+      doc.mimeType = doc.mimeType.toLowerCase();
       if (!doc.filename) {
         if (doc._id) {
           // We were given an invalid id; use it as the filename instead
@@ -79,6 +83,9 @@ class DocHandler {
         doc.mimeType = mime.lookup(doc.filename) || 'application/json';
       }
       doc._id = doc.mimeType + ';' + doc.filename;
+    }
+    if (doc._id[0] === '_' || doc._id[0] === '$') {
+      throw new Error('Document _ids may not start with ' + doc._id[0] + ': ' + doc._id);
     }
     if (!doc.mimeType) {
       doc.mimeType = doc._id.split(';')[0];

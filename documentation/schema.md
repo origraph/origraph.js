@@ -112,9 +112,13 @@ When no JSONPath is provided, the the document's `contents` object is referenced
 A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child values attributes. If the series of `^` characters reach beyond the `contents`, an empty result will be returned. Example 4 demonstrates a parent selector being used.
 
 # File IDs
-Our convention is to format document IDs similar to what you"d see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:
-  1. mimeType
+Our convention is to format document `_id`s similar to what you'd see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:
+  1. mimeType (will always be stored as lowercase)
   2. filename
+
+For example: `application/json;myFile.json`
+
+In addition to PouchDB reserving `_id`s beginning with an underscore; Mure reserves `_id`s beginning with a dollar sign (e.g. for special signalling documents like `$currentSelector`).
 
 # Importing and exporting files
 TODO: provide general guidance about separate metadata files, shadow trees, etc
