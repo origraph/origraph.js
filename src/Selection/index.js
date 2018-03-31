@@ -1,9 +1,11 @@
+import { Model } from 'uki';
 import jsonPath from 'jsonpath';
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
-class Selection {
+class Selection extends Model {
   constructor (mure, selector = '@' + DEFAULT_DOC_QUERY + '$', { selectSingle = false, parentSelection = null } = {}) {
+    super();
     let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
     if (!chunks) {
       let err = new Error('Invalid selector: ' + selector);
@@ -37,18 +39,28 @@ class Selection {
   }
   async handleDbChange (change) {
     if (this._docs) {
-      if (!this.isIdBasedQuery) {
+      let cacheInvalidated = false;
+      if (!this.isIdBasedQuery ||
+          (change.deleted === true && change._id === this.parsedDocQuery._id)) {
         // As this isn't a standard id-based query, it's possible that the
         // changed or new document happens to fit this.docQuery, so we need
         // to update this part of the cache
+        let temp = this._docs;
         delete this._docs;
-        await this.docs();
+        let temp2 = await this.docs();
+        if (Object.keys(temp).length !== Object.keys(temp2)) {
+          cacheInvalidated = true;
+        }
       }
       if (this._docs[change._id]) {
         // Only need to trash this part of the cache if the change affects
         // one of our matching documents (this._nodes will be re-evaluated
         // lazily the next time this.nodes() is called)
         delete this._nodes;
+        cacheInvalidated = true;
+      }
+      if (cacheInvalidated) {
+        this.trigger('change');
       }
     }
   }

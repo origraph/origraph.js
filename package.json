@@ -54,7 +54,8 @@
     "mime-types": "^2.1.18",
     "pouchdb-authentication": "^1.1.1",
     "pouchdb-browser": "^6.4.3",
-    "pouchdb-find": "^6.4.3"
+    "pouchdb-find": "^6.4.3",
+    "uki": "^0.1.0"
   },
   "peerDependencies": {
     "d3": "^4.13.0"

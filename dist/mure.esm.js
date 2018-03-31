@@ -1,3 +1,4 @@
+import { Model } from 'uki';
 import jsonPath from 'jsonpath';
 import mime from 'mime-types';
 import datalib from 'datalib';
@@ -8,8 +9,9 @@ import PouchAuthentication from 'pouchdb-authentication';
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
-class Selection {
+class Selection extends Model {
   constructor(mure, selector = '@' + DEFAULT_DOC_QUERY + '$', { selectSingle = false, parentSelection = null } = {}) {
+    super();
     let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
     if (!chunks) {
       let err = new Error('Invalid selector: ' + selector);
@@ -41,18 +43,27 @@ class Selection {
   }
   async handleDbChange(change) {
     if (this._docs) {
-      if (!this.isIdBasedQuery) {
+      let cacheInvalidated = false;
+      if (!this.isIdBasedQuery || change.deleted === true && change._id === this.parsedDocQuery._id) {
         // As this isn't a standard id-based query, it's possible that the
         // changed or new document happens to fit this.docQuery, so we need
         // to update this part of the cache
+        let temp = this._docs;
         delete this._docs;
-        await this.docs();
+        let temp2 = await this.docs();
+        if (Object.keys(temp).length !== Object.keys(temp2)) {
+          cacheInvalidated = true;
+        }
       }
       if (this._docs[change._id]) {
         // Only need to trash this part of the cache if the change affects
         // one of our matching documents (this._nodes will be re-evaluated
         // lazily the next time this.nodes() is called)
         delete this._nodes;
+        cacheInvalidated = true;
+      }
+      if (cacheInvalidated) {
+        this.trigger('change');
       }
     }
   }
@@ -464,7 +475,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.55.3", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.3.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.9" };
-var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3" };
+var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.1.0" };
 var peerDependencies = { "d3": "^4.13.0" };
 var pkg = {
 	name: name,
