@@ -191,6 +191,9 @@ class Mure {
       _deleted: true
     });
   }
+  pathsToSelector (paths = [[Selection.DEFAULT_DOC_QUERY]]) {
+    throw new Error('unimplemented');
+  }
   pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
     let docQuery = path[0];
     let objQuery = path.slice(1);

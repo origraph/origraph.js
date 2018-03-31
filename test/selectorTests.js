@@ -107,9 +107,11 @@ module.exports = [
 
               // Multi-document selection tests
               selectors = Object.keys(queries2);
+              let cachedSelections = {};
               for (let i = 0; i < selectors.length; i += 1) {
                 let selector = selectors[i];
                 let selection = mure.selectAll(selector);
+                cachedSelections[selector] = selection;
                 let expectedObjs = queries2[selector];
                 let nodes = await selection.nodes();
                 let selectedObjs = nodes.map(n => n.value);
@@ -118,6 +120,50 @@ module.exports = [
                   result: logging.testObjectEquality(expectedObjs, selectedObjs)
                 });
               }
+
+              let deleteMessage = await mure.deleteDoc('application/json;blackJack_round2.json');
+              tests.push({
+                name: 'Delete blackJack_round2.json for selector cache invalidation testing',
+                result: {
+                  passed: deleteMessage.ok,
+                  details: deleteMessage.ok ? undefined : JSON.stringify(deleteMessage, null, 2)
+                }
+              });
+
+              let queries3 = {
+                '@': [doc.contents],
+                '@ { "filename": "blackJack_round2.json" } $["Player 1"]': [],
+                '@ { "filename": { "$regex": "blackJack_round\\\\d.json" } } $["Player 1"][?(@.suit==="♣")]': [
+                  { 'suit': '♣', 'value': '8' },
+                  { 'suit': '♣', 'value': 'Q' }
+                ],
+                '@ { "filename": { "$regex": "blackJack_round\\\\d.json" } } $[*][?(@.suit==="♥")] ^': [
+                  {
+                    '0': { 'suit': '♥', 'value': 'A' },
+                    '1': { 'suit': '♦', 'value': 'K' }
+                  },
+                  {
+                    '0': { 'suit': '♦', 'value': '2' },
+                    '1': { 'suit': '♥', 'value': 'J' },
+                    '2': { 'suit': '♠', 'value': 'K' }
+                  }
+                ]
+              };
+
+              // Cache invalidation tests
+              selectors = Object.keys(queries3);
+              for (let i = 0; i < selectors.length; i += 1) {
+                let selector = selectors[i];
+                let selection = cachedSelections[selector];
+                let expectedObjs = queries3[selector];
+                let nodes = await selection.nodes();
+                let selectedObjs = nodes.map(n => n.value);
+                tests.push({
+                  name: 'cache invalidation: mure.selectDoc().selectAll(\'' + selector + '\')',
+                  result: logging.testObjectEquality(expectedObjs, selectedObjs)
+                });
+              }
+
               resolve(tests);
             })();
           });
