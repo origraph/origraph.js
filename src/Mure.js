@@ -94,10 +94,17 @@ class Mure extends Model {
     }).catch(() => false));
     this.db.changes({
       since: 'now',
-      live: true,
-      selector: { _id: {'$gt': '$', '$lt': '$\uffff'} }
+      live: true
     }).on('change', change => {
-      if (change.id === '$currentSelector') {
+      if (change.id > '_\uffff') {
+        // A regular document changed; purge any cached selections that might
+        // refer to this document
+        Selection.MULTI_DOC_CACHES.forEach(s => s.purgeCache());
+        Selection.MULTI_DOC_CACHES = [];
+        (Selection.DOC_CACHES[change.id] || []).forEach(s => s.purgeCache());
+        delete Selection.DOC_CACHES[change.id];
+      } else if (change.id === '$currentSelector') {
+        // One of our special documents changed
         this.trigger('selectionChange', change.selector);
       }
     }).on('error', err => {

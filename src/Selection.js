@@ -25,16 +25,10 @@ class Selection extends Model {
 
     this.mure = mure;
     this.selectSingle = selectSingle;
-
-    this.mure.db.changes({
-      since: 'now',
-      live: true,
-      selector: this.parsedDocQuery
-    }).on('change', change => {
-      delete this._docs;
-      delete this._nodes;
-      this.trigger('change');
-    });
+  }
+  purgeCache () {
+    delete this._docs;
+    delete this._nodes;
   }
   get headless () {
     return this.docQuery === DEFAULT_DOC_QUERY;
@@ -60,16 +54,12 @@ class Selection extends Model {
         // With no explicit objQuery, we only want one root node with each
         // documents' contents as the child nodes ($ will collect the contents
         // of each document)
-        let rootNode = {};
+        let rootNode = {
+          path: [],
+          value: {}
+        };
         Object.keys(docs).some(docId => {
-          let docPathQuery = '{"_id":"' + docId + '"}';
-          rootNode[docId] = {
-            path: [docPathQuery],
-            value: docs[docId].contents,
-            docId,
-            uniqueJsonPath: '',
-            uniqueSelector: '@' + docPathQuery
-          };
+          rootNode.value[docId] = docs[docId].contents;
           return this.selectSingle;
         });
         this._nodes.push(rootNode);
@@ -123,8 +113,23 @@ class Selection extends Model {
     if (queryResult.warning) { this.mure.warn(queryResult.warning); }
     this._docs = {};
     queryResult.docs.forEach(doc => { this._docs[doc._id] = doc; });
+
+    // Mure.js needs to be able to call purgeCache() when a document changes;
+    // most of the time, selections refer to a single document, so we can avoid
+    // purging those all the time. But if we select multiple documents, we
+    // always need to purge our cache on any change
+    if (typeof this.parsedDocQuery._id === 'string') {
+      Selection.DOC_CACHES[this.parsedDocQuery._id] =
+        Selection.DOC_CACHES[this.parsedDocQuery._id] || [];
+      Selection.DOC_CACHES[this.parsedDocQuery._id].push(this);
+    } else {
+      Selection.MULTI_DOC_CACHES.push(this);
+    }
+
     return Object.assign({}, this._docs);
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
+Selection.DOC_CACHES = {};
+Selection.MULTI_DOC_CACHES = [];
 export default Selection;
