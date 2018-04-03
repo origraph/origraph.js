@@ -42,6 +42,18 @@ let logging = {
       chalk`{bold.hex('#e7298a') B:}` +
       JSON.stringify(b, null, 2);
   },
+  appendObjMismatchDetails: (a, b, result) => {
+    if (!result.cause) {
+      result.cause = result.details;
+    }
+    result.details = result.cause + '\n\n' +
+      chalk`{bold.hex('#e7298a') Full objects:\n}` +
+      chalk`{bold.hex('#e7298a') A:}` +
+      JSON.stringify(a, null, 2) + '\n' +
+      chalk`{bold.hex('#e7298a') B:}` +
+      JSON.stringify(b, null, 2);
+    return result;
+  },
   testObjectEquality: (a, b) => {
     if (logging.testBasicEquality(a, b).passed) {
       return { passed: true };
@@ -65,6 +77,9 @@ let logging = {
             } else {
               if (!a.every((aChild, index) => {
                 result = logging.testObjectEquality(aChild, b[index]);
+                if (!result.passed) {
+                  result = logging.appendObjMismatchDetails(a, b, result);
+                }
                 return result.passed;
               })) { return result; }
             }
@@ -72,6 +87,9 @@ let logging = {
             let aKeys = Object.keys(a);
             if (!aKeys.every(key => {
               result = logging.testObjectEquality(a[key], b[key]);
+              if (!result.passed) {
+                result = logging.appendObjMismatchDetails(a, b, result);
+              }
               return result.passed;
             })) { return result; }
           }
