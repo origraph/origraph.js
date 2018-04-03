@@ -42,6 +42,11 @@ let logging = {
       chalk`{bold.hex('#e7298a') B:}` +
       JSON.stringify(b, null, 2);
   },
+  getSizeMismatchDetails: (a, b, objType) => {
+    return chalk`{bold.hex('#e7298a') ${objType}s have different size: }` +
+      chalk`{bold.hex('#e7298a') A:} ${a.length} ` +
+      chalk`{bold.hex('#e7298a') B:} ${b.length}`;
+  },
   appendObjMismatchDetails: (a, b, result) => {
     if (!result.cause) {
       result.cause = result.details;
@@ -75,7 +80,11 @@ let logging = {
               result.details = logging.getTypeMismatchDetails(a, b);
               return result;
             } else {
-              if (!a.every((aChild, index) => {
+              if (a.length !== b.length) {
+                result.details = logging.getSizeMismatchDetails(a, b, 'Array');
+                result = logging.appendObjMismatchDetails(a, b, result);
+                return result;
+              } else if (!a.every((aChild, index) => {
                 result = logging.testObjectEquality(aChild, b[index]);
                 if (!result.passed) {
                   result = logging.appendObjMismatchDetails(a, b, result);
@@ -85,7 +94,12 @@ let logging = {
             }
           } else {
             let aKeys = Object.keys(a);
-            if (!aKeys.every(key => {
+            let bKeys = Object.keys(b);
+            if (aKeys.length !== bKeys.length) {
+              result.details = logging.getSizeMismatchDetails(aKeys, bKeys, 'Object');
+              result = logging.appendObjMismatchDetails(a, b, result);
+              return result;
+            } else if (!aKeys.every(key => {
               result = logging.testObjectEquality(a[key], b[key]);
               if (!result.passed) {
                 result = logging.appendObjMismatchDetails(a, b, result);

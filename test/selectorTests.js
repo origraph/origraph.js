@@ -1,6 +1,7 @@
 const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
 const fs = require('fs');
+require('events').EventEmitter.defaultMaxListeners = 30;
 
 module.exports = [
   async () => {
