@@ -124,7 +124,7 @@ module.exports = [
 
               let deleteMessage = await mure.deleteDoc('application/json;blackJack_round2.json');
               tests.push({
-                name: 'Delete blackJack_round2.json for selector cache invalidation testing',
+                name: 'Delete blackJack_round2.json to make sure selectors still work',
                 result: {
                   passed: deleteMessage.ok,
                   details: deleteMessage.ok ? undefined : JSON.stringify(deleteMessage, null, 2)
@@ -132,7 +132,7 @@ module.exports = [
               });
 
               let queries3 = {
-                '@': [{ 'application.json;blackJack_round1.json': doc.contents }],
+                '@': [{ 'application/json;blackJack_round1.json': doc.contents }],
                 '@ { "filename": "blackJack_round2.json" } $["Player 1"]': [],
                 '@ { "filename": { "$regex": "blackJack_round\\\\d.json" } } $["Player 1"][?(@.suit==="♣")]': [
                   { 'suit': '♣', 'value': '8' },
@@ -160,7 +160,7 @@ module.exports = [
                 let nodes = await selection.nodes();
                 let selectedObjs = nodes.map(n => n.value);
                 tests.push({
-                  name: 'cache invalidation: mure.selectDoc().selectAll(\'' + selector + '\')',
+                  name: 'post-deletion: mure.selectDoc().selectAll(\'' + selector + '\')',
                   result: logging.testObjectEquality(expectedObjs, selectedObjs)
                 });
               }

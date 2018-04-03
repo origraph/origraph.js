@@ -97,12 +97,8 @@ class Mure extends Model {
       live: true
     }).on('change', change => {
       if (change.id > '_\uffff') {
-        // A regular document changed; purge any cached selections that might
-        // refer to this document
-        Selection.MULTI_DOC_CACHES.forEach(s => s.purgeCache());
-        Selection.MULTI_DOC_CACHES = [];
-        (Selection.DOC_CACHES[change.id] || []).forEach(s => s.purgeCache());
-        delete Selection.DOC_CACHES[change.id];
+        // A regular document changed
+        this.trigger('docChange', change);
       } else if (change.id === '$currentSelector') {
         // One of our special documents changed
         this.trigger('selectionChange', change.selector);

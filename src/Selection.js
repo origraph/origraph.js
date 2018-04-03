@@ -26,10 +26,6 @@ class Selection extends Model {
     this.mure = mure;
     this.selectSingle = selectSingle;
   }
-  purgeCache () {
-    delete this._docs;
-    delete this._nodes;
-  }
   get headless () {
     return this.docQuery === DEFAULT_DOC_QUERY;
   }
@@ -40,56 +36,48 @@ class Selection extends Model {
     return new Selection(this.mure, selector, { parentSelection: this });
   }
   async nodes ({ includeMetadata = [] } = {}) {
-    let docs;
-    if (!this._nodes || includeMetadata.length > 0) {
-      // Don't need to get documents if we're only asking for a copy of the
-      // basic cached this._nodes
-      docs = await this.docs();
+    let docs = await this.docs();
+
+    // Collect the results of the jsonPath queries
+    let nodes = [];
+    if (this.objQuery === '') {
+      // With no explicit objQuery, we only want one root node with each
+      // documents' contents as the child nodes ($ will collect the contents
+      // of each document)
+      let rootNode = {
+        path: [],
+        value: {}
+      };
+      Object.keys(docs).some(docId => {
+        rootNode.value[docId] = docs[docId].contents;
+        return this.selectSingle;
+      });
+      nodes.push(rootNode);
+    } else {
+      Object.keys(docs).some(docId => {
+        let doc = docs[docId];
+        let docPathQuery = '{"_id":"' + docId + '"}';
+        let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
+          if (this.parentShift) {
+            // Now that we have unique, normalized paths for each node, we can
+            // apply the parentShift option to select parents based on child
+            // attributes
+            node.path.splice(node.path.length - this.parentShift);
+            let temp = jsonPath.stringify(node.path);
+            node.value = jsonPath.query(doc.contents, temp)[0];
+          }
+          node.docId = docId;
+          node.uniqueJsonPath = jsonPath.stringify(node.path);
+          node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
+          node.path.unshift(docPathQuery);
+          nodes.push(node);
+          return this.selectSingle; // when true, exits both loops after the first match is found
+        });
+        return selectedSingle;
+      });
     }
 
-    // Collect and cache the results of the jsonPath queries
-    if (!this._nodes) {
-      this._nodes = [];
-      if (this.objQuery === '') {
-        // With no explicit objQuery, we only want one root node with each
-        // documents' contents as the child nodes ($ will collect the contents
-        // of each document)
-        let rootNode = {
-          path: [],
-          value: {}
-        };
-        Object.keys(docs).some(docId => {
-          rootNode.value[docId] = docs[docId].contents;
-          return this.selectSingle;
-        });
-        this._nodes.push(rootNode);
-      } else {
-        Object.keys(docs).some(docId => {
-          let doc = docs[docId];
-          let docPathQuery = '{"_id":"' + docId + '"}';
-          let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
-            if (this.parentShift) {
-              // Now that we have unique, normalized paths for each node, we can
-              // apply the parentShift option to select parents based on child
-              // attributes
-              node.path.splice(node.path.length - this.parentShift);
-              let temp = jsonPath.stringify(node.path);
-              node.value = jsonPath.query(doc.contents, temp)[0];
-            }
-            node.docId = docId;
-            node.uniqueJsonPath = jsonPath.stringify(node.path);
-            node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
-            node.path.unshift(docPathQuery);
-            this._nodes.push(node);
-            return this.selectSingle; // when true, exits both loops after the first match is found
-          });
-          return selectedSingle;
-        });
-      }
-    }
-
-    let nodes = Array.from(this._nodes);
-    // Add requested metadata to a copy of the cached result
+    // Add requested metadata to the result
     if (includeMetadata.length > 0) {
       nodes.forEach(node => {
         node.metadata = {};
@@ -105,31 +93,13 @@ class Selection extends Model {
     return nodes;
   }
   async docs () {
-    if (this._docs) {
-      return Object.assign({}, this._docs);
-    }
+    let docs = {};
     let query = { selector: this.parsedDocQuery };
     let queryResult = await this.mure.db.find(query);
     if (queryResult.warning) { this.mure.warn(queryResult.warning); }
-    this._docs = {};
-    queryResult.docs.forEach(doc => { this._docs[doc._id] = doc; });
-
-    // Mure.js needs to be able to call purgeCache() when a document changes;
-    // most of the time, selections refer to a single document, so we can avoid
-    // purging those all the time. But if we select multiple documents, we
-    // always need to purge our cache on any change
-    if (typeof this.parsedDocQuery._id === 'string') {
-      Selection.DOC_CACHES[this.parsedDocQuery._id] =
-        Selection.DOC_CACHES[this.parsedDocQuery._id] || [];
-      Selection.DOC_CACHES[this.parsedDocQuery._id].push(this);
-    } else {
-      Selection.MULTI_DOC_CACHES.push(this);
-    }
-
-    return Object.assign({}, this._docs);
+    queryResult.docs.forEach(doc => { docs[doc._id] = doc; });
+    return docs;
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
-Selection.DOC_CACHES = {};
-Selection.MULTI_DOC_CACHES = [];
 export default Selection;

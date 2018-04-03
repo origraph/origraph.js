@@ -28,10 +28,6 @@ class Selection extends uki.Model {
     this.mure = mure;
     this.selectSingle = selectSingle;
   }
-  purgeCache() {
-    delete this._docs;
-    delete this._nodes;
-  }
   get headless() {
     return this.docQuery === DEFAULT_DOC_QUERY;
   }
@@ -42,56 +38,48 @@ class Selection extends uki.Model {
     return new Selection(this.mure, selector, { parentSelection: this });
   }
   async nodes({ includeMetadata = [] } = {}) {
-    let docs;
-    if (!this._nodes || includeMetadata.length > 0) {
-      // Don't need to get documents if we're only asking for a copy of the
-      // basic cached this._nodes
-      docs = await this.docs();
+    let docs = await this.docs();
+
+    // Collect the results of the jsonPath queries
+    let nodes = [];
+    if (this.objQuery === '') {
+      // With no explicit objQuery, we only want one root node with each
+      // documents' contents as the child nodes ($ will collect the contents
+      // of each document)
+      let rootNode = {
+        path: [],
+        value: {}
+      };
+      Object.keys(docs).some(docId => {
+        rootNode.value[docId] = docs[docId].contents;
+        return this.selectSingle;
+      });
+      nodes.push(rootNode);
+    } else {
+      Object.keys(docs).some(docId => {
+        let doc = docs[docId];
+        let docPathQuery = '{"_id":"' + docId + '"}';
+        let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
+          if (this.parentShift) {
+            // Now that we have unique, normalized paths for each node, we can
+            // apply the parentShift option to select parents based on child
+            // attributes
+            node.path.splice(node.path.length - this.parentShift);
+            let temp = jsonPath.stringify(node.path);
+            node.value = jsonPath.query(doc.contents, temp)[0];
+          }
+          node.docId = docId;
+          node.uniqueJsonPath = jsonPath.stringify(node.path);
+          node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
+          node.path.unshift(docPathQuery);
+          nodes.push(node);
+          return this.selectSingle; // when true, exits both loops after the first match is found
+        });
+        return selectedSingle;
+      });
     }
 
-    // Collect and cache the results of the jsonPath queries
-    if (!this._nodes) {
-      this._nodes = [];
-      if (this.objQuery === '') {
-        // With no explicit objQuery, we only want one root node with each
-        // documents' contents as the child nodes ($ will collect the contents
-        // of each document)
-        let rootNode = {
-          path: [],
-          value: {}
-        };
-        Object.keys(docs).some(docId => {
-          rootNode.value[docId] = docs[docId].contents;
-          return this.selectSingle;
-        });
-        this._nodes.push(rootNode);
-      } else {
-        Object.keys(docs).some(docId => {
-          let doc = docs[docId];
-          let docPathQuery = '{"_id":"' + docId + '"}';
-          let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
-            if (this.parentShift) {
-              // Now that we have unique, normalized paths for each node, we can
-              // apply the parentShift option to select parents based on child
-              // attributes
-              node.path.splice(node.path.length - this.parentShift);
-              let temp = jsonPath.stringify(node.path);
-              node.value = jsonPath.query(doc.contents, temp)[0];
-            }
-            node.docId = docId;
-            node.uniqueJsonPath = jsonPath.stringify(node.path);
-            node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
-            node.path.unshift(docPathQuery);
-            this._nodes.push(node);
-            return this.selectSingle; // when true, exits both loops after the first match is found
-          });
-          return selectedSingle;
-        });
-      }
-    }
-
-    let nodes = Array.from(this._nodes);
-    // Add requested metadata to a copy of the cached result
+    // Add requested metadata to the result
     if (includeMetadata.length > 0) {
       nodes.forEach(node => {
         node.metadata = {};
@@ -107,36 +95,19 @@ class Selection extends uki.Model {
     return nodes;
   }
   async docs() {
-    if (this._docs) {
-      return Object.assign({}, this._docs);
-    }
+    let docs = {};
     let query = { selector: this.parsedDocQuery };
     let queryResult = await this.mure.db.find(query);
     if (queryResult.warning) {
       this.mure.warn(queryResult.warning);
     }
-    this._docs = {};
     queryResult.docs.forEach(doc => {
-      this._docs[doc._id] = doc;
+      docs[doc._id] = doc;
     });
-
-    // Mure.js needs to be able to call purgeCache() when a document changes;
-    // most of the time, selections refer to a single document, so we can avoid
-    // purging those all the time. But if we select multiple documents, we
-    // always need to purge our cache on any change
-    if (typeof this.parsedDocQuery._id === 'string') {
-      Selection.DOC_CACHES[this.parsedDocQuery._id] = Selection.DOC_CACHES[this.parsedDocQuery._id] || [];
-      Selection.DOC_CACHES[this.parsedDocQuery._id].push(this);
-    } else {
-      Selection.MULTI_DOC_CACHES.push(this);
-    }
-
-    return Object.assign({}, this._docs);
+    return docs;
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
-Selection.DOC_CACHES = {};
-Selection.MULTI_DOC_CACHES = [];
 
 var mureInteractivityRunnerText = "/* globals XMLHttpRequest, ActiveXObject, Node */\n/* eslint no-eval: 0 */\n(function () {\n  var nonAsyncScriptTexts = [];\n\n  function load (url, callback) {\n    var xhr;\n\n    if (typeof XMLHttpRequest !== 'undefined') {\n      xhr = new XMLHttpRequest();\n    } else {\n      var versions = [\n        'MSXML2.XmlHttp.5.0',\n        'MSXML2.XmlHttp.4.0',\n        'MSXML2.XmlHttp.3.0',\n        'MSXML2.XmlHttp.2.0',\n        'Microsoft.XmlHttp'\n      ];\n      for (var i = 0, len = versions.length; i < len; i++) {\n        try {\n          xhr = new ActiveXObject(versions[i]);\n          break;\n        } catch (e) {}\n      }\n    }\n\n    xhr.onreadystatechange = ensureReadiness;\n\n    function ensureReadiness () {\n      if (xhr.readyState < 4) {\n        return;\n      }\n\n      if (xhr.status !== 200) {\n        return;\n      }\n\n      // all is well\n      if (xhr.readyState === 4) {\n        callback(xhr.responseText);\n      }\n    }\n\n    xhr.open('GET', url, true);\n    xhr.send('');\n  }\n\n  function documentPositionComparator (a, b) {\n    // function shamelessly adapted from https://stackoverflow.com/questions/31991235/sort-elements-by-document-order-in-javascript/31992057\n    a = a.element;\n    b = b.element;\n    if (a === b) { return 0; }\n    var position = a.compareDocumentPosition(b);\n    if (position & Node.DOCUMENT_POSITION_FOLLOWING || position & Node.DOCUMENT_POSITION_CONTAINED_BY) {\n      return -1;\n    } else if (position & Node.DOCUMENT_POSITION_PRECEDING || position & Node.DOCUMENT_POSITION_CONTAINS) {\n      return 1;\n    } else { return 0; }\n  }\n\n  function loadUserLibraries (callback) {\n    // Grab all the mure:library tags, and load the referenced library (script src attributes\n    // in SVG don't work, so we have to manually load remote libraries)\n    var libraries = Array.from(document.getElementsByTagNameNS('http://mure-apps.github.io', 'library'))\n      .map(element => {\n        return {\n          src: element.getAttribute('src'),\n          async: (element.getAttribute('async') || 'true').toLocaleLowerCase() !== 'false',\n          element: element\n        };\n      });\n\n    var loadedLibraries = {};\n    var onloadFired = false;\n\n    libraries.forEach(function (library) {\n      load(library.src, function (scriptText) {\n        if (library.async) {\n          window.eval(scriptText);\n        } else {\n          library.scriptText = scriptText;\n          nonAsyncScriptTexts.push(library);\n        }\n        loadedLibraries[library.src] = true;\n        attemptStart();\n      });\n    });\n\n    window.onload = function () {\n      onloadFired = true;\n      attemptStart();\n    };\n\n    function attemptStart () {\n      if (!onloadFired) {\n        return;\n      }\n      var allLoaded = libraries.every(library => {\n        return loadedLibraries[library.src];\n      });\n      if (allLoaded) {\n        callback();\n      }\n    }\n  }\n\n  function runUserScripts () {\n    var userScripts = Array.from(document.getElementsByTagNameNS('http://mure-apps.github.io', 'script'))\n      .map(element => {\n        return {\n          element: element,\n          scriptText: element.textContent\n        };\n      });\n    var allScripts = nonAsyncScriptTexts.concat(userScripts)\n      .sort(documentPositionComparator);\n    allScripts.forEach(scriptOrLibrary => {\n      window.eval(scriptOrLibrary.scriptText);\n    });\n  }\n\n  // Where we actually start executing stuff:\n  if (!window.frameElement ||\n      !window.frameElement.__suppressMureInteractivity__) {\n    // We've been loaded directly into a browser, or embedded in a normal page;\n    // load all the libraries, and then run all the scripts\n    loadUserLibraries(runUserScripts);\n  }\n})();\n";
 
@@ -361,12 +332,8 @@ class Mure extends uki.Model {
       live: true
     }).on('change', change => {
       if (change.id > '_\uffff') {
-        // A regular document changed; purge any cached selections that might
-        // refer to this document
-        Selection.MULTI_DOC_CACHES.forEach(s => s.purgeCache());
-        Selection.MULTI_DOC_CACHES = [];
-        (Selection.DOC_CACHES[change.id] || []).forEach(s => s.purgeCache());
-        delete Selection.DOC_CACHES[change.id];
+        // A regular document changed
+        this.trigger('docChange', change);
       } else if (change.id === '$currentSelector') {
         // One of our special documents changed
         this.trigger('selectionChange', change.selector);
