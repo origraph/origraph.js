@@ -131,7 +131,7 @@ module.exports = [
               });
 
               let queries3 = {
-                '@': [doc.contents],
+                '@': [{ 'application.json;blackJack_round1.json': doc.contents }],
                 '@ { "filename": "blackJack_round2.json" } $["Player 1"]': [],
                 '@ { "filename": { "$regex": "blackJack_round\\\\d.json" } } $["Player 1"][?(@.suit==="♣")]': [
                   { 'suit': '♣', 'value': '8' },

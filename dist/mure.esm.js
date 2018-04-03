@@ -10,7 +10,7 @@ import PouchAuthentication from 'pouchdb-authentication';
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection extends Model {
-  constructor(mure, selector = '@' + DEFAULT_DOC_QUERY + '$', { selectSingle = false, parentSelection = null } = {}) {
+  constructor(mure, selector = '@' + DEFAULT_DOC_QUERY, { selectSingle = false, parentSelection = null } = {}) {
     super();
     let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
     if (!chunks) {
@@ -20,8 +20,8 @@ class Selection extends Model {
     }
     this.docQuery = chunks[1] ? chunks[1].trim() : parentSelection ? parentSelection.docQuery : DEFAULT_DOC_QUERY;
     this.parsedDocQuery = this.docQuery ? JSON.parse(this.docQuery) : {};
-    this.objQuery = parentSelection ? parentSelection.objQuery : '$';
-    this.objQuery += chunks[2] ? chunks[2].trim().slice(1) : '';
+    this.objQuery = parentSelection ? parentSelection.objQuery : '';
+    this.objQuery += !chunks[2] ? '' : this.objQuery ? chunks[2].trim().slice(1) : chunks[2].trim();
     this.parentShift = chunks[3] ? chunks[3].length : 0;
 
     this.mure = mure;
@@ -48,6 +48,7 @@ class Selection extends Model {
   }
   async nodes({ includeMetadata = [] } = {}) {
     let docs;
+    console.log('objQuery: ', this.objQuery);
     if (!this._nodes || includeMetadata.length > 0) {
       // Don't need to get documents if we're only asking for a copy of the
       // basic cached this._nodes
@@ -57,27 +58,46 @@ class Selection extends Model {
     // Collect and cache the results of the jsonPath queries
     if (!this._nodes) {
       this._nodes = [];
-      Object.keys(docs).some(docId => {
-        let doc = docs[docId];
-        let docPathQuery = '{"_id":"' + docId + '"}';
-        let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
-          if (this.parentShift) {
-            // Now that we have unique, normalized paths for each node, we can
-            // apply the parentShift option to select parents based on child
-            // attributes
-            node.path.splice(node.path.length - this.parentShift);
-            let temp = jsonPath.stringify(node.path);
-            node.value = jsonPath.query(doc.contents, temp)[0];
-          }
-          node.docId = docId;
-          node.uniqueJsonPath = jsonPath.stringify(node.path);
-          node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
-          node.path.unshift(docPathQuery);
-          this._nodes.push(node);
-          return this.selectSingle; // when true, exits both loops after the first match is found
+      if (this.objQuery === '') {
+        // With no explicit objQuery, we only want one root node with each
+        // documents' contents as the child nodes ($ will collect the contents
+        // of each document)
+        let rootNode = {};
+        Object.keys(docs).some(docId => {
+          let docPathQuery = '{"_id":"' + docId + '"}';
+          rootNode[docId] = {
+            path: [docPathQuery],
+            value: docs[docId].contents,
+            docId,
+            uniqueJsonPath: '',
+            uniqueSelector: '@' + docPathQuery
+          };
+          return this.selectSingle;
         });
-        return selectedSingle;
-      });
+        this._nodes.push(rootNode);
+      } else {
+        Object.keys(docs).some(docId => {
+          let doc = docs[docId];
+          let docPathQuery = '{"_id":"' + docId + '"}';
+          let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
+            if (this.parentShift) {
+              // Now that we have unique, normalized paths for each node, we can
+              // apply the parentShift option to select parents based on child
+              // attributes
+              node.path.splice(node.path.length - this.parentShift);
+              let temp = jsonPath.stringify(node.path);
+              node.value = jsonPath.query(doc.contents, temp)[0];
+            }
+            node.docId = docId;
+            node.uniqueJsonPath = jsonPath.stringify(node.path);
+            node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
+            node.path.unshift(docPathQuery);
+            this._nodes.push(node);
+            return this.selectSingle; // when true, exits both loops after the first match is found
+          });
+          return selectedSingle;
+        });
+      }
     }
 
     let nodes = Array.from(this._nodes);
@@ -88,8 +108,8 @@ class Selection extends Model {
         let doc = docs[node.docId];
         includeMetadata.forEach(metadataLabel => {
           let metaTree = doc[metadataLabel];
-          if (metaTree) {
-            node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueSelector);
+          if (metaTree && node.uniqueJsonPath) {
+            node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueJsonPath);
           }
         });
       });
