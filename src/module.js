@@ -1,4 +1,4 @@
-import Mure from './Mure/index.js';
+import Mure from './Mure.js';
 import * as d3 from 'd3';
 import pkg from '../package.json';
 import PouchDB from 'pouchdb-browser';

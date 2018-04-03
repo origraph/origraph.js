@@ -1,4 +1,4 @@
-import Mure from './Mure/index.js';
+import Mure from './Mure.js';
 import D3Node from 'd3-node';
 import pkg from '../package.json';
 let d3n = new D3Node();

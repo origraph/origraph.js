@@ -48,7 +48,6 @@ class Selection extends Model {
   }
   async nodes({ includeMetadata = [] } = {}) {
     let docs;
-    console.log('objQuery: ', this.objQuery);
     if (!this._nodes || includeMetadata.length > 0) {
       // Don't need to get documents if we're only asking for a copy of the
       // basic cached this._nodes
