@@ -46,7 +46,8 @@ class Selection extends Model {
       // of each document)
       let rootNode = {
         path: [],
-        value: {}
+        value: {},
+        uniqueSelector: '@'
       };
       Object.keys(docs).some(docId => {
         rootNode.value[docId] = docs[docId].contents;
@@ -81,13 +82,15 @@ class Selection extends Model {
     if (includeMetadata.length > 0) {
       nodes.forEach(node => {
         node.metadata = {};
-        let doc = docs[node.docId];
-        includeMetadata.forEach(metadataLabel => {
-          let metaTree = doc[metadataLabel];
-          if (metaTree && node.uniqueJsonPath) {
-            node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueJsonPath);
-          }
-        });
+        if (node.docId) {
+          let doc = docs[node.docId];
+          includeMetadata.forEach(metadataLabel => {
+            let metaTree = doc[metadataLabel];
+            if (metaTree && node.uniqueJsonPath) {
+              node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueJsonPath);
+            }
+          });
+        }
       });
     }
     return nodes;
