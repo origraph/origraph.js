@@ -92,6 +92,9 @@ class Mure extends Model {
       _id: '$currentSelector',
       selector: null
     }).catch(() => false));
+    status.docFlagsAdded = !!(await this.db.put({
+      _id: '$docFlags'
+    }).catch(() => false));
     this.db.changes({
       since: 'now',
       live: true
@@ -102,11 +105,19 @@ class Mure extends Model {
       } else if (change.id === '$currentSelector') {
         // One of our special documents changed
         this.trigger('selectionChange', change.selector);
+      } else if (change.id === '$docFlags') {
+        // A document gained its first instance of a flag, or
+        // lost its last instance of one
       }
     }).on('error', err => {
       this.warn(err);
     });
     return status;
+  }
+  async query (queryObj) {
+    let queryResult = await this.db.find(queryObj);
+    if (queryResult.warning) { this.mure.warn(queryResult.warning); }
+    return queryResult.docs;
   }
   /**
    * A wrapper around PouchDB.get() that ensures that the first matched
@@ -133,8 +144,8 @@ class Mure extends Model {
           docQuery = { '_id': docQuery };
         }
       }
-      let matchingDocs = await this.db.find({ selector: docQuery, limit: 1 });
-      if (matchingDocs.docs.length === 0) {
+      let matchingDocs = await this.query({ selector: docQuery, limit: 1 });
+      if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
           doc = docQuery;
@@ -142,7 +153,7 @@ class Mure extends Model {
           return null;
         }
       } else {
-        doc = matchingDocs.docs[0];
+        doc = matchingDocs[0];
       }
     }
     return this.docHandler.standardize(doc);

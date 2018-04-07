@@ -34,11 +34,11 @@ class DocHandler {
     return contents;
   }
   parseXml (text, { format = {} } = {}) {
-    return { todo: true };
+    throw new Error('unimplemented');
   }
-  formatDoc (doc) {
-    // TODO
-    return 'todo';
+  formatDoc (doc, { mimeType = doc.mimeType } = {}) {
+    this.restoreArrays(doc.contents);
+    throw new Error('unimplemented');
   }
   isValidId (docId) {
     if (docId[0].toLowerCase() !== docId[0]) {
@@ -99,6 +99,9 @@ class DocHandler {
     if (!doc.contents) {
       doc.contents = {};
     }
+    if (!doc.flags) {
+      doc.flags = {};
+    }
     if (purgeArrays) {
       [doc.contents, doc.purgedArrays] = this.purgeArrays(doc.contents);
     }
@@ -126,7 +129,7 @@ class DocHandler {
     return [obj, foundArray];
   }
   restoreArrays (obj) {
-    // todo
+    throw new Error('unimplemented');
   }
 }
 
