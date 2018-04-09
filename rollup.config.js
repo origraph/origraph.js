@@ -21,10 +21,31 @@ const commonPlugins = [
   babel({ exclude: ['node_modules/**'] }) // let us use fancy new things like async in our code
 ];
 
+let targets = {
+  cjs: !process.env.TARGET || process.env.TARGET === 'cjs' || process.env.TARGET === 'all',
+  umd: !process.env.TARGET || process.env.TARGET === 'umd' || process.env.TARGET === 'all',
+  esm: !process.env.TARGET || process.env.TARGET === 'esm' || process.env.TARGET === 'all'
+};
+
 // Basic build formats, without minification
-let builds = [
+let builds = [];
+
+if (targets.cjs) {
+  // CommonJS build for Node.js
+  builds.push({
+    input: 'src/main.js',
+    output: {
+      file: pkg.main,
+      format: 'cjs'
+    },
+    external: allExternals,
+    plugins: commonPlugins
+  });
+}
+
+if (targets.umd) {
   // browser-friendly UMD build
-  {
+  builds.push({
     input: 'src/module.js',
     output: {
       name: 'mure',
@@ -53,19 +74,12 @@ let builds = [
       if (/Circular dependency/.test(message)) return;
       console.error(message);
     }
-  },
-  // CommonJS build for Node.js
-  {
-    input: 'src/main.js',
-    output: {
-      file: pkg.main,
-      format: 'cjs'
-    },
-    external: allExternals,
-    plugins: commonPlugins
-  },
+  });
+}
+
+if (targets.esm) {
   // ES Module build for bundlers
-  {
+  builds.push({
     input: 'src/module.js',
     output: {
       file: pkg.module,
@@ -73,8 +87,8 @@ let builds = [
     },
     external: allExternals,
     plugins: commonPlugins
-  }
-];
+  });
+}
 
 // Create both minified and un-minified versions for
 // builds with 'min.js' in their filenames

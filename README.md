@@ -32,13 +32,29 @@ See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a ba
 
 Development
 ===========
-Setup:
+## Setup:
 
 ```bash
 git clone https://github.com/mure-apps/mure-library.git
 cd mure-library
 npm install
-npm run build
+```
+
+## Debugging:
+When debugging with the test scripts, launch these as parallel processes:
+
+```
+npm run watchcjs
+```
+
+```
+npm run debug
+```
+
+## Debugging in the browser:
+When debugging in the browser, launch this in parallel to whatever you're using to debug / serve your web app:
+```
+npm run watchumd
 ```
 
 *For now, just use symlinks to the dist/ folder; worry about `npm link` / app-level bundling in the future*
