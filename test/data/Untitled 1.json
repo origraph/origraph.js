@@ -1,0 +1,24 @@
+{
+  "mimeType": "application/json",
+  "filename": "Untitled 1",
+  "_id": "application/json;Untitled 1",
+  "charset": "UTF-8",
+  "orphanLinks": {
+    "_id": "@{_id:'application/json;Untitled 1'}$.orphanLinks"
+  },
+  "orphanNodes": {
+    "_id": "@{_id:'application/json;Untitled 1'}$.orphanNodes"
+  },
+  "classes": {
+    "_id": "@{_id:'application/json;Untitled 1'}$.classes",
+    "$members": {}
+  },
+  "groups": {
+    "_id": "@{_id:'application/json;Untitled 1'}$.groups",
+    "$members": {}
+  },
+  "contents": {
+    "_id": "$.contents",
+    "$tags": {}
+  }
+}

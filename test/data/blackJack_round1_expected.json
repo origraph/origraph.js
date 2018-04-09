@@ -1,0 +1,78 @@
+{
+  "filename": "blackJack_round1.json",
+  "mimeType": "application/json",
+  "charset": "UTF-8",
+  "contents": {
+    "Player 1": {
+      "0": {
+        "suit": "♣",
+        "value": "8",
+        "_id": "$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♣",
+        "value": "Q",
+        "_id": "$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
+      },
+      "_id": "$.contents[\"Player 1\"]",
+      "$tags": {}
+    },
+    "Player 2": {
+      "0": {
+        "suit": "♥",
+        "value": "A",
+        "_id": "$.contents[\"Player 2\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♦",
+        "value": "K",
+        "_id": "$.contents[\"Player 2\"][\"1\"]",
+        "$tags": {}
+      },
+      "_id": "$.contents[\"Player 2\"]",
+      "$tags": {}
+    },
+    "Player 3": {
+      "0": {
+        "suit": "♦",
+        "value": "2",
+        "_id": "$.contents[\"Player 3\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♥",
+        "value": "J",
+        "_id": "$.contents[\"Player 3\"][\"1\"]",
+        "$tags": {}
+      },
+      "2": {
+        "suit": "♠",
+        "value": "K",
+        "_id": "$.contents[\"Player 3\"][\"2\"]",
+        "$tags": {}
+      },
+      "_id": "$.contents[\"Player 3\"]",
+      "$tags": {}
+    },
+    "_id": "$.contents",
+    "$tags": {}
+  },
+  "orphanLinks": {
+    "_id": "@{_id:'application/json;blackJack_round1.json'}$.orphanLinks"
+  },
+  "orphanNodes": {
+    "_id": "@{_id:'application/json;blackJack_round1.json'}$.orphanNodes"
+  },
+  "classes": {
+    "_id": "@{_id:'application/json;blackJack_round1.json'}$.classes",
+    "$members": {}
+  },
+  "groups": {
+    "_id": "@{_id:'application/json;blackJack_round1.json'}$.groups",
+    "$members": {}
+  },
+  "_id": "application/json;blackJack_round1.json"
+}

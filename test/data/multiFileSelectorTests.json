@@ -1,0 +1,398 @@
+{
+  "@ { \"filename\": \"blackJack_round1.json\" } $.contents['Player 1']": [
+    {
+      "0": {
+        "suit": "♣",
+        "value": "8",
+        "_id": "$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♣",
+        "value": "Q",
+        "_id": "$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
+      },
+      "_id": "$.contents[\"Player 1\"]",
+      "$tags": {}
+    }
+  ],
+  "@ { \"filename\": {\"$regex\": \"blackJack_round\\\\d+.json\" } } $.contents['Player 1']": [
+    {
+      "0": {
+        "suit": "♣",
+        "value": "8",
+        "_id": "$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♣",
+        "value": "Q",
+        "_id": "$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
+      },
+      "_id": "$.contents[\"Player 1\"]",
+      "$tags": {}
+    },
+    {
+      "0": {
+        "suit": "♠",
+        "value": "2",
+        "_id": "$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♣",
+        "value": "Q",
+        "_id": "$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
+      },
+      "2": {
+        "suit": "♣",
+        "value": "7",
+        "_id": "$.contents[\"Player 1\"][\"2\"]",
+        "$tags": {}
+      },
+      "$wasArray": true,
+      "_id": "$.contents[\"Player 1\"]",
+      "$tags": {}
+    }
+  ],
+  "@ $.contents..['Player 5']": [
+    {
+      "0": {
+        "suit": "♣",
+        "value": "4",
+        "_id": "$.contents[\"Player 5\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♥",
+        "value": "5",
+        "_id": "$.contents[\"Player 5\"][\"1\"]",
+        "$tags": {}
+      },
+      "2": {
+        "suit": "♠",
+        "value": "K",
+        "_id": "$.contents[\"Player 5\"][\"2\"]",
+        "$tags": {}
+      },
+      "$wasArray": true,
+      "_id": "$.contents[\"Player 5\"]",
+      "$tags": {}
+    },
+    {
+      "0": {
+        "suit": "♠",
+        "value": 7,
+        "_id": "$.contents.hands[\"Player 5\"][\"0\"]",
+        "$tags": {}
+      },
+      "1": {
+        "suit": "♠",
+        "value": 9,
+        "_id": "$.contents.hands[\"Player 5\"][\"1\"]",
+        "$tags": {}
+      },
+      "2": {
+        "suit": "♠",
+        "value": 2,
+        "_id": "$.contents.hands[\"Player 5\"][\"2\"]",
+        "$tags": {}
+      },
+      "3": {
+        "suit": "♥",
+        "value": 9,
+        "_id": "$.contents.hands[\"Player 5\"][\"3\"]",
+        "$tags": {}
+      },
+      "4": {
+        "suit": "♥",
+        "value": "K",
+        "_id": "$.contents.hands[\"Player 5\"][\"4\"]",
+        "$tags": {}
+      },
+      "5": {
+        "suit": "♣",
+        "value": 3,
+        "_id": "$.contents.hands[\"Player 5\"][\"5\"]",
+        "$tags": {}
+      },
+      "6": {
+        "suit": "♠",
+        "value": "J",
+        "_id": "$.contents.hands[\"Player 5\"][\"6\"]",
+        "$tags": {}
+      },
+      "7": {
+        "suit": "♠",
+        "value": 6,
+        "_id": "$.contents.hands[\"Player 5\"][\"7\"]",
+        "$tags": {}
+      },
+      "8": {
+        "suit": "♥",
+        "value": 5,
+        "_id": "$.contents.hands[\"Player 5\"][\"8\"]",
+        "$tags": {}
+      },
+      "$wasArray": true,
+      "_id": "$.contents.hands[\"Player 5\"]",
+      "$tags": {}
+    },
+    "@$['Player 5'][5]",
+    "@$['Player 5'][2]",
+    "@$['Player 5'][7]",
+    "@$['Player 5'][0]",
+    "@$['Player 5'][1]",
+    "@$['Player 5'][6]",
+    "@$['Player 5'][8]",
+    "@$['Player 5'][3]",
+    "@$['Player 5'][4]"
+
+  ],
+  "@ $.contents..[?(@.suit==='♦')]": [
+    {
+      "suit": "♦",
+      "value": "K",
+      "_id": "$.contents[\"Player 2\"][\"1\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "2",
+      "_id": "$.contents[\"Player 3\"][\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "8",
+      "_id": "$.contents[\"Player 3\"][\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "3",
+      "_id": "$.contents[\"Player 4\"][\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 4,
+      "_id": "$.contents.hands[\"Player 1\"][\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 3,
+      "_id": "$.contents.hands[\"Player 1\"][\"1\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "K",
+      "_id": "$.contents.hands[\"Player 1\"][\"2\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "Q",
+      "_id": "$.contents.hands[\"Player 1\"][\"11\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "A",
+      "_id": "$.contents.hands[\"Player 2\"][\"1\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 9,
+      "_id": "$.contents.hands[\"Player 2\"][\"2\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 5,
+      "_id": "$.contents.hands[\"Player 2\"][\"5\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 2,
+      "_id": "$.contents.hands[\"Player 2\"][\"9\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "J",
+      "_id": "$.contents.hands[\"Player 2\"][\"15\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 6,
+      "_id": "$.contents.hands[\"Player 3\"][\"3\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 8,
+      "_id": "$.contents.hands[\"Player 3\"][\"11\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 7,
+      "_id": "$.contents.hands[\"Player 3\"][\"12\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 9,
+      "_id": "$.contents.hands[\"Player 1\"][\"9\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "K",
+      "_id": "$.contents.hands[\"Player 2\"][\"2\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "Q",
+      "_id": "$.contents.hands[\"Player 2\"][\"4\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "A",
+      "_id": "$.contents.hands[\"Player 2\"][\"7\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 4,
+      "_id": "$.contents.hands[\"Player 2\"][\"10\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 3,
+      "_id": "$.contents.hands[\"Player 3\"][\"2\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "J",
+      "_id": "$.contents.hands[\"Player 3\"][\"5\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 2,
+      "_id": "$.contents.hands[\"Player 4\"][\"3\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 7,
+      "_id": "$.contents.hands[\"Player 4\"][\"4\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 8,
+      "_id": "$.contents.hands[\"Player 4\"][\"6\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 6,
+      "_id": "$.contents.hands[\"Player 4\"][\"7\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 5,
+      "_id": "$.contents.hands[\"Player 4\"][\"9\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "J",
+      "_id": "$.contents.hands[\"Player 1\"][\"2\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 2,
+      "_id": "$.contents.hands[\"Player 1\"][\"4\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 3,
+      "_id": "$.contents.hands[\"Player 1\"][\"6\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "A",
+      "_id": "$.contents.hands[\"Player 1\"][\"7\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 6,
+      "_id": "$.contents.hands[\"Player 2\"][\"1\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 9,
+      "_id": "$.contents.hands[\"Player 2\"][\"5\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 4,
+      "_id": "$.contents.hands[\"Player 2\"][\"6\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 7,
+      "_id": "$.contents.hands[\"Player 4\"][\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 8,
+      "_id": "$.contents.hands[\"Player 4\"][\"1\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "Q",
+      "_id": "$.contents.hands[\"Player 4\"][\"6\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": "K",
+      "_id": "$.contents.kitty[\"0\"]",
+      "$tags": {}
+    },
+    {
+      "suit": "♦",
+      "value": 5,
+      "_id": "$.contents.kitty[\"2\"]",
+      "$tags": {}
+    }
+  ],
+  "@ $ ^": []
+}

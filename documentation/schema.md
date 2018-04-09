@@ -1,102 +1,34 @@
 # Mure documents
-Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrary JSON that can be synced across browser tabs or even with CouchDB instances across machines), with four nuances:
+Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrary JSON that can be synced across browser tabs or even with CouchDB instances across machines), with some nuances:
 1. Mure has a special [reference syntax](#reference-syntax). When any string value begins with an `@` character, we recognize and attempt to parse it as a reference; this is a basic mechanism for objects and documents to contain references to each other.
 2. For simple reference interpretation and file reshaping, no arrays should exist in a document"s `contents`; instead, integer-keyed objects should be used (e.g. `["a","b"]` becomes `{"0":"a","1":"b"}`). As long as the keys remain consecutive integers starting at zero, these objects can be converted back to arrays on JSON export. For details, see [Importing and Exporting files](#importing-and-exporting-files).
-3. All documents must define an `_id` property at their root that follows a specific [convention](#file-ids) similar to `Content-Type` headers; this makes PouchDB"s built-in `_id` index slightly more useful.
-4. Mure apps often need to attach metadata outside a document"s basic structure. Consequently, we use a `contents` attribute at the root level of every document, which is where the JSONPath component of references are evaluated. Mure apps can attach arbitrary metadata as necessary at the root level; any data under non-reserved keys (`_id`, `_rev`, `filename`, `mimeType`, `charset`, `contents`, `flags`) will be ignored by references, and will, at most, be imported / exported as separate files (e.g. `myChart.svg.my-app-name.mure`).
-5. Any document or element of a document's `contents` can be `flag`ged for efficient structure-agnostic selection
+3. All documents and objects must have an `_id` property at their root that follows a specific [convention](#file-ids) similar to `Content-Type` headers; this makes PouchDB"s built-in `_id` index slightly more useful.
+4. The basic schema of all documents can be seen in `test/data/Untitled 1.json`; after upload, the contents of a file will be stored inside the `contents` object. The root level of each document is preserved for metadata (TODO: document the default `classes`, `groups`, `orphanNodes`, and `orphanLinks`).
+5. Reserved keys throughout the document include: `_id`, `$tags`, `$members`, `$nodes`, and `$links` (TODO: document these)
 
 # Reference Syntax
 References should follow the following syntax:
 
-`@ [ mango selector ] [ #list#of#flags ] [ $JSONPath ] [ parent selectors ]`
+`@ [ mango selector ] [ JSONPath ] [ parent selectors ]`
 
-All of the above parameters are optional; only the initial `@` symbol is required (selecting just `@` will select all the documents)
+All of the above parameters are optional; only the initial `@` symbol is required (selecting just `@` will create a convenience root selection containing the documents themselves, with most reshaping functionality disabled... for now).
 
 ## Examples:
-Given this document:
+Examples of selectors and their results can be seen in `test/data/singleFileSelectorTests.json` and in `test/data/multiFileSelectorTests.json`.
+The difference between each is that the first contains the results where each selector is evaluated in this context:
 
-```json
-{
-  "_id": "application/json;blackJack_round1.json",
-  "filename": "blackJack_round1.json",
-  "mimeType": "application/json",
-  "charset": "UTF-8",
-  "contents": {
-    "Player 1": {
-      "0": {
-        "suit": "♣",
-        "value": "8"
-      },
-      "1": {
-        "suit": "♣",
-        "value": "Q"
-      }
-    },
-    "Player 2": {
-      "0": {
-        "suit": "♥",
-        "value": "A"
-      },
-      "1": {
-        "suit": "♦",
-        "value": "K"
-      }
-    },
-    "Player 3": {
-      "0": {
-        "suit": "♦",
-        "value": "2"
-      },
-      "1": {
-        "suit": "♥",
-        "value": "J"
-      },
-      "2": {
-        "suit": "♠",
-        "value": "K"
-      }
-    }
-  },
-  "flags": {
-    "busted": {
-      "@ $['Player 3']": true
-    }
-  }
-}
-```
-
-1. This would return a `Selection` containing Player 1's whole hand:
 ```js
-mure.selectDoc('application/json;blackJack_round1.json')
-       .select('@ $["Player 1"]');
+mure.select({_id:'application/json;blackJack_round1.json'})
+  .selectAll(selector);
 ```
 
-2. This is an alternate way to select the same thing with a single selection:
+Whereas `multiFileSelectorTests.json` contains results evaluated in this context, with several files loaded:
+
 ```js
-mure.select('@ { "filename": "blackJack_round1.json" } $["Player 1"]');
+mure.selectAll(selector);
 ```
 
-3. This would return a `Selection` of both of Player 1's card objects:
-```js
-mure.selectDoc('application/json;blackJack_round1.json')
-       .selectAll('@ $["Player 1"][?(@.suit==="♣")]');
-```
-
-4. This would return a `Selection` of all of the Player hands that contain a heart card (in this case, Player 2 and Player 3):
-```js
-mure.selectAll('@ { "filename": "blackJack_round1.json" } $[*][?(@.suit==="♥")] ^')
-```
-
-5. This would return a `Selection` containing all of the `contents` of files matching the regular expression, including the one shown above:
-```js
-mure.selectAll('@ { "filename": {"$regex": "blackJack_round\d*.json"} }');
-```
-
-6. This would return a `Selection` containing Player 3's hand:
-```js
-mure.selectAll('@ #busted');
-```
+TODO: show examples here instead of referring people to the test directory once things have settled down
 
 ## `select`, `selectAll`
 `select` returns a `Selection` containing only the first match, whereas `selectAll` returns a `Selection` containing all matches.
@@ -104,30 +36,21 @@ mure.selectAll('@ #busted');
 ## Mango selectors
 References can point across documents. This is particularly useful, for example, when connecting relational CSV files.
 
-To referencing another document, a selector should begin with the `selector` part of a `JSON.parse`able [Mango query](https://pouchdb.com/guides/mango-queries.html). Note that this part of the selector is exposed to the whole document, including any arbitrary metadata attached at the root level. This also means that you need to include the `contents` attribute in this part of the reference if you want to search for documents by their data content.
+To referencing another document, a selector should begin with the `selector` part of a `JSON.parse`able [Mango query](https://pouchdb.com/guides/mango-queries.html).
 
-You can see mango selectors in use in examples 2, 4, and 5 above.
+You can see mango selectors in use in examples (TODO) above.
 
-When no mango selector is provided, all documents are queried (**warning**: you can imagine how this might be expensive!).
+When no mango selector is provided, all documents are queried (**warning**: you can imagine how this might be expensive if the user has loaded lots of documents! Best practice is to always include a query that's as restrictive as possible).
 
-With respect to storing selectors as values inside files, please follow the convention (there's no way to enforce this via the library) that stored references should only apply locally to that document. External references to other files should be explicitly use some kind of external file query (or, in the event that you *really* want a stored reference to refer across *all* files, use the document selector `{"_id":{"$gt":"_\uffff"}}` to avoid picking up internal PouchDB documents).
+With respect to storing selectors as values inside files, please follow the convention (there's no way to enforce this via the library) that stored references should only apply locally to that document. External references to other files should be explicitly use some kind of external file query. In the event that you *really* want a stored reference to refer across *all* files, use the document selector `{"_id":{"$gt":"_\uffff"}}` to avoid picking up internal, reserved PouchDB (`_id`s begin with `_`) or Mure (`_id`s begin with `$`) documents.
 
-## `#list#of#flags`
-All elements that have been assigned a particular `flag` can be selected quickly in a structure-agnostic way; i.e. two elements in entirely different parts of a document—or even across documents—can be selected together if they have the same flag assignment. Listing more than one flag in this part of the query is an `AND` operation, i.e. only elements that have all the listed flags will be selected.
+## JSONPath
+The root `$` selector corresponds to each matched document. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector. When no JSONPath is provided, the the root `$` selector is assumed (references the document itself).
 
-Note that combining a `#list#of#flags` with a `$`JSONPath will result in a slightly *less* efficient query, as the results of the JSONPath need to be evaluated and manually filtered (combining these two arguments is also an `AND` operation).
-
-You can see a flag selector in action in example 6 above.
-
-## `$`JSONPath
-By default (without a preceding Mango selector), a JSONPath is evaluated from its containing document's `contents` object. No modification of the JSONPath is necessary when multiple files are selected; it will be evaluated for each file returned by the Mango selector.
-
-Examples 1 - 4 demonstrate JSONPaths in use.
-
-When no JSONPath is provided, the the document itself is referenced; to get the contents of a document, use the root `$` selector.
+Examples (TODO) demonstrate JSONPaths in use.
 
 ## Parent selectors
-A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `^` characters reach beyond the `contents`, an empty result will be returned. Example 4 demonstrates a parent selector being used.
+A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `^` characters reach beyond a document, an empty result will be returned. Example (TODO) demonstrates a parent selector being used.
 
 # File IDs
 Our convention is to format document `_id`s similar to what you'd see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:
@@ -173,8 +96,7 @@ TODO: provide general guidance about separate metadata files, shadow trees, etc
         "xmlns": "http://mure-apps.github.io"
       }
     }
-  },
-  "flags": {}
+  }
 }
 ```
 
@@ -193,7 +115,6 @@ TODO: provide general guidance about separate metadata files, shadow trees, etc
       "foo": 1,
       "bar": "qux"
     }
-  },
-  "flags": {}
+  }
 }
 ```

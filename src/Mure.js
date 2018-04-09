@@ -3,6 +3,7 @@ import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
 import DocHandler from './DocHandler.js';
+import ItemHandler from './ItemHandler.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -25,6 +26,7 @@ class Mure extends Model {
     this.d3.namespaces.mure = this.NSString;
 
     this.docHandler = new DocHandler(this);
+    this.itemHandler = new ItemHandler(this);
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -63,60 +65,51 @@ class Mure extends Model {
   customizePromptDialog (showDialogFunction) {
     this.prompt = showDialogFunction;
   }
-  openApp (appName, newTab) {
-    if (newTab) {
-      this.window.open('/' + appName, '_blank');
-    } else {
-      this.window.location.pathname = '/' + appName;
-    }
-  }
-  async getOrInitDb () {
+  getOrInitDb () {
     this.db = new this.PouchDB('mure');
-    let status = { synced: false };
-    let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
-    if (couchDbUrl) {
-      let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
-      status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})
-        .catch(err => {
-          this.alert('Error syncing with ' + couchDbUrl + ': ' +
-            err.message);
-          return false;
-        }));
-    }
-    status.indexed = !!(await this.db.createIndex({
-      index: {
-        fields: ['filename']
-      }
-    }).catch(() => false));
-    status.selectionAdded = !!(await this.db.put({
-      _id: '$currentSelector',
-      selector: null
-    }).catch(() => false));
-    status.docFlagsAdded = !!(await this.db.put({
-      _id: '$docFlags'
-    }).catch(() => false));
-    this.db.changes({
-      since: 'now',
-      live: true
-    }).on('change', change => {
-      if (change.id > '_\uffff') {
-        // A regular document changed
-        this.trigger('docChange', change);
-      } else if (change.id === '$currentSelector') {
-        // One of our special documents changed
-        this.trigger('selectionChange', change.selector);
-      } else if (change.id === '$docFlags') {
-        // A document gained its first instance of a flag, or
-        // lost its last instance of one
-      }
-    }).on('error', err => {
-      this.warn(err);
+    this.dbStatus = new Promise((resolve, reject) => {
+      (async () => {
+        let status = { synced: false };
+        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
+        if (couchDbUrl) {
+          let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
+          status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})
+            .catch(err => {
+              this.alert('Error syncing with ' + couchDbUrl + ': ' +
+                err.message);
+              return false;
+            }));
+        }
+        status.indexed = !!(await this.db.createIndex({
+          index: {
+            fields: ['filename']
+          }
+        }).catch(() => false));
+        status.selectionAdded = !!(await this.db.put({
+          _id: '$currentSelector',
+          selector: null
+        }).catch(() => false));
+        this.db.changes({
+          since: 'now',
+          live: true
+        }).on('change', change => {
+          if (change.id > '_\uffff') {
+            // A regular document changed
+            this.trigger('docChange', change);
+          } else if (change.id === '$currentSelector') {
+            // One of our special documents changed
+            this.trigger('selectionChange', change.selector);
+          }
+        }).on('error', err => {
+          this.warn(err);
+        });
+        resolve(status);
+      })();
     });
-    return status;
   }
   async query (queryObj) {
     let queryResult = await this.db.find(queryObj);
-    if (queryResult.warning) { this.mure.warn(queryResult.warning); }
+    if (queryResult.warning) { this.warn(queryResult.warning); }
     return queryResult.docs;
   }
   /**
@@ -135,11 +128,11 @@ class Mure extends Model {
   async getDoc (docQuery, { init = true } = {}) {
     let doc;
     if (!docQuery) {
-      doc = {};
+      return this.docHandler.standardize({});
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
-          docQuery = docQuery.slice(1);
+          docQuery = JSON.parse(docQuery.slice(1));
         } else {
           docQuery = { '_id': docQuery };
         }
@@ -148,15 +141,33 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = docQuery;
+          doc = await this.docHandler.standardize(docQuery);
         } else {
           return null;
         }
       } else {
         doc = matchingDocs[0];
       }
+      return doc;
     }
-    return this.docHandler.standardize(doc);
+  }
+  async putDoc (doc) {
+    try {
+      return this.db.put(doc);
+    } catch (err) {
+      this.warn(err.message);
+      err.ok = false;
+      return err;
+    }
+  }
+  async putDocs (docList) {
+    try {
+      return this.db.bulkDocs(docList);
+    } catch (err) {
+      this.warn(err.message);
+      err.ok = false;
+      return err;
+    }
   }
   /**
    * Downloads a given file, optionally specifying a particular format
@@ -196,28 +207,29 @@ class Mure extends Model {
       };
       reader.readAsText(fileObj, encoding);
     });
-    return this.uploadString(fileObj.name, fileObj.type, string);
+    return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
-  async uploadString (filename, mimeType, string) {
+  async uploadString (filename, mimeType, encoding, string) {
     let doc = await this.docHandler.parse(string, { mimeType });
-    return this.uploadDoc(filename, mimeType, doc);
+    return this.uploadDoc(filename, mimeType, encoding, doc);
   }
-  async uploadDoc (filename, mimeType, doc) {
+  async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
-    doc = await this.docHandler.standardize(doc, { purgeArrays: true });
-    return this.db.put(doc);
-  }
-  async saveDoc (doc) {
-    return this.db.put(await this.docHandler.standardize(doc));
+    doc.charset = encoding || doc.charset;
+    doc = await this.docHandler.standardize(doc);
+    return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {
     let doc = await this.getDoc(docQuery);
-    return this.db.put({
+    return this.putDoc({
       _id: doc._id,
       _rev: doc._rev,
       _deleted: true
     });
+  }
+  mergeSelectors (selectorList) {
+    throw new Error('unimplemented');
   }
   pathsToSelector (paths = [[Selection.DEFAULT_DOC_QUERY]]) {
     throw new Error('unimplemented');
@@ -240,7 +252,7 @@ class Mure extends Model {
   async setSelector (selector) {
     let currentSelector = await this.db.get('$currentSelector');
     currentSelector.selector = selector;
-    return this.db.put(currentSelector);
+    return this.putDoc(currentSelector);
   }
 }
 

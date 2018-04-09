@@ -1,19 +1,11 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
-import mureInteractivityRunnerText from './DocHandler/mureInteractivityRunner.text.js'; // eslint-disable-line no-unused-vars
-import defaultSvgContentTemplate from './DocHandler/default.text.svg';
-import minimumSvgContent from './DocHandler/minimum.text.svg';
-
-// sneakily embed the interactivity-running script
-const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
 
 class DocHandler {
   constructor (mure) {
     this.mure = mure;
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
-    this.defaultSvgContent = this.parseXml(defaultSvgContent);
-    this.minimumSvgContent = this.parseXml(minimumSvgContent);
   }
   async parse (text, { format = {}, mimeType } = {}) {
     if (mimeType && (!format || !format.type)) {
@@ -37,7 +29,7 @@ class DocHandler {
     throw new Error('unimplemented');
   }
   formatDoc (doc, { mimeType = doc.mimeType } = {}) {
-    this.restoreArrays(doc.contents);
+    this.mure.itemHandler.format(doc.contents);
     throw new Error('unimplemented');
   }
   isValidId (docId) {
@@ -50,7 +42,7 @@ class DocHandler {
     }
     return !!mime.extension(parts[0]);
   }
-  async standardize (doc, { purgeArrays = false } = {}) {
+  async standardize (doc) {
     if (!doc._id || !this.isValidId(doc._id)) {
       if (!doc.mimeType && !doc.filename) {
         // Without an id, filename, or mimeType, just assume it's application/json
@@ -87,49 +79,31 @@ class DocHandler {
     if (doc._id[0] === '_' || doc._id[0] === '$') {
       throw new Error('Document _ids may not start with ' + doc._id[0] + ': ' + doc._id);
     }
-    if (!doc.mimeType) {
-      doc.mimeType = doc._id.split(';')[0];
-    }
+    doc.mimeType = doc.mimeType || doc._id.split(';')[0];
     if (!mime.extension(doc.mimeType)) {
       this.mure.warn('Unknown mimeType: ' + doc.mimeType);
     }
-    if (!doc.filename) {
-      doc.filename = doc._id.split(';')[1];
-    }
-    if (!doc.contents) {
-      doc.contents = {};
-    }
-    if (!doc.flags) {
-      doc.flags = {};
-    }
-    if (purgeArrays) {
-      [doc.contents, doc.purgedArrays] = this.purgeArrays(doc.contents);
-    }
+    doc.filename = doc.filename || doc._id.split(';')[1];
+    doc.charset = (doc.charset || 'UTF-8').toUpperCase();
+
+    doc.orphanLinks = doc.orphanLinks || {};
+    doc.orphanLinks._id = `@{_id:'${doc._id}'}$.orphanLinks`;
+
+    doc.orphanNodes = doc.orphanNodes || {};
+    doc.orphanNodes._id = `@{_id:'${doc._id}'}$.orphanNodes`;
+
+    doc.classes = doc.classes || {};
+    doc.classes._id = `@{_id:'${doc._id}'}$.classes`;
+    doc.classes.$members = doc.classes.$members || {};
+
+    doc.groups = doc.groups || {};
+    doc.groups._id = `@{_id:'${doc._id}'}$.groups`;
+    doc.groups.$members = doc.classes.$members || {};
+
+    doc.contents = doc.contents || {};
+    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents']);
+
     return doc;
-  }
-  purgeArrays (obj) {
-    if (typeof obj !== 'object') {
-      return [obj, false];
-    }
-    let foundArray = false;
-    if (obj instanceof Array) {
-      let temp = {};
-      obj.forEach((element, index) => {
-        temp[index] = element;
-      });
-      obj = temp;
-      foundArray = true;
-    }
-    Object.keys(obj).forEach(key => {
-      let foundChildArray, childObj;
-      [childObj, foundChildArray] = this.purgeArrays(obj[key]);
-      obj[key] = childObj;
-      foundArray = foundArray || foundChildArray;
-    });
-    return [obj, foundArray];
-  }
-  restoreArrays (obj) {
-    throw new Error('unimplemented');
   }
 }
 

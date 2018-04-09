@@ -26,6 +26,8 @@ class Selection extends Model {
 
     this.mure = mure;
     this.selectSingle = selectSingle;
+
+    this.pendingOperations = [];
   }
   get headless() {
     return this.docQuery === DEFAULT_DOC_QUERY;
@@ -36,97 +38,132 @@ class Selection extends Model {
   selectAll(selector) {
     return new Selection(this.mure, selector, { parentSelection: this });
   }
-  async nodes({ includeMetadata = [] } = {}) {
-    let docs = await this.docs();
-
-    // Collect the results of the jsonPath queries
-    let nodes = [];
-    if (this.objQuery === '') {
-      // With no explicit objQuery, we only want one root node with each
-      // documents' contents as the child nodes ($ will collect the contents
-      // of each document)
-      let rootNode = {
-        path: [],
-        value: {},
-        uniqueSelector: '@'
-      };
-      Object.keys(docs).some(docId => {
-        rootNode.value[docId] = docs[docId].contents;
-        return this.selectSingle;
-      });
-      nodes.push(rootNode);
-    } else {
-      Object.keys(docs).some(docId => {
-        let doc = docs[docId];
-        let docPathQuery = '{"_id":"' + docId + '"}';
-        let selectedSingle = jsonPath.nodes(doc.contents, this.objQuery).some(node => {
-          if (this.parentShift) {
-            // Now that we have unique, normalized paths for each node, we can
-            // apply the parentShift option to select parents based on child
-            // attributes
-            node.path.splice(node.path.length - this.parentShift);
-            let temp = jsonPath.stringify(node.path);
-            node.value = jsonPath.query(doc.contents, temp)[0];
-          }
-          node.docId = docId;
-          node.uniqueJsonPath = jsonPath.stringify(node.path);
-          node.uniqueSelector = '@' + docPathQuery + node.uniqueJsonPath;
-          node.path.unshift(docPathQuery);
-          nodes.push(node);
-          return this.selectSingle; // when true, exits both loops after the first match is found
-        });
-        return selectedSingle;
-      });
-    }
-
-    // Add requested metadata to the result
-    if (includeMetadata.length > 0) {
-      nodes.forEach(node => {
-        node.metadata = {};
-        if (node.docId) {
-          let doc = docs[node.docId];
-          includeMetadata.forEach(metadataLabel => {
-            let metaTree = doc[metadataLabel];
-            if (metaTree && node.uniqueJsonPath) {
-              node.metadata[metadataLabel] = jsonPath.value(metaTree, node.uniqueJsonPath);
-            }
-          });
-        }
-      });
-    }
-    return nodes;
-  }
   async docs() {
     let docs = {};
-    let query = { selector: this.parsedDocQuery };
-    let queryResult = await this.mure.db.find(query);
-    if (queryResult.warning) {
-      this.mure.warn(queryResult.warning);
-    }
-    queryResult.docs.forEach(doc => {
+    let result = await this.mure.query({
+      selector: this.parsedDocQuery
+    });
+    result.forEach(doc => {
       docs[doc._id] = doc;
     });
     return docs;
   }
+  items(docs) {
+    // Collect the results of objQuery and flagQuery
+    let items = [];
+    if (this.objQuery === '') {
+      // No objQuery means that we want to select the documents themselves
+      let rootItem = {
+        path: [],
+        value: {},
+        parent: null,
+        doc: null,
+        label: null,
+        uniqueSelector: '@'
+      };
+      Object.keys(docs).some(docId => {
+        rootItem.value[docId] = docs[docId];
+        return this.selectSingle;
+      });
+      items.push(rootItem);
+    } else {
+      Object.keys(docs).some(docId => {
+        let doc = docs[docId];
+        let docPathQuery = '{"_id":"' + docId + '"}';
+        return jsonPath.nodes(doc, this.objQuery).some(item => {
+          if (this.parentShift) {
+            // Now that we have unique, normalized paths for each node, we can
+            // apply the parentShift option to select parents based on child
+            // attributes
+            if (this.parentShift >= item.path.length - 1) {
+              // We selected above the root of the document; as there's nothing
+              // to select, don't even append a result
+              return false;
+            } else {
+              item.path.splice(item.path.length - this.parentShift);
+              let temp = jsonPath.stringify(item.path);
+              item.value = jsonPath.query(doc, temp)[0];
+            }
+          }
+          if (item.path.length === 1) {
+            item.parent = null;
+            item.label = doc.filename;
+          } else {
+            let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
+            item.parent = jsonPath.query(doc, temp)[0];
+            item.label = item.path[item.path.length - 1];
+          }
+          item.doc = doc;
+          let uniqueJsonPath = jsonPath.stringify(item.path);
+          item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
+          item.path.unshift(docPathQuery);
+          items.push(item);
+          return this.selectSingle; // when true, exits both loops after the first match is found
+        });
+      });
+    }
+    return items;
+  }
+  async save(docs) {
+    let items = this.items(docs || (await this.docs()));
+    this.pendingOperations.forEach(func => {
+      items.forEach(item => {
+        func.apply(this, [item]);
+      });
+    });
+    this.pendingOperations = [];
+    await this.mure.putDocs(docs);
+    return this;
+  }
+  each(func) {
+    this.pendingOperations.push(func);
+    return this;
+  }
+  attr(key, value) {
+    if (this.docQuery === '') {
+      throw new Error(`Can't set attributes at the root level; here you need to add documents`);
+    }
+    return this.each(item => {
+      item.value[key] = value;
+    });
+  }
+  remove() {
+    return this.each(item => {
+      if (!item.parent) {
+        throw new Error(`Can't remove without a parent object; to remove documents, call mure.removeDoc()`);
+      }
+      delete item.parent[item.label];
+    });
+  }
+  group() {
+    throw new Error('unimplemented');
+  }
+  connect() {
+    throw new Error('unimplemented');
+  }
+  toggleEdge() {
+    throw new Error('unimplemented');
+  }
+  toggleDirection() {
+    throw new Error('unimplemented');
+  }
+  copy(newParentId) {
+    throw new Error('unimplemented');
+  }
+  move(newParentId) {
+    throw new Error('unimplemented');
+  }
+  dissolve() {
+    throw new Error('unimplemented');
+  }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
-
-var mureInteractivityRunnerText = "/* globals XMLHttpRequest, ActiveXObject, Node */\n/* eslint no-eval: 0 */\n(function () {\n  var nonAsyncScriptTexts = [];\n\n  function load (url, callback) {\n    var xhr;\n\n    if (typeof XMLHttpRequest !== 'undefined') {\n      xhr = new XMLHttpRequest();\n    } else {\n      var versions = [\n        'MSXML2.XmlHttp.5.0',\n        'MSXML2.XmlHttp.4.0',\n        'MSXML2.XmlHttp.3.0',\n        'MSXML2.XmlHttp.2.0',\n        'Microsoft.XmlHttp'\n      ];\n      for (var i = 0, len = versions.length; i < len; i++) {\n        try {\n          xhr = new ActiveXObject(versions[i]);\n          break;\n        } catch (e) {}\n      }\n    }\n\n    xhr.onreadystatechange = ensureReadiness;\n\n    function ensureReadiness () {\n      if (xhr.readyState < 4) {\n        return;\n      }\n\n      if (xhr.status !== 200) {\n        return;\n      }\n\n      // all is well\n      if (xhr.readyState === 4) {\n        callback(xhr.responseText);\n      }\n    }\n\n    xhr.open('GET', url, true);\n    xhr.send('');\n  }\n\n  function documentPositionComparator (a, b) {\n    // function shamelessly adapted from https://stackoverflow.com/questions/31991235/sort-elements-by-document-order-in-javascript/31992057\n    a = a.element;\n    b = b.element;\n    if (a === b) { return 0; }\n    var position = a.compareDocumentPosition(b);\n    if (position & Node.DOCUMENT_POSITION_FOLLOWING || position & Node.DOCUMENT_POSITION_CONTAINED_BY) {\n      return -1;\n    } else if (position & Node.DOCUMENT_POSITION_PRECEDING || position & Node.DOCUMENT_POSITION_CONTAINS) {\n      return 1;\n    } else { return 0; }\n  }\n\n  function loadUserLibraries (callback) {\n    // Grab all the mure:library tags, and load the referenced library (script src attributes\n    // in SVG don't work, so we have to manually load remote libraries)\n    var libraries = Array.from(document.getElementsByTagNameNS('http://mure-apps.github.io', 'library'))\n      .map(element => {\n        return {\n          src: element.getAttribute('src'),\n          async: (element.getAttribute('async') || 'true').toLocaleLowerCase() !== 'false',\n          element: element\n        };\n      });\n\n    var loadedLibraries = {};\n    var onloadFired = false;\n\n    libraries.forEach(function (library) {\n      load(library.src, function (scriptText) {\n        if (library.async) {\n          window.eval(scriptText);\n        } else {\n          library.scriptText = scriptText;\n          nonAsyncScriptTexts.push(library);\n        }\n        loadedLibraries[library.src] = true;\n        attemptStart();\n      });\n    });\n\n    window.onload = function () {\n      onloadFired = true;\n      attemptStart();\n    };\n\n    function attemptStart () {\n      if (!onloadFired) {\n        return;\n      }\n      var allLoaded = libraries.every(library => {\n        return loadedLibraries[library.src];\n      });\n      if (allLoaded) {\n        callback();\n      }\n    }\n  }\n\n  function runUserScripts () {\n    var userScripts = Array.from(document.getElementsByTagNameNS('http://mure-apps.github.io', 'script'))\n      .map(element => {\n        return {\n          element: element,\n          scriptText: element.textContent\n        };\n      });\n    var allScripts = nonAsyncScriptTexts.concat(userScripts)\n      .sort(documentPositionComparator);\n    allScripts.forEach(scriptOrLibrary => {\n      window.eval(scriptOrLibrary.scriptText);\n    });\n  }\n\n  // Where we actually start executing stuff:\n  if (!window.frameElement ||\n      !window.frameElement.__suppressMureInteractivity__) {\n    // We've been loaded directly into a browser, or embedded in a normal page;\n    // load all the libraries, and then run all the scripts\n    loadUserLibraries(runUserScripts);\n  }\n})();\n";
-
-var defaultSvgContentTemplate = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<svg version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" width=\"500\" height=\"500\">\n  <metadata id=\"mure\" xmlns=\"http://mure-apps.github.io\">\n  </metadata>\n  <script id=\"mureInteractivityRunner\" type=\"text/javascript\">\n    <![CDATA[\n      ${mureInteractivityRunnerText}\n    ]]>\n  </script>\n</svg>\n";
-
-var minimumSvgContent = "<svg>\n  <metadata id=\"mure\" xmlns=\"http://mure-apps.github.io\">\n  </metadata>\n</svg>\n";
-
-// sneakily embed the interactivity-running script
-const defaultSvgContent = defaultSvgContentTemplate.replace(/\${mureInteractivityRunnerText}/, mureInteractivityRunnerText);
 
 class DocHandler {
   constructor(mure) {
     this.mure = mure;
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
-    this.defaultSvgContent = this.parseXml(defaultSvgContent);
-    this.minimumSvgContent = this.parseXml(minimumSvgContent);
   }
   async parse(text, { format = {}, mimeType } = {}) {
     if (mimeType && (!format || !format.type)) {
@@ -147,11 +184,11 @@ class DocHandler {
     return contents;
   }
   parseXml(text, { format = {} } = {}) {
-    return { todo: true };
+    throw new Error('unimplemented');
   }
-  formatDoc(doc) {
-    // TODO
-    return 'todo';
+  formatDoc(doc, { mimeType = doc.mimeType } = {}) {
+    this.mure.itemHandler.format(doc.contents);
+    throw new Error('unimplemented');
   }
   isValidId(docId) {
     if (docId[0].toLowerCase() !== docId[0]) {
@@ -163,7 +200,7 @@ class DocHandler {
     }
     return !!mime.extension(parts[0]);
   }
-  async standardize(doc, { purgeArrays = false } = {}) {
+  async standardize(doc) {
     if (!doc._id || !this.isValidId(doc._id)) {
       if (!doc.mimeType && !doc.filename) {
         // Without an id, filename, or mimeType, just assume it's application/json
@@ -200,46 +237,67 @@ class DocHandler {
     if (doc._id[0] === '_' || doc._id[0] === '$') {
       throw new Error('Document _ids may not start with ' + doc._id[0] + ': ' + doc._id);
     }
-    if (!doc.mimeType) {
-      doc.mimeType = doc._id.split(';')[0];
-    }
+    doc.mimeType = doc.mimeType || doc._id.split(';')[0];
     if (!mime.extension(doc.mimeType)) {
       this.mure.warn('Unknown mimeType: ' + doc.mimeType);
     }
-    if (!doc.filename) {
-      doc.filename = doc._id.split(';')[1];
-    }
-    if (!doc.contents) {
-      doc.contents = {};
-    }
-    if (purgeArrays) {
-      [doc.contents, doc.purgedArrays] = this.purgeArrays(doc.contents);
-    }
+    doc.filename = doc.filename || doc._id.split(';')[1];
+    doc.charset = (doc.charset || 'UTF-8').toUpperCase();
+
+    doc.orphanLinks = doc.orphanLinks || {};
+    doc.orphanLinks._id = `@{_id:'${doc._id}'}$.orphanLinks`;
+
+    doc.orphanNodes = doc.orphanNodes || {};
+    doc.orphanNodes._id = `@{_id:'${doc._id}'}$.orphanNodes`;
+
+    doc.classes = doc.classes || {};
+    doc.classes._id = `@{_id:'${doc._id}'}$.classes`;
+    doc.classes.$members = doc.classes.$members || {};
+
+    doc.groups = doc.groups || {};
+    doc.groups._id = `@{_id:'${doc._id}'}$.groups`;
+    doc.groups.$members = doc.classes.$members || {};
+
+    doc.contents = doc.contents || {};
+    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents']);
+
     return doc;
   }
-  purgeArrays(obj) {
+}
+
+let RESERVED_OBJ_KEYS = ['$tags', '$members', '$links', '$nodes'];
+
+class ItemHandler {
+  constructor(mure) {
+    this.mure = mure;
+  }
+  standardize(obj, path) {
     if (typeof obj !== 'object') {
-      return [obj, false];
+      return obj;
     }
-    let foundArray = false;
     if (obj instanceof Array) {
       let temp = {};
       obj.forEach((element, index) => {
         temp[index] = element;
       });
       obj = temp;
-      foundArray = true;
+      obj.$wasArray = true;
     }
+    obj._id = jsonPath.stringify(path);
+    obj.$tags = obj.$tags || {};
     Object.keys(obj).forEach(key => {
-      let foundChildArray, childObj;
-      [childObj, foundChildArray] = this.purgeArrays(obj[key]);
-      obj[key] = childObj;
-      foundArray = foundArray || foundChildArray;
+      if (typeof obj[key] === 'object' && RESERVED_OBJ_KEYS.indexOf(key) === -1) {
+        let temp = Array.from(path);
+        temp.push(key);
+        obj[key] = this.standardize(obj[key], temp);
+      }
     });
-    return [obj, foundArray];
+    return obj;
   }
-  restoreArrays(obj) {
-    // todo
+  format(obj) {
+    // TODO: if $wasArray, attempt to restore array status,
+    // remove _ids
+    throw new Error('unimplemented');
   }
 }
 
@@ -264,6 +322,7 @@ class Mure extends Model {
     this.d3.namespaces.mure = this.NSString;
 
     this.docHandler = new DocHandler(this);
+    this.itemHandler = new ItemHandler(this);
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -302,48 +361,52 @@ class Mure extends Model {
   customizePromptDialog(showDialogFunction) {
     this.prompt = showDialogFunction;
   }
-  openApp(appName, newTab) {
-    if (newTab) {
-      this.window.open('/' + appName, '_blank');
-    } else {
-      this.window.location.pathname = '/' + appName;
-    }
-  }
-  async getOrInitDb() {
+  getOrInitDb() {
     this.db = new this.PouchDB('mure');
-    let status = { synced: false };
-    let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
-    if (couchDbUrl) {
-      let couchDb = new this.PouchDB(couchDbUrl, { skip_setup: true });
-      status.synced = !!(await this.db.sync(couchDb, { live: true, retry: true }).catch(err => {
-        this.alert('Error syncing with ' + couchDbUrl + ': ' + err.message);
-        return false;
-      }));
-    }
-    status.indexed = !!(await this.db.createIndex({
-      index: {
-        fields: ['filename']
-      }
-    }).catch(() => false));
-    status.selectionAdded = !!(await this.db.put({
-      _id: '$currentSelector',
-      selector: null
-    }).catch(() => false));
-    this.db.changes({
-      since: 'now',
-      live: true
-    }).on('change', change => {
-      if (change.id > '_\uffff') {
-        // A regular document changed
-        this.trigger('docChange', change);
-      } else if (change.id === '$currentSelector') {
-        // One of our special documents changed
-        this.trigger('selectionChange', change.selector);
-      }
-    }).on('error', err => {
-      this.warn(err);
+    this.dbStatus = new Promise((resolve, reject) => {
+      (async () => {
+        let status = { synced: false };
+        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
+        if (couchDbUrl) {
+          let couchDb = new this.PouchDB(couchDbUrl, { skip_setup: true });
+          status.synced = !!(await this.db.sync(couchDb, { live: true, retry: true }).catch(err => {
+            this.alert('Error syncing with ' + couchDbUrl + ': ' + err.message);
+            return false;
+          }));
+        }
+        status.indexed = !!(await this.db.createIndex({
+          index: {
+            fields: ['filename']
+          }
+        }).catch(() => false));
+        status.selectionAdded = !!(await this.db.put({
+          _id: '$currentSelector',
+          selector: null
+        }).catch(() => false));
+        this.db.changes({
+          since: 'now',
+          live: true
+        }).on('change', change => {
+          if (change.id > '_\uffff') {
+            // A regular document changed
+            this.trigger('docChange', change);
+          } else if (change.id === '$currentSelector') {
+            // One of our special documents changed
+            this.trigger('selectionChange', change.selector);
+          }
+        }).on('error', err => {
+          this.warn(err);
+        });
+        resolve(status);
+      })();
     });
-    return status;
+  }
+  async query(queryObj) {
+    let queryResult = await this.db.find(queryObj);
+    if (queryResult.warning) {
+      this.warn(queryResult.warning);
+    }
+    return queryResult.docs;
   }
   /**
    * A wrapper around PouchDB.get() that ensures that the first matched
@@ -361,28 +424,46 @@ class Mure extends Model {
   async getDoc(docQuery, { init = true } = {}) {
     let doc;
     if (!docQuery) {
-      doc = {};
+      return this.docHandler.standardize({});
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
-          docQuery = docQuery.slice(1);
+          docQuery = JSON.parse(docQuery.slice(1));
         } else {
           docQuery = { '_id': docQuery };
         }
       }
-      let matchingDocs = await this.db.find({ selector: docQuery, limit: 1 });
-      if (matchingDocs.docs.length === 0) {
+      let matchingDocs = await this.query({ selector: docQuery, limit: 1 });
+      if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = docQuery;
+          doc = await this.docHandler.standardize(docQuery);
         } else {
           return null;
         }
       } else {
-        doc = matchingDocs.docs[0];
+        doc = matchingDocs[0];
       }
+      return doc;
     }
-    return this.docHandler.standardize(doc);
+  }
+  async putDoc(doc) {
+    try {
+      return this.db.put(doc);
+    } catch (err) {
+      this.warn(err.message);
+      err.ok = false;
+      return err;
+    }
+  }
+  async putDocs(docList) {
+    try {
+      return this.db.bulkDocs(docList);
+    } catch (err) {
+      this.warn(err.message);
+      err.ok = false;
+      return err;
+    }
   }
   /**
    * Downloads a given file, optionally specifying a particular format
@@ -421,28 +502,29 @@ class Mure extends Model {
       };
       reader.readAsText(fileObj, encoding);
     });
-    return this.uploadString(fileObj.name, fileObj.type, string);
+    return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
-  async uploadString(filename, mimeType, string) {
+  async uploadString(filename, mimeType, encoding, string) {
     let doc = await this.docHandler.parse(string, { mimeType });
-    return this.uploadDoc(filename, mimeType, doc);
+    return this.uploadDoc(filename, mimeType, encoding, doc);
   }
-  async uploadDoc(filename, mimeType, doc) {
+  async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
-    doc = await this.docHandler.standardize(doc, { purgeArrays: true });
-    return this.db.put(doc);
-  }
-  async saveDoc(doc) {
-    return this.db.put((await this.docHandler.standardize(doc)));
+    doc.charset = encoding || doc.charset;
+    doc = await this.docHandler.standardize(doc);
+    return this.putDoc(doc);
   }
   async deleteDoc(docQuery) {
     let doc = await this.getDoc(docQuery);
-    return this.db.put({
+    return this.putDoc({
       _id: doc._id,
       _rev: doc._rev,
       _deleted: true
     });
+  }
+  mergeSelectors(selectorList) {
+    throw new Error('unimplemented');
   }
   pathsToSelector(paths = [[Selection.DEFAULT_DOC_QUERY]]) {
     throw new Error('unimplemented');
@@ -465,7 +547,7 @@ class Mure extends Model {
   async setSelector(selector) {
     let currentSelector = await this.db.get('$currentSelector');
     currentSelector.selector = selector;
-    return this.db.put(currentSelector);
+    return this.putDoc(currentSelector);
   }
 }
 
@@ -475,7 +557,7 @@ var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
 var browser = "dist/mure.umd.min.js";
-var scripts = { "build": "rollup -c", "dev": "rollup -c -w", "test": "node test/test.js", "pretest": "npm run build && rm -rf mure mure-mrview*", "posttest": "rm -rf mure mure-mrview*", "debug": "rm -rf mure mure-mrview* && node --inspect-brk test/test.js" };
+var scripts = { "build": "rollup -c --environment TARGET:all", "watch": "rollup -c -w", "watchcjs": "rollup -c -w --environment TARGET:cjs", "watchumd": "rollup -c -w --environment TARGET:umd", "watchesm": "rollup -c -w --environment TARGET:esm", "test": "node test/test.js", "pretest": "rollup -c --environment TARGET:cjs && rm -rf mure mure-mrview*", "posttest": "rm -rf mure mure-mrview*", "debug": "rm -rf mure mure-mrview* && node --inspect-brk test/test.js" };
 var files = ["dist"];
 var repository = { "type": "git", "url": "git+https://github.com/mure-apps/mure-library.git" };
 var author = "Alex Bigelow";

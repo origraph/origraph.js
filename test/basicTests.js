@@ -10,6 +10,23 @@ module.exports = [
     }]);
   },
   async () => {
+    let dbStatus = await mure.dbStatus;
+    return Promise.resolve([
+      {
+        name: 'Db status: synced === false',
+        result: { passed: dbStatus.synced === false }
+      },
+      {
+        name: 'Db status: indexed === true',
+        result: { passed: dbStatus.indexed === true }
+      },
+      {
+        name: 'Db status: selectionAdded === true',
+        result: { passed: dbStatus.selectionAdded === true }
+      }
+    ]);
+  },
+  async () => {
     let svg = mure.d3n.createSVG(500, 500);
     svg.append('g');
     svg.select('g').classed('test', true);
