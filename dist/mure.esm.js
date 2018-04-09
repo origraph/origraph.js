@@ -49,7 +49,7 @@ class Selection extends Model {
     return docs;
   }
   items(docs) {
-    // Collect the results of objQuery and flagQuery
+    // Collect the results of objQuery
     let items = [];
     if (this.objQuery === '') {
       // No objQuery means that we want to select the documents themselves
@@ -121,7 +121,7 @@ class Selection extends Model {
   }
   attr(key, value) {
     if (this.docQuery === '') {
-      throw new Error(`Can't set attributes at the root level; here you need to add documents`);
+      throw new Error(`Can't set attributes at the root level; here you would need to call mure.putDoc()`);
     }
     return this.each(item => {
       item.value[key] = value;
