@@ -65,6 +65,7 @@ A list of reminders to make sure I don't forget any steps:
 - Update the version in package.json
 - Update the release link in this README
 - `npm run test`
+- `npm run build`
 - `git commit -a -m "commit message"`
 - `git push`
 - (Verify Travis CI doesn't fail)
