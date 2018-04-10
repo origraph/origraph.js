@@ -52,7 +52,12 @@ class Selection extends uki.Model {
     });
     return docs;
   }
-  items(docs) {
+  async items({ docs } = {}) {
+    // TODO: there isn't a direct need for async yet, but this is potentially
+    // expensive / blocking for larger datasets; in the future, maybe it would
+    // be best to offload bits to a web worker?
+    docs = docs || (await this.docs());
+
     // Collect the results of objQuery
     let items = [];
     if (this.objQuery === '') {
@@ -108,7 +113,13 @@ class Selection extends uki.Model {
     }
     return items;
   }
-  slices(docs, items = this.items(docs)) {
+  async slices({ docs, items } = {}) {
+    // TODO: there isn't a direct need for async yet, but this is potentially
+    // expensive / blocking for larger datasets; in the future, maybe it would
+    // be best to offload bits to a web worker?
+    docs = docs || (await this.docs());
+    items = items || (await this.items(docs));
+
     let slices = {};
     items.forEach(item => {
       if (item.$members) {
@@ -146,8 +157,8 @@ class Selection extends uki.Model {
     });
     return slices;
   }
-  async save(docs) {
-    let items = this.items(docs || (await this.docs()));
+  async save({ docs, items }) {
+    items = items || (await this.items({ docs }));
     this.pendingOperations.forEach(func => {
       items.forEach(item => {
         func.apply(this, [item]);
@@ -421,14 +432,11 @@ class Mure extends uki.Model {
             fields: ['filename']
           }
         }).catch(() => false));
-        status.linkedSelection = !!(await this.db.put({
-          _id: '$linkedSelection',
-          selector: null
-        }).catch(() => false));
-        status.linkedViews = !!(await this.db.put({
-          _id: '$linkedViews',
-          selector: '@$.classes[*]',
-          sliceViewSettings: {}
+        status.linkedViewSpec = !!(await this.db.put({
+          _id: '$linkedViewSpec',
+          setSelector: '@$.classes[*]',
+          sliceViewSettings: {},
+          userSelector: null
         }).catch(() => false));
         this.db.changes({
           since: 'now',
@@ -437,16 +445,9 @@ class Mure extends uki.Model {
           if (change.id > '_\uffff') {
             // A regular document changed
             this.trigger('docChange', change);
-          } else if (change.id === '$linkedSelection') {
-            // The linked selection changed
-            let selection = change.selector ? this.selectAll(change.selector) : null;
-            this.trigger('linkedSelectionChange', selection);
-          } else if (change.id === '$linkedViews') {
+          } else if (change.id === '$linkedViewSpec') {
             // The linked views changed
-            this.trigger('linkedViewChange', {
-              selector: change.selector,
-              sliceViewSettings: change.sliceViewSettings
-            });
+            this.trigger('linkedViewChange', this.formatLinkedViewSpec(change));
           }
         }).on('error', err => {
           this.warn(err);
@@ -604,27 +605,22 @@ class Mure extends uki.Model {
     }
     return new Selection(this, selector);
   }
-  async linkSelection(selection) {
-    let linkedSelection = await this.db.get('$linkedSelection');
-    linkedSelection.selector = selection.selector;
-    return this.putDoc(linkedSelection);
+  async setLinkedViews({ setSelection, sliceViewSettings, userSelection } = {}) {
+    let linkedViewSpec = await this.db.get('$linkedViewSpec');
+    linkedViewSpec.setSelector = setSelection ? setSelection.selector : linkedViewSpec.setSelector;
+    linkedViewSpec.sliceViewSettings = sliceViewSettings || linkedViewSpec.sliceViewSettings;
+    linkedViewSpec.userSelector = userSelection === undefined ? userSelection.selector : userSelection === null ? null : linkedViewSpec.userSelector;
+    return this.putDoc(linkedViewSpec);
   }
-  async getLinkedSelection() {
-    let linkedSelection = await this.db.get('$linkedSelection');
-    return this.selectAll(linkedSelection.selector);
-  }
-  async setLinkedViews({ selection = undefined, sliceViewSettings = {} } = {}) {
-    let linkedViews = await this.db.get('$linkedViews');
-    linkedViews.selector = selection || linkedViews.selector;
-    linkedViews.sliceViewSettings = sliceViewSettings;
-    return this.putDoc(linkedViews);
+  formatLinkedViewSpec(specObj) {
+    return {
+      setSelection: this.selectAll(specObj.selector),
+      sliceViewSettings: specObj.sliceViewSettings,
+      userSelector: specObj.userSelector ? this.selectAll(specObj.userSelector) : null
+    };
   }
   async getLinkedViews() {
-    let linkedViews = await this.db.get('$linkedViews');
-    return {
-      selection: this.selectAll(linkedViews.selector),
-      sliceViewSettings: linkedViews.sliceViewSettings
-    };
+    return this.formatLinkedViewSpec((await this.db.get('$linkedViewSpec')));
   }
 }
 

@@ -21,12 +21,8 @@ module.exports = [
         result: { passed: dbStatus.indexed === true }
       },
       {
-        name: 'Db status: linkedSelection === true',
-        result: { passed: dbStatus.linkedSelection === true }
-      },
-      {
-        name: 'Db status: linkedViews === true',
-        result: { passed: dbStatus.linkedViews === true }
+        name: 'Db status: linkedViewSpec === true',
+        result: { passed: dbStatus.linkedViewSpec === true }
       }
     ]);
   },

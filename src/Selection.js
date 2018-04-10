@@ -50,7 +50,12 @@ class Selection extends Model {
     result.forEach(doc => { docs[doc._id] = doc; });
     return docs;
   }
-  items (docs) {
+  async items ({ docs } = {}) {
+    // TODO: there isn't a direct need for async yet, but this is potentially
+    // expensive / blocking for larger datasets; in the future, maybe it would
+    // be best to offload bits to a web worker?
+    docs = docs || await this.docs();
+
     // Collect the results of objQuery
     let items = [];
     if (this.objQuery === '') {
@@ -106,7 +111,13 @@ class Selection extends Model {
     }
     return items;
   }
-  slices (docs, items = this.items(docs)) {
+  async slices ({ docs, items } = {}) {
+    // TODO: there isn't a direct need for async yet, but this is potentially
+    // expensive / blocking for larger datasets; in the future, maybe it would
+    // be best to offload bits to a web worker?
+    docs = docs || await this.docs();
+    items = items || await this.items(docs);
+
     let slices = {};
     items.forEach(item => {
       if (item.$members) {
@@ -144,8 +155,8 @@ class Selection extends Model {
     });
     return slices;
   }
-  async save (docs) {
-    let items = this.items(docs || await this.docs());
+  async save ({ docs, items }) {
+    items = items || await this.items({ docs });
     this.pendingOperations.forEach(func => {
       items.forEach(item => {
         func.apply(this, [item]);
