@@ -32,6 +32,10 @@ class Selection extends Model {
   get headless () {
     return this.docQuery === DEFAULT_DOC_QUERY;
   }
+  get selector () {
+    return '@' + this.docQuery + this.objQuery +
+      Array.from(Array(this.parentShift)).map(d => '^').join('');
+  }
   select (selector) {
     return new Selection(this.mure, selector, { selectSingle: true, parentSelection: this });
   }

@@ -32,6 +32,9 @@ class Selection extends Model {
   get headless() {
     return this.docQuery === DEFAULT_DOC_QUERY;
   }
+  get selector() {
+    return '@' + this.docQuery + this.objQuery + Array.from(Array(this.parentShift)).map(d => '^').join('');
+  }
   select(selector) {
     return new Selection(this.mure, selector, { selectSingle: true, parentSelection: this });
   }
@@ -379,9 +382,13 @@ class Mure extends Model {
             fields: ['filename']
           }
         }).catch(() => false));
-        status.selectionAdded = !!(await this.db.put({
-          _id: '$currentSelector',
+        status.linkedSelection = !!(await this.db.put({
+          _id: '$linkedSelection',
           selector: null
+        }).catch(() => false));
+        status.linkedViews = !!(await this.db.put({
+          _id: '$linkedViews',
+          viewList: []
         }).catch(() => false));
         this.db.changes({
           since: 'now',
@@ -390,9 +397,20 @@ class Mure extends Model {
           if (change.id > '_\uffff') {
             // A regular document changed
             this.trigger('docChange', change);
-          } else if (change.id === '$currentSelector') {
-            // One of our special documents changed
-            this.trigger('selectionChange', change.selector);
+          } else if (change.id === '$linkedSelection') {
+            // The linked selection changed
+            let selection = change.selector ? this.selectAll(change.selector) : null;
+            this.trigger('linkedSelectionChange', selection);
+          } else if (change.id === '$linkedViews') {
+            // The linked views changed
+            this.trigger('linkedViewChange', change.viewList.map(view => {
+              return {
+                sortFunction: Function(view.sortFuncString), // eslint-disable-line no-new-func
+                startKey: view.startKey,
+                endKey: view.endKey,
+                selection: this.selectAll(view.selector)
+              };
+            }));
           }
         }).on('error', err => {
           this.warn(err);
@@ -539,15 +557,33 @@ class Mure extends Model {
     return this.select('@{"_id":"' + docId + '"}');
   }
   select(selector) {
+    if (selector instanceof Array) {
+      selector = selector[0];
+    }
     return new Selection(this, selector, { selectSingle: true });
   }
   selectAll(selector) {
+    if (selector instanceof Array) {
+      selector = this.mergeSelectors(selector);
+    }
     return new Selection(this, selector);
   }
-  async setSelector(selector) {
-    let currentSelector = await this.db.get('$currentSelector');
-    currentSelector.selector = selector;
-    return this.putDoc(currentSelector);
+  async linkSelection(selection) {
+    let linkedSelection = await this.db.get('$linkedSelection');
+    linkedSelection.selector = selection.selector;
+    return this.putDoc(linkedSelection);
+  }
+  async setLinkedViews(viewList) {
+    let linkedViews = await this.db.get('$linkedViews');
+    linkedViews.viewList = viewList.map(view => {
+      return {
+        sortFuncString: view.sortFunction.toString(),
+        startKey: view.startKey,
+        endKey: view.endKey,
+        selector: view.selection.selector
+      };
+    });
+    return this.putDoc(linkedViews);
   }
 }
 
