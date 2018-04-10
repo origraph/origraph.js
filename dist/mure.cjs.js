@@ -609,11 +609,22 @@ class Mure extends uki.Model {
     linkedSelection.selector = selection.selector;
     return this.putDoc(linkedSelection);
   }
-  async setLinkedViews({ selector = '@$.classes[*]', sliceViewSettings = {} } = {}) {
+  async getLinkedSelection() {
+    let linkedSelection = await this.db.get('$linkedSelection');
+    return this.selectAll(linkedSelection.selector);
+  }
+  async setLinkedViews({ selection = undefined, sliceViewSettings = {} } = {}) {
     let linkedViews = await this.db.get('$linkedViews');
-    linkedViews.selector = selector;
+    linkedViews.selector = selection || linkedViews.selector;
     linkedViews.sliceViewSettings = sliceViewSettings;
     return this.putDoc(linkedViews);
+  }
+  async getLinkedViews() {
+    let linkedViews = await this.db.get('$linkedViews');
+    return {
+      selection: this.selectAll(linkedViews.selector),
+      sliceViewSettings: linkedViews.sliceViewSettings
+    };
   }
 }
 
