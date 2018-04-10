@@ -106,6 +106,44 @@ class Selection extends Model {
     }
     return items;
   }
+  slices (docs, items = this.items(docs)) {
+    let slices = {};
+    items.forEach(item => {
+      if (item.$members) {
+        // This is a set; we already have its member ids
+        slices[item._id] = {
+          label: item.label,
+          memberIds: Object.keys(item.$members)
+        };
+      } else {
+        // The item is a container; its contents are its members, and
+        // the item and all its ancestors are the "sets"
+        if (item.path.length > 0) {
+          let docQuery = '@{"_id":"' + item.path[0] + '"}';
+          let memberIds = Object.keys(item).map(childLabel => {
+            let childPath = item.path.concat(childLabel);
+            return docQuery + jsonPath.stringify(childPath);
+          });
+          // Add memberIds to the document "set"
+          slices[docQuery] = slices[docQuery] || {
+            label: item.doc.filename,
+            memberIds: []
+          };
+          slices[docQuery].memberIds = slices[docQuery].memberIds.concat(memberIds);
+          // Add memberIds to all of the ancestors' "sets" (including the item)
+          for (let i = 1; i < item.path.length; i++) {
+            let ancestorQuery = docQuery + jsonPath.stringify(item.path.slice(1, i + 1));
+            slices[ancestorQuery] = slices[ancestorQuery] || {
+              label: item.path[i],
+              memberIds: []
+            };
+            slices[ancestorQuery].memberIds = slices[ancestorQuery].memberIds.concat(memberIds);
+          }
+        }
+      }
+    });
+    return slices;
+  }
   async save (docs) {
     let items = this.items(docs || await this.docs());
     this.pendingOperations.forEach(func => {

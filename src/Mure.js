@@ -91,7 +91,8 @@ class Mure extends Model {
         }).catch(() => false));
         status.linkedViews = !!(await this.db.put({
           _id: '$linkedViews',
-          viewList: []
+          selector: '@$.classes[*]',
+          sliceViewSettings: {}
         }).catch(() => false));
         this.db.changes({
           since: 'now',
@@ -106,14 +107,10 @@ class Mure extends Model {
             this.trigger('linkedSelectionChange', selection);
           } else if (change.id === '$linkedViews') {
             // The linked views changed
-            this.trigger('linkedViewChange', change.viewList.map(view => {
-              return {
-                sortFunction: Function(view.sortFuncString), // eslint-disable-line no-new-func
-                startKey: view.startKey,
-                endKey: view.endKey,
-                selection: this.selectAll(view.selector)
-              };
-            }));
+            this.trigger('linkedViewChange', {
+              selector: change.selector,
+              sliceViewSettings: change.sliceViewSettings
+            });
           }
         }).on('error', err => {
           this.warn(err);
@@ -275,16 +272,10 @@ class Mure extends Model {
     linkedSelection.selector = selection.selector;
     return this.putDoc(linkedSelection);
   }
-  async setLinkedViews (viewList) {
+  async setLinkedViews ({ selector = '@$.classes[*]', sliceViewSettings = {} } = {}) {
     let linkedViews = await this.db.get('$linkedViews');
-    linkedViews.viewList = viewList.map(view => {
-      return {
-        sortFuncString: view.sortFunction.toString(),
-        startKey: view.startKey,
-        endKey: view.endKey,
-        selector: view.selection.selector
-      };
-    });
+    linkedViews.selector = selector;
+    linkedViews.sliceViewSettings = sliceViewSettings;
     return this.putDoc(linkedViews);
   }
 }
