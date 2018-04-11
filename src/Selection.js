@@ -118,42 +118,51 @@ class Selection extends Model {
     docs = docs || await this.docs();
     items = items || await this.items(docs);
 
-    let slices = {};
+    const slices = {};
+    const members = {};
     items.forEach(item => {
       if (item.$members) {
         // This is a set; we already have its member ids
         slices[item._id] = {
           label: item.label,
-          memberIds: Object.keys(item.$members)
+          members: Object.assign({}, item.$members)
         };
+        Object.keys(item.$members).forEach(memberId => {
+          members[memberId] = members[memberId] || {};
+          members[memberId][item._id] = true;
+        });
       } else {
         // The item is a container; its contents are its members, and
         // the item and all its ancestors are the "sets"
         if (item.path.length > 0) {
-          let docQuery = '@{"_id":"' + item.path[0] + '"}';
-          let memberIds = Object.keys(item).map(childLabel => {
-            let childPath = item.path.concat(childLabel);
-            return docQuery + jsonPath.stringify(childPath);
-          });
-          // Add memberIds to the document "set"
-          slices[docQuery] = slices[docQuery] || {
+          const docId = '@{"_id":"' + item.path[0] + '"}';
+          let ancestorIds = [docId];
+          slices[docId] = slices[docId] || {
             label: item.doc.filename,
-            memberIds: []
+            memberIds: {}
           };
-          slices[docQuery].memberIds = slices[docQuery].memberIds.concat(memberIds);
-          // Add memberIds to all of the ancestors' "sets" (including the item)
           for (let i = 1; i < item.path.length; i++) {
-            let ancestorQuery = docQuery + jsonPath.stringify(item.path.slice(1, i + 1));
-            slices[ancestorQuery] = slices[ancestorQuery] || {
+            let ancestorId = docId + jsonPath.stringify(item.path.slice(1, i + 1));
+            slices[ancestorId] = slices[ancestorId] || {
               label: item.path[i],
-              memberIds: []
+              memberIds: {}
             };
-            slices[ancestorQuery].memberIds = slices[ancestorQuery].memberIds.concat(memberIds);
+            ancestorIds.push(ancestorId);
           }
+
+          Object.keys(item).forEach(memberLabel => {
+            const memberPath = item.path.concat([memberLabel]);
+            const memberId = docId + jsonPath.stringify(memberPath);
+            members[memberId] = members[memberId] || {};
+            ancestorIds.forEach(ancestorId => {
+              slices[ancestorId][memberId] = true;
+              members[memberId][ancestorId] = true;
+            });
+          });
         }
       }
     });
-    return slices;
+    return { slices, members };
   }
   async save ({ docs, items }) {
     items = items || await this.items({ docs });
