@@ -7,6 +7,16 @@ import PouchDB from 'pouchdb-browser';
 import PouchFind from 'pouchdb-find';
 import PouchAuthentication from 'pouchdb-authentication';
 
+var createEnum = (values => {
+  let result = {};
+  values.forEach(value => {
+    result[value] = Symbol(value);
+  });
+  return Object.freeze(result);
+});
+
+var TYPES = createEnum(['boolean', 'number', 'string', 'date', 'undefined', 'null', 'reference', 'container', 'document', 'root']);
+
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection extends Model {
@@ -23,6 +33,7 @@ class Selection extends Model {
     this.objQuery = parentSelection ? parentSelection.objQuery : '';
     this.objQuery += !chunks[2] ? '' : this.objQuery ? chunks[2].trim().slice(1) : chunks[2].trim();
     this.parentShift = chunks[3] ? chunks[3].length : 0;
+    this.followLinks = chunks[4] === '@';
 
     this.mure = mure;
     this.selectSingle = selectSingle;
@@ -40,6 +51,33 @@ class Selection extends Model {
   }
   selectAll(selector) {
     return new Selection(this.mure, selector, { parentSelection: this });
+  }
+  inferType(value) {
+    const jsType = typeof value;
+    if (TYPES[jsType]) {
+      if (jsType === 'string' && value[0] === '@') {
+        try {
+          new Selection(this.mure, value); // eslint-disable-line no-new
+        } catch (err) {
+          if (err.INVALID_SELECTOR) {
+            return TYPES.string;
+          } else {
+            throw err;
+          }
+        }
+        return TYPES.reference;
+      } else {
+        return TYPES[jsType];
+      }
+    } else if (value === null) {
+      return TYPES.null;
+    } else if (value instanceof Date) {
+      return TYPES.date;
+    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else {
+      return TYPES.container;
+    }
   }
   async docs() {
     let docs = {};
@@ -59,22 +97,43 @@ class Selection extends Model {
 
     // Collect the results of objQuery
     let items = [];
-    if (this.objQuery === '') {
-      // No objQuery means that we want to select the documents themselves
+    if (this.parentShift > 0 && (this.objQuery === '' || this.objQuery === '$')) {
+      // Do nothing; the query reaches beyond the document level
+    } else if (this.objQuery === '') {
+      // No objQuery means that we want a view of multiple documents
       let rootItem = {
         path: [],
         value: {},
         parent: null,
         doc: null,
         label: null,
-        uniqueSelector: '@'
+        type: TYPES.root,
+        uniqueSelector: '@',
+        isSet: false
       };
       Object.keys(docs).some(docId => {
         rootItem.value[docId] = docs[docId];
         return this.selectSingle;
       });
       items.push(rootItem);
+    } else if (this.objQuery === '$') {
+      // Selecting the documents themselves
+      Object.keys(docs).some(docId => {
+        let item = {
+          path: ['{"_id":"' + docId + '"}'],
+          value: docs[docId],
+          parent: '@',
+          doc: docs[docId],
+          label: docs[docId]['filename'],
+          type: TYPES.document,
+          isSet: false
+        };
+        item.uniqueSelector = item.path[0];
+        items.push(item);
+        return this.selectSingle;
+      });
     } else {
+      // Selecting document contents
       Object.keys(docs).some(docId => {
         let doc = docs[docId];
         let docPathQuery = '{"_id":"' + docId + '"}';
@@ -102,6 +161,8 @@ class Selection extends Model {
             item.label = item.path[item.path.length - 1];
           }
           item.doc = doc;
+          item.type = this.inferType(item.value);
+          item.isSet = item.type === TYPES.container && item.value.$members;
           let uniqueJsonPath = jsonPath.stringify(item.path);
           item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
           item.path.unshift(docPathQuery);
@@ -111,59 +172,6 @@ class Selection extends Model {
       });
     }
     return items;
-  }
-  async slices({ docs, items } = {}) {
-    // TODO: there isn't a direct need for async yet, but this is potentially
-    // expensive / blocking for larger datasets; in the future, maybe it would
-    // be best to offload bits to a web worker?
-    docs = docs || (await this.docs());
-    items = items || (await this.items(docs));
-
-    const slices = {};
-    const members = {};
-    items.forEach(item => {
-      if (item.$members) {
-        // This is a set; we already have its member ids
-        slices[item._id] = {
-          label: item.label,
-          members: Object.assign({}, item.$members)
-        };
-        Object.keys(item.$members).forEach(memberId => {
-          members[memberId] = members[memberId] || {};
-          members[memberId][item._id] = true;
-        });
-      } else {
-        // The item is a container; its contents are its members, and
-        // the item and all its ancestors are the "sets"
-        if (item.path.length > 0) {
-          const docId = '@{"_id":"' + item.path[0] + '"}';
-          let ancestorIds = [docId];
-          slices[docId] = slices[docId] || {
-            label: item.doc.filename,
-            memberIds: {}
-          };
-          for (let i = 1; i < item.path.length; i++) {
-            let ancestorId = docId + jsonPath.stringify(item.path.slice(1, i + 1));
-            slices[ancestorId] = slices[ancestorId] || {
-              label: item.path[i],
-              memberIds: {}
-            };
-            ancestorIds.push(ancestorId);
-          }
-
-          Object.keys(item).forEach(memberLabel => {
-            const memberPath = item.path.concat([memberLabel]);
-            const memberId = docId + jsonPath.stringify(memberPath);
-            members[memberId] = members[memberId] || {};
-            ancestorIds.forEach(ancestorId => {
-              slices[ancestorId][memberId] = true;
-              members[memberId][ancestorId] = true;
-            });
-          });
-        }
-      }
-    });
-    return { slices, members };
   }
   async save({ docs, items }) {
     items = items || (await this.items({ docs }));
@@ -443,7 +451,7 @@ class Mure extends Model {
         status.linkedViewSpec = !!(await this.db.put({
           _id: '$linkedViewSpec',
           setSelector: '@$.classes[*]',
-          sliceViewSettings: {},
+          viewAsSets: false,
           userSelector: null
         }).catch(() => false));
         this.db.changes({
