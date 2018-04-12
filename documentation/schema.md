@@ -50,7 +50,7 @@ The root `$` selector corresponds to each matched document. No modification of t
 Examples (TODO) demonstrate JSONPaths in use.
 
 ## Parent selectors
-A query can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `^` characters reach beyond a document, an empty result will be returned. Example (TODO) demonstrates a parent selector being used.
+A selector can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `^` characters reach beyond a document, an empty result will be returned. Example (TODO) demonstrates a parent selector being used.
 
 # File IDs
 Our convention is to format document `_id`s similar to what you'd see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:
