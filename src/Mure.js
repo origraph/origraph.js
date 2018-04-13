@@ -256,14 +256,20 @@ class Mure extends Model {
     }
     return new Selection(this, selector);
   }
-  async setLinkedViews ({ selector, settings } = {}) {
-    let linkedViewSpec = await this.db.get('$linkedViewSpec');
-    linkedViewSpec.selector = selector || linkedViewSpec.selector;
+  async setLinkedViews ({ selection, settings } = {}) {
+    const linkedViewSpec = await this.db.get('$linkedViewSpec');
+    linkedViewSpec.selector = selection ? selection.selector : linkedViewSpec.selector;
     linkedViewSpec.settings = settings || linkedViewSpec.settings;
     return this.putDoc(linkedViewSpec);
   }
+  formatLinkedViewSpec (spec) {
+    return {
+      selection: this.selectAll(spec.selector),
+      settings: spec.settings
+    };
+  }
   async getLinkedViews () {
-    return this.db.get('$linkedViewSpec');
+    return this.formatLinkedViewSpec(await this.db.get('$linkedViewSpec'));
   }
 }
 
