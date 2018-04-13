@@ -62,29 +62,29 @@ class Selection extends Model {
   }
   inferType(value) {
     const jsType = typeof value;
-    if (TYPES[jsType]) {
+    if (this.mure.TYPES[jsType]) {
       if (jsType === 'string' && value[0] === '@') {
         try {
           new Selection(this.mure, value); // eslint-disable-line no-new
         } catch (err) {
           if (err.INVALID_SELECTOR) {
-            return TYPES.string;
+            return this.mure.TYPES.string;
           } else {
             throw err;
           }
         }
-        return TYPES.reference;
+        return this.mure.TYPES.reference;
       } else {
-        return TYPES[jsType];
+        return this.mure.TYPES[jsType];
       }
     } else if (value === null) {
-      return TYPES.null;
+      return this.mure.TYPES.null;
     } else if (value instanceof Date) {
-      return TYPES.date;
+      return this.mure.TYPES.date;
     } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
       throw new Error('invalid value: ' + value);
     } else {
-      return TYPES.container;
+      return this.mure.TYPES.container;
     }
   }
   async docs() {
@@ -117,7 +117,7 @@ class Selection extends Model {
           parent: null,
           doc: null,
           label: null,
-          type: TYPES.root,
+          type: this.mure.TYPES.root,
           uniqueSelector: '@',
           isSet: false
         };
@@ -135,7 +135,7 @@ class Selection extends Model {
             parent: '@',
             doc: docs[docId],
             label: docs[docId]['filename'],
-            type: TYPES.document,
+            type: this.mure.TYPES.document,
             isSet: false
           };
           item.uniqueSelector = item.path[0];
@@ -172,7 +172,7 @@ class Selection extends Model {
             }
             item.doc = doc;
             item.type = this.inferType(item.value);
-            item.isSet = item.type === TYPES.container && item.value.$members;
+            item.isSet = item.type === this.mure.TYPES.container && item.value.$members;
             let uniqueJsonPath = jsonPath.stringify(item.path);
             item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
             item.path.unshift(docPathQuery);
@@ -400,6 +400,9 @@ class Mure extends Model {
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
+
+    // Our custom type definitions
+    this.TYPES = TYPES;
 
     this.docHandler = new DocHandler(this);
     this.itemHandler = new ItemHandler(this);

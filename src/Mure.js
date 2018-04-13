@@ -1,4 +1,5 @@
 import mime from 'mime-types';
+import TYPES from './Types.js';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
@@ -24,6 +25,9 @@ class Mure extends Model {
     // The namespace string for our custom XML
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
+
+    // Our custom type definitions
+    this.TYPES = TYPES;
 
     this.docHandler = new DocHandler(this);
     this.itemHandler = new ItemHandler(this);
