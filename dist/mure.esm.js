@@ -17,6 +17,14 @@ var createEnum = (values => {
 
 var TYPES = createEnum(['boolean', 'number', 'string', 'date', 'undefined', 'null', 'reference', 'container', 'document', 'root']);
 
+var queueAsync = (func => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve(func());
+    });
+  });
+});
+
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection extends Model {
@@ -90,88 +98,91 @@ class Selection extends Model {
     return docs;
   }
   async items({ docs } = {}) {
-    // TODO: there isn't a direct need for async yet, but this is potentially
-    // expensive / blocking for larger datasets; in the future, maybe it would
-    // be best to offload bits to a web worker?
     docs = docs || (await this.docs());
 
-    // Collect the results of objQuery
-    let items = [];
-    if (this.parentShift > 0 && (this.objQuery === '' || this.objQuery === '$')) {
-      // Do nothing; the query reaches beyond the document level
-    } else if (this.objQuery === '') {
-      // No objQuery means that we want a view of multiple documents
-      let rootItem = {
-        path: [],
-        value: {},
-        parent: null,
-        doc: null,
-        label: null,
-        type: TYPES.root,
-        uniqueSelector: '@',
-        isSet: false
-      };
-      Object.keys(docs).some(docId => {
-        rootItem.value[docId] = docs[docId];
-        return this.selectSingle;
-      });
-      items.push(rootItem);
-    } else if (this.objQuery === '$') {
-      // Selecting the documents themselves
-      Object.keys(docs).some(docId => {
-        let item = {
-          path: ['{"_id":"' + docId + '"}'],
-          value: docs[docId],
-          parent: '@',
-          doc: docs[docId],
-          label: docs[docId]['filename'],
-          type: TYPES.document,
+    // TODO: aside from maybe needing to wait for this.docs(), there's no need
+    // for async... however, items() is potentially expensive in its own right.
+    // For now, we just add it to the js event queue to be executed later (to
+    // avoid blocking), but it might be worth considering workers in the future?
+    return queueAsync(() => {
+      // Collect the results of objQuery
+      let items = [];
+      if (this.parentShift > 0 && (this.objQuery === '' || this.objQuery === '$')) {
+        // Do nothing; the query reaches beyond the document level
+      } else if (this.objQuery === '') {
+        // No objQuery means that we want a view of multiple documents
+        let rootItem = {
+          path: [],
+          value: {},
+          parent: null,
+          doc: null,
+          label: null,
+          type: TYPES.root,
+          uniqueSelector: '@',
           isSet: false
         };
-        item.uniqueSelector = item.path[0];
-        items.push(item);
-        return this.selectSingle;
-      });
-    } else {
-      // Selecting document contents
-      Object.keys(docs).some(docId => {
-        let doc = docs[docId];
-        let docPathQuery = '{"_id":"' + docId + '"}';
-        return jsonPath.nodes(doc, this.objQuery).some(item => {
-          if (this.parentShift) {
-            // Now that we have unique, normalized paths for each node, we can
-            // apply the parentShift option to select parents based on child
-            // attributes
-            if (this.parentShift >= item.path.length - 1) {
-              // We selected above the root of the document; as there's nothing
-              // to select, don't even append a result
-              return false;
-            } else {
-              item.path.splice(item.path.length - this.parentShift);
-              let temp = jsonPath.stringify(item.path);
-              item.value = jsonPath.query(doc, temp)[0];
-            }
-          }
-          if (item.path.length === 1) {
-            item.parent = null;
-            item.label = doc.filename;
-          } else {
-            let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
-            item.parent = jsonPath.query(doc, temp)[0];
-            item.label = item.path[item.path.length - 1];
-          }
-          item.doc = doc;
-          item.type = this.inferType(item.value);
-          item.isSet = item.type === TYPES.container && item.value.$members;
-          let uniqueJsonPath = jsonPath.stringify(item.path);
-          item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
-          item.path.unshift(docPathQuery);
-          items.push(item);
-          return this.selectSingle; // when true, exits both loops after the first match is found
+        Object.keys(docs).some(docId => {
+          rootItem.value[docId] = docs[docId];
+          return this.selectSingle;
         });
-      });
-    }
-    return items;
+        items.push(rootItem);
+      } else if (this.objQuery === '$') {
+        // Selecting the documents themselves
+        Object.keys(docs).some(docId => {
+          let item = {
+            path: ['{"_id":"' + docId + '"}'],
+            value: docs[docId],
+            parent: '@',
+            doc: docs[docId],
+            label: docs[docId]['filename'],
+            type: TYPES.document,
+            isSet: false
+          };
+          item.uniqueSelector = item.path[0];
+          items.push(item);
+          return this.selectSingle;
+        });
+      } else {
+        // Selecting document contents
+        Object.keys(docs).some(docId => {
+          let doc = docs[docId];
+          let docPathQuery = '{"_id":"' + docId + '"}';
+          return jsonPath.nodes(doc, this.objQuery).some(item => {
+            if (this.parentShift) {
+              // Now that we have unique, normalized paths for each node, we can
+              // apply the parentShift option to select parents based on child
+              // attributes
+              if (this.parentShift >= item.path.length - 1) {
+                // We selected above the root of the document; as there's nothing
+                // to select, don't even append a result
+                return false;
+              } else {
+                item.path.splice(item.path.length - this.parentShift);
+                let temp = jsonPath.stringify(item.path);
+                item.value = jsonPath.query(doc, temp)[0];
+              }
+            }
+            if (item.path.length === 1) {
+              item.parent = null;
+              item.label = doc.filename;
+            } else {
+              let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
+              item.parent = jsonPath.query(doc, temp)[0];
+              item.label = item.path[item.path.length - 1];
+            }
+            item.doc = doc;
+            item.type = this.inferType(item.value);
+            item.isSet = item.type === TYPES.container && item.value.$members;
+            let uniqueJsonPath = jsonPath.stringify(item.path);
+            item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
+            item.path.unshift(docPathQuery);
+            items.push(item);
+            return this.selectSingle; // when true, exits both loops after the first match is found
+          });
+        });
+      }
+      return items;
+    });
   }
   async save({ docs, items }) {
     items = items || (await this.items({ docs }));
@@ -620,14 +631,20 @@ class Mure extends Model {
     }
     return new Selection(this, selector);
   }
-  async setLinkedViews({ selector, settings } = {}) {
-    let linkedViewSpec = await this.db.get('$linkedViewSpec');
-    linkedViewSpec.selector = selector || linkedViewSpec.selector;
+  async setLinkedViews({ selection, settings } = {}) {
+    const linkedViewSpec = await this.db.get('$linkedViewSpec');
+    linkedViewSpec.selector = selection ? selection.selector : linkedViewSpec.selector;
     linkedViewSpec.settings = settings || linkedViewSpec.settings;
     return this.putDoc(linkedViewSpec);
   }
+  formatLinkedViewSpec(spec) {
+    return {
+      selection: this.selectAll(spec.selector),
+      settings: spec.settings
+    };
+  }
   async getLinkedViews() {
-    return this.db.get('$linkedViewSpec');
+    return this.formatLinkedViewSpec((await this.db.get('$linkedViewSpec')));
   }
 }
 
