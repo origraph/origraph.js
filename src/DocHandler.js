@@ -87,21 +87,22 @@ class DocHandler {
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
     doc.orphanLinks = doc.orphanLinks || {};
-    doc.orphanLinks._id = `@{_id:'${doc._id}'}$.orphanLinks`;
+    doc.orphanLinks._id = '$.orphanLinks';
 
     doc.orphanNodes = doc.orphanNodes || {};
-    doc.orphanNodes._id = `@{_id:'${doc._id}'}$.orphanNodes`;
+    doc.orphanNodes._id = '$.orphanNodes';
 
     doc.classes = doc.classes || {};
-    doc.classes._id = `@{_id:'${doc._id}'}$.classes`;
-    doc.classes.$members = doc.classes.$members || {};
+    doc.classes._id = '$.classes';
+
+    let noneId = '$.classes.none';
+    doc.classes[noneId] = doc.classes[noneId] || { _id: noneId, $members: {} };
 
     doc.groups = doc.groups || {};
-    doc.groups._id = `@{_id:'${doc._id}'}$.groups`;
-    doc.groups.$members = doc.classes.$members || {};
+    doc.groups._id = '$.groups';
 
     doc.contents = doc.contents || {};
-    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents']);
+    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes, noneId);
 
     return doc;
   }
