@@ -20,9 +20,9 @@ let index = 0;
       testResults = await testFunc();
     } catch (err) {
       testResults = [{
-        passed: false,
+        name: `test ${index}; error thrown`,
         result: {
-          name: 'Error thrown in test ' + index,
+          passed: false,
           details: JSON.stringify(err, null, 2)
         }
       }];
