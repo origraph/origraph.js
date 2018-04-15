@@ -9,7 +9,7 @@ Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrar
 # Reference Syntax
 References should follow the following syntax:
 
-`@ [ mango selector ] [ JSONPath ] [ parent selectors ]`
+`@ [ mango selector ] [ JSONPath ] [ parent selectors ] [ follow links ]`
 
 All of the above parameters are optional; only the initial `@` symbol is required (selecting just `@` will create a convenience root selection containing the documents themselves, with most reshaping functionality disabled... for now).
 
@@ -50,7 +50,10 @@ The root `$` selector corresponds to each matched document. No modification of t
 Examples (TODO) demonstrate JSONPaths in use.
 
 ## Parent selectors
-A selector can end with a series of `^` symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `^` characters reach beyond a document, an empty result will be returned. Example (TODO) demonstrates a parent selector being used.
+A selector can follow the JSONPath with a series of `↑` (U+2191) symbols to refer to the parent object that contains the matched result. This is useful when you want to filter objects based on nested child attributes. If the series of `↑` characters reach beyond a document, an empty result will be returned. Example (TODO) demonstrates a parent selector being used.
+
+## Follow links
+A selector can end with an additional `→` (U+2192) symbol to follow the selected link. Invalid / non-links are consequently ignored and excluded from the result. Note that links stored in files are evaluated only relative to their containing file, unless they specifically specify otherwise. In other words, you don't need to store mango queries inside files *unless* you deliberately mean to reference something in a different file or files (for now, auto-following cross-file references is not supported).
 
 # File IDs
 Our convention is to format document `_id`s similar to what you'd see in a `Content-Type` or `Content-Disposition` header, minus the keys, and with a specific order:

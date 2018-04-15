@@ -27,18 +27,7 @@ module.exports = [
       Object.keys(testResults).forEach(f => {
         testResults[f] = require(testResults[f]);
       });
-      [
-        './data/blackJack_round1',
-        './data/blackJack_round2',
-        './data/hearts_round1',
-        './data/hearts_round2',
-        './data/hearts_round3',
-        './data/singleFileSelectorTests',
-        './data/multiFileSelectorTests'
-      ].forEach(path => {
-        let filename = /.\/data\/(.*)/.exec(path)[1];
-        dataFiles[filename] = require(path);
-      });
+
       (async () => {
         let tests = [];
 
@@ -70,11 +59,9 @@ module.exports = [
 
         // Multi-document selection tests
         selectors = Object.keys(testResults.multiFile);
-        let cachedSelections = {};
         for (let i = 0; i < selectors.length; i += 1) {
           let selector = selectors[i];
           let selection = mure.selectAll(selector);
-          cachedSelections[selector] = selection;
           let expectedObjs = testResults.multiFile[selector];
           let selectedObjs = (await selection.items()).map(n => n.value);
           tests.push({
@@ -83,20 +70,38 @@ module.exports = [
           });
         }
 
+        // Full file / all doc selection tests
+        let rootValue = {};
+        let allDocs = await mure.db.allDocs({
+          include_docs: true,
+          startkey: '_\uffff'
+        });
+        allDocs = allDocs.rows.map(doc => {
+          rootValue[doc.doc._id] = doc.doc;
+          return doc.doc;
+        });
+        let fullFileTests = {
+          '@': [rootValue],
+          '@ $': allDocs,
+          '@ $ ↑': [rootValue],
+          '@ $ ↑↑': [],
+          '@ $.contents.hands ↑↑': allDocs
+            .filter(doc => !!doc.contents.hands)
+        };
+        selectors = Object.keys(fullFileTests);
+        for (let i = 0; i < selectors.length; i += 1) {
+          let selector = selectors[i];
+          let selection = mure.selectAll(selector);
+          let expectedObjs = fullFileTests[selector];
+          let selectedObjs = (await selection.items()).map(n => n.value);
+          tests.push({
+            name: `mure.selectAll('${selector}')`,
+            result: logging.testObjectEquality(expectedObjs, selectedObjs)
+          });
+        }
+
         resolve(tests);
       })();
-    });
-  },
-  async () => {
-    return new Promise((resolve, reject) => {
-      let selection = mure.selectAll();
-      resolve([{
-        name: 'headless selection test',
-        result: {
-          passed: selection.headless === true,
-          details: selection.headless ? undefined : 'Headless value: ' + selection.headless
-        }
-      }]);
     });
   }
 ];

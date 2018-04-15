@@ -52,11 +52,11 @@ let logging = {
       result.cause = result.details;
     }
     result.details = result.cause + '\n\n' +
-      chalk`{bold.hex('#e7298a') Full objects:\n}` +
+      chalk`{bold.hex('#e7298a') Full object previews:\n}` +
       chalk`{bold.hex('#e7298a') A:}` +
-      JSON.stringify(a, null, 2) + '\n' +
+      JSON.stringify(a, null, 2).split('\n').slice(0, 10).join('\n') + '\n' +
       chalk`{bold.hex('#e7298a') B:}` +
-      JSON.stringify(b, null, 2);
+      JSON.stringify(b, null, 2).split('\n').slice(0, 10).join('\n');
     return result;
   },
   testObjectEquality: (a, b) => {

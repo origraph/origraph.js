@@ -112,7 +112,7 @@ class Mure extends Model {
       })();
     });
   }
-  async query (queryObj) {
+  async queryDocs (queryObj) {
     let queryResult = await this.db.find(queryObj);
     if (queryResult.warning) { this.warn(queryResult.warning); }
     return queryResult.docs;
@@ -142,7 +142,7 @@ class Mure extends Model {
           docQuery = { '_id': docQuery };
         }
       }
-      let matchingDocs = await this.query({ selector: docQuery, limit: 1 });
+      let matchingDocs = await this.queryDocs({ selector: docQuery, limit: 1 });
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
@@ -233,12 +233,6 @@ class Mure extends Model {
       _deleted: true
     });
   }
-  mergeSelectors (selectorList) {
-    throw new Error('unimplemented');
-  }
-  pathsToSelector (paths = [[Selection.DEFAULT_DOC_QUERY]]) {
-    throw new Error('unimplemented');
-  }
   pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
     let docQuery = path[0];
     let objQuery = path.slice(1);
@@ -248,17 +242,11 @@ class Mure extends Model {
   selectDoc (docId) {
     return this.select('@{"_id":"' + docId + '"}');
   }
-  select (selector) {
-    if (selector instanceof Array) {
-      selector = selector[0];
-    }
-    return new Selection(this, selector, { selectSingle: true });
+  select (selectorList) {
+    return new Selection(this, selectorList, { selectSingle: true });
   }
-  selectAll (selector) {
-    if (selector instanceof Array) {
-      selector = this.mergeSelectors(selector);
-    }
-    return new Selection(this, selector);
+  selectAll (selectorList) {
+    return new Selection(this, selectorList);
   }
   async setLinkedViews ({ selection, settings } = {}) {
     const linkedViewSpec = await this.db.get('$linkedViewSpec');

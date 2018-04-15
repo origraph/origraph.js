@@ -86,47 +86,47 @@
     {
       "0": {
         "suit": "♦",
-        "value": "Q",
+        "value": 7,
         "_id": "$.contents.hands[\"Player 6\"][\"0\"]",
         "$tags": {
           "$.classes.none": true
         }
       },
       "1": {
-        "suit": "♠",
-        "value": 6,
+        "suit": "♥",
+        "value": "A",
         "_id": "$.contents.hands[\"Player 6\"][\"1\"]",
         "$tags": {
           "$.classes.none": true
         }
       },
       "2": {
-        "suit": "♥",
-        "value": "Q",
+        "suit": "♠",
+        "value": "J",
         "_id": "$.contents.hands[\"Player 6\"][\"2\"]",
         "$tags": {
           "$.classes.none": true
         }
       },
       "3": {
-        "suit": "♠",
-        "value": 4,
+        "suit": "♦",
+        "value": "J",
         "_id": "$.contents.hands[\"Player 6\"][\"3\"]",
         "$tags": {
           "$.classes.none": true
         }
       },
       "4": {
-        "suit": "♦",
-        "value": 3,
+        "suit": "♣",
+        "value": 2,
         "_id": "$.contents.hands[\"Player 6\"][\"4\"]",
         "$tags": {
           "$.classes.none": true
         }
       },
       "5": {
-        "suit": "♠",
-        "value": "Q",
+        "suit": "♥",
+        "value": 4,
         "_id": "$.contents.hands[\"Player 6\"][\"5\"]",
         "$tags": {
           "$.classes.none": true
@@ -138,12 +138,12 @@
         "$.classes.none": true
       }
     },
-    "@$.hands['Player 6'][4]",
-    "@$.hands['Player 6'][0]",
-    "@$.hands['Player 6'][3]",
-    "@$.hands['Player 6'][2]",
-    "@$.hands['Player 6'][1]",
-    "@$.hands['Player 6'][5]"
+    "@$.contents.hands['Player 6']['4']",
+    "@$.contents.hands['Player 6']['0']",
+    "@$.contents.hands['Player 6']['3']",
+    "@$.contents.hands['Player 6']['2']",
+    "@$.contents.hands['Player 6']['5']",
+    "@$.contents.hands['Player 6']['1']"
   ],
 
 
@@ -167,7 +167,7 @@
     {
       "suit": "♦",
       "value": "A",
-      "_id": "$.contents.hands[\"Player 4\"][\"10\"]",
+      "_id": "$.contents.hands[\"Player 4\"][\"4\"]",
       "$tags": {
         "$.classes.none": true
       }
@@ -175,7 +175,7 @@
     {
       "suit": "♦",
       "value": "A",
-      "_id": "$.contents.hands[\"Player 1\"][\"4\"]",
+      "_id": "$.contents.hands[\"Player 3\"][\"0\"]",
       "$tags": {
         "$.classes.none": true
       }
@@ -183,7 +183,15 @@
     {
       "suit": "♦",
       "value": 2,
-      "_id": "$.contents.hands[\"Player 2\"][\"5\"]",
+      "_id": "$.contents.hands[\"Player 4\"][\"4\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♦",
+      "value": 2,
+      "_id": "$.contents.hands[\"Player 1\"][\"0\"]",
       "$tags": {
         "$.classes.none": true
       }
@@ -191,27 +199,63 @@
     {
       "suit": "♦",
       "value": "A",
-      "_id": "$.contents.hands[\"Player 1\"][\"7\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
-    },
-    {
-      "suit": "♦",
-      "value": 2,
-      "_id": "$.contents.hands[\"Player 3\"][\"6\"]",
+      "_id": "$.contents.hands[\"Player 5\"][\"4\"]",
       "$tags": {
         "$.classes.none": true
       }
     }
   ],
 
+  "@ { \"filename\": \"hearts_round1.json\" } $.contents.tricks[*] →": [],
 
-  "@ $ ^": [],
-
-
-  "@ $.hands ^^": [],
-
-
-  "@ ^": []
+  "@ { \"filename\": \"hearts_round3.json\" } $.contents.tricks..['Player 1'] →": [
+    {
+      "suit": "♣",
+      "value": 6,
+      "_id": "$.contents.hands[\"Player 1\"][\"1\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♦",
+      "value": 2,
+      "_id": "$.contents.hands[\"Player 1\"][\"0\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♦",
+      "value": 5,
+      "_id": "$.contents.hands[\"Player 1\"][\"3\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♦",
+      "value": 8,
+      "_id": "$.contents.hands[\"Player 1\"][\"4\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♥",
+      "value": 8,
+      "_id": "$.contents.hands[\"Player 1\"][\"2\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    },
+    {
+      "suit": "♦",
+      "value": "K",
+      "_id": "$.contents.hands[\"Player 1\"][\"5\"]",
+      "$tags": {
+        "$.classes.none": true
+      }
+    }
+  ]
 }

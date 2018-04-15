@@ -29,37 +29,75 @@ var queueAsync = (func => {
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection extends uki.Model {
-  constructor(mure, selector = '@' + DEFAULT_DOC_QUERY, { selectSingle = false, parentSelection = null } = {}) {
+  constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null, chainedDocId = null } = {}) {
     super();
-    let chunks = /@\s*({.*})?\s*(\$[^^]*)?\s*(\^*)?/.exec(selector);
-    if (!chunks) {
-      let err = new Error('Invalid selector: ' + selector);
-      err.INVALID_SELECTOR = true;
-      throw err;
+    if (!(selectorList instanceof Array)) {
+      selectorList = [selectorList];
     }
-    this.docQuery = chunks[1] ? chunks[1].trim() : parentSelection ? parentSelection.docQuery : DEFAULT_DOC_QUERY;
-    this.parsedDocQuery = this.docQuery ? JSON.parse(this.docQuery) : {};
-    this.objQuery = parentSelection ? parentSelection.objQuery : '';
-    this.objQuery += !chunks[2] ? '' : this.objQuery ? chunks[2].trim().slice(1) : chunks[2].trim();
-    this.parentShift = chunks[3] ? chunks[3].length : 0;
-    this.followLinks = chunks[4] === '@';
+    this.selectors = selectorList.reduce((agg, selectorString) => {
+      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?/.exec(selectorString);
+      if (!chunks) {
+        let err = new Error('Invalid selector: ' + selectorString);
+        err.INVALID_SELECTOR = true;
+        throw err;
+      }
+      let parsedDocQuery = chunks[1] ? JSON.parse(chunks[1].trim()) : JSON.parse(DEFAULT_DOC_QUERY);
+      if (parentSelection) {
+        parentSelection.selectors.forEach(parentSelector => {
+          let mergedDocQuery = Object.assign({}, parsedDocQuery, parentSelector.parsedDocQuery);
+          let selector = {
+            docQuery: JSON.stringify(mergedDocQuery),
+            parsedDocQuery: mergedDocQuery,
+            parentShift: parentSelector.parentShift + (chunks[3] ? chunks[3].length : 0),
+            followLinks: !!chunks[4]
+          };
+          if (parentSelector.objQuery) {
+            selector.objQuery = parentSelector.objQuery + (chunks[2] ? chunks[2].trim().slice(1) : '');
+          } else {
+            selector.objQuery = chunks[2] ? chunks[2].trim() : '';
+          }
+          agg.push(selector);
+        });
+      } else if (chainedDocId) {
+        let selector = {
+          docQuery: chunks[1] ? chunks[1].trim() : `{"_id":"${chainedDocId}"}`,
+          parsedDocQuery: chunks[1] ? parsedDocQuery : { _id: chainedDocId },
+          objQuery: chunks[2] ? chunks[2].trim() : '',
+          parentShift: chunks[3] ? chunks[3].length : 0,
+          followLinks: !!chunks[4]
+        };
+        agg.push(selector);
+      } else {
+        let selector = {
+          docQuery: chunks[1] ? chunks[1].trim() : DEFAULT_DOC_QUERY,
+          parsedDocQuery,
+          objQuery: chunks[2] ? chunks[2].trim() : '',
+          parentShift: chunks[3] ? chunks[3].length : 0,
+          followLinks: !!chunks[4]
+        };
+        agg.push(selector);
+      }
+      return agg;
+    }, []);
 
     this.mure = mure;
     this.selectSingle = selectSingle;
 
     this.pendingOperations = [];
   }
-  get headless() {
-    return this.docQuery === DEFAULT_DOC_QUERY;
+  get selectorList() {
+    return this.selectors.map(selector => {
+      return '@' + selector.docQuery + selector.objQuery + Array.from(Array(selector.parentShift)).map(d => '↑').join('') + selector.followLinks ? '→' : '';
+    });
   }
-  get selector() {
-    return '@' + this.docQuery + this.objQuery + Array.from(Array(this.parentShift)).map(d => '^').join('');
+  select(selectorList) {
+    return new Selection(this.mure, selectorList, { selectSingle: true, parentSelection: this });
   }
-  select(selector) {
-    return new Selection(this.mure, selector, { selectSingle: true, parentSelection: this });
+  selectAll(selectorList) {
+    return new Selection(this.mure, selectorList, { parentSelection: this });
   }
-  selectAll(selector) {
-    return new Selection(this.mure, selector, { parentSelection: this });
+  async docLists() {
+    return Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
   inferType(value) {
     const jsType = typeof value;
@@ -88,112 +126,176 @@ class Selection extends uki.Model {
       return this.mure.TYPES.container;
     }
   }
-  async docs() {
-    let docs = {};
-    let result = await this.mure.query({
-      selector: this.parsedDocQuery
+  createRootItem(docList) {
+    const rootItem = {
+      path: [],
+      value: {},
+      parent: null,
+      doc: null,
+      label: null,
+      type: this.mure.TYPES.root,
+      uniqueSelector: '@',
+      isSet: false
+    };
+    docList.some(doc => {
+      rootItem.value[doc._id] = doc;
+      return this.selectSingle;
     });
-    result.forEach(doc => {
-      docs[doc._id] = doc;
-    });
-    return docs;
+    return rootItem;
   }
-  async items({ docs } = {}) {
-    docs = docs || (await this.docs());
-
-    // TODO: aside from maybe needing to wait for this.docs(), there's no need
-    // for async... however, items() is potentially expensive in its own right.
-    // For now, we just add it to the js event queue to be executed later (to
-    // avoid blocking), but it might be worth considering workers in the future?
-    return queueAsync(() => {
-      // Collect the results of objQuery
-      let items = [];
-      if (this.parentShift > 0 && (this.objQuery === '' || this.objQuery === '$')) {
-        // Do nothing; the query reaches beyond the document level
-      } else if (this.objQuery === '') {
-        // No objQuery means that we want a view of multiple documents
-        let rootItem = {
-          path: [],
-          value: {},
-          parent: null,
-          doc: null,
-          label: null,
-          type: this.mure.TYPES.root,
-          uniqueSelector: '@',
-          isSet: false
-        };
-        Object.keys(docs).some(docId => {
-          rootItem.value[docId] = docs[docId];
-          return this.selectSingle;
-        });
-        items.push(rootItem);
-      } else if (this.objQuery === '$') {
-        // Selecting the documents themselves
-        Object.keys(docs).some(docId => {
-          let item = {
-            path: ['{"_id":"' + docId + '"}'],
-            value: docs[docId],
-            parent: '@',
-            doc: docs[docId],
-            label: docs[docId]['filename'],
-            type: this.mure.TYPES.document,
-            isSet: false
-          };
-          item.uniqueSelector = item.path[0];
-          items.push(item);
-          return this.selectSingle;
-        });
+  createDocItem(doc, docPathQuery) {
+    let item = {
+      path: [docPathQuery],
+      value: doc,
+      parentId: '@',
+      doc: doc,
+      label: doc['filename'],
+      type: this.mure.TYPES.document,
+      uniqueSelector: docPathQuery,
+      isSet: false
+    };
+    return item;
+  }
+  applyParentShift(item, doc, parentShift) {
+    item.path.splice(item.path.length - parentShift);
+    let temp = jsonPath.stringify(item.path);
+    item.value = jsonPath.query(doc, temp)[0];
+    return item;
+  }
+  async followItemLink(item, doc) {
+    // This selector specifies to follow the link
+    let tempSelection;
+    try {
+      tempSelection = new Selection(this.mure, item.value, { selectSingle: this.selectSingle, chainedDocId: doc._id });
+    } catch (err) {
+      if (err.INVALID_SELECTOR) {
+        return [];
       } else {
-        // Selecting document contents
-        Object.keys(docs).some(docId => {
-          let doc = docs[docId];
-          let docPathQuery = '{"_id":"' + docId + '"}';
-          return jsonPath.nodes(doc, this.objQuery).some(item => {
-            if (this.parentShift) {
-              // Now that we have unique, normalized paths for each node, we can
-              // apply the parentShift option to select parents based on child
-              // attributes
-              if (this.parentShift >= item.path.length - 1) {
-                // We selected above the root of the document; as there's nothing
-                // to select, don't even append a result
-                return false;
-              } else {
-                item.path.splice(item.path.length - this.parentShift);
-                let temp = jsonPath.stringify(item.path);
-                item.value = jsonPath.query(doc, temp)[0];
+        throw err;
+      }
+    }
+    if (tempSelection.selectors.reduce((agg, selector) => agg && selector.parsedDocQuery._id !== doc._id, true)) {
+      console.warn('Auto-following cross-document references is not yet supported');
+      return [];
+    }
+    return tempSelection.items({ docLists: [[doc]] });
+  }
+  createRegularItem(item, doc, docPathQuery) {
+    if (item.path.length === 2) {
+      // this function shouldn't be called if less than 2
+      item.parent = doc;
+    } else {
+      let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
+      item.parent = jsonPath.value(doc, temp);
+    }
+    item.doc = doc;
+    item.label = item.path[item.path.length - 1];
+    item.type = this.inferType(item.value);
+    item.isSet = item.type === this.mure.TYPES.container && !!item.value.$members;
+    let uniqueJsonPath = jsonPath.stringify(item.path);
+    item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
+    item.path.unshift(docPathQuery);
+    return item;
+  }
+  async items({ docLists } = {}) {
+    docLists = docLists || (await this.docLists());
+
+    return queueAsync(async () => {
+      // Collect the results of objQuery
+      const items = [];
+      const itemLookup = {};
+
+      const addItem = item => {
+        if (!itemLookup[item.uniqueSelector]) {
+          itemLookup[item.uniqueSelector] = items.length;
+          items.push(item);
+        }
+      };
+
+      for (let index = 0; index < this.selectors.length; index++) {
+        const selector = this.selectors[index];
+        const docList = docLists[index];
+
+        if (selector.objQuery === '') {
+          // No objQuery means that we want a view of multiple documents (other
+          // shenanigans mean we shouldn't select anything)
+          if (selector.parentShift === 0 && !selector.followLinks) {
+            addItem(this.createRootItem(docList));
+          }
+        } else if (selector.objQuery === '$') {
+          // Selecting the documents themselves
+          if (selector.parentShift === 0 && !selector.followLinks) {
+            docList.some(doc => {
+              addItem(this.createDocItem(doc, `{"_id":"${doc._id}"}`));
+              return this.selectSingle;
+            });
+          } else if (selector.parentShift === 1) {
+            addItem(this.createRootItem(docList));
+          }
+        } else {
+          // Okay, we need to evaluate the jsonPath
+          for (let docIndex = 0; docIndex < docList.length; docIndex++) {
+            let doc = docList[docIndex];
+            let docPathQuery = `{"_id":"${doc._id}"}`;
+            let matchingItems = jsonPath.nodes(doc, selector.objQuery);
+            for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
+              let item = matchingItems[itemIndex];
+              if (selector.parentShift === item.path.length) {
+                // we parent shifted up to the root level
+                if (!selector.followLinks) {
+                  addItem(this.createRootItem(docList));
+                }
+              } else if (selector.parentShift === item.path.length - 1) {
+                // we parent shifted to the document level
+                if (!selector.followLinks) {
+                  addItem(this.createDocItem(doc, docPathQuery));
+                }
+              } else if (selector.parentShift < item.path.length - 1) {
+                item = this.applyParentShift(item, doc, selector.parentShift);
+                if (selector.followLinks) {
+                  // We (potentially) selected a link that we need to follow
+                  (await this.followItemLink(item, doc)).forEach(addItem);
+                } else {
+                  // We selected a normal item
+                  addItem(this.createRegularItem(item, doc, docPathQuery));
+                }
+              }
+              if (this.selectSingle && items.length > 0) {
+                break;
               }
             }
-            if (item.path.length === 1) {
-              item.parent = null;
-              item.label = doc.filename;
-            } else {
-              let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
-              item.parent = jsonPath.query(doc, temp)[0];
-              item.label = item.path[item.path.length - 1];
+            if (this.selectSingle && items.length > 0) {
+              break;
             }
-            item.doc = doc;
-            item.type = this.inferType(item.value);
-            item.isSet = item.type === this.mure.TYPES.container && item.value.$members;
-            let uniqueJsonPath = jsonPath.stringify(item.path);
-            item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
-            item.path.unshift(docPathQuery);
-            items.push(item);
-            return this.selectSingle; // when true, exits both loops after the first match is found
-          });
-        });
+          }
+        }
+
+        if (this.selectSingle && items.length > 0) {
+          break;
+        }
       }
       return items;
     });
   }
-  async save({ docs, items }) {
-    items = items || (await this.items({ docs }));
+  async save({ docLists, items }) {
+    docLists = docLists || (await this.docLists());
+    items = items || (await this.items({ docLists }));
     this.pendingOperations.forEach(func => {
       items.forEach(item => {
         func.apply(this, [item]);
       });
     });
     this.pendingOperations = [];
-    await this.mure.putDocs(docs);
+    let docIds = {};
+    await this.mure.putDocs(docLists.reduce((agg, docList) => {
+      docList.forEach(doc => {
+        if (!docIds[doc._id]) {
+          agg.push(doc);
+          docIds[doc._id] = true;
+        }
+      });
+      return agg;
+    }, []));
     return this;
   }
   each(func) {
@@ -201,17 +303,17 @@ class Selection extends uki.Model {
     return this;
   }
   attr(key, value) {
-    if (this.docQuery === '') {
-      throw new Error(`Can't set attributes at the root level; here you would need to call mure.putDoc()`);
-    }
     return this.each(item => {
+      if (item.parent === null) {
+        throw new Error(`Renaming files with .attr() is not yet supported`);
+      }
       item.value[key] = value;
     });
   }
   remove() {
     return this.each(item => {
-      if (!item.parent) {
-        throw new Error(`Can't remove without a parent object; to remove documents, call mure.removeDoc()`);
+      if (item.parent === null) {
+        throw new Error(`Deleting files with .remove() is not yet supported`);
       }
       delete item.parent[item.label];
     });
@@ -516,7 +618,7 @@ class Mure extends uki.Model {
       })();
     });
   }
-  async query(queryObj) {
+  async queryDocs(queryObj) {
     let queryResult = await this.db.find(queryObj);
     if (queryResult.warning) {
       this.warn(queryResult.warning);
@@ -548,7 +650,7 @@ class Mure extends uki.Model {
           docQuery = { '_id': docQuery };
         }
       }
-      let matchingDocs = await this.query({ selector: docQuery, limit: 1 });
+      let matchingDocs = await this.queryDocs({ selector: docQuery, limit: 1 });
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
@@ -638,12 +740,6 @@ class Mure extends uki.Model {
       _deleted: true
     });
   }
-  mergeSelectors(selectorList) {
-    throw new Error('unimplemented');
-  }
-  pathsToSelector(paths = [[Selection.DEFAULT_DOC_QUERY]]) {
-    throw new Error('unimplemented');
-  }
   pathToSelector(path = [Selection.DEFAULT_DOC_QUERY]) {
     let docQuery = path[0];
     let objQuery = path.slice(1);
@@ -653,17 +749,11 @@ class Mure extends uki.Model {
   selectDoc(docId) {
     return this.select('@{"_id":"' + docId + '"}');
   }
-  select(selector) {
-    if (selector instanceof Array) {
-      selector = selector[0];
-    }
-    return new Selection(this, selector, { selectSingle: true });
+  select(selectorList) {
+    return new Selection(this, selectorList, { selectSingle: true });
   }
-  selectAll(selector) {
-    if (selector instanceof Array) {
-      selector = this.mergeSelectors(selector);
-    }
-    return new Selection(this, selector);
+  selectAll(selectorList) {
+    return new Selection(this, selectorList);
   }
   async setLinkedViews({ selection, settings } = {}) {
     const linkedViewSpec = await this.db.get('$linkedViewSpec');
