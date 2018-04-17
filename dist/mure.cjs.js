@@ -98,6 +98,13 @@ class Selection {
   async docLists() {
     return Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
+  normalizeUniqueSelector(selector, contextDocQuery) {
+    if (/@\s*{.*}/.exec(selector)) {
+      return selector;
+    } else {
+      return contextDocQuery + selector;
+    }
+  }
   inferType(value) {
     const jsType = typeof value;
     if (this.mure.TYPES[jsType]) {
@@ -276,17 +283,68 @@ class Selection {
       return items;
     });
   }
-  async save({ docLists, items }) {
+  async useCacheOrAwait({ docLists, items }) {
     docLists = docLists || (await this.docLists());
     items = items || (await this.items({ docLists }));
+    return { docLists, items };
+  }
+  async getLinkedSelections(metaObj, cache) {
+    cache = await this.useCacheOrAwait(cache);
+    return cache.items.map(item => {
+      if (!item[metaObj]) {
+        return null;
+      } else {
+        return new Selection(this.mure, Object.keys(item[metaObj]), { chainedDocId: item.doc._id });
+      }
+    });
+  }
+  async selectLinked(metaObj, cache) {
+    cache = await this.useCacheOrAwait(cache);
+    let linkedIds = {};
+    cache.items.forEach(item => {
+      if (item.$members) {
+        let docQuery = `@{"_id":"${item.doc._id}"}`;
+        Object.keys(item.$members).forEach(memberId => {
+          linkedIds[this.normalizeUniqueSelector(memberId, docQuery)] = true;
+        });
+      }
+    });
+    return new Selection(this.mure, Object.keys(linkedIds));
+  }
+  async getSetContentSelections(cache) {
+    return this.getLinkedSelections('$members', cache);
+  }
+  async selectSetContents(cache) {
+    return this.selectLinked('$members', cache);
+  }
+  async getTaggedSetSelections(cache) {
+    return this.getLinkedSelections('$tags', cache);
+  }
+  async selectTaggedSets(cache) {
+    return this.selectLinked('$tags', cache);
+  }
+  async getEdgeSelections(cache) {
+    return this.getLinkedSelections('$edges', cache);
+  }
+  async selectEdges(cache) {
+    return this.selectLinked('$edges', cache);
+  }
+  async getNodeSelections(cache) {
+    return this.getLinkedSelections('$edges', cache);
+  }
+  async selectNodes(cache) {
+    return this.selectLinked('$nodes', cache);
+  }
+  async save(cache) {
+    cache = await this.useCacheOrAwait(cache);
     this.pendingOperations.forEach(func => {
-      items.forEach(item => {
+      cache.items.forEach(item => {
         func.apply(this, [item]);
       });
     });
     this.pendingOperations = [];
     let docIds = {};
-    await this.mure.putDocs(docLists.reduce((agg, docList) => {
+    await this.mure.putDocs(cache.docLists.reduce((agg, docList) => {
       docList.forEach(doc => {
         if (!docIds[doc._id]) {
           agg.push(doc);
