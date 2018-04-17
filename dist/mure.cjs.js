@@ -597,7 +597,8 @@ class Mure extends uki.Model {
         }).catch(() => false));
         status.linkedViewSpec = !!(await this.db.put({
           _id: '$linkedViewSpec',
-          selector: '@$.classes[*]',
+          viewSelectorList: ['@$.classes[*]'],
+          userSelectorList: [],
           settings: {}
         }).catch(() => false));
         this.db.changes({
@@ -755,15 +756,17 @@ class Mure extends uki.Model {
   selectAll(selectorList) {
     return new Selection(this, selectorList);
   }
-  async setLinkedViews({ selection, settings } = {}) {
+  async setLinkedViews({ viewSelection, userSelection, settings } = {}) {
     const linkedViewSpec = await this.db.get('$linkedViewSpec');
-    linkedViewSpec.selector = selection ? selection.selector : linkedViewSpec.selector;
+    linkedViewSpec.viewSelectorList = viewSelection ? viewSelection.selectorList : linkedViewSpec.viewSelectorList;
+    linkedViewSpec.userSelectorList = userSelection ? userSelection.selectorList : linkedViewSpec.userSelectorList;
     linkedViewSpec.settings = settings || linkedViewSpec.settings;
     return this.putDoc(linkedViewSpec);
   }
   formatLinkedViewSpec(spec) {
     return {
-      selection: this.selectAll(spec.selector),
+      viewSelection: this.selectAll(spec.viewSelectorList),
+      userSelection: this.selectAll(spec.userSelectionList),
       settings: spec.settings
     };
   }
