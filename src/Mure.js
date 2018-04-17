@@ -89,10 +89,16 @@ class Mure extends Model {
             fields: ['filename']
           }
         }).catch(() => false));
-        status.linkedViewSpec = !!(await this.db.put({
-          _id: '$linkedViewSpec',
-          viewSelectorList: ['@$.classes[*]'],
-          userSelectorList: [],
+        status.linkedView = !!(await this.db.put({
+          _id: '$linkedView',
+          selectorList: ['@$.classes[*]']
+        }).catch(() => false));
+        status.linkedUserSelection = !!(await this.db.put({
+          _id: '$linkedUserSelection',
+          selectorList: []
+        }).catch(() => false));
+        status.linkedViewSettings = !!(await this.db.put({
+          _id: '$linkedViewSettings',
           settings: {}
         }).catch(() => false));
         this.db.changes({
@@ -102,9 +108,21 @@ class Mure extends Model {
           if (change.id > '_\uffff') {
             // A regular document changed
             this.trigger('docChange', change);
-          } else if (change.id === '$linkedViewSpec') {
+          } else if (change.id === '$linkedView') {
             // The linked views changed
-            this.trigger('linkedViewChange', this.formatLinkedViewSpec(change));
+            this.stickyTrigger('linkedViewChange', {
+              view: this.selectAll(change.selectorList)
+            });
+          } else if (change.id === '$linkedUserSelection') {
+            // The linked user selection changed
+            this.stickyTrigger('linkedViewChange', {
+              userSelection: this.selectAll(change.selectorList)
+            });
+          } else if (change.id === '$linkedViewSettings') {
+            // The linked view settings changed
+            this.stickyTrigger('linkedViewChange', {
+              settings: change.settings
+            });
           }
         }).on('error', err => {
           this.warn(err);
@@ -250,23 +268,35 @@ class Mure extends Model {
     return new Selection(this, selectorList);
   }
   async setLinkedViews ({ viewSelection, userSelection, settings } = {}) {
-    const linkedViewSpec = await this.db.get('$linkedViewSpec');
-    linkedViewSpec.viewSelectorList = viewSelection
-      ? viewSelection.selectorList : linkedViewSpec.viewSelectorList;
-    linkedViewSpec.userSelectorList = userSelection
-      ? userSelection.selectorList : linkedViewSpec.userSelectorList;
-    linkedViewSpec.settings = settings || linkedViewSpec.settings;
-    return this.putDoc(linkedViewSpec);
-  }
-  formatLinkedViewSpec (spec) {
-    return {
-      viewSelection: this.selectAll(spec.viewSelectorList),
-      userSelection: this.selectAll(spec.userSelectionList),
-      settings: spec.settings
-    };
+    let docs = [];
+    if (viewSelection) {
+      const linkedView = await this.db.get('$linkedView');
+      linkedView.selectorList = viewSelection.selectorList;
+      docs.push(linkedView);
+    }
+    if (userSelection) {
+      const linkedUserSelection = await this.db.get('$linkedUserSelection');
+      linkedUserSelection.selectorList = userSelection.selectorList;
+      docs.push(linkedUserSelection);
+    }
+    if (settings) {
+      const linkedViewSettings = await this.db.get('$linkedViewSettings');
+      linkedViewSettings.settings = settings;
+      docs.push(linkedViewSettings);
+    }
+    return this.putDocs(docs);
   }
   async getLinkedViews () {
-    return this.formatLinkedViewSpec(await this.db.get('$linkedViewSpec'));
+    const temp = await Promise.all([
+      this.db.get('$linkedView'),
+      this.db.get('$linkedUserSelection'),
+      this.db.get('$linkedViewSettings')
+    ]);
+    return {
+      view: this.selectAll(temp[0].selectorList),
+      userSelection: this.selectAll(temp[1].selectorList),
+      settings: temp[2].settings
+    };
   }
 }
 

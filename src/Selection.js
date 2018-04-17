@@ -1,12 +1,10 @@
-import { Model } from 'uki';
 import jsonPath from 'jsonpath';
 import queueAsync from './queueAsync.js';
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
-class Selection extends Model {
+class Selection {
   constructor (mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null, chainedDocId = null } = {}) {
-    super();
     if (!(selectorList instanceof Array)) {
       selectorList = [ selectorList ];
     }

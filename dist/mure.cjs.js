@@ -2,10 +2,10 @@
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-var uki = require('uki');
 var jsonPath = _interopDefault(require('jsonpath'));
 var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
+var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
 
 var createEnum = (values => {
@@ -28,9 +28,8 @@ var queueAsync = (func => {
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
-class Selection extends uki.Model {
+class Selection {
   constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null, chainedDocId = null } = {}) {
-    super();
     if (!(selectorList instanceof Array)) {
       selectorList = [selectorList];
     }
@@ -595,10 +594,16 @@ class Mure extends uki.Model {
             fields: ['filename']
           }
         }).catch(() => false));
-        status.linkedViewSpec = !!(await this.db.put({
-          _id: '$linkedViewSpec',
-          viewSelectorList: ['@$.classes[*]'],
-          userSelectorList: [],
+        status.linkedView = !!(await this.db.put({
+          _id: '$linkedView',
+          selectorList: ['@$.classes[*]']
+        }).catch(() => false));
+        status.linkedUserSelection = !!(await this.db.put({
+          _id: '$linkedUserSelection',
+          selectorList: []
+        }).catch(() => false));
+        status.linkedViewSettings = !!(await this.db.put({
+          _id: '$linkedViewSettings',
           settings: {}
         }).catch(() => false));
         this.db.changes({
@@ -608,9 +613,21 @@ class Mure extends uki.Model {
           if (change.id > '_\uffff') {
             // A regular document changed
             this.trigger('docChange', change);
-          } else if (change.id === '$linkedViewSpec') {
+          } else if (change.id === '$linkedView') {
             // The linked views changed
-            this.trigger('linkedViewChange', this.formatLinkedViewSpec(change));
+            this.stickyTrigger('linkedViewChange', {
+              view: this.selectAll(change.selectorList)
+            });
+          } else if (change.id === '$linkedUserSelection') {
+            // The linked user selection changed
+            this.stickyTrigger('linkedViewChange', {
+              userSelection: this.selectAll(change.selectorList)
+            });
+          } else if (change.id === '$linkedViewSettings') {
+            // The linked view settings changed
+            this.stickyTrigger('linkedViewChange', {
+              settings: change.settings
+            });
           }
         }).on('error', err => {
           this.warn(err);
@@ -757,21 +774,31 @@ class Mure extends uki.Model {
     return new Selection(this, selectorList);
   }
   async setLinkedViews({ viewSelection, userSelection, settings } = {}) {
-    const linkedViewSpec = await this.db.get('$linkedViewSpec');
-    linkedViewSpec.viewSelectorList = viewSelection ? viewSelection.selectorList : linkedViewSpec.viewSelectorList;
-    linkedViewSpec.userSelectorList = userSelection ? userSelection.selectorList : linkedViewSpec.userSelectorList;
-    linkedViewSpec.settings = settings || linkedViewSpec.settings;
-    return this.putDoc(linkedViewSpec);
-  }
-  formatLinkedViewSpec(spec) {
-    return {
-      viewSelection: this.selectAll(spec.viewSelectorList),
-      userSelection: this.selectAll(spec.userSelectionList),
-      settings: spec.settings
-    };
+    let docs = [];
+    if (viewSelection) {
+      const linkedView = await this.db.get('$linkedView');
+      linkedView.selectorList = viewSelection.selectorList;
+      docs.push(linkedView);
+    }
+    if (userSelection) {
+      const linkedUserSelection = await this.db.get('$linkedUserSelection');
+      linkedUserSelection.selectorList = userSelection.selectorList;
+      docs.push(linkedUserSelection);
+    }
+    if (settings) {
+      const linkedViewSettings = await this.db.get('$linkedViewSettings');
+      linkedViewSettings.settings = settings;
+      docs.push(linkedViewSettings);
+    }
+    return this.putDocs(docs);
   }
   async getLinkedViews() {
-    return this.formatLinkedViewSpec((await this.db.get('$linkedViewSpec')));
+    const temp = await Promise.all([this.db.get('$linkedView'), this.db.get('$linkedUserSelection'), this.db.get('$linkedViewSettings')]);
+    return {
+      view: this.selectAll(temp[0].selectorList),
+      userSelection: this.selectAll(temp[1].selectorList),
+      settings: temp[2].settings
+    };
   }
 }
 
@@ -788,9 +815,9 @@ var author = "Alex Bigelow";
 var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
-var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.3.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.55.3", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^8.3.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.9" };
-var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.1.0" };
-var peerDependencies = { "d3": "^4.13.0" };
+var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.58.0", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^9.1.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
+var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.1" };
+var peerDependencies = { "d3": "^5.0.0" };
 var pkg = {
 	name: name,
 	version: version,
