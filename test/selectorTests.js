@@ -10,7 +10,8 @@ module.exports = [
         blackJack_round2: './data/blackJack_round2',
         hearts_round1: './data/hearts_round1',
         hearts_round2: './data/hearts_round2',
-        hearts_round3: './data/hearts_round3'
+        hearts_round3: './data/hearts_round3',
+        crossGameLinks: './data/crossGameLinks'
       };
       let uploadPromises = [];
       Object.keys(dataFiles).forEach(f => {

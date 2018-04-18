@@ -12,13 +12,11 @@ class DocHandler {
       format.type = mime.extension(mimeType);
     }
     let contents;
-    if (format.type) {
-      format.type = format.type.toLowerCase();
-      if (this.datalibFormats.indexOf(format.type) !== -1) {
-        contents = datalib.read(text, format);
-      } else if (format.type === 'xml') {
-        contents = this.parseXml(text, format);
-      }
+    format.type = format.type ? format.type.toLowerCase() : 'json';
+    if (this.datalibFormats.indexOf(format.type) !== -1) {
+      contents = datalib.read(text, format);
+    } else if (format.type === 'xml') {
+      contents = this.parseXml(text, format);
     }
     if (!contents.contents) {
       contents = { contents: contents };

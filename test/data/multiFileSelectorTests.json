@@ -158,7 +158,7 @@
     }
   ],
 
-  "@ { \"filename\": \"hearts_round1.json\" } $.contents.tricks[*] →": [],
+  "@ { \"_id\": \"application/json;crossGameLinks.json\" } $.contents.blackJackJacks →": [],
 
   "@ { \"filename\": \"hearts_round3.json\" } $.contents.tricks..['Player 1'] →": [
     {

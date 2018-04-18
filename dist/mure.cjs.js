@@ -34,8 +34,8 @@ class Selection {
       selectorList = [selectorList];
     }
     this.selectors = selectorList.reduce((agg, selectorString) => {
-      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?/.exec(selectorString);
-      if (!chunks) {
+      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
+      if (!chunks || chunks[5]) {
         let err = new Error('Invalid selector: ' + selectorString);
         err.INVALID_SELECTOR = true;
         throw err;
@@ -177,7 +177,7 @@ class Selection {
     let docQuery = this.extractDocQuery(selector);
     let crossDoc;
     if (!docQuery) {
-      selector = `@{"_id":"${doc._id}"}${selector}`;
+      selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
       crossDoc = false;
     } else {
       crossDoc = docQuery._id !== doc._id;
@@ -419,13 +419,11 @@ class DocHandler {
       format.type = mime.extension(mimeType);
     }
     let contents;
-    if (format.type) {
-      format.type = format.type.toLowerCase();
-      if (this.datalibFormats.indexOf(format.type) !== -1) {
-        contents = datalib.read(text, format);
-      } else if (format.type === 'xml') {
-        contents = this.parseXml(text, format);
-      }
+    format.type = format.type ? format.type.toLowerCase() : 'json';
+    if (this.datalibFormats.indexOf(format.type) !== -1) {
+      contents = datalib.read(text, format);
+    } else if (format.type === 'xml') {
+      contents = this.parseXml(text, format);
     }
     if (!contents.contents) {
       contents = { contents: contents };

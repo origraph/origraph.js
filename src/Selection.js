@@ -9,8 +9,8 @@ class Selection {
       selectorList = [ selectorList ];
     }
     this.selectors = selectorList.reduce((agg, selectorString) => {
-      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?/.exec(selectorString);
-      if (!chunks) {
+      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
+      if (!chunks || chunks[5]) {
         let err = new Error('Invalid selector: ' + selectorString);
         err.INVALID_SELECTOR = true;
         throw err;
@@ -155,7 +155,7 @@ class Selection {
     let docQuery = this.extractDocQuery(selector);
     let crossDoc;
     if (!docQuery) {
-      selector = `@{"_id":"${doc._id}"}${selector}`;
+      selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
       crossDoc = false;
     } else {
       crossDoc = docQuery._id !== doc._id;

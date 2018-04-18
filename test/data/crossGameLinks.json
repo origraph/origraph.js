@@ -1,0 +1,27 @@
+{
+  "mimeType": "application/json",
+  "filename": "Cross Game Links",
+  "_id": "application/json;Cross Game Links",
+  "charset": "UTF-8",
+  "orphanLinks": {
+    "_id": "@$.orphanLinks"
+  },
+  "orphanNodes": {
+    "_id": "@$.orphanNodes"
+  },
+  "classes": {
+    "_id": "@$.classes",
+    "none": {
+      "_id": "@$.classes.none",
+      "$members": {}
+    }
+  },
+  "groups": {
+    "_id": "@$.groups"
+  },
+  "contents": {
+    "_id": "@$.contents",
+    "$tags": {},
+    "blackJackJacks": "@ { \"filename\": {\"$regex\": \"blackJack_round\\\\d+.json\" } } $.contents..[@value==='J']"
+  }
+}

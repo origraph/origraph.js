@@ -147,5 +147,52 @@ module.exports = [
         resolve(tests);
       })();
     });
+  },
+  async () => {
+    return new Promise((resolve, reject) => {
+      const doc = require('./data/crossGameLinks');
+      const data = JSON.stringify(doc);
+      (async () => {
+        let tests = [];
+        let uploadMessage = await mure.uploadString(null, null, null, data);
+
+        // Make sure the document has been loaded and has a _rev property
+        let dbDoc = await mure.getDoc({ 'filename': 'Cross Game Links' });
+        let _revTestResult = {
+          passed: uploadMessage && dbDoc._rev
+        };
+        if (!_revTestResult.passed) {
+          _revTestResult.details = 'Upload message:\n' +
+            JSON.stringify(uploadMessage, null, 2) + '\n\n' +
+            'State after upload:' + '\n' +
+            JSON.stringify(dbDoc, null, 2);
+        }
+        tests.push({
+          name: 'crossGameLinks.json uploaded, has _rev property',
+          result: _revTestResult
+        });
+
+        // aside from _rev, it should match its original state exactly
+        let rev = dbDoc._rev;
+        delete dbDoc._rev;
+        tests.push({
+          name: 'standardize crossGameLinks.json without change',
+          result: logging.testObjectEquality(dbDoc, doc)
+        });
+        dbDoc._rev = rev;
+
+        // Delete the document, and validate that it was deleted
+        let deleteMessage = await mure.deleteDoc(dbDoc._id);
+        let deleteTestResult = { passed: deleteMessage.ok };
+        if (!deleteMessage.ok) {
+          deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
+        }
+        tests.push({
+          name: 'delete crossGameLinks.json',
+          result: deleteTestResult
+        });
+        resolve(tests);
+      })();
+    });
   }
 ];
