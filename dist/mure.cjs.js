@@ -29,7 +29,7 @@ var queueAsync = (func => {
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection {
-  constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null, chainedDocId = null } = {}) {
+  constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null } = {}) {
     if (!(selectorList instanceof Array)) {
       selectorList = [selectorList];
     }
@@ -57,15 +57,6 @@ class Selection {
           }
           agg.push(selector);
         });
-      } else if (chainedDocId) {
-        let selector = {
-          docQuery: chunks[1] ? chunks[1].trim() : `{"_id":"${chainedDocId}"}`,
-          parsedDocQuery: chunks[1] ? parsedDocQuery : { _id: chainedDocId },
-          objQuery: chunks[2] ? chunks[2].trim() : '',
-          parentShift: chunks[3] ? chunks[3].length : 0,
-          followLinks: !!chunks[4]
-        };
-        agg.push(selector);
       } else {
         let selector = {
           docQuery: chunks[1] ? chunks[1].trim() : DEFAULT_DOC_QUERY,
@@ -98,12 +89,21 @@ class Selection {
   async docLists() {
     return Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
-  normalizeUniqueSelector(selector, contextDocQuery) {
-    if (/@\s*{.*}/.exec(selector)) {
-      return selector;
+  extractDocQuery(selectorString) {
+    let result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
     } else {
-      return contextDocQuery + selector;
+      return null;
     }
+  }
+  objIdToSelectorString(selectorString, docId) {
+    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
+  selectorStringToObjId(selectorString) {
+    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return '@' + chunks[1];
   }
   inferType(value) {
     const jsType = typeof value;
@@ -170,9 +170,21 @@ class Selection {
   }
   async followItemLink(item, doc) {
     // This selector specifies to follow the link
+    let selector = item.value;
+    if (typeof selector !== 'string') {
+      return [];
+    }
+    let docQuery = this.extractDocQuery(selector);
+    let crossDoc;
+    if (!docQuery) {
+      selector = `@{"_id":"${doc._id}"}${selector}`;
+      crossDoc = false;
+    } else {
+      crossDoc = docQuery._id !== doc._id;
+    }
     let tempSelection;
     try {
-      tempSelection = new Selection(this.mure, item.value, { selectSingle: this.selectSingle, chainedDocId: doc._id });
+      tempSelection = new Selection(this.mure, selector, { selectSingle: this.selectSingle });
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];
@@ -180,11 +192,8 @@ class Selection {
         throw err;
       }
     }
-    if (tempSelection.selectors.reduce((agg, selector) => agg && selector.parsedDocQuery._id !== doc._id, true)) {
-      console.warn('Auto-following cross-document references is not yet supported');
-      return [];
-    }
-    return tempSelection.items({ docLists: [[doc]] });
+    let docLists = crossDoc ? await tempSelection.docLists() : [[doc]];
+    return tempSelection.items({ docLists });
   }
   createRegularItem(item, doc, docPathQuery) {
     if (item.path.length === 2) {
@@ -283,68 +292,64 @@ class Selection {
       return items;
     });
   }
-  async useCacheOrAwait({ docLists, items }) {
-    docLists = docLists || (await this.docLists());
-    items = items || (await this.items({ docLists }));
-    return { docLists, items };
-  }
-  async getLinkedSelections(metaObj, cache) {
-    cache = await this.useCacheOrAwait(cache);
-    return cache.items.map(item => {
-      if (!item[metaObj]) {
-        return null;
-      } else {
-        return new Selection(this.mure, Object.keys(item[metaObj]), { chainedDocId: item.doc._id });
-      }
-    });
-  }
-  async selectLinked(metaObj, cache) {
-    cache = await this.useCacheOrAwait(cache);
+  allMetaObjIntersections(metaObj, items) {
     let linkedIds = {};
-    cache.items.forEach(item => {
-      if (item.$members) {
-        let docQuery = `@{"_id":"${item.doc._id}"}`;
-        Object.keys(item.$members).forEach(memberId => {
-          linkedIds[this.normalizeUniqueSelector(memberId, docQuery)] = true;
+    items.forEach(item => {
+      if (item[metaObj]) {
+        Object.keys(item[metaObj]).forEach(linkedId => {
+          linkedId = this.objIdToSelectorString(linkedId, item.doc._id);
+          linkedIds[linkedId] = linkedIds[linkedId] || {};
+          linkedIds[linkedId][item._id] = true;
         });
       }
     });
-    return new Selection(this.mure, Object.keys(linkedIds));
+    let sets = [];
+    let setLookup = {};
+    Object.keys(linkedIds).forEach(linkedId => {
+      let itemIds = Object.keys(linkedIds[linkedId]).sort();
+      let setKey = itemIds.join(',');
+      if (setLookup[setKey] === undefined) {
+        setLookup[setKey] = sets.length;
+        sets.push({ itemIds, linkedIds: {} });
+      }
+      setLookup[setKey].linkedIds[linkedId] = true;
+    });
+    return sets;
   }
-  async getSetContentSelections(cache) {
-    return this.getLinkedSelections('$members', cache);
+  metaObjUnion(metaObj, items) {
+    let linkedIds = {};
+    items.forEach(item => {
+      if (item[metaObj]) {
+        Object.keys(item[metaObj]).forEach(linkedId => {
+          linkedIds[this.objIdToSelectorString(linkedId, item.doc._id)] = true;
+        });
+      }
+    });
+    return linkedIds;
   }
-  async selectSetContents(cache) {
-    return this.selectLinked('$members', cache);
+  selectAllSetMembers(items) {
+    return new Selection(this.mure, Object.keys(this.metaObjUnion('$members', items)));
   }
-  async getTaggedSetSelections(cache) {
-    return this.getLinkedSelections('$tags', cache);
+  selectAllContainingSets(items) {
+    return new Selection(this.mure, Object.keys(this.metaObjUnion('$tags', items)));
   }
-  async selectTaggedSets(cache) {
-    return this.selectLinked('$tags', cache);
+  selectAllEdges(items) {
+    return new Selection(this.mure, Object.keys(this.metaObjUnion('$edges', items)));
   }
-  async getEdgeSelections(cache) {
-    return this.getLinkedSelections('$edges', cache);
+  selectAllNodes(items) {
+    return new Selection(this.mure, Object.keys(this.metaObjUnion('$nodes', items)));
   }
-  async selectEdges(cache) {
-    return this.selectLinked('$edges', cache);
-  }
-  async getNodeSelections(cache) {
-    return this.getLinkedSelections('$edges', cache);
-  }
-  async selectNodes(cache) {
-    return this.selectLinked('$nodes', cache);
-  }
-  async save(cache) {
-    cache = await this.useCacheOrAwait(cache);
+  async save({ docLists, items }) {
+    docLists = docLists || (await this.docLists());
+    items = items || (await this.items({ docLists }));
     this.pendingOperations.forEach(func => {
-      cache.items.forEach(item => {
+      items.forEach(item => {
         func.apply(this, [item]);
       });
     });
     this.pendingOperations = [];
     let docIds = {};
-    await this.mure.putDocs(cache.docLists.reduce((agg, docList) => {
+    await this.mure.putDocs(docLists.reduce((agg, docList) => {
       docList.forEach(doc => {
         if (!docIds[doc._id]) {
           agg.push(doc);
@@ -355,6 +360,10 @@ class Selection {
     }, []));
     return this;
   }
+  /*
+   The following functions don't actually do anything immediately;
+   instead, they are only applied once save() is called:
+   */
   each(func) {
     this.pendingOperations.push(func);
     return this;
@@ -485,22 +494,22 @@ class DocHandler {
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
     doc.orphanLinks = doc.orphanLinks || {};
-    doc.orphanLinks._id = '$.orphanLinks';
+    doc.orphanLinks._id = '@$.orphanLinks';
 
     doc.orphanNodes = doc.orphanNodes || {};
-    doc.orphanNodes._id = '$.orphanNodes';
+    doc.orphanNodes._id = '@$.orphanNodes';
 
     doc.classes = doc.classes || {};
-    doc.classes._id = '$.classes';
+    doc.classes._id = '@$.classes';
 
-    let noneId = '$.classes.none';
-    doc.classes[noneId] = doc.classes[noneId] || { _id: noneId, $members: {} };
+    let noneId = '@$.classes.none';
+    doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.groups = doc.groups || {};
-    doc.groups._id = '$.groups';
+    doc.groups._id = '@$.groups';
 
     doc.contents = doc.contents || {};
-    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes, noneId);
+    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }
@@ -528,31 +537,25 @@ class ItemHandler {
     }
 
     // Assign the object's id
-    obj._id = jsonPath.stringify(path);
+    obj._id = '@' + jsonPath.stringify(path);
 
     // Make sure the object has at least one class (move any class definitions
     // to this document), or assign it the 'none' class
     obj.$tags = obj.$tags || {};
-    let hasClass = false;
     Object.keys(obj.$tags).forEach(setId => {
-      let temp = /@\s*{.*}?\s*\$\.classes(\.[^\s^.]+)?(\["[^"]+"])?/.exec(setId);
+      let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(setId);
       if (temp && (temp[1] || temp[2])) {
-        hasClass = true;
         delete obj.$tags[setId];
 
         let classPathChunk = temp[1] || temp[2];
         setId = classes._id + classPathChunk;
         obj.$tags[setId] = true;
 
-        let className = temp[1] ? temp[1].slice(1) : /\["(.*)"]/.exec(temp[2])[1];
+        let className = temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2);
         classes[className] = classes[className] || { _id: setId, $members: {} };
         classes[className].$members[obj._id] = true;
       }
     });
-    if (!hasClass) {
-      obj.$tags[noneId] = true;
-      classes[noneId].$members[obj._id] = true;
-    }
 
     // Recursively standardize the object's contents
     Object.keys(obj).forEach(key => {

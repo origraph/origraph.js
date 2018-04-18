@@ -4,111 +4,77 @@
       "0": {
         "suit": "♣",
         "value": "8",
-        "_id": "$.contents[\"Player 1\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♣",
         "value": "Q",
-        "_id": "$.contents[\"Player 1\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 1\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 1\"]",
+      "$tags": {}
     },
     "Player 2": {
       "0": {
         "suit": "♥",
         "value": "A",
-        "_id": "$.contents[\"Player 2\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 2\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♦",
         "value": "K",
-        "_id": "$.contents[\"Player 2\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 2\"][\"1\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 2\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 2\"]",
+      "$tags": {}
     },
     "Player 3": {
       "0": {
         "suit": "♦",
         "value": "2",
-        "_id": "$.contents[\"Player 3\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♥",
         "value": "J",
-        "_id": "$.contents[\"Player 3\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"1\"]",
+        "$tags": {}
       },
       "2": {
         "suit": "♠",
         "value": "K",
-        "_id": "$.contents[\"Player 3\"][\"2\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"2\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 3\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 3\"]",
+      "$tags": {}
     },
-    "_id": "$.contents",
-    "$tags": {
-      "$.classes.none": true
-    }
+    "_id": "@$.contents",
+    "$tags": {}
   },
   "filename": "blackJack_round1.json",
   "mimeType": "application/json",
   "charset": "UTF-8",
   "orphanLinks": {
-    "_id": "$.orphanLinks"
+    "_id": "@$.orphanLinks"
   },
   "orphanNodes": {
-    "_id": "$.orphanNodes"
+    "_id": "@$.orphanNodes"
   },
   "classes": {
-    "_id": "$.classes",
-    "$.classes.none": {
-      "_id": "$.classes.none",
-      "$members": {
-        "$.contents": true,
-        "$.contents[\"Player 1\"]": true,
-        "$.contents[\"Player 1\"][\"0\"]": true,
-        "$.contents[\"Player 1\"][\"1\"]": true,
-        "$.contents[\"Player 2\"]": true,
-        "$.contents[\"Player 2\"][\"0\"]": true,
-        "$.contents[\"Player 2\"][\"1\"]": true,
-        "$.contents[\"Player 3\"]": true,
-        "$.contents[\"Player 3\"][\"0\"]": true,
-        "$.contents[\"Player 3\"][\"1\"]": true,
-        "$.contents[\"Player 3\"][\"2\"]": true
-      }
+    "_id": "@$.classes",
+    "none": {
+      "_id": "@$.classes.none",
+      "$members": {}
     }
   },
   "groups": {
-    "_id": "$.groups"
+    "_id": "@$.groups"
   },
   "_id": "application/json;blackJack_round1.json"
 }

@@ -22,31 +22,25 @@ class ItemHandler {
     }
 
     // Assign the object's id
-    obj._id = jsonPath.stringify(path);
+    obj._id = '@' + jsonPath.stringify(path);
 
     // Make sure the object has at least one class (move any class definitions
     // to this document), or assign it the 'none' class
     obj.$tags = obj.$tags || {};
-    let hasClass = false;
     Object.keys(obj.$tags).forEach(setId => {
-      let temp = /@\s*{.*}?\s*\$\.classes(\.[^\s^.]+)?(\["[^"]+"])?/.exec(setId);
+      let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(setId);
       if (temp && (temp[1] || temp[2])) {
-        hasClass = true;
         delete obj.$tags[setId];
 
         let classPathChunk = temp[1] || temp[2];
         setId = classes._id + classPathChunk;
         obj.$tags[setId] = true;
 
-        let className = temp[1] ? temp[1].slice(1) : /\["(.*)"]/.exec(temp[2])[1];
+        let className = temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2);
         classes[className] = classes[className] || { _id: setId, $members: {} };
         classes[className].$members[obj._id] = true;
       }
     });
-    if (!hasClass) {
-      obj.$tags[noneId] = true;
-      classes[noneId].$members[obj._id] = true;
-    }
 
     // Recursively standardize the object's contents
     Object.keys(obj).forEach(key => {

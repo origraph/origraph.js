@@ -4,27 +4,23 @@
   "_id": "application/json;Untitled 1",
   "charset": "UTF-8",
   "orphanLinks": {
-    "_id": "$.orphanLinks"
+    "_id": "@$.orphanLinks"
   },
   "orphanNodes": {
-    "_id": "$.orphanNodes"
+    "_id": "@$.orphanNodes"
   },
   "classes": {
-    "_id": "$.classes",
-    "$.classes.none": {
-      "_id": "$.classes.none",
-      "$members": {
-        "$.contents": true
-      }
+    "_id": "@$.classes",
+    "none": {
+      "_id": "@$.classes.none",
+      "@$members": {}
     }
   },
   "groups": {
-    "_id": "$.groups"
+    "_id": "@$.groups"
   },
   "contents": {
-    "_id": "$.contents",
-    "$tags": {
-      "$.classes.none": true
-    }
+    "_id": "@$.contents",
+    "@$tags": {}
   }
 }

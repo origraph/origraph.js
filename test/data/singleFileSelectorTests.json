@@ -4,23 +4,17 @@
       "0": {
         "suit": "♣",
         "value": "8",
-        "_id": "$.contents[\"Player 1\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 1\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♣",
         "value": "Q",
-        "_id": "$.contents[\"Player 1\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 1\"][\"1\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 1\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 1\"]",
+      "$tags": {}
     }
   ],
 
@@ -29,18 +23,14 @@
     {
       "suit": "♣",
       "value": "8",
-      "_id": "$.contents[\"Player 1\"][\"0\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 1\"][\"0\"]",
+      "$tags": {}
     },
     {
       "suit": "♣",
       "value": "Q",
-      "_id": "$.contents[\"Player 1\"][\"1\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 1\"][\"1\"]",
+      "$tags": {}
     }
   ],
 
@@ -50,53 +40,39 @@
       "0": {
         "suit": "♥",
         "value": "A",
-        "_id": "$.contents[\"Player 2\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 2\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♦",
         "value": "K",
-        "_id": "$.contents[\"Player 2\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 2\"][\"1\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 2\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 2\"]",
+      "$tags": {}
     },
     {
       "0": {
         "suit": "♦",
         "value": "2",
-        "_id": "$.contents[\"Player 3\"][\"0\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"0\"]",
+        "$tags": {}
       },
       "1": {
         "suit": "♥",
         "value": "J",
-        "_id": "$.contents[\"Player 3\"][\"1\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"1\"]",
+        "$tags": {}
       },
       "2": {
         "suit": "♠",
         "value": "K",
-        "_id": "$.contents[\"Player 3\"][\"2\"]",
-        "$tags": {
-          "$.classes.none": true
-        }
+        "_id": "@$.contents[\"Player 3\"][\"2\"]",
+        "$tags": {}
       },
-      "_id": "$.contents[\"Player 3\"]",
-      "$tags": {
-        "$.classes.none": true
-      }
+      "_id": "@$.contents[\"Player 3\"]",
+      "$tags": {}
     }
   ]
 }
