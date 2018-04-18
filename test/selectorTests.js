@@ -51,7 +51,7 @@ module.exports = [
           let selector = selectors[i];
           let selection = docSelection.selectAll(selector);
           let expectedObjs = testResults.singleFile[selector];
-          let selectedObjs = (await selection.items()).map(n => n.value);
+          let selectedObjs = Object.values(await selection.items()).map(n => n.value);
           tests.push({
             name: 'mure.selectDoc().selectAll(\'' + selector + '\')',
             result: logging.testObjectEquality(expectedObjs, selectedObjs)
@@ -64,7 +64,7 @@ module.exports = [
           let selector = selectors[i];
           let selection = mure.selectAll(selector);
           let expectedObjs = testResults.multiFile[selector];
-          let selectedObjs = (await selection.items()).map(n => n.value);
+          let selectedObjs = Object.values(await selection.items()).map(n => n.value);
           tests.push({
             name: 'mure.selectAll(\'' + selector + '\')',
             result: logging.testObjectEquality(expectedObjs, selectedObjs)
@@ -94,7 +94,7 @@ module.exports = [
           let selector = selectors[i];
           let selection = mure.selectAll(selector);
           let expectedObjs = fullFileTests[selector];
-          let selectedObjs = (await selection.items()).map(n => n.value);
+          let selectedObjs = Object.values(await selection.items()).map(n => n.value);
           tests.push({
             name: `mure.selectAll('${selector}')`,
             result: logging.testObjectEquality(expectedObjs, selectedObjs)

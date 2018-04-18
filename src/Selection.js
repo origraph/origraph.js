@@ -75,13 +75,9 @@ class Selection {
       return null;
     }
   }
-  objIdToSelectorString (selectorString, docId) {
+  objIdToUniqueSelector (selectorString, docId) {
     let chunks = /@[^$]*(\$.*)/.exec(selectorString);
     return `@{"_id":"${docId}"}${chunks[1]}`;
-  }
-  selectorStringToObjId (selectorString) {
-    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return '@' + chunks[1];
   }
   inferType (value) {
     const jsType = typeof value;
@@ -195,13 +191,13 @@ class Selection {
 
     return queueAsync(async () => {
       // Collect the results of objQuery
-      const items = [];
-      const itemLookup = {};
+      const items = {};
+      let addedItem = false;
 
       const addItem = item => {
-        if (!itemLookup[item.uniqueSelector]) {
-          itemLookup[item.uniqueSelector] = items.length;
-          items.push(item);
+        addedItem = true;
+        if (!items[item.uniqueSelector]) {
+          items[item.uniqueSelector] = item;
         }
       };
 
@@ -247,30 +243,39 @@ class Selection {
                 item = this.applyParentShift(item, doc, selector.parentShift);
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  (await this.followItemLink(item, doc))
+                  Object.values(await this.followItemLink(item, doc))
                     .forEach(addItem);
                 } else {
                   // We selected a normal item
                   addItem(this.createRegularItem(item, doc, docPathQuery));
                 }
               }
-              if (this.selectSingle && items.length > 0) { break; }
+              if (this.selectSingle && addedItem) { break; }
             }
-            if (this.selectSingle && items.length > 0) { break; }
+            if (this.selectSingle && addedItem) { break; }
           }
         }
 
-        if (this.selectSingle && items.length > 0) { break; }
+        if (this.selectSingle && addedItem) { break; }
       }
       return items;
     });
+  }
+  getFlatGraphSchema (items) {
+    throw new Error('unimplemented');
+  }
+  getIntersectedGraphSchema (items) {
+    throw new Error('unimplemented');
+  }
+  getContainerSchema (items) {
+    throw new Error('unimplemented');
   }
   allMetaObjIntersections (metaObj, items) {
     let linkedIds = {};
     items.forEach(item => {
       if (item[metaObj]) {
         Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedId = this.objIdToSelectorString(linkedId, item.doc._id);
+          linkedId = this.objIdToUniqueSelector(linkedId, item.doc._id);
           linkedIds[linkedId] = linkedIds[linkedId] || {};
           linkedIds[linkedId][item._id] = true;
         });
@@ -291,10 +296,10 @@ class Selection {
   }
   metaObjUnion (metaObj, items) {
     let linkedIds = {};
-    items.forEach(item => {
+    Object.values(items).forEach(item => {
       if (item[metaObj]) {
         Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedIds[this.objIdToSelectorString(linkedId, item.doc._id)] = true;
+          linkedIds[this.objIdToUniqueSelector(linkedId, item.doc._id)] = true;
         });
       }
     });
@@ -316,7 +321,7 @@ class Selection {
     docLists = docLists || await this.docLists();
     items = items || await this.items({ docLists });
     this.pendingOperations.forEach(func => {
-      items.forEach(item => {
+      Object.values(items).forEach(item => {
         func.apply(this, [item]);
       });
     });
@@ -342,19 +347,33 @@ class Selection {
     return this;
   }
   attr (key, value) {
+    let isFunction = typeof value === 'function';
     return this.each(item => {
-      if (item.parent === null) {
+      if (item.type === this.mure.TYPES.root) {
         throw new Error(`Renaming files with .attr() is not yet supported`);
+      } else if (item.type === this.mure.TYPES.container ||
+          item.type === this.mure.TYPES.document) {
+        let temp = isFunction ? value.apply(this, item) : value;
+        // item.value is just a pointer to the object in the document, so
+        // we can just change it directly and it will still be saved
+        item.value[key] = this.mure.itemHandler
+          .standardize(temp, item.path.slice(1), item.doc.classes);
+      } else {
+        throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
       }
-      item.value[key] = value;
     });
   }
   remove () {
     return this.each(item => {
-      if (item.parent === null) {
+      if (item.type === this.mure.TYPES.root) {
+        throw new Error(`Can't remove() the root element`);
+      } else if (item.type === this.mure.TYPES.document) {
         throw new Error(`Deleting files with .remove() is not yet supported`);
+      } else {
+        // item.parent is just a pointer to the parent object, so we can just
+        // change it directly and it will still be saved
+        delete item.parent[item.label];
       }
-      delete item.parent[item.label];
     });
   }
   group () {
