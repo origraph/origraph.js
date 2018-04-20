@@ -73,8 +73,5 @@
       "$members": {}
     }
   },
-  "groups": {
-    "_id": "@$.groups"
-  },
   "_id": "application/json;blackJack_round1.json"
 }

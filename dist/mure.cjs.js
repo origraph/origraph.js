@@ -208,7 +208,7 @@ class Selection {
     item.doc = doc;
     item.label = item.path[item.path.length - 1];
     item.type = this.inferType(item.value);
-    item.classes = item.type === this.mure.TYPES.container ? this.getItemClasses(item) : [];
+    item.classes = item.path[1] === 'contents' && item.type === this.mure.TYPES.container ? this.getItemClasses(item) : [];
     let uniqueJsonPath = jsonPath.stringify(item.path);
     item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
     item.path.unshift(docPathQuery);
@@ -257,7 +257,9 @@ class Selection {
             let matchingItems = jsonPath.nodes(doc, selector.objQuery);
             for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
               let item = matchingItems[itemIndex];
-              if (selector.parentShift === item.path.length) {
+              if (this.mure.RESERVED_OBJ_KEYS[item.path.slice(-1)[0]]) {
+                continue;
+              } else if (selector.parentShift === item.path.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
                   addItem(this.createRootItem(docList));
@@ -416,7 +418,7 @@ class Selection {
   selectAllNodes(items) {
     return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
   }
-  async save({ docLists, items }) {
+  async save({ docLists, items } = {}) {
     docLists = docLists || (await this.docLists());
     items = items || (await this.items({ docLists }));
     this.pendingOperations.forEach(func => {
@@ -477,7 +479,19 @@ class Selection {
     throw new Error('unimplemented');
   }
   addClass(className) {
-    throw new Error('unimplemented');
+    let classId = jsonPath.stringify(['$', 'classes', className]);
+    return this.each(item => {
+      if (item.type !== this.mure.TYPES.container) {
+        throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
+      } else {
+        item.doc.classes[className] = item.doc.classes[className] || {
+          _id: `@{"_id":"${item.doc._id}"}${classId}`,
+          $members: {}
+        };
+        item.doc.classes[className].$members[item.value._id] = true;
+        item.value.$tags[classId] = true;
+      }
+    });
   }
   removeClass(className) {
     throw new Error('unimplemented');
@@ -598,17 +612,12 @@ class DocHandler {
     let noneId = '@$.classes.none';
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
-    doc.groups = doc.groups || {};
-    doc.groups._id = '@$.groups';
-
     doc.contents = doc.contents || {};
     this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }
 }
-
-let RESERVED_OBJ_KEYS = ['$tags', '$members', '$links', '$nodes'];
 
 class ItemHandler {
   constructor(mure) {
@@ -661,7 +670,7 @@ class ItemHandler {
 
     // Recursively standardize the object's contents
     Object.entries(obj).forEach(([key, value]) => {
-      if (typeof value === 'object' && RESERVED_OBJ_KEYS.indexOf(key) === -1) {
+      if (typeof value === 'object' && !this.mure.RESERVED_OBJ_KEYS[key]) {
         let temp = Array.from(path);
         temp.push(key);
         obj[key] = this.standardize(value, temp, classes);
@@ -698,6 +707,16 @@ class Mure extends uki.Model {
 
     // Our custom type definitions
     this.TYPES = TYPES;
+
+    // Special keys that should be skipped in various operations
+    this.RESERVED_OBJ_KEYS = {
+      '_id': true,
+      '$wasArray': true,
+      '$tags': true,
+      '$members': true,
+      '$links': true,
+      '$nodes': true
+    };
 
     this.docHandler = new DocHandler(this);
     this.itemHandler = new ItemHandler(this);

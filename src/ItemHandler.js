@@ -1,7 +1,5 @@
 import jsonPath from 'jsonpath';
 
-let RESERVED_OBJ_KEYS = ['$tags', '$members', '$links', '$nodes'];
-
 class ItemHandler {
   constructor (mure) {
     this.mure = mure;
@@ -54,7 +52,7 @@ class ItemHandler {
     // Recursively standardize the object's contents
     Object.entries(obj).forEach(([key, value]) => {
       if (typeof value === 'object' &&
-          RESERVED_OBJ_KEYS.indexOf(key) === -1) {
+          !this.mure.RESERVED_OBJ_KEYS[key]) {
         let temp = Array.from(path);
         temp.push(key);
         obj[key] = this.standardize(value, temp, classes);

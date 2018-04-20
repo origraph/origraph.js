@@ -26,17 +26,17 @@ module.exports = [
 
         // Add classes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
-        let hands = doc.selectAll('$.contents.hands[*]')
+        let hands = doc.selectAll('@$.contents.hands[*]')
           .addClass('player');
-        let tricks = doc.selectAll('$.contents.tricks[*]')
+        let tricks = doc.selectAll('@$.contents.tricks[*]')
           .addClass('trick');
-        let cards = doc.selectAll('$.contents.hands[*][*]')
+        let cards = doc.selectAll('@$.contents.hands[*][*]')
           .addClass('card');
         await hands.save();
         await tricks.save();
         await cards.save();
 
-        let allClasses = Object.values(await doc.select('$.classes').items())[0];
+        let allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 
         tests.push({
           name: 'Add player, trick, and card classes',
@@ -61,7 +61,7 @@ module.exports = [
         });
         await played.save();
 
-        allClasses = Object.values(await doc.select('$.classes').items())[0];
+        allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 
         tests.push({
           name: 'Add "Won By" and "Played" edges',

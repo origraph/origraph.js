@@ -96,9 +96,6 @@ class DocHandler {
     let noneId = '@$.classes.none';
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
-    doc.groups = doc.groups || {};
-    doc.groups._id = '@$.groups';
-
     doc.contents = doc.contents || {};
     this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 

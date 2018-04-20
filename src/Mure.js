@@ -29,6 +29,16 @@ class Mure extends Model {
     // Our custom type definitions
     this.TYPES = TYPES;
 
+    // Special keys that should be skipped in various operations
+    this.RESERVED_OBJ_KEYS = {
+      '_id': true,
+      '$wasArray': true,
+      '$tags': true,
+      '$members': true,
+      '$links': true,
+      '$nodes': true
+    };
+
     this.docHandler = new DocHandler(this);
     this.itemHandler = new ItemHandler(this);
 

@@ -1,4 +1,89 @@
 {
-  "allClasses1": {},
+  "allClasses1": {
+    "_id": "@$.classes",
+    "none": {
+      "_id": "@$.classes.none",
+      "$members": {}
+    },
+    "player": {
+      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.player",
+      "$members": {
+        "@$.contents.hands[\"Player 1\"]": true,
+        "@$.contents.hands[\"Player 2\"]": true,
+        "@$.contents.hands[\"Player 3\"]": true,
+        "@$.contents.hands[\"Player 4\"]": true
+      }
+    },
+    "trick": {
+      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.trick",
+      "$members": {
+        "@$.contents.tricks[\"0\"]": true,
+        "@$.contents.tricks[\"1\"]": true,
+        "@$.contents.tricks[\"2\"]": true,
+        "@$.contents.tricks[\"3\"]": true,
+        "@$.contents.tricks[\"4\"]": true,
+        "@$.contents.tricks[\"5\"]": true,
+        "@$.contents.tricks[\"6\"]": true,
+        "@$.contents.tricks[\"7\"]": true,
+        "@$.contents.tricks[\"8\"]": true,
+        "@$.contents.tricks[\"9\"]": true,
+        "@$.contents.tricks[\"10\"]": true,
+        "@$.contents.tricks[\"11\"]": true
+      }
+    },
+    "card": {
+      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.card",
+      "$members": {
+        "@$.contents.hands[\"Player 1\"][\"0\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"1\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"2\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"3\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"4\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"5\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"6\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"7\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"8\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"9\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"10\"]": true,
+        "@$.contents.hands[\"Player 1\"][\"11\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"0\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"1\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"2\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"3\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"4\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"5\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"6\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"7\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"8\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"9\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"10\"]": true,
+        "@$.contents.hands[\"Player 2\"][\"11\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"0\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"1\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"2\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"3\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"4\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"5\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"6\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"7\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"8\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"9\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"10\"]": true,
+        "@$.contents.hands[\"Player 3\"][\"11\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"0\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"1\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"2\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"3\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"4\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"5\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"6\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"7\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"8\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"9\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"10\"]": true,
+        "@$.contents.hands[\"Player 4\"][\"11\"]": true
+      }
+    }
+  },
   "allClasses2": {}
 }

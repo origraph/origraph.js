@@ -16,9 +16,6 @@
       "$members": {}
     }
   },
-  "groups": {
-    "_id": "@$.groups"
-  },
   "contents": {
     "_id": "@$.contents",
     "$tags": {}
