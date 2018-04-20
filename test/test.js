@@ -2,11 +2,13 @@ const chalk = require('chalk');
 const basicTests = require('./basicTests.js');
 const docTests = require('./docTests.js');
 const selectorTests = require('./selectorTests.js');
+const schemaTests = require('./schemaTests.js');
 
 const tests = [
   ...basicTests,
   ...docTests,
-  ...selectorTests
+  ...selectorTests,
+  ...schemaTests
 ];
 let totalTests = 0;
 let numPassed = 0;

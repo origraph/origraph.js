@@ -1,4 +1,5 @@
 import jsonPath from 'jsonpath';
+import hash from 'object-hash';
 import queueAsync from './queueAsync.js';
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
@@ -67,45 +68,6 @@ class Selection {
     return Promise.all(this.selectors
       .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
-  extractDocQuery (selectorString) {
-    let result = /@\s*({.*})/.exec(selectorString);
-    if (result && result[1]) {
-      return JSON.parse(result[1]);
-    } else {
-      return null;
-    }
-  }
-  objIdToUniqueSelector (selectorString, docId) {
-    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return `@{"_id":"${docId}"}${chunks[1]}`;
-  }
-  inferType (value) {
-    const jsType = typeof value;
-    if (this.mure.TYPES[jsType]) {
-      if (jsType === 'string' && value[0] === '@') {
-        try {
-          new Selection(this.mure, value); // eslint-disable-line no-new
-        } catch (err) {
-          if (err.INVALID_SELECTOR) {
-            return this.mure.TYPES.string;
-          } else {
-            throw err;
-          }
-        }
-        return this.mure.TYPES.reference;
-      } else {
-        return this.mure.TYPES[jsType];
-      }
-    } else if (value === null) {
-      return this.mure.TYPES.null;
-    } else if (value instanceof Date) {
-      return this.mure.TYPES.date;
-    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
-      throw new Error('invalid value: ' + value);
-    } else {
-      return this.mure.TYPES.container;
-    }
-  }
   createRootItem (docList) {
     const rootItem = {
       path: [],
@@ -115,7 +77,7 @@ class Selection {
       label: null,
       type: this.mure.TYPES.root,
       uniqueSelector: '@',
-      isSet: false
+      classes: []
     };
     docList.some(doc => {
       rootItem.value[doc._id] = doc;
@@ -132,7 +94,7 @@ class Selection {
       label: doc['filename'],
       type: this.mure.TYPES.document,
       uniqueSelector: docPathQuery,
-      isSet: false
+      classes: []
     };
     return item;
   }
@@ -141,6 +103,14 @@ class Selection {
     let temp = jsonPath.stringify(item.path);
     item.value = jsonPath.query(doc, temp)[0];
     return item;
+  }
+  extractDocQuery (selectorString) {
+    let result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
+    } else {
+      return null;
+    }
   }
   async followItemLink (item, doc) {
     // This selector specifies to follow the link
@@ -170,6 +140,42 @@ class Selection {
     let docLists = crossDoc ? await tempSelection.docLists() : [[ doc ]];
     return tempSelection.items({ docLists });
   }
+  inferType (value) {
+    const jsType = typeof value;
+    if (this.mure.TYPES[jsType]) {
+      if (jsType === 'string' && value[0] === '@') {
+        try {
+          new Selection(this.mure, value); // eslint-disable-line no-new
+        } catch (err) {
+          if (err.INVALID_SELECTOR) {
+            return this.mure.TYPES.string;
+          } else {
+            throw err;
+          }
+        }
+        return this.mure.TYPES.reference;
+      } else {
+        return this.mure.TYPES[jsType];
+      }
+    } else if (value === null) {
+      return this.mure.TYPES.null;
+    } else if (value instanceof Date) {
+      return this.mure.TYPES.date;
+    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else {
+      return this.mure.TYPES.container;
+    }
+  }
+  getItemClasses (item) {
+    return Object.keys(item.value.$tags).reduce((agg, setId) => {
+      let temp = this.mure.itemHandler.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
   createRegularItem (item, doc, docPathQuery) {
     if (item.path.length === 2) { // this function shouldn't be called if less than 2
       item.parent = doc;
@@ -180,7 +186,7 @@ class Selection {
     item.doc = doc;
     item.label = item.path[item.path.length - 1];
     item.type = this.inferType(item.value);
-    item.isSet = item.type === this.mure.TYPES.container && !!item.value.$members;
+    item.classes = item.type === this.mure.TYPES.container ? this.getItemClasses(item) : [];
     let uniqueJsonPath = jsonPath.stringify(item.path);
     item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
     item.path.unshift(docPathQuery);
@@ -261,8 +267,70 @@ class Selection {
       return items;
     });
   }
+  objIdToUniqueSelector (selectorString, docId) {
+    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
   getFlatGraphSchema (items) {
-    throw new Error('unimplemented');
+    let result = {
+      nodeClasses: [],
+      nodeClassLookup: {},
+      edgeClasses: [],
+      edgeClassLookup: {}
+    };
+
+    // First pass: collect and count which node classes exist, and create a
+    // temporary edge sublist for the second pass
+    let edges = {};
+    for (let [uniqueSelector, item] in Object.entries(items)) {
+      if (item.$edges) {
+        item.classes.forEach(className => {
+          if (!result.nodeClassLookup[className]) {
+            result.nodeClassLookup[className] = result.nodeClasses.length;
+            result.nodeClasses.push({
+              name: className,
+              count: 0
+            });
+          }
+          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+        });
+      } else if (item.$nodes) {
+        edges[uniqueSelector] = item;
+      }
+    }
+
+    // Second pass: find and count which distinct
+    // node class -> edge class -> node class
+    // sets exist
+    for (let edgeItem in Object.values(edges)) {
+      let temp = {
+        edgeClasses: edgeItem.classes,
+        sourceClasses: [],
+        targetClasses: [],
+        undirectedClasses: [],
+        count: 0
+      };
+      for (let [nodeId, relativeNodeDirection] in Object.entries(edgeItem.$nodes)) {
+        let uniqueNodeSelector = this.objIdToUniqueSelector(nodeId);
+        let nodeItem = items[uniqueNodeSelector];
+        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
+        if (relativeNodeDirection === 'source') {
+          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+        } else if (relativeNodeDirection === 'target') {
+          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+        } else {
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+        }
+      }
+      let edgeKey = hash(temp);
+      if (!result.edgeClassLookup[edgeKey]) {
+        result.edgeClassLookup[edgeKey] = result.edgeClasses.length;
+        result.edgeClasses.push(temp);
+      }
+      result.edgeClasses[result.edgeClassLookup[edgeKey]].count += 1;
+    }
+
+    return result;
   }
   getIntersectedGraphSchema (items) {
     throw new Error('unimplemented');
@@ -270,16 +338,18 @@ class Selection {
   getContainerSchema (items) {
     throw new Error('unimplemented');
   }
-  allMetaObjIntersections (metaObj, items) {
+  allMetaObjIntersections (metaObjs, items) {
     let linkedIds = {};
     items.forEach(item => {
-      if (item[metaObj]) {
-        Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedId = this.objIdToUniqueSelector(linkedId, item.doc._id);
-          linkedIds[linkedId] = linkedIds[linkedId] || {};
-          linkedIds[linkedId][item._id] = true;
-        });
-      }
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedId = this.objIdToUniqueSelector(linkedId, item.doc._id);
+            linkedIds[linkedId] = linkedIds[linkedId] || {};
+            linkedIds[linkedId][item.uniqueSelector] = true;
+          });
+        }
+      });
     });
     let sets = [];
     let setLookup = {};
@@ -294,28 +364,30 @@ class Selection {
     });
     return sets;
   }
-  metaObjUnion (metaObj, items) {
+  metaObjUnion (metaObjs, items) {
     let linkedIds = {};
     Object.values(items).forEach(item => {
-      if (item[metaObj]) {
-        Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedIds[this.objIdToUniqueSelector(linkedId, item.doc._id)] = true;
-        });
-      }
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedIds[this.objIdToUniqueSelector(linkedId, item.doc._id)] = true;
+          });
+        }
+      });
     });
-    return linkedIds;
+    return Object.keys(linkedIds);
   }
   selectAllSetMembers (items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$members', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$members'], items));
   }
   selectAllContainingSets (items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$tags', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$tags'], items));
   }
   selectAllEdges (items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$edges', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$edges'], items));
   }
   selectAllNodes (items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$nodes', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
   }
   async save ({ docLists, items }) {
     docLists = docLists || await this.docLists();
@@ -377,6 +449,12 @@ class Selection {
     });
   }
   group () {
+    throw new Error('unimplemented');
+  }
+  addClass (className) {
+    throw new Error('unimplemented');
+  }
+  removeClass (className) {
     throw new Error('unimplemented');
   }
   connect () {

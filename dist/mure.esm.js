@@ -1,4 +1,5 @@
 import jsonPath from 'jsonpath';
+import hash from 'object-hash';
 import mime from 'mime-types';
 import datalib from 'datalib';
 import { Model } from 'uki';
@@ -88,49 +89,6 @@ class Selection {
   async docLists() {
     return Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
-  extractDocQuery(selectorString) {
-    let result = /@\s*({.*})/.exec(selectorString);
-    if (result && result[1]) {
-      return JSON.parse(result[1]);
-    } else {
-      return null;
-    }
-  }
-  objIdToSelectorString(selectorString, docId) {
-    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return `@{"_id":"${docId}"}${chunks[1]}`;
-  }
-  selectorStringToObjId(selectorString) {
-    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return '@' + chunks[1];
-  }
-  inferType(value) {
-    const jsType = typeof value;
-    if (this.mure.TYPES[jsType]) {
-      if (jsType === 'string' && value[0] === '@') {
-        try {
-          new Selection(this.mure, value); // eslint-disable-line no-new
-        } catch (err) {
-          if (err.INVALID_SELECTOR) {
-            return this.mure.TYPES.string;
-          } else {
-            throw err;
-          }
-        }
-        return this.mure.TYPES.reference;
-      } else {
-        return this.mure.TYPES[jsType];
-      }
-    } else if (value === null) {
-      return this.mure.TYPES.null;
-    } else if (value instanceof Date) {
-      return this.mure.TYPES.date;
-    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
-      throw new Error('invalid value: ' + value);
-    } else {
-      return this.mure.TYPES.container;
-    }
-  }
   createRootItem(docList) {
     const rootItem = {
       path: [],
@@ -140,7 +98,7 @@ class Selection {
       label: null,
       type: this.mure.TYPES.root,
       uniqueSelector: '@',
-      isSet: false
+      classes: []
     };
     docList.some(doc => {
       rootItem.value[doc._id] = doc;
@@ -157,7 +115,7 @@ class Selection {
       label: doc['filename'],
       type: this.mure.TYPES.document,
       uniqueSelector: docPathQuery,
-      isSet: false
+      classes: []
     };
     return item;
   }
@@ -166,6 +124,14 @@ class Selection {
     let temp = jsonPath.stringify(item.path);
     item.value = jsonPath.query(doc, temp)[0];
     return item;
+  }
+  extractDocQuery(selectorString) {
+    let result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
+    } else {
+      return null;
+    }
   }
   async followItemLink(item, doc) {
     // This selector specifies to follow the link
@@ -194,6 +160,42 @@ class Selection {
     let docLists = crossDoc ? await tempSelection.docLists() : [[doc]];
     return tempSelection.items({ docLists });
   }
+  inferType(value) {
+    const jsType = typeof value;
+    if (this.mure.TYPES[jsType]) {
+      if (jsType === 'string' && value[0] === '@') {
+        try {
+          new Selection(this.mure, value); // eslint-disable-line no-new
+        } catch (err) {
+          if (err.INVALID_SELECTOR) {
+            return this.mure.TYPES.string;
+          } else {
+            throw err;
+          }
+        }
+        return this.mure.TYPES.reference;
+      } else {
+        return this.mure.TYPES[jsType];
+      }
+    } else if (value === null) {
+      return this.mure.TYPES.null;
+    } else if (value instanceof Date) {
+      return this.mure.TYPES.date;
+    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else {
+      return this.mure.TYPES.container;
+    }
+  }
+  getItemClasses(item) {
+    return item.value.$tags.reduce((agg, setId) => {
+      let temp = this.mure.itemHandler.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
   createRegularItem(item, doc, docPathQuery) {
     if (item.path.length === 2) {
       // this function shouldn't be called if less than 2
@@ -205,7 +207,7 @@ class Selection {
     item.doc = doc;
     item.label = item.path[item.path.length - 1];
     item.type = this.inferType(item.value);
-    item.isSet = item.type === this.mure.TYPES.container && !!item.value.$members;
+    item.classes = item.type === this.mure.TYPES.container ? this.getItemClasses(item) : [];
     let uniqueJsonPath = jsonPath.stringify(item.path);
     item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
     item.path.unshift(docPathQuery);
@@ -216,13 +218,13 @@ class Selection {
 
     return queueAsync(async () => {
       // Collect the results of objQuery
-      const items = [];
-      const itemLookup = {};
+      const items = {};
+      let addedItem = false;
 
       const addItem = item => {
-        if (!itemLookup[item.uniqueSelector]) {
-          itemLookup[item.uniqueSelector] = items.length;
-          items.push(item);
+        addedItem = true;
+        if (!items[item.uniqueSelector]) {
+          items[item.uniqueSelector] = item;
         }
       };
 
@@ -268,39 +270,112 @@ class Selection {
                 item = this.applyParentShift(item, doc, selector.parentShift);
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  (await this.followItemLink(item, doc)).forEach(addItem);
+                  Object.values((await this.followItemLink(item, doc))).forEach(addItem);
                 } else {
                   // We selected a normal item
                   addItem(this.createRegularItem(item, doc, docPathQuery));
                 }
               }
-              if (this.selectSingle && items.length > 0) {
+              if (this.selectSingle && addedItem) {
                 break;
               }
             }
-            if (this.selectSingle && items.length > 0) {
+            if (this.selectSingle && addedItem) {
               break;
             }
           }
         }
 
-        if (this.selectSingle && items.length > 0) {
+        if (this.selectSingle && addedItem) {
           break;
         }
       }
       return items;
     });
   }
-  allMetaObjIntersections(metaObj, items) {
+  objIdToUniqueSelector(selectorString, docId) {
+    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
+  getFlatGraphSchema(items) {
+    let result = {
+      nodeClasses: [],
+      nodeClassLookup: {},
+      edgeClasses: [],
+      edgeClassLookup: {}
+    };
+
+    // First pass: collect and count which node classes exist, and create a
+    // temporary edge sublist for the second pass
+    let edges = {};
+    for (let [uniqueSelector, item] in Object.entries(items)) {
+      if (item.$edges) {
+        item.classes.forEach(className => {
+          if (!result.nodeClassLookup[className]) {
+            result.nodeClassLookup[className] = result.nodeClasses.length;
+            result.nodeClasses.push({
+              name: className,
+              count: 0
+            });
+          }
+          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+        });
+      } else if (item.$nodes) {
+        edges[uniqueSelector] = item;
+      }
+    }
+
+    // Second pass: find and count which distinct
+    // node class -> edge class -> node class
+    // sets exist
+    for (let edgeItem in Object.values(edges)) {
+      let temp = {
+        edgeClasses: edgeItem.classes,
+        sourceClasses: [],
+        targetClasses: [],
+        undirectedClasses: [],
+        count: 0
+      };
+      for (let [nodeId, relativeNodeDirection] in Object.entries(edgeItem.$nodes)) {
+        let uniqueNodeSelector = this.objIdToUniqueSelector(nodeId);
+        let nodeItem = items[uniqueNodeSelector];
+        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
+        if (relativeNodeDirection === 'source') {
+          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+        } else if (relativeNodeDirection === 'target') {
+          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+        } else {
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+        }
+      }
+      let edgeKey = hash(temp);
+      if (!result.edgeClassLookup[edgeKey]) {
+        result.edgeClassLookup[edgeKey] = result.edgeClasses.length;
+        result.edgeClasses.push(temp);
+      }
+      result.edgeClasses[result.edgeClassLookup[edgeKey]].count += 1;
+    }
+
+    return result;
+  }
+  getIntersectedGraphSchema(items) {
+    throw new Error('unimplemented');
+  }
+  getContainerSchema(items) {
+    throw new Error('unimplemented');
+  }
+  allMetaObjIntersections(metaObjs, items) {
     let linkedIds = {};
     items.forEach(item => {
-      if (item[metaObj]) {
-        Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedId = this.objIdToSelectorString(linkedId, item.doc._id);
-          linkedIds[linkedId] = linkedIds[linkedId] || {};
-          linkedIds[linkedId][item._id] = true;
-        });
-      }
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedId = this.objIdToUniqueSelector(linkedId, item.doc._id);
+            linkedIds[linkedId] = linkedIds[linkedId] || {};
+            linkedIds[linkedId][item.uniqueSelector] = true;
+          });
+        }
+      });
     });
     let sets = [];
     let setLookup = {};
@@ -315,34 +390,36 @@ class Selection {
     });
     return sets;
   }
-  metaObjUnion(metaObj, items) {
+  metaObjUnion(metaObjs, items) {
     let linkedIds = {};
-    items.forEach(item => {
-      if (item[metaObj]) {
-        Object.keys(item[metaObj]).forEach(linkedId => {
-          linkedIds[this.objIdToSelectorString(linkedId, item.doc._id)] = true;
-        });
-      }
+    Object.values(items).forEach(item => {
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedIds[this.objIdToUniqueSelector(linkedId, item.doc._id)] = true;
+          });
+        }
+      });
     });
-    return linkedIds;
+    return Object.keys(linkedIds);
   }
   selectAllSetMembers(items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$members', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$members'], items));
   }
   selectAllContainingSets(items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$tags', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$tags'], items));
   }
   selectAllEdges(items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$edges', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$edges'], items));
   }
   selectAllNodes(items) {
-    return new Selection(this.mure, Object.keys(this.metaObjUnion('$nodes', items)));
+    return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
   }
   async save({ docLists, items }) {
     docLists = docLists || (await this.docLists());
     items = items || (await this.items({ docLists }));
     this.pendingOperations.forEach(func => {
-      items.forEach(item => {
+      Object.values(items).forEach(item => {
         func.apply(this, [item]);
       });
     });
@@ -368,19 +445,31 @@ class Selection {
     return this;
   }
   attr(key, value) {
+    let isFunction = typeof value === 'function';
     return this.each(item => {
-      if (item.parent === null) {
+      if (item.type === this.mure.TYPES.root) {
         throw new Error(`Renaming files with .attr() is not yet supported`);
+      } else if (item.type === this.mure.TYPES.container || item.type === this.mure.TYPES.document) {
+        let temp = isFunction ? value.apply(this, item) : value;
+        // item.value is just a pointer to the object in the document, so
+        // we can just change it directly and it will still be saved
+        item.value[key] = this.mure.itemHandler.standardize(temp, item.path.slice(1), item.doc.classes);
+      } else {
+        throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
       }
-      item.value[key] = value;
     });
   }
   remove() {
     return this.each(item => {
-      if (item.parent === null) {
+      if (item.type === this.mure.TYPES.root) {
+        throw new Error(`Can't remove() the root element`);
+      } else if (item.type === this.mure.TYPES.document) {
         throw new Error(`Deleting files with .remove() is not yet supported`);
+      } else {
+        // item.parent is just a pointer to the parent object, so we can just
+        // change it directly and it will still be saved
+        delete item.parent[item.label];
       }
-      delete item.parent[item.label];
     });
   }
   group() {
@@ -518,7 +607,18 @@ class ItemHandler {
   constructor(mure) {
     this.mure = mure;
   }
-  standardize(obj, path, classes, noneId) {
+  extractClassInfoFromId(id) {
+    let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
+    if (temp && (temp[1] || temp[2])) {
+      return {
+        classPathChunk: temp[1] || temp[2],
+        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
+      };
+    } else {
+      return null;
+    }
+  }
+  standardize(obj, path, classes) {
     if (typeof obj !== 'object') {
       return obj;
     }
@@ -540,26 +640,24 @@ class ItemHandler {
     // to this document), or assign it the 'none' class
     obj.$tags = obj.$tags || {};
     Object.keys(obj.$tags).forEach(setId => {
-      let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(setId);
-      if (temp && (temp[1] || temp[2])) {
+      let temp = this.extractClassInfoFromId(setId);
+      if (temp) {
         delete obj.$tags[setId];
 
-        let classPathChunk = temp[1] || temp[2];
-        setId = classes._id + classPathChunk;
+        setId = classes._id + temp.classPathChunk;
         obj.$tags[setId] = true;
 
-        let className = temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2);
-        classes[className] = classes[className] || { _id: setId, $members: {} };
-        classes[className].$members[obj._id] = true;
+        classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
+        classes[temp.className].$members[obj._id] = true;
       }
     });
 
     // Recursively standardize the object's contents
-    Object.keys(obj).forEach(key => {
-      if (typeof obj[key] === 'object' && RESERVED_OBJ_KEYS.indexOf(key) === -1) {
+    Object.entries(obj).forEach(([key, value]) => {
+      if (typeof value === 'object' && RESERVED_OBJ_KEYS.indexOf(key) === -1) {
         let temp = Array.from(path);
         temp.push(key);
-        obj[key] = this.standardize(obj[key], temp, classes, noneId);
+        obj[key] = this.standardize(value, temp, classes);
       }
     });
     return obj;
@@ -874,7 +972,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.58.0", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^9.1.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
-var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.1" };
+var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "object-hash": "^1.3.0", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.1" };
 var peerDependencies = { "d3": "^5.0.0" };
 var pkg = {
 	name: name,

@@ -6,6 +6,17 @@ class ItemHandler {
   constructor (mure) {
     this.mure = mure;
   }
+  extractClassInfoFromId (id) {
+    let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
+    if (temp && (temp[1] || temp[2])) {
+      return {
+        classPathChunk: temp[1] || temp[2],
+        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
+      };
+    } else {
+      return null;
+    }
+  }
   standardize (obj, path, classes) {
     if (typeof obj !== 'object') {
       return obj;
@@ -28,27 +39,25 @@ class ItemHandler {
     // to this document), or assign it the 'none' class
     obj.$tags = obj.$tags || {};
     Object.keys(obj.$tags).forEach(setId => {
-      let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(setId);
-      if (temp && (temp[1] || temp[2])) {
+      let temp = this.extractClassInfoFromId(setId);
+      if (temp) {
         delete obj.$tags[setId];
 
-        let classPathChunk = temp[1] || temp[2];
-        setId = classes._id + classPathChunk;
+        setId = classes._id + temp.classPathChunk;
         obj.$tags[setId] = true;
 
-        let className = temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2);
-        classes[className] = classes[className] || { _id: setId, $members: {} };
-        classes[className].$members[obj._id] = true;
+        classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
+        classes[temp.className].$members[obj._id] = true;
       }
     });
 
     // Recursively standardize the object's contents
-    Object.keys(obj).forEach(key => {
-      if (typeof obj[key] === 'object' &&
+    Object.entries(obj).forEach(([key, value]) => {
+      if (typeof value === 'object' &&
           RESERVED_OBJ_KEYS.indexOf(key) === -1) {
         let temp = Array.from(path);
         temp.push(key);
-        obj[key] = this.standardize(obj[key], temp, classes);
+        obj[key] = this.standardize(value, temp, classes);
       }
     });
     return obj;

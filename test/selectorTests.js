@@ -59,6 +59,7 @@ module.exports = [
         }
 
         // Multi-document selection tests
+        // TODO: check why indirect test is passing when it shouldn't (shouldn't be empty)
         selectors = Object.keys(testResults.multiFile);
         for (let i = 0; i < selectors.length; i += 1) {
           let selector = selectors[i];

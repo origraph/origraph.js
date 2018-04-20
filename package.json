@@ -55,10 +55,11 @@
     "datalib": "^1.8.0",
     "jsonpath": "^1.0.0",
     "mime-types": "^2.1.18",
+    "object-hash": "^1.3.0",
     "pouchdb-authentication": "^1.1.1",
     "pouchdb-browser": "^6.4.3",
     "pouchdb-find": "^6.4.3",
-    "uki": "^0.2.1"
+    "uki": "^0.2.2"
   },
   "peerDependencies": {
     "d3": "^5.0.0"
