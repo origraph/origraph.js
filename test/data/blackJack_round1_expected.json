@@ -60,11 +60,13 @@
   "filename": "blackJack_round1.json",
   "mimeType": "application/json",
   "charset": "UTF-8",
-  "orphanLinks": {
-    "_id": "@$.orphanLinks"
+  "orphanEdges": {
+    "_id": "@$.orphanEdges",
+    "$nextLabel": 0
   },
   "orphanNodes": {
-    "_id": "@$.orphanNodes"
+    "_id": "@$.orphanNodes",
+    "$nextLabel": 0
   },
   "classes": {
     "_id": "@$.classes",

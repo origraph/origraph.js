@@ -84,11 +84,13 @@ class DocHandler {
     doc.filename = doc.filename || doc._id.split(';')[1];
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
-    doc.orphanLinks = doc.orphanLinks || {};
-    doc.orphanLinks._id = '@$.orphanLinks';
+    doc.orphanEdges = doc.orphanEdges || {};
+    doc.orphanEdges._id = '@$.orphanEdges';
+    doc.orphanEdges.$nextLabel = 0;
 
     doc.orphanNodes = doc.orphanNodes || {};
     doc.orphanNodes._id = '@$.orphanNodes';
+    doc.orphanNodes.$nextLabel = 0;
 
     doc.classes = doc.classes || {};
     doc.classes._id = '@$.classes';

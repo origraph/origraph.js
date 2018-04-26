@@ -24,14 +24,17 @@ module.exports = [
           }
         });
 
-        // Add classes
+        // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
         let hands = doc.selectAll('@$.contents.hands[*]')
-          .addClass('player');
+          .addClass('player')
+          .setInterpretation(mure.INTERPRETATIONS.node);
         let tricks = doc.selectAll('@$.contents.tricks[*]')
-          .addClass('trick');
+          .addClass('trick')
+          .setInterpretation(mure.INTERPRETATIONS.node);
         let cards = doc.selectAll('@$.contents.hands[*][*]')
-          .addClass('card');
+          .addClass('card')
+          .setInterpretation(mure.INTERPRETATIONS.node);
         await hands.save();
         await tricks.save();
         await cards.save();
@@ -43,23 +46,51 @@ module.exports = [
           result: logging.testObjectEquality(schemaResults.allClasses1, allClasses)
         });
 
+        let handItems = await hands.items();
+        let trickItems = await tricks.items();
+        let cardItems = await cards.items();
+
+        const handsAreNodes = Object.values(handItems)
+          .reduce((agg, item) => agg && !!item.value.$edges, true);
+        const tricksAreNodes = Object.values(trickItems)
+          .reduce((agg, item) => agg && !!item.value.$edges, true);
+        const cardsAreNodes = Object.values(cardItems)
+          .reduce((agg, item) => agg && !!item.value.$edges, true);
+        const allNodes = handsAreNodes && tricksAreNodes && cardsAreNodes;
+
+        tests.push({
+          name: 'Interpret players, tricks, and cards as nodes',
+          result: {
+            passed: allNodes,
+            details: allNodes ? undefined : JSON.stringify({
+              handsAreNodes,
+              tricksAreNodes,
+              cardsAreNodes
+            }, null, 2)
+          }
+        });
+
         // Add edges
-        let wonBy = tricks.connect(hands, {
-          connectWhen: (trick, hand) => {
+        tricks.connect(
+          handItems,
+          (trick, hand) => {
             return trick.value.winner === hand.label;
           },
-          directed: true,
-          className: 'Won By'
-        });
-        await wonBy.save();
-        let played = cards.connect(tricks, {
-          connectWhen: (card, trick) => {
+          {
+            directed: true,
+            className: 'Won By'
+          });
+        await tricks.save();
+        cards.connect(
+          await tricks.items(),
+          (card, trick) => {
             return trick[card.parent.label] === card.label;
           },
-          directed: true,
-          className: 'Played'
-        });
-        await played.save();
+          {
+            directed: true,
+            className: 'Played'
+          });
+        await cards.save();
 
         allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 

@@ -6,7 +6,7 @@
       "$members": {}
     },
     "player": {
-      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.player",
+      "_id": "@$.classes.player",
       "$members": {
         "@$.contents.hands[\"Player 1\"]": true,
         "@$.contents.hands[\"Player 2\"]": true,
@@ -15,7 +15,7 @@
       }
     },
     "trick": {
-      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.trick",
+      "_id": "@$.classes.trick",
       "$members": {
         "@$.contents.tricks[\"0\"]": true,
         "@$.contents.tricks[\"1\"]": true,
@@ -32,7 +32,7 @@
       }
     },
     "card": {
-      "_id": "@{\"_id\":\"application/json;hearts_schema.json\"}$.classes.card",
+      "_id": "@$.classes.card",
       "$members": {
         "@$.contents.hands[\"Player 1\"][\"0\"]": true,
         "@$.contents.hands[\"Player 1\"][\"1\"]": true,

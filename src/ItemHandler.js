@@ -33,8 +33,7 @@ class ItemHandler {
     // Assign the object's id
     obj._id = '@' + jsonPath.stringify(path);
 
-    // Make sure the object has at least one class (move any class definitions
-    // to this document), or assign it the 'none' class
+    // Move any class definitions to this document
     obj.$tags = obj.$tags || {};
     Object.keys(obj.$tags).forEach(setId => {
       let temp = this.extractClassInfoFromId(setId);

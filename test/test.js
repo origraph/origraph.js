@@ -14,20 +14,28 @@ let totalTests = 0;
 let numPassed = 0;
 let index = 0;
 (async () => {
+  const errorTestResults = (err) => {
+    return [{
+      name: `test ${index}; error thrown`,
+      result: {
+        passed: false,
+        details: JSON.stringify({
+          message: err.message,
+          stack: err.stack
+        }, null, 2)
+      }
+    }];
+  };
+
   while (tests.length > 0) {
     let testFunc = tests.shift();
     index += 1;
     let testResults;
     try {
-      testResults = await testFunc();
+      testResults = await testFunc()
+        .catch(errorTestResults);
     } catch (err) {
-      testResults = [{
-        name: `test ${index}; error thrown`,
-        result: {
-          passed: false,
-          details: JSON.stringify(err, null, 2)
-        }
-      }];
+      testResults = errorTestResults(err);
     }
 
     totalTests += testResults.length;

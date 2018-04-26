@@ -579,8 +579,8 @@ class DocHandler {
     doc.filename = doc.filename || doc._id.split(';')[1];
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
-    doc.orphanLinks = doc.orphanLinks || {};
-    doc.orphanLinks._id = '@$.orphanLinks';
+    doc.orphanEdges = doc.orphanEdges || {};
+    doc.orphanEdges._id = '@$.orphanEdges';
 
     doc.orphanNodes = doc.orphanNodes || {};
     doc.orphanNodes._id = '@$.orphanNodes';

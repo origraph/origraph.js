@@ -1,5 +1,5 @@
 import createEnum from './createEnum.js';
-export default createEnum([
+const TYPES = createEnum([
   'boolean',
   'number',
   'string',
@@ -11,3 +11,11 @@ export default createEnum([
   'document',
   'root'
 ]);
+export { TYPES };
+
+const INTERPRETATIONS = createEnum([
+  'ignore',
+  'node',
+  'edge'
+]);
+export { INTERPRETATIONS };

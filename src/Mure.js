@@ -1,5 +1,5 @@
 import mime from 'mime-types';
-import TYPES from './Types.js';
+import { TYPES, INTERPRETATIONS } from './Types.js';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
@@ -29,14 +29,18 @@ class Mure extends Model {
     // Our custom type definitions
     this.TYPES = TYPES;
 
+    // Interpretations
+    this.INTERPRETATIONS = INTERPRETATIONS;
+
     // Special keys that should be skipped in various operations
     this.RESERVED_OBJ_KEYS = {
       '_id': true,
       '$wasArray': true,
       '$tags': true,
       '$members': true,
-      '$links': true,
-      '$nodes': true
+      '$edges': true,
+      '$nodes': true,
+      '$nextLabel': true
     };
 
     this.docHandler = new DocHandler(this);
