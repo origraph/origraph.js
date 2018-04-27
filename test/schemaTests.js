@@ -71,26 +71,28 @@ module.exports = [
         });
 
         // Add edges
-        await tricks.connect(hands,
+        tricks.connect(hands,
           (trick, hand) => {
             return trick.value.winner === hand.label;
           },
           {
             directed: true,
             className: 'Won By'
-          }).save();
-        await cards.connect(tricks,
+          });
+        await tricks.save();
+        cards.connect(tricks,
           (card, trick) => {
             return Object.entries(trick.value)
               .filter(([player, index]) => {
                 return card.doc.contents.hands[player] !== undefined &&
-                  card.doc.contents.hands[player][index] === card;
+                  card.doc.contents.hands[player][index] === card.value;
               }).length > 0;
           },
           {
             directed: true,
             className: 'Played'
-          }).save();
+          });
+        await cards.save();
 
         allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 

@@ -108,7 +108,9 @@ class Mure extends Model {
           live: true
         }).on('change', change => {
           if (change.id > '_\uffff') {
-            // A regular document changed
+            // A regular document changed; invalidate all selection caches
+            // corresponding to this document
+            Selection.INVALIDATE_DOC_CACHE(change.id);
             this.trigger('docChange', change);
           } else if (change.id === '$linkedView') {
             // The linked views changed

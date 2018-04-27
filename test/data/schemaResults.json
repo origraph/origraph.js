@@ -173,7 +173,13 @@
     "Won By": {
       "_id": "@$.classes[\"Won By\"]",
       "$members": {
-        "@$[\"{\\\"_id\\\":\\\"application/json;hearts_schema.json\\\"}\"][\"$\"].orphanEdges[1]": true
+        "@$.orphanEdges[1]": true
+      }
+    },
+    "Played": {
+      "_id": "@$.classes.Played",
+      "$members": {
+        "@$.orphanEdges[1]": true
       }
     }
   }

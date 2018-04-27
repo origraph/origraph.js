@@ -77,14 +77,36 @@ class Selection {
     }
     this._cachedDocLists = await Promise.all(this.selectors
       .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
-    this._cachedDocLists.forEach(docList => {
-      docList.forEach(doc => {
-        Selection.CACHED_DOCS[doc._id] = Selection.CACHED_DOCS[doc._id] || [];
-        if (Selection.CACHED_DOCS[doc._id].indexOf(this) === -1) {
-          Selection.CACHED_DOCS[doc._id].push(this);
+    // We want all selections to operate from exactly the same document object,
+    // so it's easy / straightforward for Items to just mutate their own value
+    // references, and have those changes automatically appear in documents
+    // when they're saved... so we actually want to *swap out* matching documents
+    // for their cached versions
+    for (let i = 0; i < this._cachedDocLists.length; i++) {
+      for (let j = 0; j < this._cachedDocLists[i].length; j++) {
+        const doc = this._cachedDocLists[i][j];
+        if (Selection.CACHED_DOCS[doc._id]) {
+          if (Selection.CACHED_DOCS[doc._id].selections.indexOf(this) === -1) {
+            // Register as a selection that's using this cache, so we're
+            // notified in the event that it gets invalidated
+            Selection.CACHED_DOCS[doc._id].selections.push(this);
+          }
+          // Verify that the doc has not changed (we watch for changes and
+          // invalidate caches in mure.getOrInitDb, so this should never happen)
+          if (doc._rev !== Selection.CACHED_DOCS[doc._id].cachedDoc._rev) {
+            throw new Error('Cached document _rev changed without notification');
+          }
+          // Swap for the cached version
+          this._cachedDocLists[i][j] = Selection.CACHED_DOCS[doc._id].cachedDoc;
+        } else {
+          // We're the first one to cache this document, so use ours
+          Selection.CACHED_DOCS[doc._id] = {
+            selections: [this],
+            cachedDoc: doc
+          };
         }
-      });
-    });
+      }
+    }
     return this._cachedDocLists;
   }
   async followRelativeLink (selector, doc, selectSingle = this.selectSingle) {
@@ -242,41 +264,174 @@ class Selection {
         });
       });
     }
+    this.pollutedSelections = [];
     // Any selection that has cached any of these documents needs to have its
     // cache invalidated, even if we didn't pollute the selection directly
     changedDocs.forEach(doc => {
-      (Selection.CACHED_DOCS[doc._id] || []).forEach(selection => {
-        selection.invalidateCache();
-      });
-      delete Selection.CACHED_DOCS[doc._id];
+      Selection.INVALIDATE_DOC_CACHE(doc._id);
     });
 
     await this.mure.putDocs(changedDocs);
     return this;
   }
-  createEdge (item, otherItem, container, directed) {
-    let newEdge = container.createNewItem(
-      { $nodes: {}, $tags: {} },
-      undefined,
-      TYPES.container);
-
-    if (item.doc === container.doc) {
-      newEdge.value.$nodes[item.value._id] = directed ? 'source' : true;
-      item.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[item.uniqueSelector] = directed ? 'source' : true;
-      item.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
-
-    if (otherItem.doc === container.doc) {
-      newEdge.value.$nodes[otherItem.value._id] = directed ? 'target' : true;
-      otherItem.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[otherItem.uniqueSelector] = directed ? 'target' : true;
-      otherItem.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
-    return newEdge;
+  /*
+   These are mutator functions that don't actually do anything
+   */
+  each (func) {
+    this.pendingOperations.push(func);
+    return this;
   }
+  attr (key, value) {
+    let isFunction = typeof value === 'function';
+    return this.each(item => {
+      if (item.type === TYPES.root) {
+        throw new Error(`Renaming files with .attr() is not yet supported`);
+      } else if (item.type === TYPES.container ||
+          item.type === TYPES.document) {
+        let temp = isFunction ? value.apply(this, item) : value;
+        // item.value is just a pointer to the object in the document, so
+        // we can just change it directly and it will still be saved
+        item.value[key] = ItemHandler
+          .standardize(temp, item.path.slice(1), item.doc.classes);
+      } else {
+        throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
+      }
+    });
+  }
+  connect (otherSelection, connectWhen, {
+    directed = false,
+    className = 'none',
+    skipHyperEdges = false,
+    saveInSelection = null
+  } = {}) {
+    return this.each(async item => {
+      if (item.type === TYPES.container) {
+        let container;
+        if (saveInSelection) {
+          container = await Object.values(saveInSelection.items())[0];
+          if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+            this.pollutedSelections.push(container);
+          }
+        } else {
+          container = Object.values(
+            await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
+        }
+        Object.values(await otherSelection.items()).forEach(otherItem => {
+          if (otherItem.type === TYPES.container &&
+              connectWhen.apply(this, [item, otherItem])) {
+            if (item.value.$edges && otherItem.value.$edges) {
+              const newEdge = item.createEdge(otherItem, container, directed);
+              newEdge.addClass(className);
+            } else if (!skipHyperEdges) {
+              if (item.value.$edges && otherItem.value.$nodes) {
+                // TODO: add a link to/from item to otherItem's $nodes
+                throw new Error('unimplemented');
+              } else if (item.value.$nodes && otherItem.value.$edges) {
+                // TODO: add a link to/from otherItem to item's $nodes
+                throw new Error('unimplemented');
+              } else if (item.value.$edges && otherItem.value.$edges) {
+                // TODO: merge the two hyperedges
+                throw new Error('unimplemented');
+              }
+            }
+          }
+        });
+        if (this.pollutedSelections.indexOf(otherSelection) === -1) {
+          this.pollutedSelections.push(otherSelection);
+        }
+      }
+    });
+  }
+  remove () {
+    return this.each(item => {
+      if (item.type === TYPES.root) {
+        throw new Error(`Can't remove() the root element`);
+      } else if (item.type === TYPES.document) {
+        throw new Error(`Deleting files with .remove() is not yet supported`);
+      } else {
+        // item.parent is just a pointer to the parent item's value, so we can
+        // just change it directly and it will still be saved
+        delete item.parent[item.label];
+      }
+    });
+  }
+  group () {
+    throw new Error('unimplemented');
+  }
+  addClass (className) {
+    return this.each(item => {
+      if (item.type !== TYPES.container) {
+        throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
+      } else {
+        item.addClass(className);
+      }
+    });
+  }
+  removeClass (className) {
+    throw new Error('unimplemented');
+  }
+  setInterpretation (interpretation, saveInSelection = null) {
+    return this.each(async item => {
+      if (item.type !== TYPES.container) {
+        throw new Error(`Can't interpret an element of type ${item.type.toString()} as a ${interpretation.toString()}`);
+      } else if (interpretation === INTERPRETATIONS.node) {
+        item.value.$edges = {};
+        if (item.value.$nodes) {
+          let container;
+          if (saveInSelection) {
+            container = await Object.values(saveInSelection.items())[0];
+            if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+              this.pollutedSelections.push(container);
+            }
+          } else {
+            container = Object.values(
+              await this.followRelativeLink('@$.orphanNodes', item.doc, true))[0];
+          }
+          const nodes = Object.entries(item.value.$nodes);
+          delete item.value.$nodes;
+          for (let n = 0; n < nodes.length; n++) {
+            const link = nodes[n][0];
+            const linkDirection = nodes[n][1];
+            const otherItem = Object.values(
+              await this.followRelativeLink(link, item.doc))[0];
+            if (otherItem.doc === item.doc) {
+              delete otherItem.value.$edges[item.value._id];
+            } else {
+              delete otherItem.value.$edges[item.uniqueSelector];
+            }
+            if (linkDirection === 'source') {
+              otherItem.createEdge(item, container, true);
+            } else if (linkDirection === 'target') {
+              item.createEdge(otherItem, container, true);
+            } else {
+              item.createEdge(otherItem, container, false);
+            }
+          }
+        }
+      } else if (interpretation === INTERPRETATIONS.edge) {
+        item.value.$nodes = {};
+        throw new Error('unimplemented');
+      } else if (interpretation === INTERPRETATIONS.ignore) {
+        throw new Error('unimplemented');
+      }
+    });
+  }
+  toggleDirection () {
+    throw new Error('unimplemented');
+  }
+  copy (newParentId) {
+    throw new Error('unimplemented');
+  }
+  move (newParentId) {
+    throw new Error('unimplemented');
+  }
+  dissolve () {
+    throw new Error('unimplemented');
+  }
+
+  /*
+   These functions provide statistics / summaries of the selection:
+   */
   getFlatGraphSchema (items) {
     let result = {
       nodeClasses: [],
@@ -395,140 +550,15 @@ class Selection {
   selectAllNodes (items) {
     return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
   }
-
-  each (func) {
-    this.pendingOperations.push(func);
-    return this;
-  }
-  attr (key, value) {
-    let isFunction = typeof value === 'function';
-    return this.each(item => {
-      if (item.type === TYPES.root) {
-        throw new Error(`Renaming files with .attr() is not yet supported`);
-      } else if (item.type === TYPES.container ||
-          item.type === TYPES.document) {
-        let temp = isFunction ? value.apply(this, item) : value;
-        // item.value is just a pointer to the object in the document, so
-        // we can just change it directly and it will still be saved
-        item.value[key] = ItemHandler
-          .standardize(temp, item.path.slice(1), item.doc.classes);
-      } else {
-        throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
-      }
-    });
-  }
-  connect (otherSelection, connectWhen, {
-    directed = false,
-    className = 'none',
-    skipHyperEdges = false,
-    saveInItem = null
-  } = {}) {
-    return this.each(async item => {
-      if (item.type === TYPES.container) {
-        let container = saveInItem || Object.values(
-          await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
-        Object.values(await otherSelection.items()).forEach(otherItem => {
-          if (otherItem.type === TYPES.container &&
-              connectWhen.apply(this, [item, otherItem])) {
-            if (item.value.$edges && otherItem.value.$edges) {
-              const newEdge = this.createEdge(item, otherItem, container, directed);
-              newEdge.addClass(className);
-            } else if (!skipHyperEdges) {
-              if (item.value.$edges && otherItem.value.$nodes) {
-                // TODO: add a link to/from item to otherItem's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$nodes && otherItem.value.$edges) {
-                // TODO: add a link to/from otherItem to item's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$edges && otherItem.value.$edges) {
-                // TODO: merge the two hyperedges
-                throw new Error('unimplemented');
-              }
-            }
-          }
-        });
-      }
-    });
-  }
-  remove () {
-    return this.each(item => {
-      if (item.type === TYPES.root) {
-        throw new Error(`Can't remove() the root element`);
-      } else if (item.type === TYPES.document) {
-        throw new Error(`Deleting files with .remove() is not yet supported`);
-      } else {
-        // item.parent is just a pointer to the parent item's value, so we can
-        // just change it directly and it will still be saved
-        delete item.parent[item.label];
-      }
-    });
-  }
-  group () {
-    throw new Error('unimplemented');
-  }
-  addClass (className) {
-    return this.each(item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
-      } else {
-        item.addClass(className);
-      }
-    });
-  }
-  removeClass (className) {
-    throw new Error('unimplemented');
-  }
-  setInterpretation (interpretation, saveInItem = null) {
-    return this.each(async item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't interpret an element of type ${item.type.toString()} as a ${interpretation.toString()}`);
-      } else if (interpretation === INTERPRETATIONS.node) {
-        item.value.$edges = {};
-        if (item.value.$nodes) {
-          let container = saveInItem || Object.values(
-            await this.followRelativeLink('@$.orphanNodes', item.doc))[0];
-          const nodes = Object.entries(item.value.$nodes);
-          delete item.value.$nodes;
-          for (let n = 0; n < nodes.length; n++) {
-            const link = nodes[n][0];
-            const linkDirection = nodes[n][1];
-            const otherItem = Object.values(
-              await this.followRelativeLink(link, item.doc))[0];
-            if (otherItem.doc === item.doc) {
-              delete otherItem.value.$edges[item.value._id];
-            } else {
-              delete otherItem.value.$edges[item.uniqueSelector];
-            }
-            if (linkDirection === 'source') {
-              this.createEdge(otherItem, item, container, true);
-            } else if (linkDirection === 'target') {
-              this.createEdge(item, otherItem, container, true);
-            } else {
-              this.createEdge(item, otherItem, container, false);
-            }
-          }
-        }
-      } else if (interpretation === INTERPRETATIONS.edge) {
-        item.value.$nodes = {};
-        throw new Error('unimplemented');
-      } else if (interpretation === INTERPRETATIONS.ignore) {
-        throw new Error('unimplemented');
-      }
-    });
-  }
-  toggleDirection () {
-    throw new Error('unimplemented');
-  }
-  copy (newParentId) {
-    throw new Error('unimplemented');
-  }
-  move (newParentId) {
-    throw new Error('unimplemented');
-  }
-  dissolve () {
-    throw new Error('unimplemented');
-  }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
+Selection.INVALIDATE_DOC_CACHE = docId => {
+  if (Selection.CACHED_DOCS[docId]) {
+    Selection.CACHED_DOCS[docId].selections.forEach(selection => {
+      selection.invalidateCache();
+    });
+    delete Selection.CACHED_DOCS[docId];
+  }
+};
 export default Selection;

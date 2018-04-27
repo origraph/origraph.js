@@ -229,7 +229,7 @@ class ContainerItem extends Item {
         label = this.nextLabel;
         this.nextLabel += 1;
       }
-      item.value._id = `@${jsonPath.stringify(this.path.concat([label]))}`;
+      item.value._id = `@${jsonPath.stringify(this.path.slice(1).concat([label]))}`;
     }
     this.value[label] = item.value;
   }
@@ -247,6 +247,29 @@ class ContainerItem extends Item {
       $members: {}
     };
     this.addToSet(this.doc.classes[className], this.doc._id);
+  }
+  createEdge (otherItem, container, directed) {
+    let newEdge = container.createNewItem(
+      { $nodes: {}, $tags: {} },
+      undefined,
+      TYPES.container);
+
+    if (this.doc === container.doc) {
+      newEdge.value.$nodes[this.value._id] = directed ? 'source' : true;
+      this.value.$edges[newEdge.value._id] = true;
+    } else {
+      newEdge.value.$nodes[this.uniqueSelector] = directed ? 'source' : true;
+      this.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+    }
+
+    if (otherItem.doc === container.doc) {
+      newEdge.value.$nodes[otherItem.value._id] = directed ? 'target' : true;
+      otherItem.value.$edges[newEdge.value._id] = true;
+    } else {
+      newEdge.value.$nodes[otherItem.uniqueSelector] = directed ? 'target' : true;
+      otherItem.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+    }
+    return newEdge;
   }
 }
 
