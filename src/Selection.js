@@ -52,6 +52,7 @@ class Selection {
     this.selectSingle = selectSingle;
 
     this.pendingOperations = [];
+    this.pollutedSelections = [];
   }
   get selectorList () {
     return this.selectors.map(selector => {
@@ -66,9 +67,25 @@ class Selection {
   selectAll (selectorList) {
     return new Selection(this.mure, selectorList, { parentSelection: this });
   }
+  invalidateCache () {
+    delete this._cachedDocLists;
+    delete this._cachedItems;
+  }
   async docLists () {
-    return Promise.all(this.selectors
+    if (this._cachedDocLists) {
+      return this._cachedDocLists;
+    }
+    this._cachedDocLists = await Promise.all(this.selectors
       .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
+    this._cachedDocLists.forEach(docList => {
+      docList.forEach(doc => {
+        Selection.CACHED_DOCS[doc._id] = Selection.CACHED_DOCS[doc._id] || [];
+        if (Selection.CACHED_DOCS[doc._id].indexOf(this) === -1) {
+          Selection.CACHED_DOCS[doc._id].push(this);
+        }
+      });
+    });
+    return this._cachedDocLists;
   }
   async followRelativeLink (selector, doc, selectSingle = this.selectSingle) {
     // This selector specifies to follow the link
@@ -95,20 +112,27 @@ class Selection {
       }
     }
     let docLists = crossDoc ? await tempSelection.docLists() : [[ doc ]];
-    return tempSelection.items({ docLists });
+    return tempSelection.items(docLists);
   }
-  async items ({ docLists } = {}) {
+  async items (docLists) {
+    // Note: we should only pass in docLists in rare situations (such as the
+    // one-off case in followRelativeLink() where we already have the document
+    // available, and creating the new selection will result in an unnnecessary
+    // query of the database). Usually, we should rely on the cache.
     docLists = docLists || await this.docLists();
+    if (this._cachedItems) {
+      return this._cachedItems;
+    }
 
     return queueAsync(async () => {
       // Collect the results of objQuery
-      const items = {};
+      this._cachedItems = {};
       let addedItem = false;
 
       const addItem = item => {
         addedItem = true;
-        if (!items[item.uniqueSelector]) {
-          items[item.uniqueSelector] = item;
+        if (!this._cachedItems[item.uniqueSelector]) {
+          this._cachedItems[item.uniqueSelector] = item;
         }
       };
 
@@ -181,8 +205,54 @@ class Selection {
 
         if (this.selectSingle && addedItem) { break; }
       }
-      return items;
+      return this._cachedItems;
     });
+  }
+  async save () {
+    // Evaluate all the pending operations that we've accrued; as each function
+    // manipulates Items' .value property, those changes will automatically be
+    // reflected in the document (as every .value is a pointer, or BaseItem's
+    // .value setter ensures that primitives are propagated)
+    const items = await this.items();
+    let itemList = Object.values(await this.items());
+    for (let f = 0; f < this.pendingOperations.length; f++) {
+      const func = this.pendingOperations[f];
+      for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
+        await func.apply(this, [item, items]);
+      }
+    }
+    this.pendingOperations = [];
+
+    // We need to save all the documents that we refer to, in addition to
+    // any documents belonging to other selections that we've polluted (each of
+    // the pendingOperations should have added to this array if they change
+    // values in other selections)
+    const changedSelections = this.pollutedSelections.concat([this]);
+    const changedDocs = [];
+    const docIds = {};
+    for (let s = 0; s < changedSelections.length; s++) {
+      const docLists = await changedSelections[s].docLists();
+      docLists.forEach(docList => {
+        docList.forEach(doc => {
+          if (!docIds[doc._id]) {
+            docIds[doc._id] = true;
+            changedDocs.push(doc);
+          }
+        });
+      });
+    }
+    // Any selection that has cached any of these documents needs to have its
+    // cache invalidated, even if we didn't pollute the selection directly
+    changedDocs.forEach(doc => {
+      (Selection.CACHED_DOCS[doc._id] || []).forEach(selection => {
+        selection.invalidateCache();
+      });
+      delete Selection.CACHED_DOCS[doc._id];
+    });
+
+    await this.mure.putDocs(changedDocs);
+    return this;
   }
   createEdge (item, otherItem, container, directed) {
     let newEdge = container.createNewItem(
@@ -325,31 +395,7 @@ class Selection {
   selectAllNodes (items) {
     return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
   }
-  async save ({ docLists, items } = {}) {
-    docLists = docLists || await this.docLists();
-    items = items || await this.items({ docLists });
 
-    let itemList = Object.values(items);
-    for (let f = 0; f < this.pendingOperations.length; f++) {
-      const func = this.pendingOperations[f];
-      for (let i = 0; i < itemList.length; i++) {
-        const item = itemList[i];
-        await func.apply(this, [item, items]);
-      }
-    }
-    this.pendingOperations = [];
-    let docIds = {};
-    await this.mure.putDocs(docLists.reduce((agg, docList) => {
-      docList.forEach(doc => {
-        if (!docIds[doc._id]) {
-          agg.push(doc);
-          docIds[doc._id] = true;
-        }
-      });
-      return agg;
-    }, []));
-    return this;
-  }
   each (func) {
     this.pendingOperations.push(func);
     return this;
@@ -371,20 +417,19 @@ class Selection {
       }
     });
   }
-  connect (otherItems, connectWhen, {
+  connect (otherSelection, connectWhen, {
     directed = false,
     className = 'none',
     skipHyperEdges = false,
     saveInItem = null
-  }) {
-    otherItems = Object.values(otherItems)
-      .filter(d => d.type === TYPES.container);
+  } = {}) {
     return this.each(async item => {
       if (item.type === TYPES.container) {
         let container = saveInItem || Object.values(
           await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
-        otherItems.forEach(otherItem => {
-          if (connectWhen.apply(this, [item, otherItem])) {
+        Object.values(await otherSelection.items()).forEach(otherItem => {
+          if (otherItem.type === TYPES.container &&
+              connectWhen.apply(this, [item, otherItem])) {
             if (item.value.$edges && otherItem.value.$edges) {
               const newEdge = this.createEdge(item, otherItem, container, directed);
               newEdge.addClass(className);
@@ -485,4 +530,5 @@ class Selection {
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
+Selection.CACHED_DOCS = {};
 export default Selection;

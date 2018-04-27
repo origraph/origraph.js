@@ -117,13 +117,23 @@ const ItemHandler = new Handler();
 class BaseItem {
   constructor ({ path, value, parent, doc, label, type, uniqueSelector, classes }) {
     this.path = path;
-    this.value = value;
+    this._value = value;
     this.parent = parent;
     this.doc = doc;
     this.label = label;
     this.type = type;
     this.uniqueSelector = uniqueSelector;
     this.classes = classes;
+  }
+  get value () { return this._value; }
+  set value (newValue) {
+    if (this.parent) {
+      // In the event that this is a primitive boolean, number, string, etc,
+      // setting the value on the Item wrapper object *won't* naturally update
+      // it in its containing document...
+      this.parent[this.label] = newValue;
+    }
+    this._value = newValue;
   }
 }
 class RootItem extends BaseItem {
