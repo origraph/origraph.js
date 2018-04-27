@@ -1,9 +1,9 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
+import { ItemHandler } from './Item.js';
 
 class DocHandler {
   constructor (mure) {
-    this.mure = mure;
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
   }
@@ -27,7 +27,7 @@ class DocHandler {
     throw new Error('unimplemented');
   }
   formatDoc (doc, { mimeType = doc.mimeType } = {}) {
-    this.mure.itemHandler.format(doc.contents);
+    ItemHandler.format(doc.contents);
     throw new Error('unimplemented');
   }
   isValidId (docId) {
@@ -40,7 +40,7 @@ class DocHandler {
     }
     return !!mime.extension(parts[0]);
   }
-  async standardize (doc) {
+  async standardize (doc, mure) {
     if (!doc._id || !this.isValidId(doc._id)) {
       if (!doc.mimeType && !doc.filename) {
         // Without an id, filename, or mimeType, just assume it's application/json
@@ -53,7 +53,7 @@ class DocHandler {
           doc.filename = doc._id;
         } else {
           // Without anything to go on, use "Untitled 1", etc
-          let existingUntitleds = await this.mure.db.allDocs({
+          let existingUntitleds = await mure.db.allDocs({
             startkey: doc.mimeType + ';Untitled ',
             endkey: doc.mimeType + ';Untitled \uffff'
           });
@@ -79,18 +79,16 @@ class DocHandler {
     }
     doc.mimeType = doc.mimeType || doc._id.split(';')[0];
     if (!mime.extension(doc.mimeType)) {
-      this.mure.warn('Unknown mimeType: ' + doc.mimeType);
+      mure.warn('Unknown mimeType: ' + doc.mimeType);
     }
     doc.filename = doc.filename || doc._id.split(';')[1];
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
     doc.orphanEdges = doc.orphanEdges || {};
     doc.orphanEdges._id = '@$.orphanEdges';
-    doc.orphanEdges.$nextLabel = 0;
 
     doc.orphanNodes = doc.orphanNodes || {};
     doc.orphanNodes._id = '@$.orphanNodes';
-    doc.orphanNodes.$nextLabel = 0;
 
     doc.classes = doc.classes || {};
     doc.classes._id = '@$.classes';
@@ -99,10 +97,10 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
+    ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }
 }
 
-export default DocHandler;
+export default new DocHandler();

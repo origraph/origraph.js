@@ -84,7 +84,11 @@ module.exports = [
         cards.connect(
           await tricks.items(),
           (card, trick) => {
-            return trick[card.parent.label] === card.label;
+            return Object.entries(trick.value)
+              .filter(([player, index]) => {
+                return card.doc.contents.hands[player] !== undefined &&
+                  card.doc.contents.hands[player][index] === card;
+              }).length > 0;
           },
           {
             directed: true,

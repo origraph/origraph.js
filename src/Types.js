@@ -11,11 +11,21 @@ const TYPES = createEnum([
   'document',
   'root'
 ]);
-export { TYPES };
 
 const INTERPRETATIONS = createEnum([
   'ignore',
   'node',
   'edge'
 ]);
-export { INTERPRETATIONS };
+
+const RESERVED_OBJ_KEYS = {
+  '_id': true,
+  '$wasArray': true,
+  '$tags': true,
+  '$members': true,
+  '$edges': true,
+  '$nodes': true,
+  '$nextLabel': true
+};
+
+export { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS };

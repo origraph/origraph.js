@@ -1,10 +1,9 @@
 import mime from 'mime-types';
-import { TYPES, INTERPRETATIONS } from './Types.js';
+import { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS } from './Types.js';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
 import DocHandler from './DocHandler.js';
-import ItemHandler from './ItemHandler.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -33,18 +32,7 @@ class Mure extends Model {
     this.INTERPRETATIONS = INTERPRETATIONS;
 
     // Special keys that should be skipped in various operations
-    this.RESERVED_OBJ_KEYS = {
-      '_id': true,
-      '$wasArray': true,
-      '$tags': true,
-      '$members': true,
-      '$edges': true,
-      '$nodes': true,
-      '$nextLabel': true
-    };
-
-    this.docHandler = new DocHandler(this);
-    this.itemHandler = new ItemHandler(this);
+    this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -166,7 +154,7 @@ class Mure extends Model {
   async getDoc (docQuery, { init = true } = {}) {
     let doc;
     if (!docQuery) {
-      return this.docHandler.standardize({});
+      return DocHandler.standardize({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -179,7 +167,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.docHandler.standardize(docQuery);
+          doc = await DocHandler.standardize(docQuery, this);
         } else {
           return null;
         }
@@ -221,7 +209,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = this.docHandler.formatDoc(doc, { mimeType });
+        let contents = DocHandler.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -248,14 +236,14 @@ class Mure extends Model {
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
   async uploadString (filename, mimeType, encoding, string) {
-    let doc = await this.docHandler.parse(string, { mimeType });
+    let doc = await DocHandler.parse(string, { mimeType });
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.docHandler.standardize(doc);
+    doc = await DocHandler.standardize(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {

@@ -4,12 +4,10 @@
   "_id": "application/json;Untitled 1",
   "charset": "UTF-8",
   "orphanEdges": {
-    "_id": "@$.orphanEdges",
-    "$nextLabel": 0
+    "_id": "@$.orphanEdges"
   },
   "orphanNodes": {
-    "_id": "@$.orphanNodes",
-    "$nextLabel": 0
+    "_id": "@$.orphanNodes"
   },
   "classes": {
     "_id": "@$.classes",

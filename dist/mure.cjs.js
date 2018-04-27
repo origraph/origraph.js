@@ -21,6 +21,16 @@ const TYPES = createEnum(['boolean', 'number', 'string', 'date', 'undefined', 'n
 
 const INTERPRETATIONS = createEnum(['ignore', 'node', 'edge']);
 
+const RESERVED_OBJ_KEYS = {
+  '_id': true,
+  '$wasArray': true,
+  '$tags': true,
+  '$members': true,
+  '$edges': true,
+  '$nodes': true,
+  '$nextLabel': true
+};
+
 var queueAsync = (func => {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -28,6 +38,240 @@ var queueAsync = (func => {
     });
   });
 });
+
+class Handler {
+  idToUniqueSelector(selectorString, docId) {
+    const chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
+  extractDocQuery(selectorString) {
+    const result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
+    } else {
+      return null;
+    }
+  }
+  extractClassInfoFromId(id) {
+    const temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
+    if (temp && (temp[1] || temp[2])) {
+      return {
+        classPathChunk: temp[1] || temp[2],
+        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
+      };
+    } else {
+      return null;
+    }
+  }
+  getItemClasses(item) {
+    return Object.keys(item.value.$tags).reduce((agg, setId) => {
+      const temp = this.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
+  inferType(value) {
+    const jsType = typeof value;
+    if (TYPES[jsType]) {
+      if (jsType === 'string' && value[0] === '@') {
+        try {
+          new Selection(null, value); // eslint-disable-line no-new
+        } catch (err) {
+          if (err.INVALID_SELECTOR) {
+            return TYPES.string;
+          } else {
+            throw err;
+          }
+        }
+        return TYPES.reference;
+      } else {
+        return TYPES[jsType];
+      }
+    } else if (value === null) {
+      return TYPES.null;
+    } else if (value instanceof Date) {
+      return TYPES.date;
+    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else {
+      return TYPES.container;
+    }
+  }
+  standardize(obj, path, classes) {
+    if (typeof obj !== 'object') {
+      return obj;
+    }
+
+    // Convert arrays to objects
+    if (obj instanceof Array) {
+      let temp = {};
+      obj.forEach((element, index) => {
+        temp[index] = element;
+      });
+      obj = temp;
+      obj.$wasArray = true;
+    }
+
+    // Assign the object's id
+    obj._id = '@' + jsonPath.stringify(path);
+
+    // Move any class definitions to this document
+    obj.$tags = obj.$tags || {};
+    Object.keys(obj.$tags).forEach(setId => {
+      const temp = this.extractClassInfoFromId(setId);
+      if (temp) {
+        delete obj.$tags[setId];
+
+        setId = classes._id + temp.classPathChunk;
+        obj.$tags[setId] = true;
+
+        classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
+        classes[temp.className].$members[obj._id] = true;
+      }
+    });
+
+    // Recursively standardize the object's contents
+    Object.entries(obj).forEach(([key, value]) => {
+      if (typeof value === 'object' && !RESERVED_OBJ_KEYS[key]) {
+        let temp = Array.from(path);
+        temp.push(key);
+        obj[key] = this.standardize(value, temp, classes);
+      }
+    });
+    return obj;
+  }
+  format(obj) {
+    // TODO: if $wasArray, attempt to restore array status,
+    // remove _ids
+    throw new Error('unimplemented');
+  }
+}
+const ItemHandler = new Handler();
+
+class BaseItem {
+  constructor({ path, value, parent, doc, label, type, uniqueSelector, classes }) {
+    this.path = path;
+    this.value = value;
+    this.parent = parent;
+    this.doc = doc;
+    this.label = label;
+    this.type = type;
+    this.uniqueSelector = uniqueSelector;
+    this.classes = classes;
+  }
+}
+class RootItem extends BaseItem {
+  constructor(docList, selectSingle) {
+    super({
+      path: [],
+      value: {},
+      parent: null,
+      doc: null,
+      label: null,
+      type: TYPES.root,
+      uniqueSelector: '@',
+      classes: []
+    });
+    docList.some(doc => {
+      this.value[doc._id] = doc;
+      return selectSingle;
+    });
+  }
+}
+class DocItem extends BaseItem {
+  constructor(doc) {
+    const docPathQuery = `{"_id":"${doc._id}"}`;
+    super({
+      path: [docPathQuery],
+      value: doc,
+      parent: null,
+      doc: doc,
+      label: doc['filename'],
+      type: TYPES.document,
+      uniqueSelector: docPathQuery,
+      classes: []
+    });
+  }
+}
+class Item extends BaseItem {
+  constructor(path, value, doc, type) {
+    let parent;
+    if (path.length < 2) {
+      throw new Error(`Can't create a non-Root or non-Doc Item with a path length less than 2`);
+    } else if (path.length === 2) {
+      parent = doc;
+    } else {
+      let temp = jsonPath.stringify(path.slice(0, path.length - 1));
+      parent = jsonPath.value(doc, temp);
+    }
+    const docPathQuery = `{"_id":"${doc._id}"}`;
+    const uniqueJsonPath = jsonPath.stringify(path);
+    path.unshift(docPathQuery);
+    super({
+      path,
+      value,
+      parent,
+      doc,
+      label: path[path.length - 1],
+      type,
+      classes: [],
+      uniqueSelector: '@' + docPathQuery + uniqueJsonPath
+    });
+    if (path[2] === 'contents' && this.type === TYPES.container) {
+      this.classes = ItemHandler.getItemClasses(this);
+    }
+  }
+}
+class ContainerItem extends Item {
+  constructor(path, value, doc) {
+    super(path, value, doc, TYPES.container);
+    this.nextLabel = Object.keys(this.value).reduce((max, key) => typeof key === 'number' && key > max ? key : max, 0) + 1;
+  }
+  createNewItem(value, label, type) {
+    type = type || ItemHandler.inferType(value);
+    if (label === undefined) {
+      label = this.nextLabel;
+      this.nextLabel += 1;
+    }
+    let path = this.path.concat(label);
+    let item;
+    if (type === TYPES.container) {
+      item = new ContainerItem(path, value, this.doc);
+    } else {
+      item = new Item(path, value, this.doc, type);
+    }
+    this.addItem(item, label);
+    return item;
+  }
+  addItem(item, label) {
+    if (item.type === TYPES.container) {
+      if (item.value._id) {
+        throw new Error('Item has already been assigned an _id');
+      }
+      if (label === undefined) {
+        label = this.nextLabel;
+        this.nextLabel += 1;
+      }
+      item.value._id = `@${jsonPath.stringify(this.path.concat([label]))}`;
+    }
+    this.value[label] = item.value;
+  }
+  addToSet(setObj, setFileId) {
+    const itemTag = this.doc._id === setFileId ? this.value._id : ItemHandler.idToUniqueSelector(this.value._id, this.doc._id);
+    const setTag = this.doc._id === setFileId ? setObj._id : ItemHandler.idToUniqueSelector(setObj._id, setFileId);
+    setObj.$members[itemTag] = true;
+    this.value.$tags[setTag] = true;
+  }
+  addClass(className) {
+    this.doc.classes[className] = this.doc.classes[className] || {
+      _id: '@' + jsonPath.stringify(['$', 'classes', className]),
+      $members: {}
+    };
+    this.addToSet(this.doc.classes[className], this.doc._id);
+  }
+}
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
@@ -92,56 +336,12 @@ class Selection {
   async docLists() {
     return Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
   }
-  createRootItem(docList) {
-    const rootItem = {
-      path: [],
-      value: {},
-      parent: null,
-      doc: null,
-      label: null,
-      type: this.mure.TYPES.root,
-      uniqueSelector: '@',
-      classes: []
-    };
-    docList.some(doc => {
-      rootItem.value[doc._id] = doc;
-      return this.selectSingle;
-    });
-    return rootItem;
-  }
-  createDocItem(doc, docPathQuery) {
-    let item = {
-      path: [docPathQuery],
-      value: doc,
-      parentId: '@',
-      doc: doc,
-      label: doc['filename'],
-      type: this.mure.TYPES.document,
-      uniqueSelector: docPathQuery,
-      classes: []
-    };
-    return item;
-  }
-  applyParentShift(item, doc, parentShift) {
-    item.path.splice(item.path.length - parentShift);
-    let temp = jsonPath.stringify(item.path);
-    item.value = jsonPath.query(doc, temp)[0];
-    return item;
-  }
-  extractDocQuery(selectorString) {
-    let result = /@\s*({.*})/.exec(selectorString);
-    if (result && result[1]) {
-      return JSON.parse(result[1]);
-    } else {
-      return null;
-    }
-  }
-  async followItemLink(selector, doc) {
+  async followRelativeLink(selector, doc, selectSingle = this.selectSingle) {
     // This selector specifies to follow the link
     if (typeof selector !== 'string') {
       return [];
     }
-    let docQuery = this.extractDocQuery(selector);
+    let docQuery = ItemHandler.extractDocQuery(selector);
     let crossDoc;
     if (!docQuery) {
       selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
@@ -151,7 +351,7 @@ class Selection {
     }
     let tempSelection;
     try {
-      tempSelection = new Selection(this.mure, selector, { selectSingle: this.selectSingle });
+      tempSelection = new Selection(this.mure, selector, { selectSingle: selectSingle });
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];
@@ -161,59 +361,6 @@ class Selection {
     }
     let docLists = crossDoc ? await tempSelection.docLists() : [[doc]];
     return tempSelection.items({ docLists });
-  }
-  inferType(value) {
-    const jsType = typeof value;
-    if (this.mure.TYPES[jsType]) {
-      if (jsType === 'string' && value[0] === '@') {
-        try {
-          new Selection(this.mure, value); // eslint-disable-line no-new
-        } catch (err) {
-          if (err.INVALID_SELECTOR) {
-            return this.mure.TYPES.string;
-          } else {
-            throw err;
-          }
-        }
-        return this.mure.TYPES.reference;
-      } else {
-        return this.mure.TYPES[jsType];
-      }
-    } else if (value === null) {
-      return this.mure.TYPES.null;
-    } else if (value instanceof Date) {
-      return this.mure.TYPES.date;
-    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
-      throw new Error('invalid value: ' + value);
-    } else {
-      return this.mure.TYPES.container;
-    }
-  }
-  getItemClasses(item) {
-    return Object.keys(item.value.$tags).reduce((agg, setId) => {
-      let temp = this.mure.itemHandler.extractClassInfoFromId(setId);
-      if (temp) {
-        agg.push(temp.className);
-      }
-      return agg;
-    }, []).sort();
-  }
-  createRegularItem(item, doc, docPathQuery) {
-    if (item.path.length === 2) {
-      // this function shouldn't be called if less than 2
-      item.parent = doc;
-    } else {
-      let temp = jsonPath.stringify(item.path.slice(0, item.path.length - 1));
-      item.parent = jsonPath.value(doc, temp);
-    }
-    item.doc = doc;
-    item.label = item.path[item.path.length - 1];
-    item.type = this.inferType(item.value);
-    item.classes = item.path[1] === 'contents' && item.type === this.mure.TYPES.container ? this.getItemClasses(item) : [];
-    let uniqueJsonPath = jsonPath.stringify(item.path);
-    item.uniqueSelector = '@' + docPathQuery + uniqueJsonPath;
-    item.path.unshift(docPathQuery);
-    return item;
   }
   async items({ docLists } = {}) {
     docLists = docLists || (await this.docLists());
@@ -238,46 +385,56 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(this.createRootItem(docList));
+            addItem(new RootItem(docList, this.selectSingle));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(this.createDocItem(doc, `{"_id":"${doc._id}"}`));
+              addItem(new DocItem(doc, `{"_id":"${doc._id}"}`));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(this.createRootItem(docList));
+            addItem(new RootItem(docList, this.selectSingle));
           }
         } else {
           // Okay, we need to evaluate the jsonPath
           for (let docIndex = 0; docIndex < docList.length; docIndex++) {
             let doc = docList[docIndex];
-            let docPathQuery = `{"_id":"${doc._id}"}`;
             let matchingItems = jsonPath.nodes(doc, selector.objQuery);
             for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
-              let item = matchingItems[itemIndex];
-              if (this.mure.RESERVED_OBJ_KEYS[item.path.slice(-1)[0]]) {
+              let { path, value } = matchingItems[itemIndex];
+              if (RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
+                // Don't create items under reserved keys
                 continue;
-              } else if (selector.parentShift === item.path.length) {
+              } else if (selector.parentShift === path.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(this.createRootItem(docList));
+                  addItem(new RootItem(docList, this.selectSingle));
                 }
-              } else if (selector.parentShift === item.path.length - 1) {
+              } else if (selector.parentShift === path.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(this.createDocItem(doc, docPathQuery));
+                  addItem(new DocItem(doc));
                 }
-              } else if (selector.parentShift < item.path.length - 1) {
-                item = this.applyParentShift(item, doc, selector.parentShift);
+              } else {
+                if (selector.parentShift > 0 && selector.parentShift < path.length - 1) {
+                  // normal parentShift
+                  path.splice(path.length - selector.parentShift);
+                  value = jsonPath.query(doc, jsonPath.stringify(path))[0];
+                }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values((await this.followItemLink(item.value, doc))).forEach(addItem);
+                  Object.values((await this.followRelativeLink(value, doc))).forEach(addItem);
                 } else {
-                  // We selected a normal item
-                  addItem(this.createRegularItem(item, doc, docPathQuery));
+                  const type = ItemHandler.inferType(value);
+                  if (type === TYPES.container) {
+                    // We selected an item that is a container
+                    addItem(new ContainerItem(path, value, doc));
+                  } else {
+                    // We selected something else
+                    addItem(new Item(path, value, doc, type));
+                  }
                 }
               }
               if (this.selectSingle && addedItem) {
@@ -297,48 +454,15 @@ class Selection {
       return items;
     });
   }
-  objIdToUniqueSelector(selectorString, docId) {
-    let chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return `@{"_id":"${docId}"}${chunks[1]}`;
-  }
-  addItemToContainer(itemToAdd, container, containerPath, label) {
-    if (itemToAdd.type === this.mure.TYPES.container) {
-      if (itemToAdd.value._id) {
-        throw new Error('Item has already been assigned an _id');
-      }
-      if (label === undefined) {
-        if (container.$nextLabel !== undefined) {
-          label = container.$nextLabel;
-          container.$nextLabel += 1;
-        } else {
-          label = Object.keys(container).reduce((max, key) => typeof key === 'number' && key > max ? key : max, 0);
-        }
-      }
-      itemToAdd.value._id = `@${jsonPath.stringify(containerPath.concat([label]))}`;
-    }
-    container[label] = itemToAdd.value;
-    return itemToAdd;
-  }
-  addItemToSet(itemToAdd, setObj, { itemFileId, setFileId } = {}) {
-    const itemId = itemFileId ? this.objIdToUniqueSelector(itemToAdd.value._id, itemFileId) : itemToAdd.value._id;
-    const setId = setFileId ? this.objIdToUniqueSelector(setObj._id, setFileId) : setObj._id;
-    setObj.$members[itemId] = true;
-    itemToAdd.value.$tags[setId] = true;
-    return itemToAdd;
-  }
   createEdge(item, otherItem, container, directed) {
-    let newEdge = this.addItemToContainer({
-      type: this.mure.TYPES.container,
-      value: { $nodes: {}, $tags: {} },
-      doc: container.doc
-    }, container.value, container.path);
+    let newEdge = container.createNewItem({ $nodes: {}, $tags: {} }, undefined, TYPES.container);
 
     if (item.doc === container.doc) {
       newEdge.value.$nodes[item.value._id] = directed ? 'source' : true;
       item.value.$edges[newEdge.value._id] = true;
     } else {
       newEdge.value.$nodes[item.uniqueSelector] = directed ? 'source' : true;
-      item.value.$edges[this.objIdToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+      item.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
     }
 
     if (otherItem.doc === container.doc) {
@@ -346,7 +470,7 @@ class Selection {
       otherItem.value.$edges[newEdge.value._id] = true;
     } else {
       newEdge.value.$nodes[otherItem.uniqueSelector] = directed ? 'target' : true;
-      otherItem.value.$edges[this.objIdToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+      otherItem.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
     }
     return newEdge;
   }
@@ -390,7 +514,7 @@ class Selection {
         count: 0
       };
       for (let [nodeId, relativeNodeDirection] in Object.entries(edgeItem.value.$nodes)) {
-        let uniqueNodeSelector = this.objIdToUniqueSelector(nodeId);
+        let uniqueNodeSelector = ItemHandler.idToUniqueSelector(nodeId);
         let nodeItem = items[uniqueNodeSelector];
         // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
         if (relativeNodeDirection === 'source') {
@@ -423,7 +547,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedId = this.objIdToUniqueSelector(linkedId, item.doc._id);
+            linkedId = ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
             linkedIds[linkedId] = linkedIds[linkedId] || {};
             linkedIds[linkedId][item.uniqueSelector] = true;
           });
@@ -449,7 +573,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[this.objIdToUniqueSelector(linkedId, item.doc._id)] = true;
+            linkedIds[ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
           });
         }
       });
@@ -500,13 +624,13 @@ class Selection {
   attr(key, value) {
     let isFunction = typeof value === 'function';
     return this.each(item => {
-      if (item.type === this.mure.TYPES.root) {
+      if (item.type === TYPES.root) {
         throw new Error(`Renaming files with .attr() is not yet supported`);
-      } else if (item.type === this.mure.TYPES.container || item.type === this.mure.TYPES.document) {
+      } else if (item.type === TYPES.container || item.type === TYPES.document) {
         let temp = isFunction ? value.apply(this, item) : value;
         // item.value is just a pointer to the object in the document, so
         // we can just change it directly and it will still be saved
-        item.value[key] = this.mure.itemHandler.standardize(temp, item.path.slice(1), item.doc.classes);
+        item.value[key] = ItemHandler.standardize(temp, item.path.slice(1), item.doc.classes);
       } else {
         throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
       }
@@ -518,19 +642,15 @@ class Selection {
     skipHyperEdges = false,
     saveInItem = null
   }) {
-    otherItems = Object.values(otherItems).filter(d => d.type === this.mure.TYPES.container);
-    return this.each(item => {
-      if (item.type === this.mure.TYPES.container) {
-        let container = saveInItem || {
-          path: [item.path[0], '$', 'orphanEdges'],
-          value: item.doc.orphanEdges,
-          doc: item.doc
-        };
+    otherItems = Object.values(otherItems).filter(d => d.type === TYPES.container);
+    return this.each(async item => {
+      if (item.type === TYPES.container) {
+        let container = saveInItem || Object.values((await this.followRelativeLink('@$.orphanEdges', item.doc, true)))[0];
         otherItems.forEach(otherItem => {
           if (connectWhen.apply(this, [item, otherItem])) {
             if (item.value.$edges && otherItem.value.$edges) {
               const newEdge = this.createEdge(item, otherItem, container, directed);
-              this.addClassToItem(className, newEdge);
+              newEdge.addClass(className);
             } else if (!skipHyperEdges) {
               if (item.value.$edges && otherItem.value.$nodes) {
                 // TODO: add a link to/from item to otherItem's $nodes
@@ -550,13 +670,13 @@ class Selection {
   }
   remove() {
     return this.each(item => {
-      if (item.type === this.mure.TYPES.root) {
+      if (item.type === TYPES.root) {
         throw new Error(`Can't remove() the root element`);
-      } else if (item.type === this.mure.TYPES.document) {
+      } else if (item.type === TYPES.document) {
         throw new Error(`Deleting files with .remove() is not yet supported`);
       } else {
-        // item.parent is just a pointer to the parent object, so we can just
-        // change it directly and it will still be saved
+        // item.parent is just a pointer to the parent item's value, so we can
+        // just change it directly and it will still be saved
         delete item.parent[item.label];
       }
     });
@@ -564,19 +684,12 @@ class Selection {
   group() {
     throw new Error('unimplemented');
   }
-  addClassToItem(className, item) {
-    item.doc.classes[className] = item.doc.classes[className] || {
-      _id: '@' + jsonPath.stringify(['$', 'classes', className]),
-      $members: {}
-    };
-    this.addItemToSet(item, item.doc.classes[className]);
-  }
   addClass(className) {
     return this.each(item => {
-      if (item.type !== this.mure.TYPES.container) {
+      if (item.type !== TYPES.container) {
         throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
       } else {
-        this.addClassToItem(className, item);
+        item.addClass(className);
       }
     });
   }
@@ -585,22 +698,18 @@ class Selection {
   }
   setInterpretation(interpretation, saveInItem = null) {
     return this.each(async item => {
-      if (item.type !== this.mure.TYPES.container) {
+      if (item.type !== TYPES.container) {
         throw new Error(`Can't interpret an element of type ${item.type.toString()} as a ${interpretation.toString()}`);
-      } else if (interpretation === this.mure.INTERPRETATIONS.node) {
+      } else if (interpretation === INTERPRETATIONS.node) {
         item.value.$edges = {};
         if (item.value.$nodes) {
-          let container = saveInItem || {
-            path: [item.path[0], '$', 'orphanEdges'],
-            value: item.doc.orphanEdges,
-            doc: item.doc
-          };
+          let container = saveInItem || Object.values((await this.followRelativeLink('@$.orphanNodes', item.doc)))[0];
           const nodes = Object.entries(item.value.$nodes);
           delete item.value.$nodes;
           for (let n = 0; n < nodes.length; n++) {
             const link = nodes[n][0];
             const linkDirection = nodes[n][1];
-            const otherItem = await this.followItemLink(link, item.doc);
+            const otherItem = Object.values((await this.followRelativeLink(link, item.doc)))[0];
             if (otherItem.doc === item.doc) {
               delete otherItem.value.$edges[item.value._id];
             } else {
@@ -615,10 +724,10 @@ class Selection {
             }
           }
         }
-      } else if (interpretation === this.mure.INTERPRETATIONS.edge) {
+      } else if (interpretation === INTERPRETATIONS.edge) {
         item.value.$nodes = {};
         throw new Error('unimplemented');
-      } else if (interpretation === this.mure.INTERPRETATIONS.ignore) {
+      } else if (interpretation === INTERPRETATIONS.ignore) {
         throw new Error('unimplemented');
       }
     });
@@ -640,7 +749,6 @@ Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 
 class DocHandler {
   constructor(mure) {
-    this.mure = mure;
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
   }
@@ -664,7 +772,7 @@ class DocHandler {
     throw new Error('unimplemented');
   }
   formatDoc(doc, { mimeType = doc.mimeType } = {}) {
-    this.mure.itemHandler.format(doc.contents);
+    ItemHandler.format(doc.contents);
     throw new Error('unimplemented');
   }
   isValidId(docId) {
@@ -677,7 +785,7 @@ class DocHandler {
     }
     return !!mime.extension(parts[0]);
   }
-  async standardize(doc) {
+  async standardize(doc, mure) {
     if (!doc._id || !this.isValidId(doc._id)) {
       if (!doc.mimeType && !doc.filename) {
         // Without an id, filename, or mimeType, just assume it's application/json
@@ -690,7 +798,7 @@ class DocHandler {
           doc.filename = doc._id;
         } else {
           // Without anything to go on, use "Untitled 1", etc
-          let existingUntitleds = await this.mure.db.allDocs({
+          let existingUntitleds = await mure.db.allDocs({
             startkey: doc.mimeType + ';Untitled ',
             endkey: doc.mimeType + ';Untitled \uffff'
           });
@@ -716,18 +824,16 @@ class DocHandler {
     }
     doc.mimeType = doc.mimeType || doc._id.split(';')[0];
     if (!mime.extension(doc.mimeType)) {
-      this.mure.warn('Unknown mimeType: ' + doc.mimeType);
+      mure.warn('Unknown mimeType: ' + doc.mimeType);
     }
     doc.filename = doc.filename || doc._id.split(';')[1];
     doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
     doc.orphanEdges = doc.orphanEdges || {};
     doc.orphanEdges._id = '@$.orphanEdges';
-    doc.orphanEdges.$nextLabel = 0;
 
     doc.orphanNodes = doc.orphanNodes || {};
     doc.orphanNodes._id = '@$.orphanNodes';
-    doc.orphanNodes.$nextLabel = 0;
 
     doc.classes = doc.classes || {};
     doc.classes._id = '@$.classes';
@@ -736,76 +842,13 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    this.mure.itemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
+    ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }
 }
 
-class ItemHandler {
-  constructor(mure) {
-    this.mure = mure;
-  }
-  extractClassInfoFromId(id) {
-    let temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
-    if (temp && (temp[1] || temp[2])) {
-      return {
-        classPathChunk: temp[1] || temp[2],
-        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
-      };
-    } else {
-      return null;
-    }
-  }
-  standardize(obj, path, classes) {
-    if (typeof obj !== 'object') {
-      return obj;
-    }
-
-    // Convert arrays to objects
-    if (obj instanceof Array) {
-      let temp = {};
-      obj.forEach((element, index) => {
-        temp[index] = element;
-      });
-      obj = temp;
-      obj.$wasArray = true;
-    }
-
-    // Assign the object's id
-    obj._id = '@' + jsonPath.stringify(path);
-
-    // Move any class definitions to this document
-    obj.$tags = obj.$tags || {};
-    Object.keys(obj.$tags).forEach(setId => {
-      let temp = this.extractClassInfoFromId(setId);
-      if (temp) {
-        delete obj.$tags[setId];
-
-        setId = classes._id + temp.classPathChunk;
-        obj.$tags[setId] = true;
-
-        classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
-        classes[temp.className].$members[obj._id] = true;
-      }
-    });
-
-    // Recursively standardize the object's contents
-    Object.entries(obj).forEach(([key, value]) => {
-      if (typeof value === 'object' && !this.mure.RESERVED_OBJ_KEYS[key]) {
-        let temp = Array.from(path);
-        temp.push(key);
-        obj[key] = this.standardize(value, temp, classes);
-      }
-    });
-    return obj;
-  }
-  format(obj) {
-    // TODO: if $wasArray, attempt to restore array status,
-    // remove _ids
-    throw new Error('unimplemented');
-  }
-}
+var DocHandler$1 = new DocHandler();
 
 class Mure extends uki.Model {
   constructor(PouchDB, d3, d3n) {
@@ -834,18 +877,7 @@ class Mure extends uki.Model {
     this.INTERPRETATIONS = INTERPRETATIONS;
 
     // Special keys that should be skipped in various operations
-    this.RESERVED_OBJ_KEYS = {
-      '_id': true,
-      '$wasArray': true,
-      '$tags': true,
-      '$members': true,
-      '$edges': true,
-      '$nodes': true,
-      '$nextLabel': true
-    };
-
-    this.docHandler = new DocHandler(this);
-    this.itemHandler = new ItemHandler(this);
+    this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -967,7 +999,7 @@ class Mure extends uki.Model {
   async getDoc(docQuery, { init = true } = {}) {
     let doc;
     if (!docQuery) {
-      return this.docHandler.standardize({});
+      return DocHandler$1.standardize({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -980,7 +1012,7 @@ class Mure extends uki.Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.docHandler.standardize(docQuery);
+          doc = await DocHandler$1.standardize(docQuery, this);
         } else {
           return null;
         }
@@ -1021,7 +1053,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = this.docHandler.formatDoc(doc, { mimeType });
+      let contents = DocHandler$1.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -1048,14 +1080,14 @@ class Mure extends uki.Model {
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
   async uploadString(filename, mimeType, encoding, string) {
-    let doc = await this.docHandler.parse(string, { mimeType });
+    let doc = await DocHandler$1.parse(string, { mimeType });
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.docHandler.standardize(doc);
+    doc = await DocHandler$1.standardize(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc(docQuery) {
