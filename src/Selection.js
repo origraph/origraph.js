@@ -54,19 +54,6 @@ class Selection {
     this.pendingOperations = [];
     this.pollutedSelections = [];
   }
-  get selectorList () {
-    return this.selectors.map(selector => {
-      return '@' + selector.docQuery + selector.objQuery +
-        Array.from(Array(selector.parentShift)).map(d => '↑').join('') +
-        selector.followLinks ? '→' : '';
-    });
-  }
-  select (selectorList) {
-    return new Selection(this.mure, selectorList, { selectSingle: true, parentSelection: this });
-  }
-  selectAll (selectorList) {
-    return new Selection(this.mure, selectorList, { parentSelection: this });
-  }
   invalidateCache () {
     delete this._cachedDocLists;
     delete this._cachedItems;
@@ -316,7 +303,8 @@ class Selection {
           container = Object.values(
             await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
         }
-        Object.values(await otherSelection.items()).forEach(otherItem => {
+        const otherItems = await otherSelection.items();
+        Object.values(otherItems).forEach(otherItem => {
           if (otherItem.type === TYPES.container &&
               connectWhen.apply(this, [item, otherItem])) {
             if (item.value.$edges && otherItem.value.$edges) {
@@ -432,21 +420,22 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
-  getFlatGraphSchema (items) {
+  async getFlatGraphSchema () {
+    const items = await this.items();
     let result = {
       nodeClasses: [],
       nodeClassLookup: {},
-      edgeClasses: [],
-      edgeClassLookup: {}
+      edgeSets: [],
+      edgeSetLookup: {}
     };
 
     // First pass: collect and count which node classes exist, and create a
     // temporary edge sublist for the second pass
-    let edges = {};
-    for (let [uniqueSelector, item] in Object.entries(items)) {
+    const edges = {};
+    Object.entries(items).forEach(([uniqueSelector, item]) => {
       if (item.value.$edges) {
         item.classes.forEach(className => {
-          if (!result.nodeClassLookup[className]) {
+          if (result.nodeClassLookup[className] === undefined) {
             result.nodeClassLookup[className] = result.nodeClasses.length;
             result.nodeClasses.push({
               name: className,
@@ -458,22 +447,26 @@ class Selection {
       } else if (item.value.$nodes) {
         edges[uniqueSelector] = item;
       }
-    }
+    });
 
     // Second pass: find and count which distinct
     // node class -> edge class -> node class
     // sets exist
-    for (let edgeItem in Object.values(edges)) {
+    Object.values(edges).forEach(edgeItem => {
       let temp = {
-        edgeClasses: edgeItem.classes,
+        edgeClasses: Array.from(edgeItem.classes),
         sourceClasses: [],
         targetClasses: [],
         undirectedClasses: [],
         count: 0
       };
-      for (let [nodeId, relativeNodeDirection] in Object.entries(edgeItem.value.$nodes)) {
-        let uniqueNodeSelector = ItemHandler.idToUniqueSelector(nodeId);
-        let nodeItem = items[uniqueNodeSelector];
+      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
+        let nodeItem = items[nodeId] ||
+          items[ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        if (!nodeItem) {
+          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
+          return;
+        }
         // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
         if (relativeNodeDirection === 'source') {
           temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
@@ -482,24 +475,27 @@ class Selection {
         } else {
           temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
         }
+      });
+      const edgeKey = hash(temp);
+      if (result.edgeSetLookup[edgeKey] === undefined) {
+        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
+        result.edgeSets.push(temp);
       }
-      let edgeKey = hash(temp);
-      if (!result.edgeClassLookup[edgeKey]) {
-        result.edgeClassLookup[edgeKey] = result.edgeClasses.length;
-        result.edgeClasses.push(temp);
-      }
-      result.edgeClasses[result.edgeClassLookup[edgeKey]].count += 1;
-    }
+      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
+    });
 
     return result;
   }
-  getIntersectedGraphSchema (items) {
+  async getIntersectedGraphSchema () {
+    // const items = await this.items();
     throw new Error('unimplemented');
   }
-  getContainerSchema (items) {
+  async getContainerSchema () {
+    // const items = await this.items();
     throw new Error('unimplemented');
   }
-  allMetaObjIntersections (metaObjs, items) {
+  async allMetaObjIntersections (metaObjs) {
+    const items = await this.items();
     let linkedIds = {};
     items.forEach(item => {
       metaObjs.forEach(metaObj => {
@@ -525,7 +521,8 @@ class Selection {
     });
     return sets;
   }
-  metaObjUnion (metaObjs, items) {
+  async metaObjUnion (metaObjs) {
+    const items = await this.items();
     let linkedIds = {};
     Object.values(items).forEach(item => {
       metaObjs.forEach(metaObj => {
@@ -538,17 +535,46 @@ class Selection {
     });
     return Object.keys(linkedIds);
   }
-  selectAllSetMembers (items) {
-    return new Selection(this.mure, this.metaObjUnion(['$members'], items));
+
+  /*
+   These functions are useful for deriving additional selections
+   */
+  get selectorList () {
+    return this.selectors.map(selector => {
+      return '@' + selector.docQuery + selector.objQuery +
+        Array.from(Array(selector.parentShift)).map(d => '↑').join('') +
+        (selector.followLinks ? '→' : '');
+    });
   }
-  selectAllContainingSets (items) {
-    return new Selection(this.mure, this.metaObjUnion(['$tags'], items));
+  deriveSelection (selectorList, options = { merge: false }) {
+    if (options.merge) {
+      selectorList = selectorList.concat(this.selectorList);
+    }
+    return new Selection(this.mure, selectorList, options);
   }
-  selectAllEdges (items) {
-    return new Selection(this.mure, this.metaObjUnion(['$edges'], items));
+  merge (otherSelection, options = {}) {
+    Object.assign(options, { merge: true });
+    return this.deriveSelection(otherSelection.selectorList, options);
   }
-  selectAllNodes (items) {
-    return new Selection(this.mure, this.metaObjUnion(['$nodes'], items));
+  select (selectorList, options = {}) {
+    Object.assign(options, { selectSingle: true, parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  selectAll (selectorList, options = {}) {
+    Object.assign(options, { parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  async selectAllSetMembers (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$members']), options);
+  }
+  async selectAllContainingSets (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$tags']), options);
+  }
+  async selectAllEdges (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$edges']), options);
+  }
+  async selectAllNodes (options = false) {
+    return this.deriveSelection(await this.metaObjUnion(['$nodes']), options);
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;

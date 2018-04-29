@@ -101,7 +101,15 @@ module.exports = [
           result: logging.testObjectEquality(schemaResults.allClasses2, allClasses)
         });
 
-        // TODO: test schema summary functions
+        // Test schema summary functions
+        let allItems = hands.merge(cards).merge(tricks);
+        allItems = await allItems.selectAllEdges({ merge: true });
+
+        let summary = await allItems.getFlatGraphSchema();
+        tests.push({
+          name: 'Flat graph schema test',
+          result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)
+        });
 
         resolve(tests);
       })();

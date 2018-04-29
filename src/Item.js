@@ -27,6 +27,9 @@ class Handler {
     }
   }
   getItemClasses (item) {
+    if (!item.value || !item.value.$tags) {
+      return [];
+    }
     return Object.keys(item.value.$tags).reduce((agg, setId) => {
       const temp = this.extractClassInfoFromId(setId);
       if (temp) {
@@ -193,21 +196,26 @@ class Item extends BaseItem {
       classes: [],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
-    if (path[2] === 'contents' && this.type === TYPES.container) {
-      this.classes = ItemHandler.getItemClasses(this);
-    }
+    this.classes = ItemHandler.getItemClasses(this);
   }
 }
 class ContainerItem extends Item {
   constructor (path, value, doc) {
     super(path, value, doc, TYPES.container);
     this.nextLabel = Object.keys(this.value)
-      .reduce((max, key) => typeof key === 'number' && key > max ? key : max, 0) + 1;
+      .reduce((max, key) => {
+        key = parseInt(key);
+        if (!isNaN(key) && key > max) {
+          return key;
+        } else {
+          return max;
+        }
+      }, 0) + 1;
   }
   createNewItem (value, label, type) {
     type = type || ItemHandler.inferType(value);
     if (label === undefined) {
-      label = this.nextLabel;
+      label = String(this.nextLabel);
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);

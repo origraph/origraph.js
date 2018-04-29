@@ -173,14 +173,125 @@
     "Won By": {
       "_id": "@$.classes[\"Won By\"]",
       "$members": {
-        "@$.orphanEdges[1]": true
+        "@$.orphanEdges[\"1\"]": true,
+        "@$.orphanEdges[\"2\"]": true,
+        "@$.orphanEdges[\"3\"]": true,
+        "@$.orphanEdges[\"4\"]": true,
+        "@$.orphanEdges[\"5\"]": true,
+        "@$.orphanEdges[\"6\"]": true,
+        "@$.orphanEdges[\"7\"]": true,
+        "@$.orphanEdges[\"8\"]": true,
+        "@$.orphanEdges[\"9\"]": true,
+        "@$.orphanEdges[\"10\"]": true,
+        "@$.orphanEdges[\"11\"]": true,
+        "@$.orphanEdges[\"12\"]": true
       }
     },
     "Played": {
       "_id": "@$.classes.Played",
       "$members": {
-        "@$.orphanEdges[1]": true
+        "@$.orphanEdges[\"13\"]": true,
+        "@$.orphanEdges[\"14\"]": true,
+        "@$.orphanEdges[\"15\"]": true,
+        "@$.orphanEdges[\"16\"]": true,
+        "@$.orphanEdges[\"17\"]": true,
+        "@$.orphanEdges[\"18\"]": true,
+        "@$.orphanEdges[\"19\"]": true,
+        "@$.orphanEdges[\"20\"]": true,
+        "@$.orphanEdges[\"21\"]": true,
+        "@$.orphanEdges[\"22\"]": true,
+        "@$.orphanEdges[\"23\"]": true,
+        "@$.orphanEdges[\"24\"]": true,
+        "@$.orphanEdges[\"25\"]": true,
+        "@$.orphanEdges[\"26\"]": true,
+        "@$.orphanEdges[\"27\"]": true,
+        "@$.orphanEdges[\"28\"]": true,
+        "@$.orphanEdges[\"29\"]": true,
+        "@$.orphanEdges[\"30\"]": true,
+        "@$.orphanEdges[\"31\"]": true,
+        "@$.orphanEdges[\"32\"]": true,
+        "@$.orphanEdges[\"33\"]": true,
+        "@$.orphanEdges[\"34\"]": true,
+        "@$.orphanEdges[\"35\"]": true,
+        "@$.orphanEdges[\"36\"]": true,
+        "@$.orphanEdges[\"37\"]": true,
+        "@$.orphanEdges[\"38\"]": true,
+        "@$.orphanEdges[\"39\"]": true,
+        "@$.orphanEdges[\"40\"]": true,
+        "@$.orphanEdges[\"41\"]": true,
+        "@$.orphanEdges[\"42\"]": true,
+        "@$.orphanEdges[\"43\"]": true,
+        "@$.orphanEdges[\"44\"]": true,
+        "@$.orphanEdges[\"45\"]": true,
+        "@$.orphanEdges[\"46\"]": true,
+        "@$.orphanEdges[\"47\"]": true,
+        "@$.orphanEdges[\"48\"]": true,
+        "@$.orphanEdges[\"49\"]": true,
+        "@$.orphanEdges[\"50\"]": true,
+        "@$.orphanEdges[\"51\"]": true,
+        "@$.orphanEdges[\"52\"]": true,
+        "@$.orphanEdges[\"53\"]": true,
+        "@$.orphanEdges[\"54\"]": true,
+        "@$.orphanEdges[\"55\"]": true,
+        "@$.orphanEdges[\"56\"]": true,
+        "@$.orphanEdges[\"57\"]": true,
+        "@$.orphanEdges[\"58\"]": true,
+        "@$.orphanEdges[\"59\"]": true,
+        "@$.orphanEdges[\"60\"]": true
       }
+    }
+  },
+  "flatGraphSchema": {
+    "nodeClasses": [
+      {
+        "name": "trick",
+        "count": 12
+      },
+      {
+        "name": "card",
+        "count": 48
+      },
+      {
+        "name": "player",
+        "count": 4
+      }
+    ],
+    "nodeClassLookup": {
+      "trick": 0,
+      "card": 1,
+      "player": 2
+    },
+    "edgeSets": [
+      {
+        "edgeClasses": [
+          "Won By"
+        ],
+        "sourceClasses": [
+          "trick"
+        ],
+        "targetClasses": [
+          "player"
+        ],
+        "undirectedClasses": [],
+        "count": 12
+      },
+      {
+        "edgeClasses": [
+          "Played"
+        ],
+        "sourceClasses": [
+          "card"
+        ],
+        "targetClasses": [
+          "trick"
+        ],
+        "undirectedClasses": [],
+        "count": 48
+      }
+    ],
+    "edgeSetLookup": {
+      "59d5c0660ed029c3487f44a5fda8897e7f8bff9f": 0,
+      "040647745ca778f8ba332894e06bd522c5fc176a": 1
     }
   }
 }
