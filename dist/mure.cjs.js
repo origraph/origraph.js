@@ -80,7 +80,7 @@ class Handler {
     if (TYPES[jsType]) {
       if (jsType === 'string' && value[0] === '@') {
         try {
-          new Selection(null, value); // eslint-disable-line no-new
+          new this.Selection(null, value); // eslint-disable-line no-new
         } catch (err) {
           if (err.INVALID_SELECTOR) {
             return TYPES.string;
@@ -502,7 +502,7 @@ class Selection {
                   // We (potentially) selected a link that we need to follow
                   Object.values((await this.followRelativeLink(value, doc))).forEach(addItem);
                 } else {
-                  const type = ItemHandler.inferType(value);
+                  const type = ItemHandler.inferType(value, Selection);
                   if (type === TYPES.container) {
                     // We selected an item that is a container
                     addItem(new ContainerItem(path, value, doc));
@@ -528,6 +528,9 @@ class Selection {
       }
       return this._cachedItems;
     });
+  }
+  get isCached() {
+    return !!this._cachedItems;
   }
   async save() {
     // Evaluate all the pending operations that we've accrued; as each function
@@ -890,6 +893,7 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
+ItemHandler.Selection = Selection; // shim to avoid circular dependcency
 
 class DocHandler {
   constructor(mure) {

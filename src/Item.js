@@ -1,6 +1,5 @@
 import jsonPath from 'jsonpath';
 import { TYPES, RESERVED_OBJ_KEYS } from './Types.js';
-import Selection from './Selection.js';
 
 class Handler {
   idToUniqueSelector (selectorString, docId) {
@@ -43,7 +42,7 @@ class Handler {
     if (TYPES[jsType]) {
       if (jsType === 'string' && value[0] === '@') {
         try {
-          new Selection(null, value); // eslint-disable-line no-new
+          new this.Selection(null, value); // eslint-disable-line no-new
         } catch (err) {
           if (err.INVALID_SELECTOR) {
             return TYPES.string;
