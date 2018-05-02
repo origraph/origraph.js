@@ -1,6 +1,6 @@
 import jsonPath from 'jsonpath';
-import hash from 'object-hash';
 import queueAsync from './queueAsync.js';
+import md5 from 'blueimp-md5';
 import { ItemHandler, RootItem, DocItem, ContainerItem, Item } from './Item.js';
 import { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS } from './Types.js';
 
@@ -479,7 +479,7 @@ class Selection {
           temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
         }
       });
-      const edgeKey = hash(temp);
+      const edgeKey = md5(JSON.stringify(temp));
       if (result.edgeSetLookup[edgeKey] === undefined) {
         result.edgeSetLookup[edgeKey] = result.edgeSets.length;
         result.edgeSets.push(temp);

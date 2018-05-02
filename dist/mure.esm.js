@@ -1,5 +1,5 @@
 import jsonPath from 'jsonpath';
-import hash from 'object-hash';
+import md5 from 'blueimp-md5';
 import mime from 'mime-types';
 import datalib from 'datalib';
 import { Model } from 'uki';
@@ -783,7 +783,7 @@ class Selection {
           temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
         }
       });
-      const edgeKey = hash(temp);
+      const edgeKey = md5(JSON.stringify(temp));
       if (result.edgeSetLookup[edgeKey] === undefined) {
         result.edgeSetLookup[edgeKey] = result.edgeSets.length;
         result.edgeSets.push(temp);
@@ -1304,8 +1304,8 @@ var author = "Alex Bigelow";
 var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
-var devDependencies = { "babel-core": "^6.26.0", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.0", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.58.0", "rollup-plugin-babel": "^3.0.3", "rollup-plugin-commonjs": "^9.1.0", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-replace": "^2.0.0", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
-var dependencies = { "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "object-hash": "^1.3.0", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.2" };
+var devDependencies = { "babel-core": "^6.26.3", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.1", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "randombytes": "^2.0.6", "rollup": "^0.58.2", "rollup-plugin-babel": "^3.0.4", "rollup-plugin-commonjs": "^9.1.3", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
+var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.2" };
 var peerDependencies = { "d3": "^5.0.0" };
 var pkg = {
 	name: name,
