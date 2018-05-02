@@ -217,6 +217,9 @@ class Selection {
       return this._cachedItems;
     });
   }
+  get isCached () {
+    return !!this._cachedItems;
+  }
   async save () {
     // Evaluate all the pending operations that we've accrued; as each function
     // manipulates Items' .value property, those changes will automatically be

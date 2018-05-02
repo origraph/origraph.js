@@ -271,11 +271,11 @@ class Mure extends Model {
   selectAll (selectorList) {
     return new Selection(this, selectorList);
   }
-  async setLinkedViews ({ viewSelection, userSelection, settings } = {}) {
+  async setLinkedViews ({ view, userSelection, settings } = {}) {
     let docs = [];
-    if (viewSelection) {
+    if (view) {
       const linkedView = await this.db.get('$linkedView');
-      linkedView.selectorList = viewSelection.selectorList;
+      linkedView.selectorList = view.selectorList;
       docs.push(linkedView);
     }
     if (userSelection) {
@@ -285,7 +285,7 @@ class Mure extends Model {
     }
     if (settings) {
       const linkedViewSettings = await this.db.get('$linkedViewSettings');
-      linkedViewSettings.settings = settings;
+      Object.assign(linkedViewSettings.settings, settings);
       docs.push(linkedViewSettings);
     }
     return this.putDocs(docs);
