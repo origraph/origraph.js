@@ -91,10 +91,6 @@ class Mure extends Model {
             fields: ['filename']
           }
         }).catch(() => false));
-        status.linkedView = !!(await this.db.put({
-          _id: '$linkedView',
-          selectorList: ['@$.classes[*]']
-        }).catch(() => false));
         status.linkedUserSelection = !!(await this.db.put({
           _id: '$linkedUserSelection',
           selectorList: []
@@ -113,11 +109,6 @@ class Mure extends Model {
             // corresponding to this document
             Selection.INVALIDATE_DOC_CACHE(change.id);
             this.trigger('docChange', change.doc);
-          } else if (change.id === '$linkedView') {
-            // The linked views changed
-            this.stickyTrigger('linkedViewChange', {
-              view: this.selectAll(change.doc.selectorList)
-            });
           } else if (change.id === '$linkedUserSelection') {
             // The linked user selection changed
             this.stickyTrigger('linkedViewChange', {
@@ -274,11 +265,6 @@ class Mure extends Model {
   }
   async setLinkedViews ({ view, userSelection, settings } = {}) {
     let docs = [];
-    if (view) {
-      const linkedView = await this.db.get('$linkedView');
-      linkedView.selectorList = view.selectorList;
-      docs.push(linkedView);
-    }
     if (userSelection) {
       const linkedUserSelection = await this.db.get('$linkedUserSelection');
       linkedUserSelection.selectorList = userSelection.selectorList;
@@ -293,7 +279,6 @@ class Mure extends Model {
   }
   async getLinkedViews () {
     const temp = await Promise.all([
-      this.db.get('$linkedView'),
       this.db.get('$linkedUserSelection'),
       this.db.get('$linkedViewSettings')
     ]);
