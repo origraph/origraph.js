@@ -54,6 +54,22 @@ class Selection {
     this.pendingOperations = [];
     this.pollutedSelections = [];
   }
+  get hash () {
+    if (!this._hash) {
+      this._hash = md5(JSON.stringify(this.selectorList));
+    }
+    return this._hash;
+  }
+  get selectorList () {
+    return this.selectors.map(selector => {
+      return '@' + selector.docQuery + selector.objQuery +
+        Array.from(Array(selector.parentShift)).map(d => '↑').join('') +
+        (selector.followLinks ? '→' : '');
+    });
+  }
+  get isCached () {
+    return !!this._cachedItems;
+  }
   invalidateCache () {
     delete this._cachedDocLists;
     delete this._cachedItems;
@@ -216,9 +232,6 @@ class Selection {
       }
       return this._cachedItems;
     });
-  }
-  get isCached () {
-    return !!this._cachedItems;
   }
   async save () {
     // Evaluate all the pending operations that we've accrued; as each function
@@ -542,13 +555,6 @@ class Selection {
   /*
    These functions are useful for deriving additional selections
    */
-  get selectorList () {
-    return this.selectors.map(selector => {
-      return '@' + selector.docQuery + selector.objQuery +
-        Array.from(Array(selector.parentShift)).map(d => '↑').join('') +
-        (selector.followLinks ? '→' : '');
-    });
-  }
   deriveSelection (selectorList, options = { merge: false }) {
     if (options.merge) {
       selectorList = selectorList.concat(this.selectorList);

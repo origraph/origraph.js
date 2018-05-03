@@ -363,6 +363,20 @@ class Selection {
     this.pendingOperations = [];
     this.pollutedSelections = [];
   }
+  get hash() {
+    if (!this._hash) {
+      this._hash = md5(JSON.stringify(this.selectorList));
+    }
+    return this._hash;
+  }
+  get selectorList() {
+    return this.selectors.map(selector => {
+      return '@' + selector.docQuery + selector.objQuery + Array.from(Array(selector.parentShift)).map(d => '↑').join('') + (selector.followLinks ? '→' : '');
+    });
+  }
+  get isCached() {
+    return !!this._cachedItems;
+  }
   invalidateCache() {
     delete this._cachedDocLists;
     delete this._cachedItems;
@@ -528,9 +542,6 @@ class Selection {
       }
       return this._cachedItems;
     });
-  }
-  get isCached() {
-    return !!this._cachedItems;
   }
   async save() {
     // Evaluate all the pending operations that we've accrued; as each function
@@ -847,11 +858,6 @@ class Selection {
   /*
    These functions are useful for deriving additional selections
    */
-  get selectorList() {
-    return this.selectors.map(selector => {
-      return '@' + selector.docQuery + selector.objQuery + Array.from(Array(selector.parentShift)).map(d => '↑').join('') + (selector.followLinks ? '→' : '');
-    });
-  }
   deriveSelection(selectorList, options = { merge: false }) {
     if (options.merge) {
       selectorList = selectorList.concat(this.selectorList);
@@ -1028,7 +1034,7 @@ class Mure extends uki.Model {
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
 
     // Create / load the local database of files
-    this.getOrInitDb();
+    this.dbPromise = this.getOrInitDb();
 
     // in the absence of a custom dialogs, just use window.alert,
     // window.confirm, window.prompt, console.warn, and console.log:
@@ -1119,6 +1125,7 @@ class Mure extends uki.Model {
     });
   }
   async queryDocs(queryObj) {
+    await this.dbPromise;
     let queryResult = await this.db.find(queryObj);
     if (queryResult.warning) {
       this.warn(queryResult.warning);
@@ -1139,6 +1146,7 @@ class Mure extends uki.Model {
    * Resolves the document
    */
   async getDoc(docQuery, { init = true } = {}) {
+    await this.dbPromise;
     let doc;
     if (!docQuery) {
       return DocHandler$1.standardize({}, this);
@@ -1165,6 +1173,7 @@ class Mure extends uki.Model {
     }
   }
   async putDoc(doc) {
+    await this.dbPromise;
     try {
       return this.db.put(doc);
     } catch (err) {
@@ -1174,6 +1183,7 @@ class Mure extends uki.Model {
     }
   }
   async putDocs(docList) {
+    await this.dbPromise;
     try {
       return this.db.bulkDocs(docList);
     } catch (err) {
@@ -1255,7 +1265,8 @@ class Mure extends uki.Model {
   selectAll(selectorList) {
     return new Selection(this, selectorList);
   }
-  async setLinkedViews({ view, userSelection, settings } = {}) {
+  async setLinkedViews({ userSelection, settings } = {}) {
+    await this.dbPromise;
     let docs = [];
     if (userSelection) {
       const linkedUserSelection = await this.db.get('$linkedUserSelection');
@@ -1270,6 +1281,7 @@ class Mure extends uki.Model {
     return this.putDocs(docs);
   }
   async getLinkedViews() {
+    await this.dbPromise;
     const temp = await Promise.all([this.db.get('$linkedUserSelection'), this.db.get('$linkedViewSettings')]);
     return {
       view: this.selectAll(temp[0].selectorList),
