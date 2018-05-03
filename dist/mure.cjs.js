@@ -1095,28 +1095,29 @@ class Mure extends uki.Model {
           settings: {}
         }).catch(() => false));
         this.db.changes({
-          since: 'now',
-          live: true
+          since: (await this.db.info()).update_seq - 1,
+          live: true,
+          include_docs: true
         }).on('change', change => {
           if (change.id > '_\uffff') {
             // A regular document changed; invalidate all selection caches
             // corresponding to this document
             Selection.INVALIDATE_DOC_CACHE(change.id);
-            this.trigger('docChange', change);
+            this.trigger('docChange', change.doc);
           } else if (change.id === '$linkedView') {
             // The linked views changed
             this.stickyTrigger('linkedViewChange', {
-              view: this.selectAll(change.selectorList)
+              view: this.selectAll(change.doc.selectorList)
             });
           } else if (change.id === '$linkedUserSelection') {
             // The linked user selection changed
             this.stickyTrigger('linkedViewChange', {
-              userSelection: this.selectAll(change.selectorList)
+              userSelection: this.selectAll(change.doc.selectorList)
             });
           } else if (change.id === '$linkedViewSettings') {
             // The linked view settings changed
             this.stickyTrigger('linkedViewChange', {
-              settings: change.settings
+              settings: change.doc.settings
             });
           }
         }).on('error', err => {
@@ -1306,7 +1307,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.3", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.1", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "rollup": "^0.58.2", "rollup-plugin-babel": "^3.0.4", "rollup-plugin-commonjs": "^9.1.3", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
-var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.2" };
+var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.3" };
 var peerDependencies = { "d3": "^5.0.0" };
 var pkg = {
 	name: name,

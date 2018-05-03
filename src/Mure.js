@@ -104,28 +104,29 @@ class Mure extends Model {
           settings: {}
         }).catch(() => false));
         this.db.changes({
-          since: 'now',
-          live: true
+          since: (await this.db.info()).update_seq - 1,
+          live: true,
+          include_docs: true
         }).on('change', change => {
           if (change.id > '_\uffff') {
             // A regular document changed; invalidate all selection caches
             // corresponding to this document
             Selection.INVALIDATE_DOC_CACHE(change.id);
-            this.trigger('docChange', change);
+            this.trigger('docChange', change.doc);
           } else if (change.id === '$linkedView') {
             // The linked views changed
             this.stickyTrigger('linkedViewChange', {
-              view: this.selectAll(change.selectorList)
+              view: this.selectAll(change.doc.selectorList)
             });
           } else if (change.id === '$linkedUserSelection') {
             // The linked user selection changed
             this.stickyTrigger('linkedViewChange', {
-              userSelection: this.selectAll(change.selectorList)
+              userSelection: this.selectAll(change.doc.selectorList)
             });
           } else if (change.id === '$linkedViewSettings') {
             // The linked view settings changed
             this.stickyTrigger('linkedViewChange', {
-              settings: change.settings
+              settings: change.doc.settings
             });
           }
         }).on('error', err => {
