@@ -3,10 +3,10 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var jsonPath = _interopDefault(require('jsonpath'));
+var uki = require('uki');
 var md5 = _interopDefault(require('blueimp-md5'));
 var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
-var uki = require('uki');
 var D3Node = _interopDefault(require('d3-node'));
 
 var createEnum = (values => {
@@ -30,14 +30,6 @@ const RESERVED_OBJ_KEYS = {
   '$nodes': true,
   '$nextLabel': true
 };
-
-var queueAsync = (func => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve(func());
-    });
-  });
-});
 
 class Handler {
   idToUniqueSelector(selectorString, docId) {
@@ -454,7 +446,7 @@ class Selection {
       return this._cachedItems;
     }
 
-    return queueAsync(async () => {
+    return uki.queueAsync(async () => {
       // Collect the results of objQuery
       this._cachedItems = {};
       let addedItem = false;
@@ -1034,7 +1026,7 @@ class Mure extends uki.Model {
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
 
     // Create / load the local database of files
-    this.dbPromise = this.getOrInitDb();
+    this.getOrInitDb();
 
     // in the absence of a custom dialogs, just use window.alert,
     // window.confirm, window.prompt, console.warn, and console.log:
@@ -1125,7 +1117,7 @@ class Mure extends uki.Model {
     });
   }
   async queryDocs(queryObj) {
-    await this.dbPromise;
+    await this.dbStatus;
     let queryResult = await this.db.find(queryObj);
     if (queryResult.warning) {
       this.warn(queryResult.warning);
@@ -1146,7 +1138,7 @@ class Mure extends uki.Model {
    * Resolves the document
    */
   async getDoc(docQuery, { init = true } = {}) {
-    await this.dbPromise;
+    await this.dbStatus;
     let doc;
     if (!docQuery) {
       return DocHandler$1.standardize({}, this);
@@ -1173,7 +1165,7 @@ class Mure extends uki.Model {
     }
   }
   async putDoc(doc) {
-    await this.dbPromise;
+    await this.dbStatus;
     try {
       return this.db.put(doc);
     } catch (err) {
@@ -1183,7 +1175,7 @@ class Mure extends uki.Model {
     }
   }
   async putDocs(docList) {
-    await this.dbPromise;
+    await this.dbStatus;
     try {
       return this.db.bulkDocs(docList);
     } catch (err) {
@@ -1266,7 +1258,7 @@ class Mure extends uki.Model {
     return new Selection(this, selectorList);
   }
   async setLinkedViews({ userSelection, settings } = {}) {
-    await this.dbPromise;
+    await this.dbStatus;
     let docs = [];
     if (userSelection) {
       const linkedUserSelection = await this.db.get('$linkedUserSelection');
@@ -1281,12 +1273,11 @@ class Mure extends uki.Model {
     return this.putDocs(docs);
   }
   async getLinkedViews() {
-    await this.dbPromise;
+    await this.dbStatus;
     const temp = await Promise.all([this.db.get('$linkedUserSelection'), this.db.get('$linkedViewSettings')]);
     return {
-      view: this.selectAll(temp[0].selectorList),
-      userSelection: this.selectAll(temp[1].selectorList),
-      settings: temp[2].settings
+      userSelection: this.selectAll(temp[0].selectorList),
+      settings: temp[1].settings
     };
   }
 }
@@ -1305,7 +1296,7 @@ var license = "MIT";
 var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
 var homepage = "https://github.com/mure-apps/mure-library#readme";
 var devDependencies = { "babel-core": "^6.26.3", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.1", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "rollup": "^0.58.2", "rollup-plugin-babel": "^3.0.4", "rollup-plugin-commonjs": "^9.1.3", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
-var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.3" };
+var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.4" };
 var peerDependencies = { "d3": "^5.0.0" };
 var pkg = {
 	name: name,

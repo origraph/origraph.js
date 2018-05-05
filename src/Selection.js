@@ -1,5 +1,5 @@
 import jsonPath from 'jsonpath';
-import queueAsync from './queueAsync.js';
+import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
 import { ItemHandler, RootItem, DocItem, ContainerItem, Item } from './Item.js';
 import { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS } from './Types.js';

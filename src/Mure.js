@@ -35,7 +35,7 @@ class Mure extends Model {
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
 
     // Create / load the local database of files
-    this.dbPromise = this.getOrInitDb();
+    this.getOrInitDb();
 
     // in the absence of a custom dialogs, just use window.alert,
     // window.confirm, window.prompt, console.warn, and console.log:
@@ -128,7 +128,7 @@ class Mure extends Model {
     });
   }
   async queryDocs (queryObj) {
-    await this.dbPromise;
+    await this.dbStatus;
     let queryResult = await this.db.find(queryObj);
     if (queryResult.warning) { this.warn(queryResult.warning); }
     return queryResult.docs;
@@ -147,7 +147,7 @@ class Mure extends Model {
    * Resolves the document
    */
   async getDoc (docQuery, { init = true } = {}) {
-    await this.dbPromise;
+    await this.dbStatus;
     let doc;
     if (!docQuery) {
       return DocHandler.standardize({}, this);
@@ -174,7 +174,7 @@ class Mure extends Model {
     }
   }
   async putDoc (doc) {
-    await this.dbPromise;
+    await this.dbStatus;
     try {
       return this.db.put(doc);
     } catch (err) {
@@ -184,7 +184,7 @@ class Mure extends Model {
     }
   }
   async putDocs (docList) {
-    await this.dbPromise;
+    await this.dbStatus;
     try {
       return this.db.bulkDocs(docList);
     } catch (err) {
@@ -268,7 +268,7 @@ class Mure extends Model {
     return new Selection(this, selectorList);
   }
   async setLinkedViews ({ userSelection, settings } = {}) {
-    await this.dbPromise;
+    await this.dbStatus;
     let docs = [];
     if (userSelection) {
       const linkedUserSelection = await this.db.get('$linkedUserSelection');
@@ -283,15 +283,14 @@ class Mure extends Model {
     return this.putDocs(docs);
   }
   async getLinkedViews () {
-    await this.dbPromise;
+    await this.dbStatus;
     const temp = await Promise.all([
       this.db.get('$linkedUserSelection'),
       this.db.get('$linkedViewSettings')
     ]);
     return {
-      view: this.selectAll(temp[0].selectorList),
-      userSelection: this.selectAll(temp[1].selectorList),
-      settings: temp[2].settings
+      userSelection: this.selectAll(temp[0].selectorList),
+      settings: temp[1].settings
     };
   }
 }
