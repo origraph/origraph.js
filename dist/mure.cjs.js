@@ -9,302 +9,6 @@ var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var D3Node = _interopDefault(require('d3-node'));
 
-var createEnum = (values => {
-  let result = {};
-  values.forEach(value => {
-    result[value] = Symbol(value);
-  });
-  return Object.freeze(result);
-});
-
-const TYPES = createEnum(['boolean', 'number', 'string', 'date', 'undefined', 'null', 'reference', 'container', 'document', 'root']);
-
-const INTERPRETATIONS = createEnum(['ignore', 'node', 'edge']);
-
-const RESERVED_OBJ_KEYS = {
-  '_id': true,
-  '$wasArray': true,
-  '$tags': true,
-  '$members': true,
-  '$edges': true,
-  '$nodes': true,
-  '$nextLabel': true
-};
-
-class Handler {
-  idToUniqueSelector(selectorString, docId) {
-    const chunks = /@[^$]*(\$.*)/.exec(selectorString);
-    return `@{"_id":"${docId}"}${chunks[1]}`;
-  }
-  extractDocQuery(selectorString) {
-    const result = /@\s*({.*})/.exec(selectorString);
-    if (result && result[1]) {
-      return JSON.parse(result[1]);
-    } else {
-      return null;
-    }
-  }
-  extractClassInfoFromId(id) {
-    const temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
-    if (temp && (temp[1] || temp[2])) {
-      return {
-        classPathChunk: temp[1] || temp[2],
-        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
-      };
-    } else {
-      return null;
-    }
-  }
-  getItemClasses(item) {
-    if (!item.value || !item.value.$tags) {
-      return [];
-    }
-    return Object.keys(item.value.$tags).reduce((agg, setId) => {
-      const temp = this.extractClassInfoFromId(setId);
-      if (temp) {
-        agg.push(temp.className);
-      }
-      return agg;
-    }, []).sort();
-  }
-  inferType(value) {
-    const jsType = typeof value;
-    if (TYPES[jsType]) {
-      if (jsType === 'string' && value[0] === '@') {
-        try {
-          new this.Selection(null, value); // eslint-disable-line no-new
-        } catch (err) {
-          if (err.INVALID_SELECTOR) {
-            return TYPES.string;
-          } else {
-            throw err;
-          }
-        }
-        return TYPES.reference;
-      } else {
-        return TYPES[jsType];
-      }
-    } else if (value === null) {
-      return TYPES.null;
-    } else if (value instanceof Date) {
-      return TYPES.date;
-    } else if (jsType === 'function' || jsType === 'symbol' || value instanceof Array) {
-      throw new Error('invalid value: ' + value);
-    } else {
-      return TYPES.container;
-    }
-  }
-  standardize(obj, path, classes) {
-    if (typeof obj !== 'object') {
-      return obj;
-    }
-
-    // Convert arrays to objects
-    if (obj instanceof Array) {
-      let temp = {};
-      obj.forEach((element, index) => {
-        temp[index] = element;
-      });
-      obj = temp;
-      obj.$wasArray = true;
-    }
-
-    // Assign the object's id
-    obj._id = '@' + jsonPath.stringify(path);
-
-    // Move any class definitions to this document
-    obj.$tags = obj.$tags || {};
-    Object.keys(obj.$tags).forEach(setId => {
-      const temp = this.extractClassInfoFromId(setId);
-      if (temp) {
-        delete obj.$tags[setId];
-
-        setId = classes._id + temp.classPathChunk;
-        obj.$tags[setId] = true;
-
-        classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
-        classes[temp.className].$members[obj._id] = true;
-      }
-    });
-
-    // Recursively standardize the object's contents
-    Object.entries(obj).forEach(([key, value]) => {
-      if (typeof value === 'object' && !RESERVED_OBJ_KEYS[key]) {
-        let temp = Array.from(path);
-        temp.push(key);
-        obj[key] = this.standardize(value, temp, classes);
-      }
-    });
-    return obj;
-  }
-  format(obj) {
-    // TODO: if $wasArray, attempt to restore array status,
-    // remove _ids
-    throw new Error('unimplemented');
-  }
-}
-const ItemHandler = new Handler();
-
-class BaseItem {
-  constructor({ path, value, parent, doc, label, type, uniqueSelector, classes }) {
-    this.path = path;
-    this._value = value;
-    this.parent = parent;
-    this.doc = doc;
-    this.label = label;
-    this.type = type;
-    this.uniqueSelector = uniqueSelector;
-    this.classes = classes;
-  }
-  get value() {
-    return this._value;
-  }
-  set value(newValue) {
-    if (this.parent) {
-      // In the event that this is a primitive boolean, number, string, etc,
-      // setting the value on the Item wrapper object *won't* naturally update
-      // it in its containing document...
-      this.parent[this.label] = newValue;
-    }
-    this._value = newValue;
-  }
-}
-class RootItem extends BaseItem {
-  constructor(docList, selectSingle) {
-    super({
-      path: [],
-      value: {},
-      parent: null,
-      doc: null,
-      label: null,
-      type: TYPES.root,
-      uniqueSelector: '@',
-      classes: []
-    });
-    docList.some(doc => {
-      this.value[doc._id] = doc;
-      return selectSingle;
-    });
-  }
-}
-class DocItem extends BaseItem {
-  constructor(doc) {
-    const docPathQuery = `{"_id":"${doc._id}"}`;
-    super({
-      path: [docPathQuery],
-      value: doc,
-      parent: null,
-      doc: doc,
-      label: doc['filename'],
-      type: TYPES.document,
-      uniqueSelector: docPathQuery,
-      classes: []
-    });
-  }
-}
-class Item extends BaseItem {
-  constructor(path, value, doc, type) {
-    let parent;
-    if (path.length < 2) {
-      throw new Error(`Can't create a non-Root or non-Doc Item with a path length less than 2`);
-    } else if (path.length === 2) {
-      parent = doc;
-    } else {
-      let temp = jsonPath.stringify(path.slice(0, path.length - 1));
-      parent = jsonPath.value(doc, temp);
-    }
-    const docPathQuery = `{"_id":"${doc._id}"}`;
-    const uniqueJsonPath = jsonPath.stringify(path);
-    path.unshift(docPathQuery);
-    super({
-      path,
-      value,
-      parent,
-      doc,
-      label: path[path.length - 1],
-      type,
-      classes: [],
-      uniqueSelector: '@' + docPathQuery + uniqueJsonPath
-    });
-    this.classes = ItemHandler.getItemClasses(this);
-  }
-}
-class ContainerItem extends Item {
-  constructor(path, value, doc) {
-    super(path, value, doc, TYPES.container);
-    this.nextLabel = Object.keys(this.value).reduce((max, key) => {
-      key = parseInt(key);
-      if (!isNaN(key) && key > max) {
-        return key;
-      } else {
-        return max;
-      }
-    }, 0) + 1;
-  }
-  createNewItem(value, label, type) {
-    type = type || ItemHandler.inferType(value);
-    if (label === undefined) {
-      label = String(this.nextLabel);
-      this.nextLabel += 1;
-    }
-    let path = this.path.concat(label);
-    let item;
-    if (type === TYPES.container) {
-      item = new ContainerItem(path, value, this.doc);
-    } else {
-      item = new Item(path, value, this.doc, type);
-    }
-    this.addItem(item, label);
-    return item;
-  }
-  addItem(item, label) {
-    if (item.type === TYPES.container) {
-      if (item.value._id) {
-        throw new Error('Item has already been assigned an _id');
-      }
-      if (label === undefined) {
-        label = this.nextLabel;
-        this.nextLabel += 1;
-      }
-      item.value._id = `@${jsonPath.stringify(this.path.slice(1).concat([label]))}`;
-    }
-    this.value[label] = item.value;
-  }
-  addToSet(setObj, setFileId) {
-    const itemTag = this.doc._id === setFileId ? this.value._id : ItemHandler.idToUniqueSelector(this.value._id, this.doc._id);
-    const setTag = this.doc._id === setFileId ? setObj._id : ItemHandler.idToUniqueSelector(setObj._id, setFileId);
-    setObj.$members[itemTag] = true;
-    this.value.$tags[setTag] = true;
-  }
-  addClass(className) {
-    this.doc.classes[className] = this.doc.classes[className] || {
-      _id: '@' + jsonPath.stringify(['$', 'classes', className]),
-      $members: {}
-    };
-    this.addToSet(this.doc.classes[className], this.doc._id);
-  }
-  createEdge(otherItem, container, directed) {
-    let newEdge = container.createNewItem({ $nodes: {}, $tags: {} }, undefined, TYPES.container);
-
-    if (this.doc === container.doc) {
-      newEdge.value.$nodes[this.value._id] = directed ? 'source' : true;
-      this.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[this.uniqueSelector] = directed ? 'source' : true;
-      this.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
-
-    if (otherItem.doc === container.doc) {
-      newEdge.value.$nodes[otherItem.value._id] = directed ? 'target' : true;
-      otherItem.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[otherItem.uniqueSelector] = directed ? 'target' : true;
-      otherItem.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
-    return newEdge;
-  }
-}
-
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection {
@@ -415,7 +119,7 @@ class Selection {
     if (typeof selector !== 'string') {
       return [];
     }
-    let docQuery = ItemHandler.extractDocQuery(selector);
+    let docQuery = this.mure.ItemHandler.extractDocQuery(selector);
     let crossDoc;
     if (!docQuery) {
       selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
@@ -466,17 +170,17 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(new RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(new DocItem(doc, `{"_id":"${doc._id}"}`));
+              addItem(new this.mure.ITEM_TYPES.DocumentItem(doc, `{"_id":"${doc._id}"}`));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(new RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
           }
         } else {
           // Okay, we need to evaluate the jsonPath
@@ -485,18 +189,18 @@ class Selection {
             let matchingItems = jsonPath.nodes(doc, selector.objQuery);
             for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
               let { path, value } = matchingItems[itemIndex];
-              if (RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
+              if (this.mure.RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
                 // Don't create items under reserved keys
                 continue;
               } else if (selector.parentShift === path.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(new RootItem(docList, this.selectSingle));
+                  addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
                 }
               } else if (selector.parentShift === path.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(new DocItem(doc));
+                  addItem(new this.mure.ITEM_TYPES.DocumentItem(doc));
                 }
               } else {
                 if (selector.parentShift > 0 && selector.parentShift < path.length - 1) {
@@ -508,14 +212,8 @@ class Selection {
                   // We (potentially) selected a link that we need to follow
                   Object.values((await this.followRelativeLink(value, doc))).forEach(addItem);
                 } else {
-                  const type = ItemHandler.inferType(value, Selection);
-                  if (type === TYPES.container) {
-                    // We selected an item that is a container
-                    addItem(new ContainerItem(path, value, doc));
-                  } else {
-                    // We selected something else
-                    addItem(new Item(path, value, doc, type));
-                  }
+                  const ItemType = this.mure.ItemHandler.inferType(value);
+                  addItem(new ItemType(path, value, doc));
                 }
               }
               if (this.selectSingle && addedItem) {
@@ -580,7 +278,8 @@ class Selection {
     return this;
   }
   /*
-   These are mutator functions that don't actually do anything
+   These are mutator functions that add to pendingOperations; they aren't
+   actually executed until save() is called
    */
   each(func) {
     this.pendingOperations.push(func);
@@ -589,13 +288,13 @@ class Selection {
   attr(key, value) {
     let isFunction = typeof value === 'function';
     return this.each(item => {
-      if (item.type === TYPES.root) {
+      if (item instanceof this.mure.ITEM_TYPES.RootItem) {
         throw new Error(`Renaming files with .attr() is not yet supported`);
-      } else if (item.type === TYPES.container || item.type === TYPES.document) {
+      } else if (item instanceof this.mure.ITEM_TYPES.ContainerItem || item instanceof this.mure.ITEM_TYPES.DocumentItem) {
         let temp = isFunction ? value.apply(this, item) : value;
         // item.value is just a pointer to the object in the document, so
         // we can just change it directly and it will still be saved
-        item.value[key] = ItemHandler.standardize(temp, item.path.slice(1), item.doc.classes);
+        item.value[key] = this.mure.ItemHandler.standardize(temp, item.path.slice(1), item.doc.classes);
       } else {
         throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
       }
@@ -608,53 +307,36 @@ class Selection {
     saveInSelection = null
   } = {}) {
     return this.each(async item => {
-      if (item.type === TYPES.container) {
-        let container;
-        if (saveInSelection) {
-          container = await Object.values(saveInSelection.items())[0];
-          if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-            this.pollutedSelections.push(container);
-          }
-        } else {
-          container = Object.values((await this.followRelativeLink('@$.orphanEdges', item.doc, true)))[0];
+      let container;
+      if (saveInSelection) {
+        if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+          this.pollutedSelections.push(saveInSelection);
         }
-        const otherItems = await otherSelection.items();
-        Object.values(otherItems).forEach(otherItem => {
-          if (otherItem.type === TYPES.container && connectWhen.apply(this, [item, otherItem])) {
-            if (item.value.$edges && otherItem.value.$edges) {
-              const newEdge = item.createEdge(otherItem, container, directed);
-              newEdge.addClass(className);
-            } else if (!skipHyperEdges) {
-              if (item.value.$edges && otherItem.value.$nodes) {
-                // TODO: add a link to/from item to otherItem's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$nodes && otherItem.value.$edges) {
-                // TODO: add a link to/from otherItem to item's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$edges && otherItem.value.$edges) {
-                // TODO: merge the two hyperedges
-                throw new Error('unimplemented');
-              }
-            }
+        container = Object.values((await saveInSelection.items()))[0];
+      } else {
+        container = Object.values((await this.followRelativeLink('@$.orphanEdges', item.doc, true)))[0];
+      }
+      const otherItems = await otherSelection.items();
+      Object.values(otherItems).forEach(otherItem => {
+        if (connectWhen.apply(this, [item, otherItem]) === true) {
+          if (item instanceof this.mure.ITEM_TYPES.NodeItem && otherItem instanceof this.mure.ITEM_TYPES.NodeItem) {
+            // Connect the two nodes with a new edge, stored in container
+            const newEdge = item.linkTo(otherItem, container, directed);
+            newEdge.addClass(className);
+          } else if (!skipHyperEdges) {
+            // TODO: add connections to / merge hyperedges
+            throw new Error('unimplemented');
           }
-        });
-        if (this.pollutedSelections.indexOf(otherSelection) === -1) {
-          this.pollutedSelections.push(otherSelection);
         }
+      });
+      if (this.pollutedSelections.indexOf(otherSelection) === -1) {
+        this.pollutedSelections.push(otherSelection);
       }
     });
   }
   remove() {
     return this.each(item => {
-      if (item.type === TYPES.root) {
-        throw new Error(`Can't remove() the root element`);
-      } else if (item.type === TYPES.document) {
-        throw new Error(`Deleting files with .remove() is not yet supported`);
-      } else {
-        // item.parent is just a pointer to the parent item's value, so we can
-        // just change it directly and it will still be saved
-        delete item.parent[item.label];
-      }
+      item.remove();
     });
   }
   group() {
@@ -662,58 +344,20 @@ class Selection {
   }
   addClass(className) {
     return this.each(item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
-      } else {
-        item.addClass(className);
-      }
+      item.addClass(className);
     });
   }
   removeClass(className) {
     throw new Error('unimplemented');
   }
-  setInterpretation(interpretation, saveInSelection = null) {
-    return this.each(async item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't interpret an element of type ${item.type.toString()} as a ${interpretation.toString()}`);
-      } else if (interpretation === INTERPRETATIONS.node) {
-        item.value.$edges = {};
-        if (item.value.$nodes) {
-          let container;
-          if (saveInSelection) {
-            container = await Object.values(saveInSelection.items())[0];
-            if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-              this.pollutedSelections.push(container);
-            }
-          } else {
-            container = Object.values((await this.followRelativeLink('@$.orphanNodes', item.doc, true)))[0];
-          }
-          const nodes = Object.entries(item.value.$nodes);
-          delete item.value.$nodes;
-          for (let n = 0; n < nodes.length; n++) {
-            const link = nodes[n][0];
-            const linkDirection = nodes[n][1];
-            const otherItem = Object.values((await this.followRelativeLink(link, item.doc)))[0];
-            if (otherItem.doc === item.doc) {
-              delete otherItem.value.$edges[item.value._id];
-            } else {
-              delete otherItem.value.$edges[item.uniqueSelector];
-            }
-            if (linkDirection === 'source') {
-              otherItem.createEdge(item, container, true);
-            } else if (linkDirection === 'target') {
-              item.createEdge(otherItem, container, true);
-            } else {
-              item.createEdge(otherItem, container, false);
-            }
-          }
-        }
-      } else if (interpretation === INTERPRETATIONS.edge) {
-        item.value.$nodes = {};
-        throw new Error('unimplemented');
-      } else if (interpretation === INTERPRETATIONS.ignore) {
-        throw new Error('unimplemented');
+  convertToType(ItemType, saveInSelection = null) {
+    if (saveInSelection) {
+      if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+        this.pollutedSelections.push(saveInSelection);
       }
+    }
+    return this.each(async item => {
+      item.convertTo(ItemType);
     });
   }
   toggleDirection() {
@@ -732,6 +376,10 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
+  async getHierarchy(expandUniqueSelectors) {
+    const items = await this.items();
+    // TODO
+  }
   async getFlatGraphSchema() {
     const items = await this.items();
     let result = {
@@ -773,7 +421,7 @@ class Selection {
         count: 0
       };
       Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeItem = items[nodeId] || items[ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        let nodeItem = items[nodeId] || items[this.mure.ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
         if (!nodeItem) {
           this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
           return;
@@ -812,7 +460,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedId = ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
+            linkedId = this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
             linkedIds[linkedId] = linkedIds[linkedId] || {};
             linkedIds[linkedId][item.uniqueSelector] = true;
           });
@@ -839,7 +487,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
+            linkedIds[this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
           });
         }
       });
@@ -891,10 +539,571 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
-ItemHandler.Selection = Selection; // shim to avoid circular dependcency
+
+const RESERVED_OBJ_KEYS = {
+  '_id': true,
+  '$wasArray': true,
+  '$tags': true,
+  '$members': true,
+  '$edges': true,
+  '$nodes': true,
+  '$nextLabel': true,
+  '$isDate': true
+};
+
+class BaseItem {
+  constructor({ path, value, parent, doc, label, uniqueSelector, classes }) {
+    this.path = path;
+    this._value = value;
+    this.parent = parent;
+    this.doc = doc;
+    this.label = label;
+    this.uniqueSelector = uniqueSelector;
+    this.classes = classes;
+  }
+  get value() {
+    return this._value;
+  }
+  set value(newValue) {
+    if (this.parent) {
+      // In the event that this is a primitive boolean, number, string, etc,
+      // setting the value on the Item wrapper object *won't* naturally update
+      // it in its containing document...
+      this.parent[this.label] = newValue;
+    }
+    this._value = newValue;
+  }
+  remove() {
+    // this.parent is a pointer to the raw element, so we want to delete its
+    // reference to this item
+    delete this.parent[this.label];
+  }
+  canConvertTo(ItemType) {
+    return ItemType === this.constructor;
+  }
+  convertTo(ItemType) {
+    if (ItemType === this.constructor) {
+      return this;
+    } else {
+      throw new Error(`Conversion from ${this.constructor.name} to ${ItemType.name} not yet implemented.`);
+    }
+  }
+}
+BaseItem.getBoilerplateValue = () => {
+  throw new Error('unimplemented');
+};
+class RootItem extends BaseItem {
+  constructor(docList, selectSingle) {
+    super({
+      path: [],
+      value: {},
+      parent: null,
+      doc: null,
+      label: null,
+      uniqueSelector: '@',
+      classes: []
+    });
+    docList.some(doc => {
+      this.value[doc._id] = doc;
+      return selectSingle;
+    });
+  }
+  remove() {
+    throw new Error(`Can't remove the root item`);
+  }
+}
+class DocumentItem extends BaseItem {
+  constructor(doc) {
+    const docPathQuery = `{"_id":"${doc._id}"}`;
+    super({
+      path: [docPathQuery],
+      value: doc,
+      parent: null,
+      doc: doc,
+      label: doc['filename'],
+      uniqueSelector: docPathQuery,
+      classes: []
+    });
+  }
+  remove() {
+    // TODO: remove everything in this.value except _id, _rev, and add _deleted?
+    // There's probably some funkiness in the timing of save() I still need to
+    // think through...
+    throw new Error(`Deleting files via Selections not yet implemented`);
+  }
+}
+class TypedItem extends BaseItem {
+  constructor(path, value, doc) {
+    let parent;
+    if (path.length < 2) {
+      throw new Error(`Can't create a non-Root or non-Doc Item with a path length less than 2`);
+    } else if (path.length === 2) {
+      parent = doc;
+    } else {
+      let temp = jsonPath.stringify(path.slice(0, path.length - 1));
+      parent = jsonPath.value(doc, temp);
+    }
+    const docPathQuery = `{"_id":"${doc._id}"}`;
+    const uniqueJsonPath = jsonPath.stringify(path);
+    path.unshift(docPathQuery);
+    super({
+      path,
+      value,
+      parent,
+      doc,
+      label: path[path.length - 1],
+      classes: [],
+      uniqueSelector: '@' + docPathQuery + uniqueJsonPath
+    });
+    if (typeof value !== this.constructor.JSTYPE) {
+      // eslint-disable-line valid-typeof
+      throw new TypeError(`typeof ${value} is ${typeof value}, which does not match required ${this.constructor.JSTYPE}`);
+    }
+  }
+}
+TypedItem.JSTYPE = 'object';
+
+class PrimitiveItem extends TypedItem {
+  canConvertTo(ItemType) {
+    return ItemType === BooleanItem || ItemType === NumberItem || ItemType === StringItem || ItemType === DateItem || super.canConvertTo(ItemType);
+  }
+  convertTo(ItemType) {
+    if (ItemType === BooleanItem) {
+      this.value = !!this.value;
+      return new BooleanItem(this.path, this.value, this.doc);
+    } else if (ItemType === NumberItem) {
+      this.value = Number(this.value);
+      return new NumberItem(this.path, this.value, this.doc);
+    } else if (ItemType === StringItem) {
+      this.value = String(this.value);
+      return new StringItem(this.path, this.value, this.doc);
+    } else if (ItemType === DateItem) {
+      this.value = {
+        $isDate: true,
+        str: new Date(this.value).toString()
+      };
+      return new DateItem(this.path, this.value, this.doc);
+    } else {
+      return super.convertTo(ItemType);
+    }
+  }
+}
+
+class NullItem extends PrimitiveItem {}
+NullItem.JSTYPE = 'null';
+NullItem.getBoilerplateValue = () => null;
+
+class BooleanItem extends PrimitiveItem {}
+BooleanItem.JSTYPE = 'boolean';
+BooleanItem.getBoilerplateValue = () => false;
+
+class NumberItem extends PrimitiveItem {}
+NumberItem.JSTYPE = 'number';
+NumberItem.getBoilerplateValue = () => 0;
+
+class StringItem extends PrimitiveItem {}
+StringItem.JSTYPE = 'string';
+StringItem.getBoilerplateValue = () => '';
+
+class ReferenceItem extends StringItem {
+  canConvertTo(ItemType) {
+    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  }
+  convertTo(ItemType) {
+    return BaseItem.prototype.convertTo.call(this, ItemType);
+  }
+}
+ReferenceItem.getBoilerplateValue = () => '@$';
+
+class DateItem extends TypedItem {
+  constructor(path, value, doc) {
+    super(path, DateItem.wrap(value), doc);
+  }
+  get value() {
+    return new Date(this._value.str);
+  }
+  set value(newValue) {
+    super.value = DateItem.wrap(newValue);
+  }
+  canConvertTo(ItemType) {
+    return ItemType === NumberItem || ItemType === StringItem || super.canConvertTo(ItemType);
+  }
+  convertTo(ItemType) {
+    if (ItemType === NumberItem) {
+      this.parent[this.label] = this._value = Number(this.value);
+      return new NumberItem(this.path, this._value, this.doc);
+    } else if (ItemType === StringItem) {
+      this.parent[this.label] = this._value = String(this.value);
+      return new StringItem(this.path, this._value, this.doc);
+    } else {
+      return super.convertTo(ItemType);
+    }
+  }
+}
+DateItem.wrap = value => {
+  if (typeof value === 'string') {
+    value = new Date(value);
+  }
+  if (value instanceof Date) {
+    value = {
+      $isDate: true,
+      str: value.toString()
+    };
+  }
+  if (!value.$isDate) {
+    throw new Error(`Failed to wrap Date object`);
+  }
+  return value;
+};
+DateItem.getBoilerplateValue = () => new Date();
+
+class ContainerItem extends TypedItem {
+  constructor(path, value, doc) {
+    super(path, value, doc);
+    this.nextLabel = Object.keys(this.value).reduce((max, key) => {
+      key = parseInt(key);
+      if (!isNaN(key) && key > max) {
+        return key;
+      } else {
+        return max;
+      }
+    }, 0) + 1;
+    this.classes = ItemHandler.getItemClasses(this);
+  }
+  createNewItem(value, label, ItemType) {
+    ItemType = ItemType || ItemHandler.inferType(value);
+    if (label === undefined) {
+      label = String(this.nextLabel);
+      this.nextLabel += 1;
+    }
+    let path = this.path.concat(label);
+    let item = new ItemType(path, ItemType.getBoilerplateValue(), this.doc);
+    this.addItem(item, label);
+    return item;
+  }
+  addItem(item, label) {
+    if (item instanceof ContainerItem) {
+      if (item.value._id) {
+        throw new Error('Item has already been assigned an _id');
+      }
+      if (label === undefined) {
+        label = this.nextLabel;
+        this.nextLabel += 1;
+      }
+      item.value._id = `@${jsonPath.stringify(this.path.slice(1).concat([label]))}`;
+    }
+    this.value[label] = item.value;
+  }
+  canConvertTo(ItemType) {
+    return ItemType === NodeItem || super.canConvertTo(ItemType);
+  }
+  convertTo(ItemType) {
+    if (ItemType === NodeItem) {
+      this.value.$edges = {};
+      this.value.$tags = {};
+      return new NodeItem(this.path, this.value, this.doc);
+    } else {
+      return super.convertTo(ItemType);
+    }
+  }
+}
+ContainerItem.getBoilerplateValue = () => {
+  return {};
+};
+
+class TaggableItem extends ContainerItem {
+  constructor(path, value, doc) {
+    super(path, value, doc);
+    if (!value.$tags) {
+      throw new TypeError(`TaggableItem requires a $tags object`);
+    }
+  }
+  addToSetObj(setObj, setFileId) {
+    // Convenience function for tagging an item without having to wrap the set
+    // object as a SetItem
+    const itemTag = this.doc._id === setFileId ? this.value._id : ItemHandler.idToUniqueSelector(this.value._id, this.doc._id);
+    const setTag = this.doc._id === setFileId ? setObj._id : ItemHandler.idToUniqueSelector(setObj._id, setFileId);
+    setObj.$members[itemTag] = true;
+    this.value.$tags[setTag] = true;
+  }
+  addClass(className) {
+    this.doc.classes[className] = this.doc.classes[className] || {
+      _id: '@' + jsonPath.stringify(['$', 'classes', className]),
+      $members: {}
+    };
+    this.addToSetObj(this.doc.classes[className], this.doc._id);
+  }
+}
+TaggableItem.getBoilerplateValue = () => {
+  return { $tags: {} };
+};
+
+const SetItemMixin = superclass => class extends superclass {
+  constructor(path, value, doc) {
+    super(path, value, doc);
+    if (!value.$members) {
+      throw new TypeError(`SetItem requires a $members object`);
+    }
+  }
+  addItem(item) {
+    const itemTag = item.value._id;
+    const setTag = this.value._id;
+    this.value.$members[itemTag] = true;
+    item.value.$tags[setTag] = true;
+  }
+};
+class SetItem extends SetItemMixin(TypedItem) {
+  canConvertTo(ItemType) {
+    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  }
+  convertTo(ItemType) {
+    return BaseItem.prototype.convertTo.call(this, ItemType);
+  }
+}
+SetItem.getBoilerplateValue = () => {
+  return { $members: {} };
+};
+
+class EdgeItem extends TaggableItem {
+  constructor(path, value, doc) {
+    super(path, value, doc);
+    if (!value.$nodes) {
+      throw new TypeError(`EdgeItem requires a $nodes object`);
+    }
+  }
+  canConvertTo(ItemType) {
+    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  }
+  convertTo(ItemType) {
+    return BaseItem.prototype.convertTo.call(this, ItemType);
+  }
+}
+EdgeItem.getBoilerplateValue = () => {
+  return { $tags: {}, $nodes: {} };
+};
+
+class NodeItem extends TaggableItem {
+  constructor(path, value, doc) {
+    super(path, value, doc);
+    if (!value.$edges) {
+      throw new TypeError(`NodeItem requires an $edges object`);
+    }
+  }
+  linkTo(otherNode, container, directed) {
+    let newEdge = container.createNewItem({}, undefined, EdgeItem);
+
+    if (this.doc === container.doc) {
+      newEdge.value.$nodes[this.value._id] = directed ? 'source' : true;
+      this.value.$edges[newEdge.value._id] = true;
+    } else {
+      newEdge.value.$nodes[this.uniqueSelector] = directed ? 'source' : true;
+      this.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+    }
+
+    if (otherNode.doc === container.doc) {
+      newEdge.value.$nodes[otherNode.value._id] = directed ? 'target' : true;
+      otherNode.value.$edges[newEdge.value._id] = true;
+    } else {
+      newEdge.value.$nodes[otherNode.uniqueSelector] = directed ? 'target' : true;
+      otherNode.value.$edges[ItemHandler.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
+    }
+    return newEdge;
+  }
+  canConvertTo(ItemType) {
+    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  }
+  convertTo(ItemType) {
+    return BaseItem.prototype.convertTo.call(this, ItemType);
+  }
+}
+NodeItem.getBoilerplateValue = () => {
+  return { $tags: {}, $edges: {} };
+};
+
+class SupernodeItem extends SetItemMixin(NodeItem) {
+  canConvertTo(ItemType) {
+    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  }
+  convertTo(ItemType) {
+    return BaseItem.prototype.convertTo.call(this, ItemType);
+  }
+}
+SupernodeItem.getBoilerplateValue = () => {
+  return { $tags: {}, $members: {}, $edges: {} };
+};
+
+const ITEM_TYPES = {
+  RootItem,
+  DocumentItem,
+  NullItem,
+  BooleanItem,
+  NumberItem,
+  StringItem,
+  DateItem,
+  ReferenceItem,
+  ContainerItem,
+  TaggableItem,
+  SetItem,
+  EdgeItem,
+  NodeItem,
+  SupernodeItem
+};
+
+const JSTYPES = {
+  'null': NullItem,
+  'boolean': BooleanItem,
+  'number': NumberItem
+};
+
+class Handler {
+  idToUniqueSelector(selectorString, docId) {
+    const chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
+  extractDocQuery(selectorString) {
+    const result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
+    } else {
+      return null;
+    }
+  }
+  extractClassInfoFromId(id) {
+    const temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
+    if (temp && (temp[1] || temp[2])) {
+      return {
+        classPathChunk: temp[1] || temp[2],
+        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
+      };
+    } else {
+      return null;
+    }
+  }
+  getItemClasses(item) {
+    if (!item.value || !item.value.$tags) {
+      return [];
+    }
+    return Object.keys(item.value.$tags).reduce((agg, setId) => {
+      const temp = this.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
+  inferType(value, aggressive = false) {
+    const jsType = typeof value;
+    if (JSTYPES[jsType]) {
+      return JSTYPES[jsType];
+    } else if (jsType === 'string') {
+      if (value[0] === '@') {
+        // Attempt to parse as a reference
+        try {
+          new Selection(null, value); // eslint-disable-line no-new
+          return ITEM_TYPES.ReferenceItem;
+        } catch (err) {
+          if (!err.INVALID_SELECTOR) {
+            throw err;
+          }
+        }
+      }
+      // Not a reference...
+      if (aggressive) {
+        // Aggressively attempt to identify something more specific than string
+        if (!isNaN(Number(value))) {
+          return ITEM_TYPES.NumberItem;
+        } else if (!isNaN(new Date(value))) {
+          return ITEM_TYPES.DateItem;
+        } else {
+          const temp = value.toLowerCase();
+          if (temp === 'true') {
+            return ITEM_TYPES.BooleanItem;
+          } else if (temp === 'false') {
+            return ITEM_TYPES.BooleanItem;
+          } else if (temp === 'null') {
+            return ITEM_TYPES.NullItem;
+          }
+        }
+      }
+      // Okay, it's just a string
+      return ITEM_TYPES.StringItem;
+    } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else if (value === null) {
+      return ITEM_TYPES.NullItem;
+    } else if (value instanceof Date || value.$isDate === true) {
+      return ITEM_TYPES.DateItem;
+    } else if (value.$nodes) {
+      return ITEM_TYPES.EdgeItem;
+    } else if (value.$edges) {
+      if (value.$members) {
+        return ITEM_TYPES.SupernodeItem;
+      } else {
+        return ITEM_TYPES.NodeItem;
+      }
+    } else if (value.$members) {
+      return ITEM_TYPES.SetItem;
+    } else if (value.$tags) {
+      return ITEM_TYPES.TaggableItem;
+    } else {
+      return ITEM_TYPES.ContainerItem;
+    }
+  }
+  standardize(obj, path, classes) {
+    if (typeof obj !== 'object') {
+      return obj;
+    }
+
+    // Convert arrays to objects
+    if (obj instanceof Array) {
+      let temp = {};
+      obj.forEach((element, index) => {
+        temp[index] = element;
+      });
+      obj = temp;
+      obj.$wasArray = true;
+    }
+
+    // Assign the object's id
+    obj._id = '@' + jsonPath.stringify(path);
+
+    if (!obj.$tags) {
+      // Move any existing class definitions to this document
+      obj.$tags = obj.$tags || {};
+      Object.keys(obj.$tags).forEach(setId => {
+        const temp = this.extractClassInfoFromId(setId);
+        if (temp) {
+          delete obj.$tags[setId];
+
+          setId = classes._id + temp.classPathChunk;
+          obj.$tags[setId] = true;
+
+          classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
+          classes[temp.className].$members[obj._id] = true;
+        }
+      });
+    }
+
+    // Recursively standardize the object's contents
+    Object.entries(obj).forEach(([key, value]) => {
+      if (typeof value === 'object' && !RESERVED_OBJ_KEYS[key]) {
+        let temp = Array.from(path);
+        temp.push(key);
+        obj[key] = this.standardize(value, temp, classes);
+      }
+    });
+    return obj;
+  }
+  format(obj) {
+    // TODO: if $wasArray, attempt to restore array status,
+    // remove _ids
+    throw new Error('unimplemented');
+  }
+}
+const ItemHandler = new Handler();
 
 class DocHandler {
-  constructor(mure) {
+  constructor() {
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
   }
@@ -918,7 +1127,6 @@ class DocHandler {
     throw new Error('unimplemented');
   }
   formatDoc(doc, { mimeType = doc.mimeType } = {}) {
-    ItemHandler.format(doc.contents);
     throw new Error('unimplemented');
   }
   isValidId(docId) {
@@ -988,7 +1196,7 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
+    mure.ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }
@@ -1016,11 +1224,12 @@ class Mure extends uki.Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Our custom type definitions
-    this.TYPES = TYPES;
+    // Handlers for Items and Documents
+    this.ItemHandler = ItemHandler;
+    this.DocHandler = DocHandler$1;
 
-    // Interpretations
-    this.INTERPRETATIONS = INTERPRETATIONS;
+    // Our custom type definitions
+    this.ITEM_TYPES = ITEM_TYPES;
 
     // Special keys that should be skipped in various operations
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
@@ -1116,6 +1325,15 @@ class Mure extends uki.Model {
       })();
     });
   }
+  async allDocs(options = {}) {
+    await this.dbStatus;
+    Object.assign(options, {
+      startkey: '_\uffff',
+      include_docs: true
+    });
+    let results = await this.db.allDocs(options);
+    return results.rows.map(row => row.doc);
+  }
   async queryDocs(queryObj) {
     await this.dbStatus;
     let queryResult = await this.db.find(queryObj);
@@ -1141,7 +1359,7 @@ class Mure extends uki.Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return DocHandler$1.standardize({}, this);
+      return this.DocHandler.standardize({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -1154,7 +1372,7 @@ class Mure extends uki.Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await DocHandler$1.standardize(docQuery, this);
+          doc = await this.DocHandler.standardize(docQuery, this);
         } else {
           return null;
         }
@@ -1197,7 +1415,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = DocHandler$1.formatDoc(doc, { mimeType });
+      let contents = this.DocHandler.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -1224,14 +1442,14 @@ class Mure extends uki.Model {
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
   async uploadString(filename, mimeType, encoding, string) {
-    let doc = await DocHandler$1.parse(string, { mimeType });
+    let doc = await this.DocHandler.parse(string, { mimeType });
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await DocHandler$1.standardize(doc, this);
+    doc = await this.DocHandler.standardize(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc(docQuery) {

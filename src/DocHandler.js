@@ -1,9 +1,8 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
-import { ItemHandler } from './Item.js';
 
 class DocHandler {
-  constructor (mure) {
+  constructor () {
     this.keyNames = {};
     this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
   }
@@ -27,7 +26,6 @@ class DocHandler {
     throw new Error('unimplemented');
   }
   formatDoc (doc, { mimeType = doc.mimeType } = {}) {
-    ItemHandler.format(doc.contents);
     throw new Error('unimplemented');
   }
   isValidId (docId) {
@@ -97,7 +95,7 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
+    mure.ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
 
     return doc;
   }

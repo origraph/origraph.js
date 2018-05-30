@@ -28,13 +28,13 @@ module.exports = [
         let doc = mure.selectDoc('application/json;hearts_schema.json');
         let hands = doc.selectAll('@$.contents.hands[*]')
           .addClass('player')
-          .setInterpretation(mure.INTERPRETATIONS.node);
+          .convertToType(mure.ITEM_TYPES.NodeItem);
         let tricks = doc.selectAll('@$.contents.tricks[*]')
           .addClass('trick')
-          .setInterpretation(mure.INTERPRETATIONS.node);
+          .convertToType(mure.ITEM_TYPES.NodeItem);
         let cards = doc.selectAll('@$.contents.hands[*][*]')
-          .addClass('card')
-          .setInterpretation(mure.INTERPRETATIONS.node);
+          .convertToType(mure.ITEM_TYPES.NodeItem)
+          .addClass('card');
         await hands.save();
         await tricks.save();
         await cards.save();

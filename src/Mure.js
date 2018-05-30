@@ -1,8 +1,8 @@
 import mime from 'mime-types';
-import { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS } from './Types.js';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
+import { ItemHandler, RESERVED_OBJ_KEYS, ITEM_TYPES } from './Item.js';
 import DocHandler from './DocHandler.js';
 
 class Mure extends Model {
@@ -25,11 +25,12 @@ class Mure extends Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Our custom type definitions
-    this.TYPES = TYPES;
+    // Handlers for Items and Documents
+    this.ItemHandler = ItemHandler;
+    this.DocHandler = DocHandler;
 
-    // Interpretations
-    this.INTERPRETATIONS = INTERPRETATIONS;
+    // Our custom type definitions
+    this.ITEM_TYPES = ITEM_TYPES;
 
     // Special keys that should be skipped in various operations
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
@@ -127,6 +128,15 @@ class Mure extends Model {
       })();
     });
   }
+  async allDocs (options = {}) {
+    await this.dbStatus;
+    Object.assign(options, {
+      startkey: '_\uffff',
+      include_docs: true
+    });
+    let results = await this.db.allDocs(options);
+    return results.rows.map(row => row.doc);
+  }
   async queryDocs (queryObj) {
     await this.dbStatus;
     let queryResult = await this.db.find(queryObj);
@@ -150,7 +160,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return DocHandler.standardize({}, this);
+      return this.DocHandler.standardize({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -163,7 +173,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await DocHandler.standardize(docQuery, this);
+          doc = await this.DocHandler.standardize(docQuery, this);
         } else {
           return null;
         }
@@ -207,7 +217,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = DocHandler.formatDoc(doc, { mimeType });
+        let contents = this.DocHandler.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -234,14 +244,14 @@ class Mure extends Model {
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
   async uploadString (filename, mimeType, encoding, string) {
-    let doc = await DocHandler.parse(string, { mimeType });
+    let doc = await this.DocHandler.parse(string, { mimeType });
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await DocHandler.standardize(doc, this);
+    doc = await this.DocHandler.standardize(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {

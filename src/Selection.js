@@ -1,8 +1,6 @@
 import jsonPath from 'jsonpath';
 import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
-import { ItemHandler, RootItem, DocItem, ContainerItem, Item } from './Item.js';
-import { TYPES, INTERPRETATIONS, RESERVED_OBJ_KEYS } from './Types.js';
 
 let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
@@ -117,7 +115,7 @@ class Selection {
     if (typeof selector !== 'string') {
       return [];
     }
-    let docQuery = ItemHandler.extractDocQuery(selector);
+    let docQuery = this.mure.ItemHandler.extractDocQuery(selector);
     let crossDoc;
     if (!docQuery) {
       selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
@@ -169,17 +167,17 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(new RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(new DocItem(doc, `{"_id":"${doc._id}"}`));
+              addItem(new this.mure.ITEM_TYPES.DocumentItem(doc, `{"_id":"${doc._id}"}`));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(new RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
           }
         } else {
           // Okay, we need to evaluate the jsonPath
@@ -188,18 +186,18 @@ class Selection {
             let matchingItems = jsonPath.nodes(doc, selector.objQuery);
             for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
               let { path, value } = matchingItems[itemIndex];
-              if (RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
+              if (this.mure.RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
                 // Don't create items under reserved keys
                 continue;
               } else if (selector.parentShift === path.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(new RootItem(docList, this.selectSingle));
+                  addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
                 }
               } else if (selector.parentShift === path.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(new DocItem(doc));
+                  addItem(new this.mure.ITEM_TYPES.DocumentItem(doc));
                 }
               } else {
                 if (selector.parentShift > 0 && selector.parentShift < path.length - 1) {
@@ -212,14 +210,8 @@ class Selection {
                   Object.values(await this.followRelativeLink(value, doc))
                     .forEach(addItem);
                 } else {
-                  const type = ItemHandler.inferType(value, Selection);
-                  if (type === TYPES.container) {
-                    // We selected an item that is a container
-                    addItem(new ContainerItem(path, value, doc));
-                  } else {
-                    // We selected something else
-                    addItem(new Item(path, value, doc, type));
-                  }
+                  const ItemType = this.mure.ItemHandler.inferType(value);
+                  addItem(new ItemType(path, value, doc));
                 }
               }
               if (this.selectSingle && addedItem) { break; }
@@ -278,7 +270,8 @@ class Selection {
     return this;
   }
   /*
-   These are mutator functions that don't actually do anything
+   These are mutator functions that add to pendingOperations; they aren't
+   actually executed until save() is called
    */
   each (func) {
     this.pendingOperations.push(func);
@@ -287,14 +280,14 @@ class Selection {
   attr (key, value) {
     let isFunction = typeof value === 'function';
     return this.each(item => {
-      if (item.type === TYPES.root) {
+      if (item instanceof this.mure.ITEM_TYPES.RootItem) {
         throw new Error(`Renaming files with .attr() is not yet supported`);
-      } else if (item.type === TYPES.container ||
-          item.type === TYPES.document) {
+      } else if (item instanceof this.mure.ITEM_TYPES.ContainerItem ||
+          item instanceof this.mure.ITEM_TYPES.DocumentItem) {
         let temp = isFunction ? value.apply(this, item) : value;
         // item.value is just a pointer to the object in the document, so
         // we can just change it directly and it will still be saved
-        item.value[key] = ItemHandler
+        item.value[key] = this.mure.ItemHandler
           .standardize(temp, item.path.slice(1), item.doc.classes);
       } else {
         throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
@@ -308,55 +301,38 @@ class Selection {
     saveInSelection = null
   } = {}) {
     return this.each(async item => {
-      if (item.type === TYPES.container) {
-        let container;
-        if (saveInSelection) {
-          container = await Object.values(saveInSelection.items())[0];
-          if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-            this.pollutedSelections.push(container);
-          }
-        } else {
-          container = Object.values(
-            await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
+      let container;
+      if (saveInSelection) {
+        if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+          this.pollutedSelections.push(saveInSelection);
         }
-        const otherItems = await otherSelection.items();
-        Object.values(otherItems).forEach(otherItem => {
-          if (otherItem.type === TYPES.container &&
-              connectWhen.apply(this, [item, otherItem])) {
-            if (item.value.$edges && otherItem.value.$edges) {
-              const newEdge = item.createEdge(otherItem, container, directed);
-              newEdge.addClass(className);
-            } else if (!skipHyperEdges) {
-              if (item.value.$edges && otherItem.value.$nodes) {
-                // TODO: add a link to/from item to otherItem's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$nodes && otherItem.value.$edges) {
-                // TODO: add a link to/from otherItem to item's $nodes
-                throw new Error('unimplemented');
-              } else if (item.value.$edges && otherItem.value.$edges) {
-                // TODO: merge the two hyperedges
-                throw new Error('unimplemented');
-              }
-            }
+        container = Object.values(await saveInSelection.items())[0];
+      } else {
+        container = Object.values(
+          await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
+      }
+      const otherItems = await otherSelection.items();
+      Object.values(otherItems).forEach(otherItem => {
+        if (connectWhen.apply(this, [item, otherItem]) === true) {
+          if (item instanceof this.mure.ITEM_TYPES.NodeItem &&
+              otherItem instanceof this.mure.ITEM_TYPES.NodeItem) {
+            // Connect the two nodes with a new edge, stored in container
+            const newEdge = item.linkTo(otherItem, container, directed);
+            newEdge.addClass(className);
+          } else if (!skipHyperEdges) {
+            // TODO: add connections to / merge hyperedges
+            throw new Error('unimplemented');
           }
-        });
-        if (this.pollutedSelections.indexOf(otherSelection) === -1) {
-          this.pollutedSelections.push(otherSelection);
         }
+      });
+      if (this.pollutedSelections.indexOf(otherSelection) === -1) {
+        this.pollutedSelections.push(otherSelection);
       }
     });
   }
   remove () {
     return this.each(item => {
-      if (item.type === TYPES.root) {
-        throw new Error(`Can't remove() the root element`);
-      } else if (item.type === TYPES.document) {
-        throw new Error(`Deleting files with .remove() is not yet supported`);
-      } else {
-        // item.parent is just a pointer to the parent item's value, so we can
-        // just change it directly and it will still be saved
-        delete item.parent[item.label];
-      }
+      item.remove();
     });
   }
   group () {
@@ -364,60 +340,20 @@ class Selection {
   }
   addClass (className) {
     return this.each(item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't add a class to element of type ${item.type.toString()}`);
-      } else {
-        item.addClass(className);
-      }
+      item.addClass(className);
     });
   }
   removeClass (className) {
     throw new Error('unimplemented');
   }
-  setInterpretation (interpretation, saveInSelection = null) {
-    return this.each(async item => {
-      if (item.type !== TYPES.container) {
-        throw new Error(`Can't interpret an element of type ${item.type.toString()} as a ${interpretation.toString()}`);
-      } else if (interpretation === INTERPRETATIONS.node) {
-        item.value.$edges = {};
-        if (item.value.$nodes) {
-          let container;
-          if (saveInSelection) {
-            container = await Object.values(saveInSelection.items())[0];
-            if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-              this.pollutedSelections.push(container);
-            }
-          } else {
-            container = Object.values(
-              await this.followRelativeLink('@$.orphanNodes', item.doc, true))[0];
-          }
-          const nodes = Object.entries(item.value.$nodes);
-          delete item.value.$nodes;
-          for (let n = 0; n < nodes.length; n++) {
-            const link = nodes[n][0];
-            const linkDirection = nodes[n][1];
-            const otherItem = Object.values(
-              await this.followRelativeLink(link, item.doc))[0];
-            if (otherItem.doc === item.doc) {
-              delete otherItem.value.$edges[item.value._id];
-            } else {
-              delete otherItem.value.$edges[item.uniqueSelector];
-            }
-            if (linkDirection === 'source') {
-              otherItem.createEdge(item, container, true);
-            } else if (linkDirection === 'target') {
-              item.createEdge(otherItem, container, true);
-            } else {
-              item.createEdge(otherItem, container, false);
-            }
-          }
-        }
-      } else if (interpretation === INTERPRETATIONS.edge) {
-        item.value.$nodes = {};
-        throw new Error('unimplemented');
-      } else if (interpretation === INTERPRETATIONS.ignore) {
-        throw new Error('unimplemented');
+  convertToType (ItemType, saveInSelection = null) {
+    if (saveInSelection) {
+      if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
+        this.pollutedSelections.push(saveInSelection);
       }
+    }
+    return this.each(async item => {
+      item.convertTo(ItemType);
     });
   }
   toggleDirection () {
@@ -436,6 +372,10 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
+  async getHierarchy (expandUniqueSelectors) {
+    const items = await this.items();
+    // TODO
+  }
   async getFlatGraphSchema () {
     const items = await this.items();
     let result = {
@@ -478,7 +418,7 @@ class Selection {
       };
       Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
         let nodeItem = items[nodeId] ||
-          items[ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+          items[this.mure.ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
         if (!nodeItem) {
           this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
           return;
@@ -517,7 +457,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedId = ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
+            linkedId = this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
             linkedIds[linkedId] = linkedIds[linkedId] || {};
             linkedIds[linkedId][item.uniqueSelector] = true;
           });
@@ -544,7 +484,7 @@ class Selection {
       metaObjs.forEach(metaObj => {
         if (item.value[metaObj]) {
           Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
+            linkedIds[this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
           });
         }
       });
@@ -596,5 +536,4 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
-ItemHandler.Selection = Selection; // shim to avoid circular dependcency
 export default Selection;
