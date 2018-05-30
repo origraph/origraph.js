@@ -1509,23 +1509,66 @@ var version = "0.3.1";
 var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
-var browser = "dist/mure.umd.min.js";
-var scripts = { "build": "rollup -c --environment TARGET:all", "watch": "rollup -c -w", "watchcjs": "rollup -c -w --environment TARGET:cjs", "watchumd": "rollup -c -w --environment TARGET:umd", "watchesm": "rollup -c -w --environment TARGET:esm", "test": "node test/test.js", "pretest": "rollup -c --environment TARGET:cjs && rm -rf mure mure-mrview*", "posttest": "rm -rf mure mure-mrview*", "debug": "rm -rf mure mure-mrview* && node --inspect-brk test/test.js" };
+var browser = "dist/mure.umd.js";
+var scripts = {
+	build: "rollup -c --environment TARGET:all",
+	watch: "rollup -c -w",
+	watchcjs: "rollup -c -w --environment TARGET:cjs",
+	watchumd: "rollup -c -w --environment TARGET:umd",
+	watchesm: "rollup -c -w --environment TARGET:esm",
+	test: "node test/test.js",
+	pretest: "rollup -c --environment TARGET:cjs && rm -rf mure mure-mrview*",
+	posttest: "rm -rf mure mure-mrview*",
+	debug: "rm -rf mure mure-mrview* && node --inspect-brk test/test.js"
+};
 var files = ["dist"];
-var repository = { "type": "git", "url": "git+https://github.com/mure-apps/mure-library.git" };
+var repository = {
+	type: "git",
+	url: "git+https://github.com/mure-apps/mure-library.git"
+};
 var author = "Alex Bigelow";
 var license = "MIT";
-var bugs = { "url": "https://github.com/mure-apps/mure-library/issues" };
+var bugs = {
+	url: "https://github.com/mure-apps/mure-library/issues"
+};
 var homepage = "https://github.com/mure-apps/mure-library#readme";
-var devDependencies = { "babel-core": "^6.26.3", "babel-plugin-external-helpers": "^6.22.0", "babel-preset-env": "^1.6.1", "chalk": "^2.4.1", "d3-node": "^1.1.3", "diff": "^3.4.0", "pouchdb-node": "^6.4.3", "rollup": "^0.58.2", "rollup-plugin-babel": "^3.0.4", "rollup-plugin-commonjs": "^9.1.3", "rollup-plugin-json": "^2.3.0", "rollup-plugin-node-builtins": "^2.1.2", "rollup-plugin-node-globals": "^1.1.0", "rollup-plugin-node-resolve": "^3.0.2", "rollup-plugin-string": "^2.0.2", "rollup-plugin-uglify": "^3.0.0", "uglify-es": "^3.3.10" };
-var dependencies = { "blueimp-md5": "^2.10.0", "datalib": "^1.8.0", "jsonpath": "^1.0.0", "mime-types": "^2.1.18", "pouchdb-authentication": "^1.1.1", "pouchdb-browser": "^6.4.3", "pouchdb-find": "^6.4.3", "uki": "^0.2.4" };
-var peerDependencies = { "d3": "^5.0.0" };
+var devDependencies = {
+	"babel-core": "^6.26.3",
+	"babel-plugin-external-helpers": "^6.22.0",
+	"babel-preset-env": "^1.7.0",
+	chalk: "^2.4.1",
+	"d3-node": "^1.1.3",
+	diff: "^3.4.0",
+	"pouchdb-node": "^6.4.3",
+	rollup: "^0.59.4",
+	"rollup-plugin-babel": "^3.0.4",
+	"rollup-plugin-commonjs": "^9.1.3",
+	"rollup-plugin-json": "^3.0.0",
+	"rollup-plugin-node-builtins": "^2.1.2",
+	"rollup-plugin-node-globals": "^1.2.1",
+	"rollup-plugin-node-resolve": "^3.0.2",
+	"rollup-plugin-string": "^2.0.2"
+};
+var dependencies = {
+	"blueimp-md5": "^2.10.0",
+	datalib: "^1.8.0",
+	jsonpath: "^1.0.0",
+	"mime-types": "^2.1.18",
+	"pouchdb-authentication": "^1.1.3",
+	"pouchdb-browser": "^6.4.3",
+	"pouchdb-find": "^6.4.3",
+	uki: "^0.2.4"
+};
+var peerDependencies = {
+	d3: "^5.0.0"
+};
 var pkg = {
 	name: name,
 	version: version,
 	description: description,
 	main: main,
 	module: module$1,
+	"jsnext:main": "dist/mure.esm.js",
 	browser: browser,
 	scripts: scripts,
 	files: files,
@@ -1536,8 +1579,7 @@ var pkg = {
 	homepage: homepage,
 	devDependencies: devDependencies,
 	dependencies: dependencies,
-	peerDependencies: peerDependencies,
-	"jsnext:main": "dist/mure.esm.js"
+	peerDependencies: peerDependencies
 };
 
 let d3n = new D3Node();

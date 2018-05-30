@@ -5,8 +5,8 @@ import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
-import uglify from 'rollup-plugin-uglify';
-import uglifyEs from 'uglify-es';
+// import { uglify } from 'rollup-plugin-uglify';
+// import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
 
 // Derive some of the configuration from package.json
@@ -85,13 +85,16 @@ if (targets.esm) {
 // Create both minified and un-minified versions for
 // builds with 'min.js' in their filenames
 let minifiedBuilds = [];
+/*
+TODO: some kind of recent change to rollup-plugin-uglify has broken this...
+
 builds.forEach(build => {
   if (build.output.file.endsWith('min.js')) {
     // Deep copy the build spec, add uglification
     let minBuild = Object.assign({}, build);
     minBuild.output = Object.assign({}, build.output);
     minBuild.plugins = minBuild.plugins.concat([
-      uglify({}, uglifyEs.minfier)
+      build.output.file.endsWith('esm.min.js') ? terser() : uglify()
     ]);
     minifiedBuilds.push(minBuild);
 
@@ -101,5 +104,6 @@ builds.forEach(build => {
     build.output.sourcemap = 'inline';
   }
 });
+*/
 
 export default builds.concat(minifiedBuilds);
