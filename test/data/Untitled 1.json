@@ -17,7 +17,6 @@
     }
   },
   "contents": {
-    "_id": "@$.contents",
-    "$tags": {}
+    "_id": "@$.contents"
   }
 }

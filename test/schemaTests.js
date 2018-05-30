@@ -27,11 +27,11 @@ module.exports = [
         // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
         let hands = doc.selectAll('@$.contents.hands[*]')
-          .addClass('player')
-          .convertToType(mure.ITEM_TYPES.NodeItem);
+          .convertToType(mure.ITEM_TYPES.NodeItem)
+          .addClass('player');
         let tricks = doc.selectAll('@$.contents.tricks[*]')
-          .addClass('trick')
-          .convertToType(mure.ITEM_TYPES.NodeItem);
+          .convertToType(mure.ITEM_TYPES.NodeItem)
+          .addClass('trick');
         let cards = doc.selectAll('@$.contents.hands[*][*]')
           .convertToType(mure.ITEM_TYPES.NodeItem)
           .addClass('card');

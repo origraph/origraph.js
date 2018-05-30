@@ -531,9 +531,8 @@ class Handler {
     // Assign the object's id
     obj._id = '@' + jsonPath.stringify(path);
 
-    if (!obj.$tags) {
+    if (obj.$tags) {
       // Move any existing class definitions to this document
-      obj.$tags = obj.$tags || {};
       Object.keys(obj.$tags).forEach(setId => {
         const temp = this.extractClassInfoFromId(setId);
         if (temp) {

@@ -230,13 +230,17 @@ class Selection {
     // manipulates Items' .value property, those changes will automatically be
     // reflected in the document (as every .value is a pointer, or BaseItem's
     // .value setter ensures that primitives are propagated)
-    const items = await this.items();
-    let itemList = Object.values(await this.items());
     for (let f = 0; f < this.pendingOperations.length; f++) {
       const func = this.pendingOperations[f];
-      for (let i = 0; i < itemList.length; i++) {
-        const item = itemList[i];
-        await func.apply(this, [item, items]);
+      const items = await this.items();
+      const itemKeys = Object.keys(items);
+      for (let i = 0; i < itemKeys.length; i++) {
+        const key = itemKeys[i];
+        const item = items[key];
+        if (item) {
+          // Some functions, such as remove(), potentially mutate the items dict
+          await func.apply(this, [item, items]);
+        }
       }
     }
     this.pendingOperations = [];
@@ -331,8 +335,9 @@ class Selection {
     });
   }
   remove () {
-    return this.each(item => {
+    return this.each((item, items) => {
       item.remove();
+      delete items[item.uniqueSelector];
     });
   }
   group () {
@@ -352,8 +357,8 @@ class Selection {
         this.pollutedSelections.push(saveInSelection);
       }
     }
-    return this.each(async item => {
-      item.convertTo(ItemType);
+    return this.each(async (item, items) => {
+      items[item.uniqueSelector] = item.convertTo(ItemType);
     });
   }
   toggleDirection () {

@@ -4,17 +4,14 @@
       "0": {
         "suit": "♣",
         "value": "8",
-        "_id": "@$.contents[\"Player 1\"][\"0\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 1\"][\"0\"]"
       },
       "1": {
         "suit": "♣",
         "value": "Q",
-        "_id": "@$.contents[\"Player 1\"][\"1\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 1\"][\"1\"]"
       },
-      "_id": "@$.contents[\"Player 1\"]",
-      "$tags": {}
+      "_id": "@$.contents[\"Player 1\"]"
     }
   ],
 
@@ -23,14 +20,12 @@
     {
       "suit": "♣",
       "value": "8",
-      "_id": "@$.contents[\"Player 1\"][\"0\"]",
-      "$tags": {}
+      "_id": "@$.contents[\"Player 1\"][\"0\"]"
     },
     {
       "suit": "♣",
       "value": "Q",
-      "_id": "@$.contents[\"Player 1\"][\"1\"]",
-      "$tags": {}
+      "_id": "@$.contents[\"Player 1\"][\"1\"]"
     }
   ],
 
@@ -40,39 +35,32 @@
       "0": {
         "suit": "♥",
         "value": "A",
-        "_id": "@$.contents[\"Player 2\"][\"0\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 2\"][\"0\"]"
       },
       "1": {
         "suit": "♦",
         "value": "K",
-        "_id": "@$.contents[\"Player 2\"][\"1\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 2\"][\"1\"]"
       },
-      "_id": "@$.contents[\"Player 2\"]",
-      "$tags": {}
+      "_id": "@$.contents[\"Player 2\"]"
     },
     {
       "0": {
         "suit": "♦",
         "value": "2",
-        "_id": "@$.contents[\"Player 3\"][\"0\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 3\"][\"0\"]"
       },
       "1": {
         "suit": "♥",
         "value": "J",
-        "_id": "@$.contents[\"Player 3\"][\"1\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 3\"][\"1\"]"
       },
       "2": {
         "suit": "♠",
         "value": "K",
-        "_id": "@$.contents[\"Player 3\"][\"2\"]",
-        "$tags": {}
+        "_id": "@$.contents[\"Player 3\"][\"2\"]"
       },
-      "_id": "@$.contents[\"Player 3\"]",
-      "$tags": {}
+      "_id": "@$.contents[\"Player 3\"]"
     }
   ]
 }
