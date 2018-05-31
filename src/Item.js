@@ -3,6 +3,7 @@ import Selection from './Selection.js';
 
 const RESERVED_OBJ_KEYS = {
   '_id': true,
+  '_rev': true,
   '$wasArray': true,
   '$tags': true,
   '$members': true,
@@ -51,7 +52,26 @@ class BaseItem {
 BaseItem.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
-class RootItem extends BaseItem {
+
+const ContainerItemMixin = (superclass) => class extends superclass {
+  contentItems () {
+    return Object.entries(this.value)
+      .reduce((agg, [label, value]) => {
+        if (!RESERVED_OBJ_KEYS[label]) {
+          let ItemType = ItemHandler.inferType(value);
+          agg.push(new ItemType(this.path.concat([label]), value, this.doc));
+        }
+        return agg;
+      }, []);
+  }
+  contentItemCount () {
+    return Object.keys(this.value)
+      .filter(label => !RESERVED_OBJ_KEYS[label])
+      .length;
+  }
+};
+
+class RootItem extends ContainerItemMixin(BaseItem) {
   constructor (docList, selectSingle) {
     super({
       path: [],
@@ -71,7 +91,7 @@ class RootItem extends BaseItem {
     throw new Error(`Can't remove the root item`);
   }
 }
-class DocumentItem extends BaseItem {
+class DocumentItem extends ContainerItemMixin(BaseItem) {
   constructor (doc) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -149,6 +169,9 @@ class PrimitiveItem extends TypedItem {
       return super.convertTo(ItemType);
     }
   }
+  stringValue () {
+    return String(this.value);
+  }
 }
 
 class NullItem extends PrimitiveItem {}
@@ -201,6 +224,9 @@ class DateItem extends TypedItem {
       return super.convertTo(ItemType);
     }
   }
+  stringValue () {
+    return String(this.value);
+  }
 }
 DateItem.wrap = (value) => {
   if (typeof value === 'string') {
@@ -219,7 +245,7 @@ DateItem.wrap = (value) => {
 };
 DateItem.getBoilerplateValue = () => new Date();
 
-class ContainerItem extends TypedItem {
+class ContainerItem extends ContainerItemMixin(TypedItem) {
   constructor (path, value, doc) {
     super(path, value, doc);
     this.nextLabel = Object.keys(this.value)

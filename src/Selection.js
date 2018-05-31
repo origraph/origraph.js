@@ -377,10 +377,6 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
-  async getHierarchy (expandUniqueSelectors) {
-    const items = await this.items();
-    // TODO
-  }
   async getFlatGraphSchema () {
     const items = await this.items();
     let result = {

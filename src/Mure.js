@@ -137,6 +137,10 @@ class Mure extends Model {
     let results = await this.db.allDocs(options);
     return results.rows.map(row => row.doc);
   }
+  async allDocItems () {
+    return (await this.allDocs())
+      .map(doc => new this.ITEM_TYPES.DocumentItem(doc));
+  }
   async queryDocs (queryObj) {
     await this.dbStatus;
     let queryResult = await this.db.find(queryObj);
