@@ -27689,7 +27689,7 @@
 	};
 
 	const ContainerItemMixin = superclass => class extends superclass {
-	  contentItems() {
+	  getValueContents() {
 	    return Object.entries(this.value).reduce((agg, [label, value]) => {
 	      if (!RESERVED_OBJ_KEYS[label]) {
 	        let ItemType = ItemHandler.inferType(value);
@@ -27698,12 +27698,12 @@
 	      return agg;
 	    }, []);
 	  }
-	  contentItemCount() {
+	  getValueContentCount() {
 	    return Object.keys(this.value).filter(label => !RESERVED_OBJ_KEYS[label]).length;
 	  }
 	};
 
-	class RootItem extends ContainerItemMixin(BaseItem) {
+	class RootItem extends BaseItem {
 	  constructor(docList, selectSingle) {
 	    super({
 	      path: [],
@@ -27735,12 +27735,25 @@
 	      uniqueSelector: docPathQuery,
 	      classes: []
 	    });
+	    this._contentItem = new ContainerItem(this.path.concat(['contents']), this.value.contents, this.doc);
 	  }
 	  remove() {
 	    // TODO: remove everything in this.value except _id, _rev, and add _deleted?
 	    // There's probably some funkiness in the timing of save() I still need to
 	    // think through...
 	    throw new Error(`Deleting files via Selections not yet implemented`);
+	  }
+	  contentItems() {
+	    return this._contentItem.contentItems();
+	  }
+	  contentItemCount() {
+	    return this._contentItem.contentItemCount();
+	  }
+	  metaItems() {
+	    return this.getValueContents();
+	  }
+	  metaItemCount() {
+	    return this.getValueContentCount();
 	  }
 	}
 	class TypedItem extends BaseItem {
@@ -27922,6 +27935,12 @@
 	    } else {
 	      return super.convertTo(ItemType);
 	    }
+	  }
+	  contentItems() {
+	    return this.getValueContents();
+	  }
+	  contentItemCount() {
+	    return this.getValueContentCount();
 	  }
 	}
 	ContainerItem.getBoilerplateValue = () => {
