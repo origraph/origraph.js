@@ -34401,7 +34401,7 @@
 	}
 
 	var name$3 = "mure";
-	var version$4 = "0.3.1";
+	var version$4 = "0.3.2";
 	var description$3 = "An integration library for the mure ecosystem of apps";
 	var main$3 = "dist/mure.cjs.js";
 	var module$1 = "dist/mure.esm.js";
