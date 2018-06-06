@@ -1,3 +1,4 @@
+const fs = require('fs');
 const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
 
@@ -193,6 +194,55 @@ module.exports = [
         });
         resolve(tests);
       })();
+    });
+  },
+  async () => {
+    return new Promise((resolve, reject) => {
+      const expectedCsv = require('./data/expectedCsv');
+      fs.readFile('test/data/csvTest.csv', 'utf8', (err, data) => {
+        if (err) throw err;
+        (async () => {
+          let tests = [];
+          let uploadMessage = await mure.uploadString('csvTest.csv', 'text/csv', 'UTF-8', data);
+
+          // Make sure the document has been loaded and has a _rev property
+          let dbDoc = await mure.getDoc({ 'filename': 'csvTest.csv' });
+          let _revTestResult = {
+            passed: uploadMessage && dbDoc._rev
+          };
+          if (!_revTestResult.passed) {
+            _revTestResult.details = 'Upload message:\n' +
+              JSON.stringify(uploadMessage, null, 2) + '\n\n' +
+              'State after upload:' + '\n' +
+              JSON.stringify(dbDoc, null, 2);
+          }
+          tests.push({
+            name: 'csvTest.csv uploaded, has _rev property',
+            result: _revTestResult
+          });
+
+          // check that it matches what we'd expect (ignoring _rev)
+          let rev = dbDoc._rev;
+          delete dbDoc._rev;
+          tests.push({
+            name: 'csvTest.csv matches expected structure',
+            result: logging.testObjectEquality(dbDoc, expectedCsv)
+          });
+          dbDoc._rev = rev;
+
+          // Delete the document, and validate that it was deleted
+          let deleteMessage = await mure.deleteDoc(dbDoc._id);
+          let deleteTestResult = { passed: deleteMessage.ok };
+          if (!deleteMessage.ok) {
+            deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
+          }
+          tests.push({
+            name: 'delete csvTest.csv',
+            result: deleteTestResult
+          });
+          resolve(tests);
+        })();
+      });
     });
   }
 ];
