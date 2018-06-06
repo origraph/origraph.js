@@ -1601,7 +1601,7 @@ var dependencies = {
 	uki: "^0.2.4"
 };
 var peerDependencies = {
-	d3: "^5.0.0"
+	d3: "^5.4.0"
 };
 var pkg = {
 	name: name,
