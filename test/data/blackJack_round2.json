@@ -5,7 +5,7 @@
   "charset": "UTF-8",
   "contents": {
     "Player 1": [
-      { "suit": "♠", "value": "2" },
+      { "suit": "♠", "value":  2  },
       { "suit": "♣", "value": "Q" },
       { "suit": "♣", "value": "7" }
     ],
@@ -14,17 +14,17 @@
       { "suit": "♣", "value": "K" }
     ],
     "Player 3": [
-      { "suit": "♦", "value": "8" },
+      { "suit": "♦", "value":  8  },
       { "suit": "♥", "value": "A" }
     ],
     "Player 4": [
-      { "suit": "♦", "value": "3" },
-      { "suit": "♣", "value": "9" },
+      { "suit": "♦", "value":  3  },
+      { "suit": "♣", "value":  9  },
       { "suit": "♠", "value": "Q" }
     ],
     "Player 5": [
-      { "suit": "♣", "value": "4" },
-      { "suit": "♥", "value": "5" },
+      { "suit": "♣", "value":  4  },
+      { "suit": "♥", "value":  5  },
       { "suit": "♠", "value": "K" }
     ]
   }

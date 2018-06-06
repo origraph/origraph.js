@@ -43,7 +43,7 @@ class DocHandler {
       startkey: doc.mimeType + ';Untitled ',
       endkey: doc.mimeType + ';Untitled \uffff'
     });
-    return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds);
+    return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds, true);
   }
 }
 

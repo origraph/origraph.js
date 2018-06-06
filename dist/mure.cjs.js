@@ -950,7 +950,7 @@ ContainerItem.standardize = (value, path, doc, aggressive) => {
   // Recursively standardize contents if a path and doc are supplied
   if (path && doc) {
     Object.entries(value).forEach(([key, nestedValue]) => {
-      if (typeof nestedValue === 'object' && !RESERVED_OBJ_KEYS[key]) {
+      if (!RESERVED_OBJ_KEYS[key]) {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
@@ -1212,8 +1212,16 @@ class Handler {
         // Aggressively attempt to identify something more specific than string
         if (!isNaN(Number(value))) {
           return ITEM_TYPES.NumberItem;
-        } else if (!isNaN(new Date(value))) {
-          return ITEM_TYPES.DateItem;
+          /*
+           For now, we don't attempt to identify dates, even in aggressive mode,
+           because things like new Date('Player 1') will successfully parse as a
+           date. If we can find smarter ways to auto-infer dates (e.g. does the
+           value fall suspiciously near the unix epoch, y2k, or more than +/-500
+           years from now? Do sibling container items parse this as a date?), then
+           maybe we'll add this back...
+          */
+          // } else if (!isNaN(new Date(value))) {
+          //  return ITEM_TYPES.DateItem;
         } else {
           const temp = value.toLowerCase();
           if (temp === 'true') {
@@ -1294,7 +1302,7 @@ class DocHandler {
       startkey: doc.mimeType + ';Untitled ',
       endkey: doc.mimeType + ';Untitled \uffff'
     });
-    return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds);
+    return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds, true);
   }
 }
 

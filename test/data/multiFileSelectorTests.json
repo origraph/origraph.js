@@ -3,7 +3,7 @@
     {
       "0": {
         "suit": "♣",
-        "value": "8",
+        "value": 8,
         "_id": "@$.contents[\"Player 1\"][\"0\"]"
       },
       "1": {
@@ -20,7 +20,7 @@
     {
       "0": {
         "suit": "♣",
-        "value": "8",
+        "value": 8,
         "_id": "@$.contents[\"Player 1\"][\"0\"]"
       },
       "1": {
@@ -33,7 +33,7 @@
     {
       "0": {
         "suit": "♠",
-        "value": "2",
+        "value": 2,
         "_id": "@$.contents[\"Player 1\"][\"0\"]"
       },
       "1": {
@@ -43,7 +43,7 @@
       },
       "2": {
         "suit": "♣",
-        "value": "7",
+        "value": 7,
         "_id": "@$.contents[\"Player 1\"][\"2\"]"
       },
       "$wasArray": true,
@@ -99,7 +99,7 @@
   "@ $.contents..[?(@.suit==='♦'&&(@.value<=2||@.value=='A'))]": [
     {
       "suit": "♦",
-      "value": "2",
+      "value": 2,
       "_id": "@$.contents[\"Player 3\"][\"0\"]"
     },
     {
