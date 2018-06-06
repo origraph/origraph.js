@@ -212,7 +212,7 @@ class Selection {
                     .forEach(addItem);
                 } else {
                   const ItemType = this.mure.ItemHandler.inferType(value);
-                  addItem(new ItemType([`{"_id":"${doc._id}"}`].concat(localPath), value, doc));
+                  addItem(new ItemType(value, [`{"_id":"${doc._id}"}`].concat(localPath), doc));
                 }
               }
               if (this.selectSingle && addedItem) { break; }

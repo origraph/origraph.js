@@ -1,3 +1,4 @@
+import mime from 'mime-types';
 import jsonPath from 'jsonpath';
 import Selection from './Selection.js';
 
@@ -52,6 +53,10 @@ class BaseItem {
 BaseItem.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
+BaseItem.standardize = (value) => {
+  // Default action: do nothing
+  return value;
+};
 
 const ContainerItemMixin = (superclass) => class extends superclass {
   getValueContents () {
@@ -59,7 +64,7 @@ const ContainerItemMixin = (superclass) => class extends superclass {
       .reduce((agg, [label, value]) => {
         if (!RESERVED_OBJ_KEYS[label]) {
           let ItemType = ItemHandler.inferType(value);
-          agg.push(new ItemType(this.path.concat([label]), value, this.doc));
+          agg.push(new ItemType(value, this.path.concat([label]), this.doc));
         }
         return agg;
       }, []);
@@ -103,7 +108,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       uniqueSelector: '@' + docPathQuery,
       classes: []
     });
-    this._contentItem = new ContainerItem(this.path.concat(['contents']), this.value.contents, this.doc);
+    this._contentItem = new ContainerItem(this.value.contents, this.path.concat(['contents']), this.doc);
   }
   remove () {
     // TODO: remove everything in this.value except _id, _rev, and add _deleted?
@@ -124,8 +129,78 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
     return this.getValueContentCount();
   }
 }
+DocumentItem.isValidId = (docId) => {
+  if (docId[0].toLowerCase() !== docId[0]) {
+    return false;
+  }
+  let parts = docId.split(';');
+  if (parts.length !== 2) {
+    return false;
+  }
+  return !!mime.extension(parts[0]);
+};
+DocumentItem.standardize = (doc, existingUntitleds = { rows: [] }, aggressive) => {
+  if (!doc._id || !DocumentItem.isValidId(doc._id)) {
+    if (!doc.mimeType && !doc.filename) {
+      // Without an id, filename, or mimeType, just assume it's application/json
+      doc.mimeType = 'application/json';
+    }
+    doc.mimeType = doc.mimeType.toLowerCase();
+    if (!doc.filename) {
+      if (doc._id) {
+        // We were given an invalid id; use it as the filename instead
+        doc.filename = doc._id;
+      } else {
+        // Without anything to go on, use "Untitled 1", etc
+        let minIndex = existingUntitleds.rows.reduce((minIndex, uDoc) => {
+          let index = /Untitled (\d+)/g.exec(uDoc._id);
+          index = index ? index[1] || Infinity : Infinity;
+          return index < minIndex ? index : minIndex;
+        }, Infinity);
+        minIndex = isFinite(minIndex) ? minIndex + 1 : 1;
+        doc.filename = 'Untitled ' + minIndex;
+      }
+    }
+    if (!doc.mimeType) {
+      // We were given a bit of info with the filename / bad _id;
+      // try to infer the mimeType from that (again use application/json
+      // if that fails)
+      doc.mimeType = mime.lookup(doc.filename) || 'application/json';
+    }
+    doc._id = doc.mimeType + ';' + doc.filename;
+  }
+  if (doc._id[0] === '_' || doc._id[0] === '$') {
+    throw new Error('Document _ids may not start with ' + doc._id[0] + ': ' + doc._id);
+  }
+  doc.mimeType = doc.mimeType || doc._id.split(';')[0];
+  if (!mime.extension(doc.mimeType)) {
+    throw new Error('Unknown mimeType: ' + doc.mimeType);
+  }
+  doc.filename = doc.filename || doc._id.split(';')[1];
+  doc.charset = (doc.charset || 'UTF-8').toUpperCase();
+
+  doc.orphanEdges = doc.orphanEdges || {};
+  doc.orphanEdges._id = '@$.orphanEdges';
+
+  doc.orphanNodes = doc.orphanNodes || {};
+  doc.orphanNodes._id = '@$.orphanNodes';
+
+  doc.classes = doc.classes || {};
+  doc.classes._id = '@$.classes';
+
+  let noneId = '@$.classes.none';
+  doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
+
+  doc.contents = doc.contents || {};
+  // In case doc.contents is an array, prep it for ContainerItem.standardize
+  doc.contents = ContainerItem.convertArray(doc.contents);
+  doc.contents = ContainerItem.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc, aggressive);
+
+  return doc;
+};
+
 class TypedItem extends BaseItem {
-  constructor (path, value, doc) {
+  constructor (value, path, doc) {
     let parent;
     if (path.length < 2) {
       throw new Error(`Can't create a non-Root or non-Doc Item with a path length less than 2`);
@@ -164,19 +239,19 @@ class PrimitiveItem extends TypedItem {
   convertTo (ItemType) {
     if (ItemType === BooleanItem) {
       this.value = !!this.value;
-      return new BooleanItem(this.path, this.value, this.doc);
+      return new BooleanItem(this.value, this.path, this.doc);
     } else if (ItemType === NumberItem) {
       this.value = Number(this.value);
-      return new NumberItem(this.path, this.value, this.doc);
+      return new NumberItem(this.value, this.path, this.doc);
     } else if (ItemType === StringItem) {
       this.value = String(this.value);
-      return new StringItem(this.path, this.value, this.doc);
+      return new StringItem(this.value, this.path, this.doc);
     } else if (ItemType === DateItem) {
       this.value = {
         $isDate: true,
         str: new Date(this.value).toString()
       };
-      return new DateItem(this.path, this.value, this.doc);
+      return new DateItem(this.value, this.path, this.doc);
     } else {
       return super.convertTo(ItemType);
     }
@@ -189,18 +264,22 @@ class PrimitiveItem extends TypedItem {
 class NullItem extends PrimitiveItem {}
 NullItem.JSTYPE = 'null';
 NullItem.getBoilerplateValue = () => null;
+NullItem.standardize = () => null;
 
 class BooleanItem extends PrimitiveItem {}
 BooleanItem.JSTYPE = 'boolean';
 BooleanItem.getBoilerplateValue = () => false;
+BooleanItem.standardize = value => !!value;
 
 class NumberItem extends PrimitiveItem {}
 NumberItem.JSTYPE = 'number';
 NumberItem.getBoilerplateValue = () => 0;
+NumberItem.standardize = value => Number(value);
 
 class StringItem extends PrimitiveItem {}
 StringItem.JSTYPE = 'string';
 StringItem.getBoilerplateValue = () => '';
+StringItem.standardize = value => String(value);
 
 class ReferenceItem extends StringItem {
   canConvertTo (ItemType) {
@@ -213,12 +292,12 @@ class ReferenceItem extends StringItem {
 ReferenceItem.getBoilerplateValue = () => '@$';
 
 class DateItem extends TypedItem {
-  constructor (path, value, doc) {
-    super(path, DateItem.wrap(value), doc);
+  constructor (value, path, doc) {
+    super(path, DateItem.standardize(value), doc);
   }
   get value () { return new Date(this._value.str); }
   set value (newValue) {
-    super.value = DateItem.wrap(newValue);
+    super.value = DateItem.standardize(newValue);
   }
   canConvertTo (ItemType) {
     return ItemType === NumberItem ||
@@ -228,10 +307,10 @@ class DateItem extends TypedItem {
   convertTo (ItemType) {
     if (ItemType === NumberItem) {
       this.parent[this.label] = this._value = Number(this.value);
-      return new NumberItem(this.path, this._value, this.doc);
+      return new NumberItem(this._value, this.path, this.doc);
     } else if (ItemType === StringItem) {
       this.parent[this.label] = this._value = String(this.value);
-      return new StringItem(this.path, this._value, this.doc);
+      return new StringItem(this._value, this.path, this.doc);
     } else {
       return super.convertTo(ItemType);
     }
@@ -240,7 +319,8 @@ class DateItem extends TypedItem {
     return String(this.value);
   }
 }
-DateItem.wrap = (value) => {
+DateItem.getBoilerplateValue = () => new Date();
+DateItem.standardize = (value) => {
   if (typeof value === 'string') {
     value = new Date(value);
   }
@@ -255,11 +335,10 @@ DateItem.wrap = (value) => {
   }
   return value;
 };
-DateItem.getBoilerplateValue = () => new Date();
 
 class ContainerItem extends ContainerItemMixin(TypedItem) {
-  constructor (path, value, doc) {
-    super(path, value, doc);
+  constructor (value, path, doc) {
+    super(value, path, doc);
     this.nextLabel = Object.keys(this.value)
       .reduce((max, key) => {
         key = parseInt(key);
@@ -278,7 +357,7 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ItemType(path, ItemType.getBoilerplateValue(), this.doc);
+    let item = new ItemType(ItemType.getBoilerplateValue(), path, this.doc);
     this.addItem(item, label);
     return item;
   }
@@ -303,7 +382,7 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
     if (ItemType === NodeItem) {
       this.value.$edges = {};
       this.value.$tags = {};
-      return new NodeItem(this.path, this.value, this.doc);
+      return new NodeItem(this.value, this.path, this.doc);
     } else {
       return super.convertTo(ItemType);
     }
@@ -316,10 +395,44 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
   }
 }
 ContainerItem.getBoilerplateValue = () => { return {}; };
+ContainerItem.convertArray = value => {
+  if (value instanceof Array) {
+    let temp = {};
+    value.forEach((element, index) => {
+      temp[index] = element;
+    });
+    value = temp;
+    value.$wasArray = true;
+  }
+  return value;
+};
+ContainerItem.standardize = (value, path, doc, aggressive) => {
+  // Assign the object's id if a path is supplied
+  if (path) {
+    value._id = '@' + jsonPath.stringify(path.slice(1));
+  }
+  // Recursively standardize contents if a path and doc are supplied
+  if (path && doc) {
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      if (typeof nestedValue === 'object' &&
+          !RESERVED_OBJ_KEYS[key]) {
+        let temp = Array.from(path);
+        temp.push(key);
+        // Alayws convert arrays to objects
+        nestedValue = ContainerItem.convertArray(nestedValue);
+        // What kind of value are we dealing with?
+        let ItemType = ItemHandler.inferType(nestedValue, aggressive);
+        // Apply that class's standardization function
+        value[key] = ItemType.standardize(nestedValue, temp, doc, aggressive);
+      }
+    });
+  }
+  return value;
+};
 
 class TaggableItem extends ContainerItem {
-  constructor (path, value, doc) {
-    super(path, value, doc);
+  constructor (value, path, doc) {
+    super(value, path, doc);
     if (!value.$tags) {
       throw new TypeError(`TaggableItem requires a $tags object`);
     }
@@ -345,10 +458,30 @@ class TaggableItem extends ContainerItem {
 TaggableItem.getBoilerplateValue = () => {
   return { $tags: {} };
 };
+TaggableItem.standardize = (value, path, doc, aggressive) => {
+  // Do the regular ContainerItem standardization
+  value = ContainerItem.standardize(value, path, doc, aggressive);
+  // Ensure the existence of a $tags object
+  value.$tags = value.$tags || {};
+  // Move any existing class definitions to this document
+  Object.keys(value.$tags).forEach(setId => {
+    const temp = ItemHandler.extractClassInfoFromId(setId);
+    if (temp) {
+      delete value.$tags[setId];
+
+      setId = doc.classes._id + temp.classPathChunk;
+      value.$tags[setId] = true;
+
+      doc.classes[temp.className] = doc.classes[temp.className] || { _id: setId, $members: {} };
+      doc.classes[temp.className].$members[value._id] = true;
+    }
+  });
+  return value;
+};
 
 const SetItemMixin = (superclass) => class extends superclass {
-  constructor (path, value, doc) {
-    super(path, value, doc);
+  constructor (value, path, doc) {
+    super(value, path, doc);
     if (!value.$members) {
       throw new TypeError(`SetItem requires a $members object`);
     }
@@ -371,10 +504,15 @@ class SetItem extends SetItemMixin(TypedItem) {
 SetItem.getBoilerplateValue = () => {
   return { $members: {} };
 };
+SetItem.standardize = (value) => {
+  // Ensure the existence of a $members object
+  value.$members = value.$members || {};
+  return value;
+};
 
 class EdgeItem extends TaggableItem {
-  constructor (path, value, doc) {
-    super(path, value, doc);
+  constructor (value, path, doc) {
+    super(value, path, doc);
     if (!value.$nodes) {
       throw new TypeError(`EdgeItem requires a $nodes object`);
     }
@@ -389,10 +527,17 @@ class EdgeItem extends TaggableItem {
 EdgeItem.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
+EdgeItem.standardize = (value, path, doc, aggressive) => {
+  // Do the regular TaggableItem standardization
+  value = TaggableItem.standardize(value, path, doc, aggressive);
+  // Ensure the existence of a $nodes object
+  value.$nodes = value.$nodes || {};
+  return value;
+};
 
 class NodeItem extends TaggableItem {
-  constructor (path, value, doc) {
-    super(path, value, doc);
+  constructor (value, path, doc) {
+    super(value, path, doc);
     if (!value.$edges) {
       throw new TypeError(`NodeItem requires an $edges object`);
     }
@@ -427,6 +572,13 @@ class NodeItem extends TaggableItem {
 NodeItem.getBoilerplateValue = () => {
   return { $tags: {}, $edges: {} };
 };
+NodeItem.standardize = (value, path, doc, aggressive) => {
+  // Do the regular TaggableItem standardization
+  value = TaggableItem.standardize(value, path, doc, aggressive);
+  // Ensure the existence of an $edges object
+  value.$edges = value.$edges || {};
+  return value;
+};
 
 class SupernodeItem extends SetItemMixin(NodeItem) {
   canConvertTo (ItemType) {
@@ -438,6 +590,13 @@ class SupernodeItem extends SetItemMixin(NodeItem) {
 }
 SupernodeItem.getBoilerplateValue = () => {
   return { $tags: {}, $members: {}, $edges: {} };
+};
+SupernodeItem.standardize = (value, path, doc, aggressive) => {
+  // Do the regular NodeItem standardization
+  value = NodeItem.standardize(value, path, doc, aggressive);
+  // ... and the SetItem standardization
+  value = SetItem.standardize(value);
+  return value;
 };
 
 const ITEM_TYPES = {
@@ -556,56 +715,6 @@ class Handler {
     } else {
       return ITEM_TYPES.ContainerItem;
     }
-  }
-  standardize (obj, path, classes) {
-    if (typeof obj !== 'object') {
-      return obj;
-    }
-
-    // Convert arrays to objects
-    if (obj instanceof Array) {
-      let temp = {};
-      obj.forEach((element, index) => {
-        temp[index] = element;
-      });
-      obj = temp;
-      obj.$wasArray = true;
-    }
-
-    // Assign the object's id
-    obj._id = '@' + jsonPath.stringify(path.slice(1));
-
-    if (obj.$tags) {
-      // Move any existing class definitions to this document
-      Object.keys(obj.$tags).forEach(setId => {
-        const temp = this.extractClassInfoFromId(setId);
-        if (temp) {
-          delete obj.$tags[setId];
-
-          setId = classes._id + temp.classPathChunk;
-          obj.$tags[setId] = true;
-
-          classes[temp.className] = classes[temp.className] || { _id: setId, $members: {} };
-          classes[temp.className].$members[obj._id] = true;
-        }
-      });
-    }
-
-    // Recursively standardize the object's contents
-    Object.entries(obj).forEach(([key, value]) => {
-      if (typeof value === 'object' &&
-          !RESERVED_OBJ_KEYS[key]) {
-        let temp = Array.from(path);
-        temp.push(key);
-        obj[key] = this.standardize(value, temp, classes);
-      }
-    });
-    return obj;
-  }
-  format (obj) {
-    // TODO: if $wasArray, attempt to restore array status,
-    // remove _ids
-    throw new Error('unimplemented');
   }
 }
 const ItemHandler = new Handler();
