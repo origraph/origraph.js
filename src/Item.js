@@ -100,7 +100,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       parent: null,
       doc: doc,
       label: doc['filename'],
-      uniqueSelector: docPathQuery,
+      uniqueSelector: '@' + docPathQuery,
       classes: []
     });
     this._contentItem = new ContainerItem(this.path.concat(['contents']), this.value.contents, this.doc);
@@ -132,12 +132,11 @@ class TypedItem extends BaseItem {
     } else if (path.length === 2) {
       parent = doc;
     } else {
-      let temp = jsonPath.stringify(path.slice(0, path.length - 1));
+      let temp = jsonPath.stringify(path.slice(1, path.length - 1));
       parent = jsonPath.value(doc, temp);
     }
-    const docPathQuery = `{"_id":"${doc._id}"}`;
-    const uniqueJsonPath = jsonPath.stringify(path);
-    path.unshift(docPathQuery);
+    const docPathQuery = path[0];
+    const uniqueJsonPath = jsonPath.stringify(path.slice(1));
     super({
       path,
       value,
@@ -574,7 +573,7 @@ class Handler {
     }
 
     // Assign the object's id
-    obj._id = '@' + jsonPath.stringify(path);
+    obj._id = '@' + jsonPath.stringify(path.slice(1));
 
     if (obj.$tags) {
       // Move any existing class definitions to this document

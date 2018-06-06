@@ -27282,31 +27282,32 @@
 	            let matchingItems = jsonpath.nodes(doc, selector.objQuery);
 	            for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
 	              let { path, value } = matchingItems[itemIndex];
-	              if (this.mure.RESERVED_OBJ_KEYS[path.slice(-1)[0]]) {
+	              let localPath = path;
+	              if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
 	                // Don't create items under reserved keys
 	                continue;
-	              } else if (selector.parentShift === path.length) {
+	              } else if (selector.parentShift === localPath.length) {
 	                // we parent shifted up to the root level
 	                if (!selector.followLinks) {
 	                  addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
 	                }
-	              } else if (selector.parentShift === path.length - 1) {
+	              } else if (selector.parentShift === localPath.length - 1) {
 	                // we parent shifted to the document level
 	                if (!selector.followLinks) {
 	                  addItem(new this.mure.ITEM_TYPES.DocumentItem(doc));
 	                }
 	              } else {
-	                if (selector.parentShift > 0 && selector.parentShift < path.length - 1) {
+	                if (selector.parentShift > 0 && selector.parentShift < localPath.length - 1) {
 	                  // normal parentShift
-	                  path.splice(path.length - selector.parentShift);
-	                  value = jsonpath.query(doc, jsonpath.stringify(path))[0];
+	                  localPath.splice(localPath.length - selector.parentShift);
+	                  value = jsonpath.query(doc, jsonpath.stringify(localPath))[0];
 	                }
 	                if (selector.followLinks) {
 	                  // We (potentially) selected a link that we need to follow
 	                  Object.values((await this.followRelativeLink(value, doc))).forEach(addItem);
 	                } else {
 	                  const ItemType = this.mure.ItemHandler.inferType(value);
-	                  addItem(new ItemType(path, value, doc));
+	                  addItem(new ItemType([`{"_id":"${doc._id}"}`].concat(localPath), value, doc));
 	                }
 	              }
 	              if (this.selectSingle && addedItem) {
@@ -27732,7 +27733,7 @@
 	      parent: null,
 	      doc: doc,
 	      label: doc['filename'],
-	      uniqueSelector: docPathQuery,
+	      uniqueSelector: '@' + docPathQuery,
 	      classes: []
 	    });
 	    this._contentItem = new ContainerItem(this.path.concat(['contents']), this.value.contents, this.doc);
@@ -27764,12 +27765,11 @@
 	    } else if (path.length === 2) {
 	      parent = doc;
 	    } else {
-	      let temp = jsonpath.stringify(path.slice(0, path.length - 1));
+	      let temp = jsonpath.stringify(path.slice(1, path.length - 1));
 	      parent = jsonpath.value(doc, temp);
 	    }
-	    const docPathQuery = `{"_id":"${doc._id}"}`;
-	    const uniqueJsonPath = jsonpath.stringify(path);
-	    path.unshift(docPathQuery);
+	    const docPathQuery = path[0];
+	    const uniqueJsonPath = jsonpath.stringify(path.slice(1));
 	    super({
 	      path,
 	      value,
@@ -28201,7 +28201,7 @@
 	    }
 
 	    // Assign the object's id
-	    obj._id = '@' + jsonpath.stringify(path);
+	    obj._id = '@' + jsonpath.stringify(path.slice(1));
 
 	    if (obj.$tags) {
 	      // Move any existing class definitions to this document
@@ -34093,7 +34093,7 @@
 	    doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
 	    doc.contents = doc.contents || {};
-	    mure.ItemHandler.standardize(doc.contents, ['$', 'contents'], doc.classes);
+	    mure.ItemHandler.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc.classes);
 
 	    return doc;
 	  }
