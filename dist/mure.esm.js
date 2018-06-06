@@ -1237,7 +1237,7 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    mure.ItemHandler.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc.classes);
+    doc.contents = mure.ItemHandler.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc.classes);
 
     return doc;
   }
@@ -1580,7 +1580,7 @@ var devDependencies = {
 	"d3-node": "^1.1.3",
 	diff: "^3.4.0",
 	"pouchdb-node": "^6.4.3",
-	rollup: "^0.59.4",
+	rollup: "^0.60.0",
 	"rollup-plugin-babel": "^3.0.4",
 	"rollup-plugin-commonjs": "^9.1.3",
 	"rollup-plugin-json": "^3.0.0",
