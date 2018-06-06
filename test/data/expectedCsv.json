@@ -55,7 +55,9 @@
       "a": "9",
       "test": "seven",
       "_id": "@$.contents[\"7\"]"
-    }
+    },
+    "$wasArray": true,
+    "_id": "@$.contents"
   },
   "filename": "csvTest.csv",
   "mimeType": "text/csv",

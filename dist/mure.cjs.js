@@ -1238,7 +1238,7 @@ class DocHandler {
     doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
     doc.contents = doc.contents || {};
-    mure.ItemHandler.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc.classes);
+    doc.contents = mure.ItemHandler.standardize(doc.contents, [`{"_id":"${doc._id}"}`, '$', 'contents'], doc.classes);
 
     return doc;
   }
