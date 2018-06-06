@@ -1,6 +1,6 @@
 import mime from 'mime-types';
 import jsonPath from 'jsonpath';
-import Selection from './Selection.js';
+import { Selection } from './Selection.js';
 
 const RESERVED_OBJ_KEYS = {
   '_id': true,

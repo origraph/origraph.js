@@ -1,7 +1,7 @@
 import mime from 'mime-types';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
-import Selection from './Selection.js';
+import { Selection, DERIVE_MODES } from './Selection.js';
 import { ItemHandler, RESERVED_OBJ_KEYS, ITEM_TYPES } from './Item.js';
 import DocHandler from './DocHandler.js';
 
@@ -34,6 +34,9 @@ class Mure extends Model {
 
     // Special keys that should be skipped in various operations
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
+
+    // Modes for deriving selections
+    this.DERIVE_MODES = DERIVE_MODES;
 
     // Create / load the local database of files
     this.getOrInitDb();

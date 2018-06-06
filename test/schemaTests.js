@@ -103,7 +103,7 @@ module.exports = [
 
         // Test schema summary functions
         let allItems = hands.merge(cards).merge(tricks);
-        allItems = await allItems.selectAllEdges({ merge: true });
+        allItems = await allItems.selectAllEdges({ mode: mure.DERIVE_MODES.UNION });
 
         let summary = await allItems.getFlatGraphSchema();
         tests.push({

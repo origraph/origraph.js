@@ -9,7 +9,13 @@ var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var D3Node = _interopDefault(require('d3-node'));
 
-let DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
+const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
+
+const DERIVE_MODES = {
+  REPLACE: 'REPLACE',
+  UNION: 'UNION',
+  XOR: 'XOR'
+};
 
 class Selection {
   constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null } = {}) {
@@ -500,14 +506,16 @@ class Selection {
   /*
    These functions are useful for deriving additional selections
    */
-  deriveSelection(selectorList, options = { merge: false }) {
-    if (options.merge) {
+  deriveSelection(selectorList, options = { mode: DERIVE_MODES.REPLACE }) {
+    if (options.mode === DERIVE_MODES.UNION) {
       selectorList = selectorList.concat(this.selectorList);
-    }
+    } else if (options.mode === DERIVE_MODES.XOR) {
+      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1).concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
+    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
     return new Selection(this.mure, selectorList, options);
   }
   merge(otherSelection, options = {}) {
-    Object.assign(options, { merge: true });
+    Object.assign(options, { mode: DERIVE_MODES.UNION });
     return this.deriveSelection(otherSelection.selectorList, options);
   }
   select(selectorList, options = {}) {
@@ -1337,6 +1345,9 @@ class Mure extends uki.Model {
 
     // Special keys that should be skipped in various operations
     this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
+
+    // Modes for deriving selections
+    this.DERIVE_MODES = DERIVE_MODES;
 
     // Create / load the local database of files
     this.getOrInitDb();
