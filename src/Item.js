@@ -24,6 +24,9 @@ class BaseItem {
     this.uniqueSelector = uniqueSelector;
     this.classes = classes;
   }
+  get type () {
+    return /(.*)Item/.exec(this.constructor.name)[1];
+  }
   get value () { return this._value; }
   set value (newValue) {
     if (this.parent) {
@@ -291,7 +294,7 @@ class ReferenceItem extends StringItem {
 }
 ReferenceItem.getBoilerplateValue = () => '@$';
 
-class DateItem extends TypedItem {
+class DateItem extends PrimitiveItem {
   constructor (value, path, doc) {
     super(path, DateItem.standardize(value), doc);
   }
@@ -601,6 +604,7 @@ SupernodeItem.standardize = (value, path, doc, aggressive) => {
 const ITEM_TYPES = {
   RootItem,
   DocumentItem,
+  PrimitiveItem,
   NullItem,
   BooleanItem,
   NumberItem,

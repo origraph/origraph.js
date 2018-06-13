@@ -77,6 +77,7 @@ class Selection {
   invalidateCache () {
     delete this._cachedDocLists;
     delete this._cachedItems;
+    delete this._cachedHistograms;
   }
   async docLists () {
     if (this._cachedDocLists) {
@@ -144,14 +145,15 @@ class Selection {
     return tempSelection.items(docLists);
   }
   async items (docLists) {
+    if (this._cachedItems) {
+      return this._cachedItems;
+    }
+
     // Note: we should only pass in docLists in rare situations (such as the
     // one-off case in followRelativeLink() where we already have the document
     // available, and creating the new selection will result in an unnnecessary
     // query of the database). Usually, we should rely on the cache.
     docLists = docLists || await this.docLists();
-    if (this._cachedItems) {
-      return this._cachedItems;
-    }
 
     return queueAsync(async () => {
       // Collect the results of objQuery
@@ -384,6 +386,127 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
+  async histograms (numBins = 10) {
+    if (this._cachedHistograms) {
+      return this._cachedHistograms;
+    }
+
+    const items = await this.items();
+
+    let result = {
+      raw: {
+        typeBins: {},
+        categoricalBins: {},
+        quantitativeBins: []
+      },
+      attributes: {}
+    };
+
+    const countPrimitive = (counters, item) => {
+      // Attempt to count the value categorically
+      if (counters.categoricalBins !== null) {
+        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
+        if (Object.keys(counters.categoricalBins).length > numBins) {
+          // We've encountered too many categorical bins; this likely isn't a categorical attribute
+          counters.categoricalBins = null;
+        }
+      }
+      // Attempt to bin the value quantitatively
+      if (counters.quantitativeBins !== null) {
+        if (counters.quantitativeBins.length === 0) {
+          // Init the counters with some temporary placeholders
+          counters.quantitativeItems = [];
+          counters.quantitativeType = item.type;
+          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+            counters.quantitativeScale = this.mure.d3.scaleLinear()
+              .domain([item.value, item.value]);
+          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+            counters.quantitativeScale = this.mure.d3.scaleTime()
+              .domain([item.value, item.value]);
+          } else {
+            // The first value is non-quantitative; this likely isn't a quantitative attribute
+            counters.quantitativeBins = null;
+            delete counters.quantitativeItems;
+            delete counters.quantitativeType;
+            delete counters.quantitativeScale;
+          }
+        } else if (counters.quantitativeType !== item.type) {
+          // Encountered an item of a different type; this likely isn't a quantitative attribute
+          counters.quantitativeBins = null;
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+          delete counters.quantitativeScale;
+        } else {
+          // Update the scale's domain (we'll determine bins later)
+          let domain = counters.quantitativeScale.domain();
+          if (item.value < domain[0]) {
+            domain[0] = item.value;
+          }
+          if (item.value > domain[1]) {
+            domain[1] = item.value;
+          }
+          counters.quantitativeScale.domain(domain);
+        }
+      }
+    };
+
+    Object.values(items).forEach(item => {
+      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
+      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+        countPrimitive(result.raw, item);
+      } else {
+        if (item.contentItems) {
+          item.contentItems().forEach(childItem => {
+            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+              typeBins: {},
+              categoricalBins: {},
+              quantitativeBins: []
+            };
+            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
+            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+              countPrimitive(counters, childItem);
+            }
+          });
+        }
+        // TODO: collect more statistics, such as node degree, set size
+        // (and a set's members' attributes, similar to contentItems?)
+      }
+    });
+
+    const finalizeBins = counters => {
+      // Clear out anything that didn't see any values
+      if (Object.keys(counters.typeBins).length === 0) {
+        counters.typeBins = null;
+      }
+      if (Object.keys(counters.categoricalBins).length === 0) {
+        counters.categoricalBins = null;
+      }
+      if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
+        counters.quantitativeBins = null;
+        delete counters.quantitativeItems;
+        delete counters.quantitativeType;
+        delete counters.quantitativeScale;
+      } else {
+        // Calculate quantitative bin sizes and their counts
+        // Clean up the scale a bit
+        counters.quantitativeScale.nice();
+        // Histogram generator
+        const histogramGenerator = this.mure.d3.histogram()
+          .domain(counters.quantitativeScale.domain())
+          .thresholds(counters.quantitativeScale.ticks(numBins))
+          .value(d => d.value);
+        counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+        // Clean up some of the temporary placeholders
+        delete counters.quantitativeItems;
+        delete counters.quantitativeType;
+      }
+    };
+    finalizeBins(result.raw);
+    Object.values(result.attributes).forEach(finalizeBins);
+
+    this._cachedHistograms = result;
+    return result;
+  }
   async getFlatGraphSchema () {
     const items = await this.items();
     let result = {
