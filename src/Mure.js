@@ -3,7 +3,6 @@ import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import { Selection, DERIVE_MODES } from './Selection.js';
 import { ItemHandler, RESERVED_OBJ_KEYS, ITEM_TYPES } from './Item.js';
-import DocHandler from './DocHandler.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -25,9 +24,8 @@ class Mure extends Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Handlers for Items and Documents
+    // Handler for Items
     this.ItemHandler = ItemHandler;
-    this.DocHandler = DocHandler;
 
     // Our custom type definitions
     this.ITEM_TYPES = ITEM_TYPES;
@@ -167,7 +165,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.DocHandler.standardize({}, this);
+      return ITEM_TYPES.DocumentItem.launchStandardization({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -180,7 +178,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.DocHandler.standardize(docQuery, this);
+          doc = await ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
         } else {
           return null;
         }
@@ -224,7 +222,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = this.DocHandler.formatDoc(doc, { mimeType });
+        let contents = ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -250,15 +248,24 @@ class Mure extends Model {
     });
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
-  async uploadString (filename, mimeType, encoding, string) {
-    let doc = await this.DocHandler.parse(string, { mimeType });
+  async uploadString (filename, mimeType, encoding, string, extensionOverride = null) {
+    if (!mimeType) {
+      let temp = mime.lookup(filename);
+      if (temp) {
+        mimeType = temp;
+      }
+    }
+    // extensionOverride allows things like topojson or treejson (that don't
+    // have standardized mimeTypes) to be parsed correctly
+    const extension = extensionOverride || mime.extension(mimeType) || 'txt';
+    let doc = await ITEM_TYPES.DocumentItem.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.DocHandler.standardize(doc, this);
+    doc = await ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {

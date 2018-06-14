@@ -155,7 +155,7 @@ module.exports = [
       const data = JSON.stringify(doc);
       (async () => {
         let tests = [];
-        let uploadMessage = await mure.uploadString(null, null, null, data);
+        let uploadMessage = await mure.uploadString(null, 'application/json', null, data);
 
         // Make sure the document has been loaded and has a _rev property
         let dbDoc = await mure.getDoc({ 'filename': 'Cross Game Links' });

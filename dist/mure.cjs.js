@@ -668,6 +668,8 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
   }
 };
 
+const DATALIB_FORMATS = ['json', 'csv', 'tsv', 'topojson', 'treejson'];
+
 const RESERVED_OBJ_KEYS = {
   '_id': true,
   '_rev': true,
@@ -808,13 +810,33 @@ DocumentItem.isValidId = docId => {
   }
   return !!mime.extension(parts[0]);
 };
+DocumentItem.parse = async (text, extension) => {
+  let contents;
+  if (DATALIB_FORMATS.indexOf(extension) !== -1) {
+    contents = datalib.read(text, { type: extension });
+  } else if (extension === 'xml') {
+    throw new Error('unimplemented');
+  } else if (extension === 'txt') {
+    throw new Error('unimplemented');
+  }
+  if (!contents.contents) {
+    contents = { contents: contents };
+  }
+  return contents;
+};
+DocumentItem.launchStandardization = async (doc, mure) => {
+  let existingUntitleds = await mure.db.allDocs({
+    startkey: doc.mimeType + ';Untitled ',
+    endkey: doc.mimeType + ';Untitled \uffff'
+  });
+  return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds, true);
+};
 DocumentItem.standardize = (doc, existingUntitleds = { rows: [] }, aggressive) => {
   if (!doc._id || !DocumentItem.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
     }
-    doc.mimeType = doc.mimeType.toLowerCase();
     if (!doc.filename) {
       if (doc._id) {
         // We were given an invalid id; use it as the filename instead
@@ -836,6 +858,7 @@ DocumentItem.standardize = (doc, existingUntitleds = { rows: [] }, aggressive) =
       // if that fails)
       doc.mimeType = mime.lookup(doc.filename) || 'application/json';
     }
+    doc.mimeType = doc.mimeType.toLowerCase();
     doc._id = doc.mimeType + ';' + doc.filename;
   }
   if (doc._id[0] === '_' || doc._id[0] === '$') {
@@ -1391,54 +1414,6 @@ class Handler {
 }
 const ItemHandler = new Handler();
 
-class DocHandler {
-  constructor() {
-    this.keyNames = {};
-    this.datalibFormats = ['json', 'csv', 'tsv', 'dsv', 'topojson', 'treejson'];
-  }
-  async parse(text, { format = {}, mimeType } = {}) {
-    if (mimeType && (!format || !format.type)) {
-      format.type = mime.extension(mimeType);
-    }
-    let contents;
-    format.type = format.type ? format.type.toLowerCase() : 'json';
-    if (this.datalibFormats.indexOf(format.type) !== -1) {
-      contents = datalib.read(text, format);
-    } else if (format.type === 'xml') {
-      contents = this.parseXml(text, format);
-    }
-    if (!contents.contents) {
-      contents = { contents: contents };
-    }
-    return contents;
-  }
-  parseXml(text, { format = {} } = {}) {
-    throw new Error('unimplemented');
-  }
-  formatDoc(doc, { mimeType = doc.mimeType } = {}) {
-    throw new Error('unimplemented');
-  }
-  isValidId(docId) {
-    if (docId[0].toLowerCase() !== docId[0]) {
-      return false;
-    }
-    let parts = docId.split(';');
-    if (parts.length !== 2) {
-      return false;
-    }
-    return !!mime.extension(parts[0]);
-  }
-  async standardize(doc, mure) {
-    let existingUntitleds = await mure.db.allDocs({
-      startkey: doc.mimeType + ';Untitled ',
-      endkey: doc.mimeType + ';Untitled \uffff'
-    });
-    return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds, true);
-  }
-}
-
-var DocHandler$1 = new DocHandler();
-
 class Mure extends uki.Model {
   constructor(PouchDB, d3, d3n) {
     super();
@@ -1459,9 +1434,8 @@ class Mure extends uki.Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Handlers for Items and Documents
+    // Handler for Items
     this.ItemHandler = ItemHandler;
-    this.DocHandler = DocHandler$1;
 
     // Our custom type definitions
     this.ITEM_TYPES = ITEM_TYPES;
@@ -1600,7 +1574,7 @@ class Mure extends uki.Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.DocHandler.standardize({}, this);
+      return ITEM_TYPES.DocumentItem.launchStandardization({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -1613,7 +1587,7 @@ class Mure extends uki.Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.DocHandler.standardize(docQuery, this);
+          doc = await ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
         } else {
           return null;
         }
@@ -1656,7 +1630,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = this.DocHandler.formatDoc(doc, { mimeType });
+      let contents = ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -1682,15 +1656,24 @@ class Mure extends uki.Model {
     });
     return this.uploadString(fileObj.name, fileObj.type, encoding, string);
   }
-  async uploadString(filename, mimeType, encoding, string) {
-    let doc = await this.DocHandler.parse(string, { mimeType });
+  async uploadString(filename, mimeType, encoding, string, extensionOverride = null) {
+    if (!mimeType) {
+      let temp = mime.lookup(filename);
+      if (temp) {
+        mimeType = temp;
+      }
+    }
+    // extensionOverride allows things like topojson or treejson (that don't
+    // have standardized mimeTypes) to be parsed correctly
+    const extension = extensionOverride || mime.extension(mimeType) || 'txt';
+    let doc = await ITEM_TYPES.DocumentItem.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.DocHandler.standardize(doc, this);
+    doc = await ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc(docQuery) {

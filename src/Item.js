@@ -1,6 +1,15 @@
 import mime from 'mime-types';
+import datalib from 'datalib';
 import jsonPath from 'jsonpath';
 import { Selection } from './Selection.js';
+
+const DATALIB_FORMATS = [
+  'json',
+  'csv',
+  'tsv',
+  'topojson',
+  'treejson'
+];
 
 const RESERVED_OBJ_KEYS = {
   '_id': true,
@@ -142,13 +151,33 @@ DocumentItem.isValidId = (docId) => {
   }
   return !!mime.extension(parts[0]);
 };
+DocumentItem.parse = async (text, extension) => {
+  let contents;
+  if (DATALIB_FORMATS.indexOf(extension) !== -1) {
+    contents = datalib.read(text, { type: extension });
+  } else if (extension === 'xml') {
+    throw new Error('unimplemented');
+  } else if (extension === 'txt') {
+    throw new Error('unimplemented');
+  }
+  if (!contents.contents) {
+    contents = { contents: contents };
+  }
+  return contents;
+};
+DocumentItem.launchStandardization = async (doc, mure) => {
+  let existingUntitleds = await mure.db.allDocs({
+    startkey: doc.mimeType + ';Untitled ',
+    endkey: doc.mimeType + ';Untitled \uffff'
+  });
+  return mure.ITEM_TYPES.DocumentItem.standardize(doc, existingUntitleds, true);
+};
 DocumentItem.standardize = (doc, existingUntitleds = { rows: [] }, aggressive) => {
   if (!doc._id || !DocumentItem.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
     }
-    doc.mimeType = doc.mimeType.toLowerCase();
     if (!doc.filename) {
       if (doc._id) {
         // We were given an invalid id; use it as the filename instead
@@ -170,6 +199,7 @@ DocumentItem.standardize = (doc, existingUntitleds = { rows: [] }, aggressive) =
       // if that fails)
       doc.mimeType = mime.lookup(doc.filename) || 'application/json';
     }
+    doc.mimeType = doc.mimeType.toLowerCase();
     doc._id = doc.mimeType + ';' + doc.filename;
   }
   if (doc._id[0] === '_' || doc._id[0] === '$') {
