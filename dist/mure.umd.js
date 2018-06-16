@@ -27570,27 +27570,29 @@
 
 	    const finalizeBins = counters => {
 	      // Clear out anything that didn't see any values
-	      if (Object.keys(counters.typeBins).length === 0) {
+	      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
 	        counters.typeBins = null;
 	      }
-	      if (Object.keys(counters.categoricalBins).length === 0) {
+	      if (counters.categoricalBins && Object.keys(counters.categoricalBins).length === 0) {
 	        counters.categoricalBins = null;
 	      }
-	      if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
-	        counters.quantitativeBins = null;
-	        delete counters.quantitativeItems;
-	        delete counters.quantitativeType;
-	        delete counters.quantitativeScale;
-	      } else {
-	        // Calculate quantitative bin sizes and their counts
-	        // Clean up the scale a bit
-	        counters.quantitativeScale.nice();
-	        // Histogram generator
-	        const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
-	        counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
-	        // Clean up some of the temporary placeholders
-	        delete counters.quantitativeItems;
-	        delete counters.quantitativeType;
+	      if (counters.quantitativeBins) {
+	        if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
+	          counters.quantitativeBins = null;
+	          delete counters.quantitativeItems;
+	          delete counters.quantitativeType;
+	          delete counters.quantitativeScale;
+	        } else {
+	          // Calculate quantitative bin sizes and their counts
+	          // Clean up the scale a bit
+	          counters.quantitativeScale.nice();
+	          // Histogram generator
+	          const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
+	          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+	          // Clean up some of the temporary placeholders
+	          delete counters.quantitativeItems;
+	          delete counters.quantitativeType;
+	        }
 	      }
 	    };
 	    finalizeBins(result.raw);
