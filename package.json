@@ -1,6 +1,6 @@
 {
   "name": "mure",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "An integration library for the mure ecosystem of apps",
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
