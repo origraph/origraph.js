@@ -2,14 +2,14 @@ mure.js
 =======
 [![Build Status](https://travis-ci.org/mure-apps/mure-library.svg?branch=master)](https://travis-ci.org/mure-apps/mure-library)
 
-The Javascript integration library for the mure ecosystem of apps
+`mure.js` is a library for wrangling graph data inside PouchDB. Graph constructs (like node, edge, supernode, hyperedge, class, etc) are deliberately lightweight, so that they are easy to map (and re-map) to data items, regardless of how the PouchDB documents are structured.
 
-Currently in development; ultimately, this will be a library that people can use
-to create their own mure web editors / tools. Its goal is to standardize synced (via PouchDB / CouchDB) graphics, selection, and metadata changes between any other open mure apps.
+Its main technical strength lies in its [d3.js](https://d3js.org/)-esque selection mechanisms, that take advantage of whatever structures already exist in a document (e.g. rows in a CSV file), but also any graph metadata attached to items. Consequently, a `mure.selectAll()` command provides a unified mechanism for operations like pivoting from one selection to another, connecting nodes, assigning node or edge classes, converting from one construct to another, grouping items, promoting and piping values, merging and dissolving supernodes or hyperedges, and toggling edge direction.
 
-As specific types of metadata (embedded datasets, bindings, etc) become standardized
-across apps, some core functionality associated with that metadata may be
-absorbed here as well.
+![Operations](documentation/teaser.svg)
+
+Be advised that this is project is *very* work-in-progress, and is being implemented in parallel with [Origraph](https://github.com/mure-apps/origraph), the non-programmer's visual interface for using this library.
+Expect frequent sweeping changes and poor documentation for now, especially as we explore and refine what constructs and operations are even important for this graph data wrangling.
 
 Installation
 ============
@@ -52,12 +52,10 @@ npm run debug
 ```
 
 ## Debugging in the browser:
-When debugging in the browser, launch this in parallel to whatever you're using to debug / serve your web app:
+When debugging in the browser, launch this in parallel to whatever you're using to debug / serve your web app (make sure to point your app to the built `dist/mure.umd.js` file):
 ```
 npm run watchumd
 ```
-
-*For now, just use symlinks to the dist/ folder; worry about `npm link` / app-level bundling in the future*
 
 # Releasing a new version
 A list of reminders to make sure I don't forget any steps:
