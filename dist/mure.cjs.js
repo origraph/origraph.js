@@ -508,6 +508,28 @@ class Selection {
     this._cachedHistograms = result;
     return result;
   }
+  async getAvailableOperations() {
+    const items = await this.items();
+    const itemList = Object.values(items);
+
+    let possibleConversions;
+    if (itemList.length > 0) {
+      possibleConversions = Object.assign({}, this.mure.ITEM_TYPES);
+      itemList.forEach(item => {
+        Object.entries(possibleConversions).forEach(([typeName, ItemType]) => {
+          if (!item.canConvertTo(ItemType)) {
+            delete possibleConversions[typeName];
+          }
+        });
+      });
+    } else {
+      possibleConversions = {};
+    }
+
+    return {
+      possibleConversions
+    };
+  }
   async getFlatGraphSchema() {
     const items = await this.items();
     let result = {
@@ -726,6 +748,10 @@ class BaseItem {
     }
   }
 }
+BaseItem.getHumanReadableType = function () {
+  return (/(.*)Item/.exec(this.name)[1]
+  );
+};
 BaseItem.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };

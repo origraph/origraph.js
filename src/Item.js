@@ -62,6 +62,9 @@ class BaseItem {
     }
   }
 }
+BaseItem.getHumanReadableType = function () {
+  return /(.*)Item/.exec(this.name)[1];
+};
 BaseItem.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
