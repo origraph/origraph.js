@@ -329,7 +329,7 @@ ReferenceItem.getBoilerplateValue = () => '@$';
 
 class DateItem extends PrimitiveItem {
   constructor (value, path, doc) {
-    super(path, DateItem.standardize(value), doc);
+    super(DateItem.standardize(value), path, doc);
   }
   get value () { return new Date(this._value.str); }
   set value (newValue) {

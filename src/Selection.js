@@ -360,12 +360,7 @@ class Selection {
   removeClass (className) {
     throw new Error('unimplemented');
   }
-  convertToType (ItemType, saveInSelection = null) {
-    if (saveInSelection) {
-      if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-        this.pollutedSelections.push(saveInSelection);
-      }
-    }
+  convertToType (ItemType) {
     return this.each(async (item, items) => {
       items[item.uniqueSelector] = item.convertTo(ItemType);
     });

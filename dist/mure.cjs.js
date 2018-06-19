@@ -364,12 +364,7 @@ class Selection {
   removeClass(className) {
     throw new Error('unimplemented');
   }
-  convertToType(ItemType, saveInSelection = null) {
-    if (saveInSelection) {
-      if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-        this.pollutedSelections.push(saveInSelection);
-      }
-    }
+  convertToType(ItemType) {
     return this.each(async (item, items) => {
       items[item.uniqueSelector] = item.convertTo(ItemType);
     });
@@ -1010,7 +1005,7 @@ ReferenceItem.getBoilerplateValue = () => '@$';
 
 class DateItem extends PrimitiveItem {
   constructor(value, path, doc) {
-    super(path, DateItem.standardize(value), doc);
+    super(DateItem.standardize(value), path, doc);
   }
   get value() {
     return new Date(this._value.str);
