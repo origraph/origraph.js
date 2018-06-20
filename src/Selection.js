@@ -4,12 +4,6 @@ import md5 from 'blueimp-md5';
 
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
-const DERIVE_MODES = {
-  REPLACE: 'REPLACE',
-  UNION: 'UNION',
-  XOR: 'XOR'
-};
-
 class Selection {
   constructor (mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null } = {}) {
     if (!(selectorList instanceof Array)) {
@@ -117,33 +111,6 @@ class Selection {
     }
     return this._cachedDocLists;
   }
-  async followRelativeLink (selector, doc, selectSingle = this.selectSingle) {
-    // This selector specifies to follow the link
-    if (typeof selector !== 'string') {
-      return [];
-    }
-    let docQuery = this.mure.ItemHandler.extractDocQuery(selector);
-    let crossDoc;
-    if (!docQuery) {
-      selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
-      crossDoc = false;
-    } else {
-      crossDoc = docQuery._id !== doc._id;
-    }
-    let tempSelection;
-    try {
-      tempSelection = new Selection(this.mure, selector,
-        { selectSingle: selectSingle });
-    } catch (err) {
-      if (err.INVALID_SELECTOR) {
-        return [];
-      } else {
-        throw err;
-      }
-    }
-    let docLists = crossDoc ? await tempSelection.docLists() : [[ doc ]];
-    return tempSelection.items(docLists);
-  }
   async items (docLists) {
     if (this._cachedItems) {
       return this._cachedItems;
@@ -175,17 +142,28 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem({
+              mure: this.mure,
+              docList,
+              selectSingle: this.selectSingle
+            }));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(new this.mure.ITEM_TYPES.DocumentItem(doc, `{"_id":"${doc._id}"}`));
+              addItem(new this.mure.ITEM_TYPES.DocumentItem({
+                mure: this.mure,
+                doc
+              }));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
+            addItem(new this.mure.ITEM_TYPES.RootItem({
+              mure: this.mure,
+              docList,
+              selectSingle: this.selectSingle
+            }));
           }
         } else {
           // Okay, we need to evaluate the jsonPath
@@ -201,12 +179,19 @@ class Selection {
               } else if (selector.parentShift === localPath.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.RootItem(docList, this.selectSingle));
+                  addItem(new this.mure.ITEM_TYPES.RootItem({
+                    mure: this.mure,
+                    docList,
+                    selectSingle: this.selectSingle
+                  }));
                 }
               } else if (selector.parentShift === localPath.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.DocumentItem(doc));
+                  addItem(new this.mure.ITEM_TYPES.DocumentItem({
+                    mure: this.mure,
+                    doc
+                  }));
                 }
               } else {
                 if (selector.parentShift > 0 && selector.parentShift < localPath.length - 1) {
@@ -216,11 +201,16 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values(await this.followRelativeLink(value, doc))
+                  Object.values(await this.mure.ItemHandler.followRelativeLink(value, doc, this.selectSingle))
                     .forEach(addItem);
                 } else {
                   const ItemType = this.mure.ItemHandler.inferType(value);
-                  addItem(new ItemType(value, [`{"_id":"${doc._id}"}`].concat(localPath), doc));
+                  addItem(new ItemType({
+                    mure: this.mure,
+                    value,
+                    path: [`{"_id":"${doc._id}"}`].concat(localPath),
+                    doc
+                  }));
                 }
               }
               if (this.selectSingle && addedItem) { break; }
@@ -322,7 +312,7 @@ class Selection {
         container = Object.values(await saveInSelection.items())[0];
       } else {
         container = Object.values(
-          await this.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
+          await this.mure.ItemHandler.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
       }
       const otherItems = await otherSelection.items();
       Object.values(otherItems).forEach(otherItem => {
@@ -510,22 +500,25 @@ class Selection {
     const items = await this.items();
     const itemList = Object.values(items);
 
-    let possibleConversions;
+    let conversions = {};
+    let pivots = {};
     if (itemList.length > 0) {
-      possibleConversions = Object.assign({}, this.mure.ITEM_TYPES);
+      conversions = Object.assign({}, this.mure.ITEM_TYPES);
+      pivots = {
+
+      };
       itemList.forEach(item => {
-        Object.entries(possibleConversions).forEach(([typeName, ItemType]) => {
+        Object.entries(conversions).forEach(([typeName, ItemType]) => {
           if (!item.canConvertTo(ItemType)) {
-            delete possibleConversions[typeName];
+            delete conversions[typeName];
           }
         });
       });
-    } else {
-      possibleConversions = {};
     }
 
     return {
-      possibleConversions
+      pivots,
+      conversions
     };
   }
   async getFlatGraphSchema () {
@@ -647,17 +640,17 @@ class Selection {
   /*
    These functions are useful for deriving additional selections
    */
-  deriveSelection (selectorList, options = { mode: DERIVE_MODES.REPLACE }) {
-    if (options.mode === DERIVE_MODES.UNION) {
+  deriveSelection (selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
+    if (options.mode === this.mure.DERIVE_MODES.UNION) {
       selectorList = selectorList.concat(this.selectorList);
-    } else if (options.mode === DERIVE_MODES.XOR) {
+    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
       selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1)
         .concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
     } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
     return new Selection(this.mure, selectorList, options);
   }
   merge (otherSelection, options = {}) {
-    Object.assign(options, { mode: DERIVE_MODES.UNION });
+    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
     return this.deriveSelection(otherSelection.selectorList, options);
   }
   select (selectorList, options = {}) {
@@ -691,4 +684,4 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
-export { Selection, DERIVE_MODES };
+export default Selection;

@@ -1,8 +1,23 @@
 import mime from 'mime-types';
 import jsonPath from 'jsonpath';
 import { Model } from 'uki';
-import { Selection, DERIVE_MODES } from './Selection.js';
-import { ItemHandler, RESERVED_OBJ_KEYS, ITEM_TYPES } from './Item.js';
+import Selection from './Selection.js';
+
+import RootItem from './Items/RootItem.js';
+import DocumentItem from './Items/DocumentItem.js';
+import PrimitiveItem from './Items/PrimitiveItem.js';
+import NullItem from './Items/NullItem.js';
+import BooleanItem from './Items/BooleanItem.js';
+import NumberItem from './Items/NumberItem.js';
+import StringItem from './Items/StringItem.js';
+import DateItem from './Items/DateItem.js';
+import ReferenceItem from './Items/ReferenceItem.js';
+import ContainerItem from './Items/ContainerItem.js';
+import TaggableItem from './Items/TaggableItem.js';
+import SetItem from './Items/SetItem.js';
+import EdgeItem from './Items/EdgeItem.js';
+import NodeItem from './Items/NodeItem.js';
+import SupernodeItem from './Items/SupernodeItem.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -24,17 +39,51 @@ class Mure extends Model {
     this.NSString = 'http://mure-apps.github.io';
     this.d3.namespaces.mure = this.NSString;
 
-    // Handler for Items
-    this.ItemHandler = ItemHandler;
-
     // Our custom type definitions
-    this.ITEM_TYPES = ITEM_TYPES;
+    this.ITEM_TYPES = {
+      RootItem,
+      DocumentItem,
+      PrimitiveItem,
+      NullItem,
+      BooleanItem,
+      NumberItem,
+      StringItem,
+      DateItem,
+      ReferenceItem,
+      ContainerItem,
+      TaggableItem,
+      SetItem,
+      EdgeItem,
+      NodeItem,
+      SupernodeItem
+    };
 
     // Special keys that should be skipped in various operations
-    this.RESERVED_OBJ_KEYS = RESERVED_OBJ_KEYS;
+    this.RESERVED_OBJ_KEYS = {
+      '_id': true,
+      '_rev': true,
+      '$wasArray': true,
+      '$tags': true,
+      '$members': true,
+      '$edges': true,
+      '$nodes': true,
+      '$nextLabel': true,
+      '$isDate': true
+    };
 
     // Modes for deriving selections
-    this.DERIVE_MODES = DERIVE_MODES;
+    this.DERIVE_MODES = {
+      REPLACE: 'REPLACE',
+      UNION: 'UNION',
+      XOR: 'XOR'
+    };
+
+    // Auto-mappings from native javascript types to Items
+    this.JSTYPES = {
+      'null': NullItem,
+      'boolean': BooleanItem,
+      'number': NumberItem
+    };
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -165,7 +214,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return ITEM_TYPES.DocumentItem.launchStandardization({}, this);
+      return this.ITEM_TYPES.DocumentItem.launchStandardization({}, this);
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -178,7 +227,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
+          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
         } else {
           return null;
         }
@@ -222,7 +271,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
+        let contents = this.ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -258,14 +307,14 @@ class Mure extends Model {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     const extension = extensionOverride || mime.extension(mimeType) || 'txt';
-    let doc = await ITEM_TYPES.DocumentItem.parse(string, extension);
+    let doc = await this.ITEM_TYPES.DocumentItem.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
+    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
     return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {
@@ -275,12 +324,6 @@ class Mure extends Model {
       _rev: doc._rev,
       _deleted: true
     });
-  }
-  pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
-    let docQuery = path[0];
-    let objQuery = path.slice(1);
-    objQuery = objQuery.length > 0 ? jsonPath.stringify(objQuery) : '';
-    return '@' + docQuery + objQuery;
   }
   selectDoc (docId) {
     return this.select('@{"_id":"' + docId + '"}');
@@ -316,6 +359,139 @@ class Mure extends Model {
       userSelection: this.selectAll(temp[0].selectorList),
       settings: temp[1].settings
     };
+  }
+  pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
+    let docQuery = path[0];
+    let objQuery = path.slice(1);
+    objQuery = objQuery.length > 0 ? jsonPath.stringify(objQuery) : '';
+    return '@' + docQuery + objQuery;
+  }
+  idToUniqueSelector (selectorString, docId) {
+    const chunks = /@[^$]*(\$.*)/.exec(selectorString);
+    return `@{"_id":"${docId}"}${chunks[1]}`;
+  }
+  extractDocQuery (selectorString) {
+    const result = /@\s*({.*})/.exec(selectorString);
+    if (result && result[1]) {
+      return JSON.parse(result[1]);
+    } else {
+      return null;
+    }
+  }
+  extractClassInfoFromId (id) {
+    const temp = /@[^$]*\$\.classes(\.[^\s↑→.]+)?(\["[^"]+"])?/.exec(id);
+    if (temp && (temp[1] || temp[2])) {
+      return {
+        classPathChunk: temp[1] || temp[2],
+        className: temp[1] ? temp[1].slice(1) : temp[2].slice(2, temp[2].length - 2)
+      };
+    } else {
+      return null;
+    }
+  }
+  getItemClasses (item) {
+    if (!item.value || !item.value.$tags) {
+      return [];
+    }
+    return Object.keys(item.value.$tags).reduce((agg, setId) => {
+      const temp = this.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
+  inferType (value, aggressive = false) {
+    const jsType = typeof value;
+    if (this.JSTYPES[jsType]) {
+      return this.JSTYPES[jsType];
+    } else if (jsType === 'string') {
+      if (value[0] === '@') {
+        // Attempt to parse as a reference
+        try {
+          new Selection(null, value); // eslint-disable-line no-new
+          return this.ITEM_TYPES.ReferenceItem;
+        } catch (err) {
+          if (!err.INVALID_SELECTOR) {
+            throw err;
+          }
+        }
+      }
+      // Not a reference...
+      if (aggressive) {
+        // Aggressively attempt to identify something more specific than string
+        if (!isNaN(Number(value))) {
+          return this.ITEM_TYPES.NumberItem;
+        /*
+         For now, we don't attempt to identify dates, even in aggressive mode,
+         because things like new Date('Player 1') will successfully parse as a
+         date. If we can find smarter ways to auto-infer dates (e.g. does the
+         value fall suspiciously near the unix epoch, y2k, or more than +/-500
+         years from now? Do sibling container items parse this as a date?), then
+         maybe we'll add this back...
+        */
+        // } else if (!isNaN(new Date(value))) {
+        //  return ITEM_TYPES.DateItem;
+        } else {
+          const temp = value.toLowerCase();
+          if (temp === 'true') {
+            return this.ITEM_TYPES.BooleanItem;
+          } else if (temp === 'false') {
+            return this.ITEM_TYPES.BooleanItem;
+          } else if (temp === 'null') {
+            return this.ITEM_TYPES.NullItem;
+          }
+        }
+      }
+      // Okay, it's just a string
+      return this.ITEM_TYPES.StringItem;
+    } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
+      throw new Error('invalid value: ' + value);
+    } else if (value === null) {
+      return this.ITEM_TYPES.NullItem;
+    } else if (value instanceof Date || value.$isDate === true) {
+      return this.ITEM_TYPES.DateItem;
+    } else if (value.$nodes) {
+      return this.ITEM_TYPES.EdgeItem;
+    } else if (value.$edges) {
+      if (value.$members) {
+        return this.ITEM_TYPES.SupernodeItem;
+      } else {
+        return this.ITEM_TYPES.NodeItem;
+      }
+    } else if (value.$members) {
+      return this.ITEM_TYPES.SetItem;
+    } else if (value.$tags) {
+      return this.ITEM_TYPES.TaggableItem;
+    } else {
+      return this.ITEM_TYPES.ContainerItem;
+    }
+  }
+  async followRelativeLink (selector, doc, selectSingle = false) {
+    // This selector specifies to follow the link
+    if (typeof selector !== 'string') {
+      return [];
+    }
+    let docQuery = this.extractDocQuery(selector);
+    let crossDoc;
+    if (!docQuery) {
+      selector = `@{"_id":"${doc._id}"}${selector.slice(1)}`;
+      crossDoc = false;
+    } else {
+      crossDoc = docQuery._id !== doc._id;
+    }
+    let tempSelection;
+    try {
+      tempSelection = new Selection(this.mure, selector, { selectSingle });
+    } catch (err) {
+      if (err.INVALID_SELECTOR) {
+        return [];
+      } else {
+        throw err;
+      }
+    }
+    let docLists = crossDoc ? await tempSelection.docLists() : [[ doc ]];
+    return tempSelection.items(docLists);
   }
 }
 
