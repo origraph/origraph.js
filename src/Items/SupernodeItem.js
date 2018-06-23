@@ -1,16 +1,8 @@
-import BaseItem from './BaseItem.js';
 import SetItem from './SetItem.js';
 import NodeItem from './NodeItem.js';
 import SetItemMixin from './SetItemMixin.js';
 
-class SupernodeItem extends SetItemMixin(NodeItem) {
-  canConvertTo (ItemType) {
-    return BaseItem.prototype.canConvertTo.call(this, ItemType);
-  }
-  convertTo (ItemType) {
-    return BaseItem.prototype.convertTo.call(this, ItemType);
-  }
-}
+class SupernodeItem extends SetItemMixin(NodeItem) {}
 SupernodeItem.getBoilerplateValue = () => {
   return { $tags: {}, $members: {}, $edges: {} };
 };

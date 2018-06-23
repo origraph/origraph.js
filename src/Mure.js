@@ -19,6 +19,11 @@ import EdgeItem from './Items/EdgeItem.js';
 import NodeItem from './Items/NodeItem.js';
 import SupernodeItem from './Items/SupernodeItem.js';
 
+import PivotToContents from './Operations/Pivot/PivotToContents.js';
+import PivotToMembers from './Operations/Pivot/PivotToMembers.js';
+import PivotToNodes from './Operations/Pivot/PivotToNodes.js';
+import PivotToEdges from './Operations/Pivot/PivotToEdges.js';
+
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
     super();
@@ -84,6 +89,37 @@ class Mure extends Model {
       'boolean': BooleanItem,
       'number': NumberItem
     };
+
+    // All the supported operations
+    this.OPERATIONS = {
+      'Pivot': {
+        PivotToContents,
+        PivotToMembers,
+        PivotToNodes,
+        PivotToEdges
+      },
+      'Filter': {},
+      'Edit': {},
+      'Convert': {},
+      'Connect': {},
+      'Derive': {},
+      'Summarize': {}
+    };
+
+    // With the operations defined and initialized, make them available as
+    // functions on the Selection class
+    Object.entries(this.OPERATIONS).forEach(([opFamily, ops]) => {
+      // UpperCamelCase to lowerCamelCase
+      opFamily[0] = opFamily[0].toLowerCase();
+      Selection.prototype[opFamily] = {};
+      Object.entries(ops).forEach(([opName, operation]) => {
+        // UpperCamelCase to lowerCamelCase
+        opName[0] = opName[0].toLowerCase();
+        Selection.prototype[opFamily][opName] = function (inputOptions) {
+          return this.execute(operation, inputOptions);
+        };
+      });
+    });
 
     // Create / load the local database of files
     this.getOrInitDb();
@@ -388,18 +424,6 @@ class Mure extends Model {
     } else {
       return null;
     }
-  }
-  getItemClasses (item) {
-    if (!item.value || !item.value.$tags) {
-      return [];
-    }
-    return Object.keys(item.value.$tags).reduce((agg, setId) => {
-      const temp = this.extractClassInfoFromId(setId);
-      if (temp) {
-        agg.push(temp.className);
-      }
-      return agg;
-    }, []).sort();
   }
   inferType (value, aggressive = false) {
     const jsType = typeof value;

@@ -12,38 +12,94 @@ const glompLists = listList => {
   }, []);
 };
 
+const testEquality = (a, b) => {
+  if (a.equals && b.equals) {
+    return a.equals(b);
+  } else {
+    return a === b;
+  }
+};
+
 const singleMode = list => {
   return list.sort((a, b) => {
-    return list.filter(v => v === a).length - list.filter(v => v === b).length;
+    return list.filter(v => testEquality(v, a)).length -
+      list.filter(v => testEquality(v, b)).length;
   }).pop();
 };
 
 class InputSpec {
   constructor () {
-    this.options = {};
+    this.valueOptions = {};
+    this.toggleOptions = {};
+    this.itemRequirements = {};
   }
-  addOption ({ name, optionList, defaultValue }) {
-    this.options[name] = { optionList, defaultValue };
+  addValueOption ({ name, defaultValue }) {
+    this.valueOptions[name] = defaultValue;
+  }
+  addToggleOption ({ name, optionList, defaultValue }) {
+    this.toggleOptions[name] = { optionList, defaultValue };
+  }
+  addItemRequirement ({ name, ItemType, defaultValue }) {
+    this.itemRequirements[name] = { ItemType, defaultValue };
   }
 }
 InputSpec.glomp = specList => {
+  if (specList.indexOf(null) !== -1) {
+    return null;
+  }
   let result = new InputSpec();
 
-  let options = {};
+  let valueOptions = {};
+  let toggleOptions = {};
+  let itemRequirements = {};
+
   specList.forEach(spec => {
-    Object.entries(spec.options).forEach(([name, { optionList, defaultValue }]) => {
-      if (!options[name]) {
-        options[name] = { name, optionList, defaultValues: [defaultValue] };
+    // For valueOptions, find the most common defaultValues
+    Object.entries(spec.valueOptions).forEach(([name, defaultValue]) => {
+      if (!valueOptions[name]) {
+        valueOptions[name] = [defaultValue];
       } else {
-        options[name].optionList = glompLists([optionList, options[name].optionList]);
-        options[name].defaultValues.push(defaultValue);
+        valueOptions[name].push(defaultValue);
+      }
+    });
+    // For toggleOptions, glomp all optionLists, and find the most common defaultValue
+    Object.entries(spec.toggleOptions).forEach(([name, { optionList, defaultValue }]) => {
+      if (!toggleOptions[name]) {
+        toggleOptions[name] = { name, optionList, defaultValues: [defaultValue] };
+      } else {
+        toggleOptions[name].optionList = glompLists([optionList, toggleOptions[name].optionList]);
+        toggleOptions[name].defaultValues.push(defaultValue);
+      }
+    });
+    // For itemRequirements, ensure ItemTypes are consistent, and find the most common default values
+    Object.entries(spec.itemRequirements).forEach(([name, { ItemType, defaultValue }]) => {
+      if (!itemRequirements[name]) {
+        itemRequirements[name] = { name, ItemType, defaultValues: [defaultValue] };
+      } else {
+        if (ItemType !== itemRequirements[name].ItemType) {
+          throw new Error(`Inconsistent ItemType requirements`);
+        }
+        itemRequirements[name].defaultValues.push(defaultValue);
       }
     });
   });
-  Object.entries(options).forEach(([name, { optionList, defaultValues }]) => {
-    result.addOption({
+  Object.entries(valueOptions).forEach(([name, defaultValues]) => {
+    result.addValueOption({
+      name,
+      defaultValue: singleMode(defaultValues)
+    });
+  });
+  Object.entries(toggleOptions).forEach(([name, { optionList, defaultValues }]) => {
+    result.addToggleOption({
       name,
       optionList,
+      defaultValue: singleMode(defaultValues)
+    });
+  });
+  Object.entries(itemRequirements).forEach(([name, { ItemType, defaultValues }]) => {
+    result.addOption({
+      name,
+      ItemType,
       defaultValue: singleMode(defaultValues)
     });
   });

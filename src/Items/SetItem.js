@@ -1,13 +1,12 @@
-import BaseItem from './BaseItem.js';
 import TypedItem from './TypedItem.js';
 import SetItemMixin from './SetItemMixin.js';
 
 class SetItem extends SetItemMixin(TypedItem) {
-  canConvertTo (ItemType) {
-    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  memberSelectors () {
+    return Object.keys(this.value.$members);
   }
-  convertTo (ItemType) {
-    return BaseItem.prototype.convertTo.call(this, ItemType);
+  async memberItems () {
+    return this.mure.selectAll(this.memberSelectors()).items();
   }
 }
 SetItem.getBoilerplateValue = () => {

@@ -1,7 +1,6 @@
 import jsonPath from 'jsonpath';
 import TypedItem from './TypedItem.js';
 import ContainerItemMixin from './ContainerItemMixin.js';
-import NodeItem from './NodeItem.js';
 
 class ContainerItem extends ContainerItemMixin(TypedItem) {
   constructor ({ mure, value, path, doc }) {
@@ -15,7 +14,6 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
           return max;
         }
       }, 0) + 1;
-    this.classes = this.mure.getItemClasses(this);
   }
   createNewItem (value, label, ItemType) {
     ItemType = ItemType || this.mure.inferType(value);
@@ -41,23 +39,13 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
     }
     this.value[label] = item.value;
   }
-  canConvertTo (ItemType) {
-    return ItemType === NodeItem ||
-      super.canConvertTo(ItemType);
+  async contentSelectors () {
+    return (await this.contentItems()).map(item => item.uniqueSelector);
   }
-  convertTo (ItemType) {
-    if (ItemType === NodeItem) {
-      this.value.$edges = {};
-      this.value.$tags = {};
-      return new NodeItem(this.value, this.path, this.doc);
-    } else {
-      return super.convertTo(ItemType);
-    }
-  }
-  contentItems () {
+  async contentItems () {
     return this.getValueContents();
   }
-  contentItemCount () {
+  async contentItemCount () {
     return this.getValueContentCount();
   }
 }

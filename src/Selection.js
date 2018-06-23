@@ -1,6 +1,7 @@
 import jsonPath from 'jsonpath';
 import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
+import { OutputSpec } from './Operations/common.js';
 
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
@@ -50,7 +51,6 @@ class Selection {
     this.selectSingle = selectSingle;
 
     this.pendingOperations = [];
-    this.pollutedSelections = [];
   }
   get hash () {
     if (!this._hash) {
@@ -71,7 +71,7 @@ class Selection {
   invalidateCache () {
     delete this._cachedDocLists;
     delete this._cachedItems;
-    delete this._cachedHistograms;
+    delete this._operationCaches;
   }
   async docLists () {
     if (this._cachedDocLists) {
@@ -224,454 +224,65 @@ class Selection {
       return this._cachedItems;
     });
   }
-  async save () {
+  get chainable () {
+    if (this.pendingOperations.length === 0) {
+      return true;
+    } else {
+      const lastOp = this.pendingOperations[this.pendingOperations.length].operation;
+      return lastOp.terminatesChain === false;
+    }
+  }
+  chain (operation, inputOptions) {
+    if (!this.chainable) {
+      throw new Error(`A terminating operation (\
+${this.pendingOperations[this.pendingOperations.length].operation.humanReadableName}\
+) has already been chained; please await executeChain() or cancelChain() before \
+chaining additional operations.`);
+    }
+    this.pendingOperations.push({ operation, inputOptions });
+    return this;
+  }
+  async executeChain () {
     // Evaluate all the pending operations that we've accrued; as each function
     // manipulates Items' .value property, those changes will automatically be
     // reflected in the document (as every .value is a pointer, or BaseItem's
     // .value setter ensures that primitives are propagated)
+    let outputSpec = new OutputSpec();
     for (let f = 0; f < this.pendingOperations.length; f++) {
-      const func = this.pendingOperations[f];
-      const items = await this.items();
-      const itemKeys = Object.keys(items);
-      for (let i = 0; i < itemKeys.length; i++) {
-        const key = itemKeys[i];
-        const item = items[key];
-        if (item) {
-          // Some functions, such as remove(), potentially mutate the items dict
-          await func.apply(this, [item, items]);
-        }
-      }
+      let { operation, inputOptions } = this.pendingOperations[f];
+      outputSpec = OutputSpec.glomp(await operation.executeOnSelection(this, inputOptions));
     }
     this.pendingOperations = [];
 
-    // We need to save all the documents that we refer to, in addition to
-    // any documents belonging to other selections that we've polluted (each of
-    // the pendingOperations should have added to this array if they change
-    // values in other selections)
-    const changedSelections = this.pollutedSelections.concat([this]);
-    const changedDocs = [];
-    const docIds = {};
-    for (let s = 0; s < changedSelections.length; s++) {
-      const docLists = await changedSelections[s].docLists();
-      docLists.forEach(docList => {
-        docList.forEach(doc => {
-          if (!docIds[doc._id]) {
-            docIds[doc._id] = true;
-            changedDocs.push(doc);
-          }
-        });
-      });
-    }
-    this.pollutedSelections = [];
-    // Any selection that has cached any of these documents needs to have its
-    // cache invalidated, even if we didn't pollute the selection directly
-    changedDocs.forEach(doc => {
+    // Any selection that has cached any of the documents that we altered
+    // needs to have its cache invalidated
+    outputSpec.pollutedDocs.forEach(doc => {
       Selection.INVALIDATE_DOC_CACHE(doc._id);
     });
+    // We need to save all the documents that the operations have altered
+    await this.mure.putDocs(outputSpec.pollutedDocs);
 
-    await this.mure.putDocs(changedDocs);
+    if (outputSpec.newSelectors !== null) {
+      return new Selection(this.mure, outputSpec.newSelectors);
+    } else {
+      return this;
+    }
+  }
+  get chainPending () {
+    return this.pendingOperations.length > 0;
+  }
+  cancelChain () {
+    this.pendingOperations = [];
     return this;
   }
-  /*
-   These are mutator functions that add to pendingOperations; they aren't
-   actually executed until save() is called
-   */
-  each (func) {
-    this.pendingOperations.push(func);
-    return this;
-  }
-  attr (key, value) {
-    let isFunction = typeof value === 'function';
-    return this.each(item => {
-      if (item instanceof this.mure.ITEM_TYPES.RootItem) {
-        throw new Error(`Renaming files with .attr() is not yet supported`);
-      } else if (item instanceof this.mure.ITEM_TYPES.ContainerItem ||
-          item instanceof this.mure.ITEM_TYPES.DocumentItem) {
-        let temp = isFunction ? value.apply(this, item) : value;
-        // item.value is just a pointer to the object in the document, so
-        // we can just change it directly and it will still be saved
-        item.value[key] = this.mure.ItemHandler
-          .standardize(temp, item.path.slice(1), item.doc.classes);
-      } else {
-        throw new Error(`Can't set .attr(${key}) on value of type ${item.type}`);
-      }
-    });
-  }
-  connect (otherSelection, connectWhen, {
-    directed = false,
-    className = 'none',
-    skipHyperEdges = false,
-    saveInSelection = null
-  } = {}) {
-    return this.each(async item => {
-      let container;
-      if (saveInSelection) {
-        if (this.pollutedSelections.indexOf(saveInSelection) === -1) {
-          this.pollutedSelections.push(saveInSelection);
-        }
-        container = Object.values(await saveInSelection.items())[0];
-      } else {
-        container = Object.values(
-          await this.mure.ItemHandler.followRelativeLink('@$.orphanEdges', item.doc, true))[0];
-      }
-      const otherItems = await otherSelection.items();
-      Object.values(otherItems).forEach(otherItem => {
-        if (connectWhen.apply(this, [item, otherItem]) === true) {
-          if (item instanceof this.mure.ITEM_TYPES.NodeItem &&
-              otherItem instanceof this.mure.ITEM_TYPES.NodeItem) {
-            // Connect the two nodes with a new edge, stored in container
-            const newEdge = item.linkTo(otherItem, container, directed);
-            newEdge.addClass(className);
-          } else if (!skipHyperEdges) {
-            // TODO: add connections to / merge hyperedges
-            throw new Error('unimplemented');
-          }
-        }
-      });
-      if (this.pollutedSelections.indexOf(otherSelection) === -1) {
-        this.pollutedSelections.push(otherSelection);
-      }
-    });
-  }
-  remove () {
-    return this.each((item, items) => {
-      item.remove();
-      delete items[item.uniqueSelector];
-    });
-  }
-  group () {
-    throw new Error('unimplemented');
-  }
-  addClass (className) {
-    return this.each(item => {
-      item.addClass(className);
-    });
-  }
-  removeClass (className) {
-    throw new Error('unimplemented');
-  }
-  convertToType (ItemType) {
-    return this.each(async (item, items) => {
-      items[item.uniqueSelector] = item.convertTo(ItemType);
-    });
-  }
-  toggleDirection () {
-    throw new Error('unimplemented');
-  }
-  copy (newParentId) {
-    throw new Error('unimplemented');
-  }
-  move (newParentId) {
-    throw new Error('unimplemented');
-  }
-  dissolve () {
-    throw new Error('unimplemented');
-  }
-
-  /*
-   These functions provide statistics / summaries of the selection:
-   */
-  async histograms (numBins = 10) {
-    if (this._cachedHistograms) {
-      return this._cachedHistograms;
+  async execute (operation, inputOptions) {
+    if (this.chainPending) {
+      throw new Error(`The selection currently has a pending chain of \
+operations; please await executeChain() or cancelChain() before executing \
+one-off operations.`);
     }
-
-    const items = await this.items();
-
-    let result = {
-      raw: {
-        typeBins: {},
-        categoricalBins: {},
-        quantitativeBins: []
-      },
-      attributes: {}
-    };
-
-    const countPrimitive = (counters, item) => {
-      // Attempt to count the value categorically
-      if (counters.categoricalBins !== null) {
-        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
-        if (Object.keys(counters.categoricalBins).length > numBins) {
-          // We've encountered too many categorical bins; this likely isn't a categorical attribute
-          counters.categoricalBins = null;
-        }
-      }
-      // Attempt to bin the value quantitatively
-      if (counters.quantitativeBins !== null) {
-        if (counters.quantitativeBins.length === 0) {
-          // Init the counters with some temporary placeholders
-          counters.quantitativeItems = [];
-          counters.quantitativeType = item.type;
-          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
-            counters.quantitativeScale = this.mure.d3.scaleLinear()
-              .domain([item.value, item.value]);
-          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
-            counters.quantitativeScale = this.mure.d3.scaleTime()
-              .domain([item.value, item.value]);
-          } else {
-            // The first value is non-quantitative; this likely isn't a quantitative attribute
-            counters.quantitativeBins = null;
-            delete counters.quantitativeItems;
-            delete counters.quantitativeType;
-            delete counters.quantitativeScale;
-          }
-        } else if (counters.quantitativeType !== item.type) {
-          // Encountered an item of a different type; this likely isn't a quantitative attribute
-          counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
-          delete counters.quantitativeType;
-          delete counters.quantitativeScale;
-        } else {
-          // Update the scale's domain (we'll determine bins later)
-          let domain = counters.quantitativeScale.domain();
-          if (item.value < domain[0]) {
-            domain[0] = item.value;
-          }
-          if (item.value > domain[1]) {
-            domain[1] = item.value;
-          }
-          counters.quantitativeScale.domain(domain);
-        }
-      }
-    };
-
-    Object.values(items).forEach(item => {
-      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
-        countPrimitive(result.raw, item);
-      } else {
-        if (item.contentItems) {
-          item.contentItems().forEach(childItem => {
-            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
-              typeBins: {},
-              categoricalBins: {},
-              quantitativeBins: []
-            };
-            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
-            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
-              countPrimitive(counters, childItem);
-            }
-          });
-        }
-        // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to contentItems?)
-      }
-    });
-
-    const finalizeBins = counters => {
-      // Clear out anything that didn't see any values
-      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
-        counters.typeBins = null;
-      }
-      if (counters.categoricalBins &&
-          Object.keys(counters.categoricalBins).length === 0) {
-        counters.categoricalBins = null;
-      }
-      if (counters.quantitativeBins) {
-        if (!counters.quantitativeItems ||
-             counters.quantitativeItems.length === 0) {
-          counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
-          delete counters.quantitativeType;
-          delete counters.quantitativeScale;
-        } else {
-          // Calculate quantitative bin sizes and their counts
-          // Clean up the scale a bit
-          counters.quantitativeScale.nice();
-          // Histogram generator
-          const histogramGenerator = this.mure.d3.histogram()
-            .domain(counters.quantitativeScale.domain())
-            .thresholds(counters.quantitativeScale.ticks(numBins))
-            .value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
-          // Clean up some of the temporary placeholders
-          delete counters.quantitativeItems;
-          delete counters.quantitativeType;
-        }
-      }
-    };
-    finalizeBins(result.raw);
-    Object.values(result.attributes).forEach(finalizeBins);
-
-    this._cachedHistograms = result;
-    return result;
-  }
-  async getAvailableOperations () {
-    const items = await this.items();
-    const itemList = Object.values(items);
-
-    let conversions = {};
-    let pivots = {};
-    if (itemList.length > 0) {
-      conversions = Object.assign({}, this.mure.ITEM_TYPES);
-      pivots = {
-
-      };
-      itemList.forEach(item => {
-        Object.entries(conversions).forEach(([typeName, ItemType]) => {
-          if (!item.canConvertTo(ItemType)) {
-            delete conversions[typeName];
-          }
-        });
-      });
-    }
-
-    return {
-      pivots,
-      conversions
-    };
-  }
-  async getFlatGraphSchema () {
-    const items = await this.items();
-    let result = {
-      nodeClasses: [],
-      nodeClassLookup: {},
-      edgeSets: [],
-      edgeSetLookup: {}
-    };
-
-    // First pass: collect and count which node classes exist, and create a
-    // temporary edge sublist for the second pass
-    const edges = {};
-    Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item.value.$edges) {
-        item.classes.forEach(className => {
-          if (result.nodeClassLookup[className] === undefined) {
-            result.nodeClassLookup[className] = result.nodeClasses.length;
-            result.nodeClasses.push({
-              name: className,
-              count: 0
-            });
-          }
-          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
-        });
-      } else if (item.value.$nodes) {
-        edges[uniqueSelector] = item;
-      }
-    });
-
-    // Second pass: find and count which distinct
-    // node class -> edge class -> node class
-    // sets exist
-    Object.values(edges).forEach(edgeItem => {
-      let temp = {
-        edgeClasses: Array.from(edgeItem.classes),
-        sourceClasses: [],
-        targetClasses: [],
-        undirectedClasses: [],
-        count: 0
-      };
-      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeItem = items[nodeId] ||
-          items[this.mure.ItemHandler.idToUniqueSelector(nodeId, edgeItem.doc._id)];
-        if (!nodeItem) {
-          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
-          return;
-        }
-        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
-        if (relativeNodeDirection === 'source') {
-          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
-        } else if (relativeNodeDirection === 'target') {
-          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
-        } else {
-          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
-        }
-      });
-      const edgeKey = md5(JSON.stringify(temp));
-      if (result.edgeSetLookup[edgeKey] === undefined) {
-        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
-        result.edgeSets.push(temp);
-      }
-      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
-    });
-
-    return result;
-  }
-  async getIntersectedGraphSchema () {
-    // const items = await this.items();
-    throw new Error('unimplemented');
-  }
-  async getContainerSchema () {
-    // const items = await this.items();
-    throw new Error('unimplemented');
-  }
-  async allMetaObjIntersections (metaObjs) {
-    const items = await this.items();
-    let linkedIds = {};
-    items.forEach(item => {
-      metaObjs.forEach(metaObj => {
-        if (item.value[metaObj]) {
-          Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedId = this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id);
-            linkedIds[linkedId] = linkedIds[linkedId] || {};
-            linkedIds[linkedId][item.uniqueSelector] = true;
-          });
-        }
-      });
-    });
-    let sets = [];
-    let setLookup = {};
-    Object.keys(linkedIds).forEach(linkedId => {
-      let itemIds = Object.keys(linkedIds[linkedId]).sort();
-      let setKey = itemIds.join(',');
-      if (setLookup[setKey] === undefined) {
-        setLookup[setKey] = sets.length;
-        sets.push({ itemIds, linkedIds: {} });
-      }
-      setLookup[setKey].linkedIds[linkedId] = true;
-    });
-    return sets;
-  }
-  async metaObjUnion (metaObjs) {
-    const items = await this.items();
-    let linkedIds = {};
-    Object.values(items).forEach(item => {
-      metaObjs.forEach(metaObj => {
-        if (item.value[metaObj]) {
-          Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[this.mure.ItemHandler.idToUniqueSelector(linkedId, item.doc._id)] = true;
-          });
-        }
-      });
-    });
-    return Object.keys(linkedIds);
-  }
-
-  /*
-   These functions are useful for deriving additional selections
-   */
-  deriveSelection (selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
-    if (options.mode === this.mure.DERIVE_MODES.UNION) {
-      selectorList = selectorList.concat(this.selectorList);
-    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
-      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1)
-        .concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
-    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
-    return new Selection(this.mure, selectorList, options);
-  }
-  merge (otherSelection, options = {}) {
-    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
-    return this.deriveSelection(otherSelection.selectorList, options);
-  }
-  select (selectorList, options = {}) {
-    Object.assign(options, { selectSingle: true, parentSelection: this });
-    return this.deriveSelection(selectorList, options);
-  }
-  selectAll (selectorList, options = {}) {
-    Object.assign(options, { parentSelection: this });
-    return this.deriveSelection(selectorList, options);
-  }
-  async selectAllSetMembers (options) {
-    return this.deriveSelection(await this.metaObjUnion(['$members']), options);
-  }
-  async selectAllContainingSets (options) {
-    return this.deriveSelection(await this.metaObjUnion(['$tags']), options);
-  }
-  async selectAllEdges (options) {
-    return this.deriveSelection(await this.metaObjUnion(['$edges']), options);
-  }
-  async selectAllNodes (options = false) {
-    return this.deriveSelection(await this.metaObjUnion(['$nodes']), options);
+    this.pendingOperations.push({ operation, inputOptions });
+    return this.executeChain();
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;

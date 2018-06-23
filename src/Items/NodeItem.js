@@ -1,4 +1,3 @@
-import BaseItem from './BaseItem.js';
 import TaggableItem from './TaggableItem.js';
 import EdgeItem from './EdgeItem.js';
 
@@ -29,11 +28,25 @@ class NodeItem extends TaggableItem {
     }
     return newEdge;
   }
-  canConvertTo (ItemType) {
-    return BaseItem.prototype.canConvertTo.call(this, ItemType);
+  async edgeSelectors (forward = null) {
+    if (forward === null) {
+      return Object.keys(this.value.$edges);
+    } else {
+      return (await this.edgeItems(forward)).map(item => item.uniqueSelector);
+    }
   }
-  convertTo (ItemType) {
-    return BaseItem.prototype.convertTo.call(this, ItemType);
+  async edgeItems (forward = null) {
+    return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items()
+      .filter(item => {
+        return forward === null || // Not limited by direction; grab all edges
+          // Forward traversal: only grab the edges where we are a source node
+          (forward === true && item.$nodes[this.uniqueSelector] === 'source') ||
+          // Backward traversal: only grab edges where we are a target node
+          (forward === false && item.$nodes[this.uniqueSelector] === 'target');
+      });
+  }
+  async edgeItemCount (forward = null) {
+    return (await this.edgeSelectors(forward)).length;
   }
 }
 NodeItem.getBoilerplateValue = () => {

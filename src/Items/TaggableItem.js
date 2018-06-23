@@ -25,6 +25,18 @@ class TaggableItem extends ContainerItem {
     };
     this.addToSetObj(this.doc.classes[className], this.doc._id);
   }
+  getClasses () {
+    if (!this.value || !this.value.$tags) {
+      return [];
+    }
+    return Object.keys(this.value.$tags).reduce((agg, setId) => {
+      const temp = this.extractClassInfoFromId(setId);
+      if (temp) {
+        agg.push(temp.className);
+      }
+      return agg;
+    }, []).sort();
+  }
 }
 TaggableItem.getBoilerplateValue = () => {
   return { $tags: {} };

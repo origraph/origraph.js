@@ -34,16 +34,22 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
     // think through...
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
-  contentItems () {
+  async contentSelectors () {
+    return this._contentItem.contentSelectors();
+  }
+  async contentItems () {
     return this._contentItem.contentItems();
   }
-  contentItemCount () {
+  async contentItemCount () {
     return this._contentItem.contentItemCount();
   }
-  metaItems () {
+  async metaItemSelectors () {
+    return (await this.metaItems()).map(item => item.uniqueSelector);
+  }
+  async metaItems () {
     return this.getValueContents();
   }
-  metaItemCount () {
+  async metaItemCount () {
     return this.getValueContentCount();
   }
 }

@@ -27,15 +27,8 @@ class BaseItem {
     // reference to this item
     delete this.parent[this.label];
   }
-  canConvertTo (ItemType) {
-    return ItemType === this.constructor;
-  }
-  convertTo (ItemType) {
-    if (ItemType === this.constructor) {
-      return this;
-    } else {
-      throw new Error(`Conversion from ${this.constructor.name} to ${ItemType.name} not yet implemented.`);
-    }
+  equals (other) {
+    return this.uniqueSelector === other.uniqueSelector;
   }
 }
 BaseItem.getHumanReadableType = function () {

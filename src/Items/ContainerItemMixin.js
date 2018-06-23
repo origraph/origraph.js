@@ -1,5 +1,5 @@
 export default (superclass) => class extends superclass {
-  getValueContents () {
+  async getValueContents () {
     return Object.entries(this.value)
       .reduce((agg, [label, value]) => {
         if (!this.mure.RESERVED_OBJ_KEYS[label]) {
@@ -9,7 +9,7 @@ export default (superclass) => class extends superclass {
         return agg;
       }, []);
   }
-  getValueContentCount () {
+  async getValueContentCount () {
     return Object.keys(this.value)
       .filter(label => !this.mure.RESERVED_OBJ_KEYS[label])
       .length;
