@@ -4,7 +4,7 @@ import ContainerItemMixin from './ContainerItemMixin.js';
 
 class ContainerItem extends ContainerItemMixin(TypedItem) {
   constructor ({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value)
       .reduce((max, key) => {
         key = parseInt(key);

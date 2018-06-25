@@ -15,21 +15,38 @@ const glompLists = listList => {
         agg.push(value);
       }
     });
+    return agg;
   }, []);
+};
+
+const testEquality = (a, b) => {
+  if (a.equals && b.equals) {
+    return a.equals(b);
+  } else {
+    return a === b;
+  }
 };
 
 const singleMode = list => {
   return list.sort((a, b) => {
-    return list.filter(v => v === a).length - list.filter(v => v === b).length;
+    return list.filter(v => testEquality(v, a)).length - list.filter(v => testEquality(v, b)).length;
   }).pop();
 };
 
 class InputSpec {
   constructor() {
-    this.options = {};
+    this.valueOptions = {};
+    this.toggleOptions = {};
+    this.itemRequirements = {};
   }
-  addOption({ name, optionList, defaultValue }) {
-    this.options[name] = { optionList, defaultValue };
+  addValueOption({ name, defaultValue }) {
+    this.valueOptions[name] = defaultValue;
+  }
+  addToggleOption({ name, optionList, defaultValue }) {
+    this.toggleOptions[name] = { optionList, defaultValue };
+  }
+  addItemRequirement({ name, ItemType, defaultValue }) {
+    this.itemRequirements[name] = { ItemType, defaultValue };
   }
 }
 InputSpec.glomp = specList => {
@@ -38,32 +55,66 @@ InputSpec.glomp = specList => {
   }
   let result = new InputSpec();
 
-  let options = {};
+  let valueOptions = {};
+  let toggleOptions = {};
+  let itemRequirements = {};
+
   specList.forEach(spec => {
-    Object.entries(spec.options).forEach(([name, { optionList, defaultValue }]) => {
-      if (!options[name]) {
-        options[name] = { name, optionList, defaultValues: [defaultValue] };
+    // For valueOptions, find the most common defaultValues
+    Object.entries(spec.valueOptions).forEach(([name, defaultValue]) => {
+      if (!valueOptions[name]) {
+        valueOptions[name] = [defaultValue];
       } else {
-        options[name].optionList = glompLists([optionList, options[name].optionList]);
-        options[name].defaultValues.push(defaultValue);
+        valueOptions[name].push(defaultValue);
+      }
+    });
+    // For toggleOptions, glomp all optionLists, and find the most common defaultValue
+    Object.entries(spec.toggleOptions).forEach(([name, { optionList, defaultValue }]) => {
+      if (!toggleOptions[name]) {
+        toggleOptions[name] = { name, optionList, defaultValues: [defaultValue] };
+      } else {
+        toggleOptions[name].optionList = glompLists([optionList, toggleOptions[name].optionList]);
+        toggleOptions[name].defaultValues.push(defaultValue);
+      }
+    });
+    // For itemRequirements, ensure ItemTypes are consistent, and find the most common default values
+    Object.entries(spec.itemRequirements).forEach(([name, { ItemType, defaultValue }]) => {
+      if (!itemRequirements[name]) {
+        itemRequirements[name] = { name, ItemType, defaultValues: [defaultValue] };
+      } else {
+        if (ItemType !== itemRequirements[name].ItemType) {
+          throw new Error(`Inconsistent ItemType requirements`);
+        }
+        itemRequirements[name].defaultValues.push(defaultValue);
       }
     });
   });
-  Object.entries(options).forEach(([name, { optionList, defaultValues }]) => {
-    result.addOption({
+  Object.entries(valueOptions).forEach(([name, defaultValues]) => {
+    result.addValueOption({
+      name,
+      defaultValue: singleMode(defaultValues)
+    });
+  });
+  Object.entries(toggleOptions).forEach(([name, { optionList, defaultValues }]) => {
+    result.addToggleOption({
       name,
       optionList,
       defaultValue: singleMode(defaultValues)
     });
   });
-
-  result.prohibitedTypes = glompLists(specList.map(spec => spec.prohibitedTypes));
+  Object.entries(itemRequirements).forEach(([name, { ItemType, defaultValues }]) => {
+    result.addOption({
+      name,
+      ItemType,
+      defaultValue: singleMode(defaultValues)
+    });
+  });
 
   return result;
 };
 
 class OutputSpec {
-  constructor({ newSelectors = null, pollutedDocs = [] }) {
+  constructor({ newSelectors = null, pollutedDocs = [] } = {}) {
     this.newSelectors = newSelectors;
     this.pollutedDocs = pollutedDocs;
   }
@@ -75,11 +126,11 @@ OutputSpec.glomp = specList => {
     } else if (spec.newSelectors === null) {
       return agg;
     } else {
-      return glompLists(agg, spec.newSelectors);
+      return glompLists([agg, spec.newSelectors]);
     }
   }, null);
   const pollutedDocs = specList.reduce((agg, spec) => {
-    return glompLists(agg, spec.pollutedDocs);
+    return glompLists([agg, spec.pollutedDocs]);
   }, []);
   return new OutputSpec({
     newSelectors,
@@ -153,7 +204,7 @@ class Selection {
   invalidateCache() {
     delete this._cachedDocLists;
     delete this._cachedItems;
-    delete this._operationCaches;
+    delete this._summaryCaches;
   }
   async docLists() {
     if (this._cachedDocLists) {
@@ -282,9 +333,9 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values((await this.mure.ItemHandler.followRelativeLink(value, doc, this.selectSingle))).forEach(addItem);
+                  Object.values((await this.mure.followRelativeLink(value, doc, this.selectSingle))).forEach(addItem);
                 } else {
-                  const ItemType = this.mure.ItemHandler.inferType(value);
+                  const ItemType = this.mure.inferType(value);
                   addItem(new ItemType({
                     mure: this.mure,
                     value,
@@ -336,7 +387,7 @@ chaining additional operations.`);
     let outputSpec = new OutputSpec();
     for (let f = 0; f < this.pendingOperations.length; f++) {
       let { operation, inputOptions } = this.pendingOperations[f];
-      outputSpec = OutputSpec.glomp((await operation.executeOnSelection(this, inputOptions)));
+      outputSpec = await operation.executeOnSelection(this, inputOptions);
     }
     this.pendingOperations = [];
 
@@ -369,6 +420,190 @@ one-off operations.`);
     }
     this.pendingOperations.push({ operation, inputOptions });
     return this.executeChain();
+  }
+
+  /*
+   These functions provide statistics / summaries of the selection:
+   */
+
+  async getAvailableOperations() {
+    if (this._summaryCaches && this._summaryCaches.availableOps) {
+      return this._summaryCaches.availableOps;
+    }
+    let availableOps = {};
+    let opList = Object.entries(this.mure.OPERATIONS).reduce((agg, [opFamilyName, opFamily]) => {
+      return agg.concat(Object.entries(opFamily).map(([opName, op]) => {
+        return { opFamilyName, opName, op };
+      }));
+    }, []);
+    let inputSpecs = await Promise.all(opList.map(({ op }) => {
+      return op.inferSelectionInputs(this);
+    }));
+    inputSpecs.forEach((spec, i) => {
+      let { opFamilyName, opName } = opList[i];
+      availableOps[opFamilyName] = availableOps[opFamilyName] || {};
+      availableOps[opFamilyName][opName] = spec;
+    });
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.availableOps = availableOps;
+    return availableOps;
+  }
+  async histograms(numBins = 10) {
+    if (this._summaryCaches && this._summaryCaches.histograms) {
+      return this._summaryCaches.histograms;
+    }
+
+    const items = await this.items();
+    const itemList = Object.values(items);
+
+    let result = {
+      raw: {
+        typeBins: {},
+        categoricalBins: {},
+        quantitativeBins: []
+      },
+      attributes: {}
+    };
+
+    const countPrimitive = (counters, item) => {
+      // Attempt to count the value categorically
+      if (counters.categoricalBins !== null) {
+        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
+        if (Object.keys(counters.categoricalBins).length > numBins) {
+          // We've encountered too many categorical bins; this likely isn't a categorical attribute
+          counters.categoricalBins = null;
+        }
+      }
+      // Attempt to bin the value quantitatively
+      if (counters.quantitativeBins !== null) {
+        if (counters.quantitativeBins.length === 0) {
+          // Init the counters with some temporary placeholders
+          counters.quantitativeItems = [];
+          counters.quantitativeType = item.type;
+          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+            counters.quantitativeScale = this.mure.d3.scaleLinear().domain([item.value, item.value]);
+          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+            counters.quantitativeScale = this.mure.d3.scaleTime().domain([item.value, item.value]);
+          } else {
+            // The first value is non-quantitative; this likely isn't a quantitative attribute
+            counters.quantitativeBins = null;
+            delete counters.quantitativeItems;
+            delete counters.quantitativeType;
+            delete counters.quantitativeScale;
+          }
+        } else if (counters.quantitativeType !== item.type) {
+          // Encountered an item of a different type; this likely isn't a quantitative attribute
+          counters.quantitativeBins = null;
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+          delete counters.quantitativeScale;
+        } else {
+          // Update the scale's domain (we'll determine bins later)
+          let domain = counters.quantitativeScale.domain();
+          if (item.value < domain[0]) {
+            domain[0] = item.value;
+          }
+          if (item.value > domain[1]) {
+            domain[1] = item.value;
+          }
+          counters.quantitativeScale.domain(domain);
+        }
+      }
+    };
+
+    for (let i = 0; i < itemList.length; i++) {
+      const item = itemList[i];
+      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
+      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+        countPrimitive(result.raw, item);
+      } else {
+        if (item.contentItems) {
+          (await item.contentItems()).forEach(childItem => {
+            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+              typeBins: {},
+              categoricalBins: {},
+              quantitativeBins: []
+            };
+            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
+            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+              countPrimitive(counters, childItem);
+            }
+          });
+        }
+        // TODO: collect more statistics, such as node degree, set size
+        // (and a set's members' attributes, similar to contentItems?)
+      }
+    }
+
+    const finalizeBins = counters => {
+      // Clear out anything that didn't see any values
+      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
+        counters.typeBins = null;
+      }
+      if (counters.categoricalBins && Object.keys(counters.categoricalBins).length === 0) {
+        counters.categoricalBins = null;
+      }
+      if (counters.quantitativeBins) {
+        if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
+          counters.quantitativeBins = null;
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+          delete counters.quantitativeScale;
+        } else {
+          // Calculate quantitative bin sizes and their counts
+          // Clean up the scale a bit
+          counters.quantitativeScale.nice();
+          // Histogram generator
+          const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+          // Clean up some of the temporary placeholders
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+        }
+      }
+    };
+    finalizeBins(result.raw);
+    Object.values(result.attributes).forEach(finalizeBins);
+
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.histograms = result;
+    return result;
+  }
+
+  /*
+   These functions are useful for deriving additional selections
+   */
+  deriveSelection(selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
+    if (options.mode === this.mure.DERIVE_MODES.UNION) {
+      selectorList = selectorList.concat(this.selectorList);
+    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
+      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1).concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
+    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
+    return new Selection(this.mure, selectorList, options);
+  }
+  merge(otherSelection, options = {}) {
+    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
+    return this.deriveSelection(otherSelection.selectorList, options);
+  }
+  select(selectorList, options = {}) {
+    Object.assign(options, { selectSingle: true, parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  selectAll(selectorList, options = {}) {
+    Object.assign(options, { parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  async selectAllSetMembers(options) {
+    return this.deriveSelection((await this.metaObjUnion(['$members'])), options);
+  }
+  async selectAllContainingSets(options) {
+    return this.deriveSelection((await this.metaObjUnion(['$tags'])), options);
+  }
+  async selectAllEdges(options) {
+    return this.deriveSelection((await this.metaObjUnion(['$edges'])), options);
+  }
+  async selectAllNodes(options = false) {
+    return this.deriveSelection((await this.metaObjUnion(['$nodes'])), options);
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
@@ -413,6 +648,9 @@ class BaseItem {
     // this.parent is a pointer to the raw element, so we want to delete its
     // reference to this item
     delete this.parent[this.label];
+  }
+  equals(other) {
+    return this.uniqueSelector === other.uniqueSelector;
   }
 }
 BaseItem.getHumanReadableType = function () {
@@ -485,7 +723,12 @@ var ContainerItemMixin = (superclass => class extends superclass {
     return Object.entries(this.value).reduce((agg, [label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
         let ItemType = this.mure.inferType(value);
-        agg.push(new ItemType(value, this.path.concat([label]), this.doc));
+        agg.push(new ItemType({
+          mure: this.mure,
+          value,
+          path: this.path.concat([label]),
+          doc: this.doc
+        }));
       }
       return agg;
     }, []);
@@ -497,7 +740,7 @@ var ContainerItemMixin = (superclass => class extends superclass {
 
 class ContainerItem extends ContainerItemMixin(TypedItem) {
   constructor({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value).reduce((max, key) => {
       key = parseInt(key);
       if (!isNaN(key) && key > max) {
@@ -600,7 +843,12 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       uniqueSelector: '@' + docPathQuery,
       classes: []
     });
-    this._contentItem = new ContainerItem(this.value.contents, this.path.concat(['contents']), this.doc);
+    this._contentItem = new ContainerItem({
+      mure: this.mure,
+      value: this.value.contents,
+      path: this.path.concat(['contents']),
+      doc: this.doc
+    });
   }
   remove() {
     // TODO: remove everything in this.value except _id, _rev, and add _deleted?
@@ -762,7 +1010,7 @@ StringItem.standardize = ({ value }) => String(value);
 
 class DateItem extends PrimitiveItem {
   constructor({ mure, value, path, doc }) {
-    super(mure, DateItem.standardize(value), path, doc);
+    super({ mure, value: DateItem.standardize(value), path, doc });
   }
   get value() {
     return new Date(this._value.str);
@@ -796,7 +1044,7 @@ ReferenceItem.getBoilerplateValue = () => '@$';
 
 class TaggableItem extends ContainerItem {
   constructor({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$tags) {
       throw new TypeError(`TaggableItem requires a $tags object`);
     }
@@ -854,8 +1102,8 @@ TaggableItem.standardize = ({ mure, value, path, doc, aggressive }) => {
 };
 
 var SetItemMixin = (superclass => class extends superclass {
-  constructor({ value, path, doc }) {
-    super(value, path, doc);
+  constructor({ mure, value, path, doc }) {
+    super({ mure, value, path, doc });
     if (!value.$members) {
       throw new TypeError(`SetItem requires a $members object`);
     }
@@ -887,7 +1135,7 @@ SetItem.standardize = ({ value }) => {
 
 class EdgeItem extends TaggableItem {
   constructor({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$nodes) {
       throw new TypeError(`EdgeItem requires a $nodes object`);
     }
@@ -921,7 +1169,7 @@ EdgeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
 
 class NodeItem extends TaggableItem {
   constructor({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$edges) {
       throw new TypeError(`NodeItem requires an $edges object`);
     }
@@ -993,46 +1241,56 @@ class BaseOperation {
   constructor(mure) {
     this.mure = mure;
     this.terminatesChain = false;
+    this.acceptsInputOptions = true;
+  }
+  checkItemInputs(item, inputOptions) {
+    return true;
   }
   inferItemInputs(item) {
-    if (!this.checkInputs()) {
+    if (!this.checkItemInputs(item)) {
       return null;
     } else {
-      return this._inferItemInputs(item);
+      return new InputSpec();
     }
-  }
-  _inferItemInputs(item) {
-    return new InputSpec();
-  }
-  async inferSelectionInputs(selection) {
-    const items = await selection.items();
-    return InputSpec.glomp(items.map(item => this.inferItemInputs(item)));
-  }
-  checkInputs(item, inputOptions) {
-    return true;
   }
   async executeOnItem(item, inputOptions) {
     throw new Error('unimplemented');
   }
+  async checkSelectionInputs(selection) {
+    return true;
+  }
+  async inferSelectionInputs(selection) {
+    const items = await selection.items();
+    const inputSpecPromises = Object.values(items).map(item => this.inferItemInputs(item));
+    return InputSpec.glomp((await Promise.all(inputSpecPromises)));
+  }
   async executeOnSelection(selection, inputOptions) {
     const items = await selection.items();
-    return OutputSpec.glomp((await Promise.all(items.map(item => this.executeOnItem(item, inputOptions)))));
+    const outputSpecPromises = Object.values(items).map(item => this.executeOnItem(item, inputOptions));
+    return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
   }
 }
 
-class PivotOperation extends BaseOperation {
+var ChainTerminatingMixin = (superclass => class extends superclass {
   constructor(mure) {
     super(mure);
     this.terminatesChain = true;
   }
-}
+});
 
-class PivotToContents extends PivotOperation {
-  checkInputs(item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.ContainerItem && item instanceof this.mure.ITEM_TYPES.DocumentItem;
+var ParameterlessMixin = (superclass => class extends superclass {
+  constructor(mure) {
+    super(mure);
+    this.acceptsInputOptions = false;
   }
-  async executeOnItem(item, inputOptions) {
-    if (!this.checkInputs(item, inputOptions)) {
+});
+
+class PivotToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+  checkItemInputs(item) {
+    return item instanceof this.mure.ITEM_TYPES.ContainerItem || item instanceof this.mure.ITEM_TYPES.DocumentItem;
+  }
+  async executeOnItem(item) {
+    if (!this.checkItemInputs(item)) {
       throw new Error(`Must be a ContainerItem or a DocumentItem to \
 PivotToContents`);
     }
@@ -1042,12 +1300,12 @@ PivotToContents`);
   }
 }
 
-class PivotToMembers extends PivotOperation {
-  checkInputs(item, inputOptions) {
+class PivotToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+  checkItemInputs(item) {
     return item instanceof this.mure.ITEM_TYPES.SetItem;
   }
-  async executeOnItem(item, inputOptions) {
-    if (!this.checkInputs(item, inputOptions)) {
+  async executeOnItem(item) {
+    if (!this.checkItemInputs(item)) {
       throw new Error(`Must be a SetItem to PivotToMembers`);
     }
     return new OutputSpec({
@@ -1056,15 +1314,18 @@ class PivotToMembers extends PivotOperation {
   }
 }
 
-var DirectedPivotMixin = (superclass => class extends superclass {
-  checkInputs(item, inputOptions) {
+class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
+  checkItemInputs(item, inputOptions) {
     return item instanceof this.mure.ITEM_TYPES.EdgeItem || item instanceof this.mure.ITEM_TYPES.NodeItem;
   }
-  _inferItemInputs(item) {
+  inferItemInputs(item) {
+    if (!this.checkItemInputs(item)) {
+      return null;
+    }
     const inputs = new InputSpec();
-    inputs.addOption({
+    inputs.addToggleOption({
       name: 'direction',
-      options: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
+      optionList: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
       defaultValue: 'Ignore Edge Direction'
     });
     return inputs;
@@ -1087,9 +1348,9 @@ var DirectedPivotMixin = (superclass => class extends superclass {
     delete this._forward;
     return temp;
   }
-});
+}
 
-class PivotToNodes extends DirectedPivotMixin(PivotOperation) {
+class PivotToNodes extends DirectedPivot {
   async executeOnItem(item, inputOptions) {
     if (!this.checkInputs(item, inputOptions)) {
       throw new Error(`Must be an EdgeItem or NodeItem to PivotToNodes`);
@@ -1111,7 +1372,7 @@ class PivotToNodes extends DirectedPivotMixin(PivotOperation) {
   }
 }
 
-class PivotToEdges extends DirectedPivotMixin(PivotOperation) {
+class PivotToEdges extends DirectedPivot {
   async executeOnItem(item, inputOptions) {
     if (!this.checkInputs(item, inputOptions)) {
       throw new Error(`Must be an EdgeItem or NodeItem to PivotToEdges`);
@@ -1130,6 +1391,130 @@ class PivotToEdges extends DirectedPivotMixin(PivotOperation) {
         newSelectors: glompLists((await Promise.all(temp)))
       });
     }
+  }
+}
+
+class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
+  checkItemInputs(item) {
+    return item instanceof this.mure.ITEM_TYPES.ContainerItem;
+  }
+  async executeOnItem(item) {
+    if (!this.checkItemInputs(item)) {
+      throw new Error(`Item must be a ContainerItem`);
+    }
+    item.value.$tags = item.value.$tags || {};
+    item.value.$edges = item.value.$edges || {};
+    return new OutputSpec({
+      pollutedDocs: [item.doc]
+    });
+  }
+  async executeOnSelection(selection) {
+    const temp = await super.executeOnSelection(selection);
+    // Invalidate the selection's cache of items so they're properly wrapped
+    // for the next chained operation
+    delete selection._cachedItems;
+    return temp;
+  }
+}
+
+class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
+  checkItemInputs(item, inputOptions) {
+    return item instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.otherItem instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.saveEdgesIn instanceof this.mure.ITEM_TYPES.ContainerItem && typeof inputOptions.connectWhen === 'string';
+  }
+  inferItemInputs(item) {
+    const inputs = new InputSpec();
+    inputs.addToggleOption({
+      name: 'direction',
+      optionList: ['Undirected', 'Directed'],
+      defaultValue: 'Undirected'
+    });
+    inputs.addValueOption({
+      name: 'connectWhen',
+      defaultValue: '(a, b) => { return a.label === b.label; }'
+    });
+    inputs.addItemRequirement({
+      name: 'otherItem',
+      ItemType: this.mure.ITEM_TYPES.NodeItem
+    });
+    inputs.addItemRequirement({
+      name: 'saveEdgesIn',
+      ItemType: this.mure.ITEM_TYPES.ContainerItem,
+      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(this.mure, item.doc.$orphanEdges, [`{"_id":"${item.doc._id}"}`, '$orphanEdges'], item.doc)
+    });
+    return inputs;
+  }
+  async executeOnItem(item, inputOptions, matchFunc) {
+    if (!this.checkItemInputs(item, inputOptions)) {
+      throw new Error(`Item and options.otherItem must be NodeItems, and \
+options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
+    }
+    matchFunc = matchFunc || new Function('a', 'b', inputOptions.connectWhen); // eslint-disable-line no-new-func
+    if (matchFunc(item, inputOptions.otherItem)) {
+      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
+
+      return new OutputSpec({
+        newSelectors: [newEdge.uniqueSelector],
+        pollutedDocs: glompLists([[item.doc, inputOptions.otherItem.doc, newEdge.doc]])
+      });
+    } else {
+      return new OutputSpec();
+    }
+  }
+  extractNodeList(items) {
+    let saveEdgesIn;
+    let nodeList = Object.values(items).reduce((agg, item) => {
+      if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
+        if (saveEdgesIn === undefined) {
+          saveEdgesIn = item;
+        }
+      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        return agg.concat([item]);
+      }
+      return agg;
+    }, []);
+    if (!saveEdgesIn) {
+      const mostFrequentDoc = singleMode(nodeList.map(item => item.doc));
+      if (mostFrequentDoc) {
+        saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+          mure: this.mure,
+          value: mostFrequentDoc.$orphanEdges,
+          path: [`{"_id":"${mostFrequentDoc._id}"}`, '$orphanEdges'],
+          doc: mostFrequentDoc
+        });
+      }
+    }
+    return { nodeList, saveEdgesIn };
+  }
+  async inferSelectionInputs(selection) {
+    const inputs = new InputSpec();
+    inputs.addValueOption({
+      name: 'connectWhen',
+      defaultValue: '(a, b) => { return a.label === b.label; }'
+    });
+    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
+    if (nodeList.length === 0) {
+      return null;
+    }
+    inputs.addItemRequirement({
+      name: 'saveEdgesIn',
+      ItemType: this.mure.ITEM_TYPES.ContainerItem,
+      defaultValue: saveEdgesIn
+    });
+    return inputs;
+  }
+  async executeOnSelection(selection, inputOptions) {
+    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
+    const matchFunc = new Function('a', 'b', inputOptions.connectWhen || '(a, b) => { return a.label === b.label; }'); // eslint-disable-line no-new-func
+    const outputPromises = [];
+    for (let i = 0; i < nodeList.length; i++) {
+      for (let j = i; j < nodeList.length; j++) {
+        outputPromises.push(this.executeOnItem(nodeList[i], {
+          otherItem: nodeList[j],
+          saveEdgesIn
+        }, matchFunc));
+      }
+    }
+    return OutputSpec.glomp((await Promise.all(outputPromises)));
   }
 }
 
@@ -1209,23 +1594,28 @@ class Mure extends Model {
       },
       'Filter': {},
       'Edit': {},
-      'Convert': {},
-      'Connect': {},
-      'Derive': {},
-      'Summarize': {}
+      'Convert': {
+        ConvertContainerToNode
+      },
+      'Connect': {
+        ConnectNodesOnFunction
+      },
+      'Derive': {}
     };
 
-    // With the operations defined and initialized, make them available as
+    // Unlike ITEM_TYPES, we actually want to instantiate all the operations
+    // with a reference to this. While we're at it, make them available as
     // functions on the Selection class
-    Object.entries(this.OPERATIONS).forEach(([opFamily, ops]) => {
+    Object.entries(this.OPERATIONS).forEach(([opFamilyName, ops]) => {
       // UpperCamelCase to lowerCamelCase
-      opFamily[0] = opFamily[0].toLowerCase();
-      Selection.prototype[opFamily] = {};
-      Object.entries(ops).forEach(([opName, operation]) => {
+      let opFamilyNameLower = opFamilyName.replace(/./, opFamilyName[0].toLowerCase());
+      Selection.prototype[opFamilyNameLower] = {};
+      Object.entries(ops).forEach(([opName, Operation]) => {
+        this.OPERATIONS[opFamilyName][opName] = new Operation(this);
         // UpperCamelCase to lowerCamelCase
-        opName[0] = opName[0].toLowerCase();
-        Selection.prototype[opFamily][opName] = function (inputOptions) {
-          return this.execute(operation, inputOptions);
+        let opNameLower = opName.replace(/./, opName[0].toLowerCase());
+        Selection.prototype[opFamilyNameLower][opNameLower] = function (inputOptions) {
+          return this.execute(this.OPERATIONS[opFamilyName][opName], inputOptions);
         };
       });
     });
@@ -1331,7 +1721,7 @@ class Mure extends Model {
     return results.rows.map(row => row.doc);
   }
   async allDocItems() {
-    return (await this.allDocs()).map(doc => new this.ITEM_TYPES.DocumentItem(doc));
+    return (await this.allDocs()).map(doc => new this.ITEM_TYPES.DocumentItem({ mure: this, doc }));
   }
   async queryDocs(queryObj) {
     await this.dbStatus;
@@ -1358,7 +1748,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.ITEM_TYPES.DocumentItem.launchStandardization({}, this);
+      return this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -1371,7 +1761,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
+          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -1457,7 +1847,7 @@ class Mure extends Model {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
+    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
     return this.putDoc(doc);
   }
   async deleteDoc(docQuery) {
@@ -1656,16 +2046,16 @@ var devDependencies = {
 	"babel-plugin-external-helpers": "^6.22.0",
 	"babel-preset-env": "^1.7.0",
 	chalk: "^2.4.1",
-	"d3-node": "^1.1.3",
-	diff: "^3.4.0",
-	"pouchdb-node": "^6.4.3",
-	rollup: "^0.60.0",
-	"rollup-plugin-babel": "^3.0.4",
+	"d3-node": "^2.0.1",
+	diff: "^3.5.0",
+	"pouchdb-node": "^7.0.0",
+	rollup: "^0.61.2",
+	"rollup-plugin-babel": "^3.0.5",
 	"rollup-plugin-commonjs": "^9.1.3",
 	"rollup-plugin-json": "^3.0.0",
 	"rollup-plugin-node-builtins": "^2.1.2",
 	"rollup-plugin-node-globals": "^1.2.1",
-	"rollup-plugin-node-resolve": "^3.0.2",
+	"rollup-plugin-node-resolve": "^3.3.0",
 	"rollup-plugin-string": "^2.0.2"
 };
 var dependencies = {
@@ -1674,8 +2064,8 @@ var dependencies = {
 	jsonpath: "^1.0.0",
 	"mime-types": "^2.1.18",
 	"pouchdb-authentication": "^1.1.3",
-	"pouchdb-browser": "^6.4.3",
-	"pouchdb-find": "^6.4.3",
+	"pouchdb-browser": "^7.0.0",
+	"pouchdb-find": "^7.0.0",
 	uki: "^0.2.4"
 };
 var peerDependencies = {

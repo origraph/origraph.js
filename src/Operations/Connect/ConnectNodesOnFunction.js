@@ -13,7 +13,7 @@ class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      options: ['Undirected', 'Directed'],
+      optionList: ['Undirected', 'Directed'],
       defaultValue: 'Undirected'
     });
     inputs.addValueOption({
@@ -58,7 +58,7 @@ options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
   }
   extractNodeList (items) {
     let saveEdgesIn;
-    let nodeList = items.map((agg, item) => {
+    let nodeList = Object.values(items).reduce((agg, item) => {
       if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
         if (saveEdgesIn === undefined) {
           saveEdgesIn = item;
@@ -66,15 +66,18 @@ options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
       } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
         return agg.concat([ item ]);
       }
+      return agg;
     }, []);
     if (!saveEdgesIn) {
       const mostFrequentDoc = singleMode(nodeList.map(item => item.doc));
-      saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem(
-        this.mure,
-        mostFrequentDoc.$orphanEdges,
-        [`{"_id":"${mostFrequentDoc._id}"}`, '$orphanEdges'],
-        mostFrequentDoc
-      );
+      if (mostFrequentDoc) {
+        saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+          mure: this.mure,
+          value: mostFrequentDoc.$orphanEdges,
+          path: [`{"_id":"${mostFrequentDoc._id}"}`, '$orphanEdges'],
+          doc: mostFrequentDoc
+        });
+      }
     }
     return { nodeList, saveEdgesIn };
   }

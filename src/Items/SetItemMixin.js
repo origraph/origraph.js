@@ -1,6 +1,6 @@
 export default (superclass) => class extends superclass {
-  constructor ({ value, path, doc }) {
-    super(value, path, doc);
+  constructor ({ mure, value, path, doc }) {
+    super({ mure, value, path, doc });
     if (!value.$members) {
       throw new TypeError(`SetItem requires a $members object`);
     }

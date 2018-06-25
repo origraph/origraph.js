@@ -3,7 +3,7 @@ import ContainerItem from './ContainerItem.js';
 
 class TaggableItem extends ContainerItem {
   constructor ({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$tags) {
       throw new TypeError(`TaggableItem requires a $tags object`);
     }

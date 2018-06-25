@@ -2,7 +2,7 @@ import PrimitiveItem from './PrimitiveItem.js';
 
 class DateItem extends PrimitiveItem {
   constructor ({ mure, value, path, doc }) {
-    super(mure, DateItem.standardize(value), path, doc);
+    super({ mure, value: DateItem.standardize(value), path, doc });
   }
   get value () { return new Date(this._value.str); }
   set value (newValue) {

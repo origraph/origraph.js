@@ -1,14 +1,15 @@
 import { OutputSpec } from '../common.js';
 import BaseOperation from '../BaseOperation.js';
 import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
+import ParameterlessMixin from '../ParameterlessMixin.js';
 
-class PivotToContents extends ChainTerminatingMixin(BaseOperation) {
-  checkItemInputs (item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.ContainerItem &&
+class PivotToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+  checkItemInputs (item) {
+    return item instanceof this.mure.ITEM_TYPES.ContainerItem ||
       item instanceof this.mure.ITEM_TYPES.DocumentItem;
   }
-  async executeOnItem (item, inputOptions) {
-    if (!this.checkItemInputs(item, inputOptions)) {
+  async executeOnItem (item) {
+    if (!this.checkItemInputs(item)) {
       throw new Error(`Must be a ContainerItem or a DocumentItem to \
 PivotToContents`);
     }

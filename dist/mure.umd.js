@@ -13512,9 +13512,7 @@
 	    // Rhino, and plain browser loading.
 
 	    /* istanbul ignore next */
-	    if (typeof undefined === 'function' && undefined.amd) {
-	        undefined(['exports'], factory);
-	    } else {
+	    {
 	        factory(exports);
 	    }
 	}(commonjsGlobal, function (exports) {
@@ -26246,19 +26244,6 @@
 	  _.prototype.value = function() {
 	    return this._wrapped;
 	  };
-
-	  // AMD registration happens at the end for compatibility with AMD loaders
-	  // that may not enforce next-turn semantics on modules. Even though general
-	  // practice for AMD registration is to be anonymous, underscore registers
-	  // as a named module because, like jQuery, it is a base library that is
-	  // popular enough to be bundled in a third party lib, but not be part of
-	  // an AMD load request. Those cases could generate an error when an
-	  // anonymous define() is called outside of a loader request.
-	  if (typeof undefined === 'function' && undefined.amd) {
-	    undefined('underscore', [], function() {
-	      return _;
-	    });
-	  }
 	}.call(commonjsGlobal));
 	});
 	var underscore_1 = underscore._;
@@ -27090,11 +27075,7 @@
 	    return rawHMACMD5(key, string)
 	  }
 
-	  if (typeof undefined === 'function' && undefined.amd) {
-	    undefined(function () {
-	      return md5
-	    });
-	  } else if (module.exports) {
+	  if (module.exports) {
 	    module.exports = md5;
 	  } else {
 	    $.md5 = md5;
@@ -27109,21 +27090,38 @@
 	        agg.push(value);
 	      }
 	    });
+	    return agg;
 	  }, []);
+	};
+
+	const testEquality = (a, b) => {
+	  if (a.equals && b.equals) {
+	    return a.equals(b);
+	  } else {
+	    return a === b;
+	  }
 	};
 
 	const singleMode = list => {
 	  return list.sort((a, b) => {
-	    return list.filter(v => v === a).length - list.filter(v => v === b).length;
+	    return list.filter(v => testEquality(v, a)).length - list.filter(v => testEquality(v, b)).length;
 	  }).pop();
 	};
 
 	class InputSpec {
 	  constructor() {
-	    this.options = {};
+	    this.valueOptions = {};
+	    this.toggleOptions = {};
+	    this.itemRequirements = {};
 	  }
-	  addOption({ name, optionList, defaultValue }) {
-	    this.options[name] = { optionList, defaultValue };
+	  addValueOption({ name, defaultValue }) {
+	    this.valueOptions[name] = defaultValue;
+	  }
+	  addToggleOption({ name, optionList, defaultValue }) {
+	    this.toggleOptions[name] = { optionList, defaultValue };
+	  }
+	  addItemRequirement({ name, ItemType, defaultValue }) {
+	    this.itemRequirements[name] = { ItemType, defaultValue };
 	  }
 	}
 	InputSpec.glomp = specList => {
@@ -27132,32 +27130,66 @@
 	  }
 	  let result = new InputSpec();
 
-	  let options = {};
+	  let valueOptions = {};
+	  let toggleOptions = {};
+	  let itemRequirements = {};
+
 	  specList.forEach(spec => {
-	    Object.entries(spec.options).forEach(([name, { optionList, defaultValue }]) => {
-	      if (!options[name]) {
-	        options[name] = { name, optionList, defaultValues: [defaultValue] };
+	    // For valueOptions, find the most common defaultValues
+	    Object.entries(spec.valueOptions).forEach(([name, defaultValue]) => {
+	      if (!valueOptions[name]) {
+	        valueOptions[name] = [defaultValue];
 	      } else {
-	        options[name].optionList = glompLists([optionList, options[name].optionList]);
-	        options[name].defaultValues.push(defaultValue);
+	        valueOptions[name].push(defaultValue);
+	      }
+	    });
+	    // For toggleOptions, glomp all optionLists, and find the most common defaultValue
+	    Object.entries(spec.toggleOptions).forEach(([name, { optionList, defaultValue }]) => {
+	      if (!toggleOptions[name]) {
+	        toggleOptions[name] = { name, optionList, defaultValues: [defaultValue] };
+	      } else {
+	        toggleOptions[name].optionList = glompLists([optionList, toggleOptions[name].optionList]);
+	        toggleOptions[name].defaultValues.push(defaultValue);
+	      }
+	    });
+	    // For itemRequirements, ensure ItemTypes are consistent, and find the most common default values
+	    Object.entries(spec.itemRequirements).forEach(([name, { ItemType, defaultValue }]) => {
+	      if (!itemRequirements[name]) {
+	        itemRequirements[name] = { name, ItemType, defaultValues: [defaultValue] };
+	      } else {
+	        if (ItemType !== itemRequirements[name].ItemType) {
+	          throw new Error(`Inconsistent ItemType requirements`);
+	        }
+	        itemRequirements[name].defaultValues.push(defaultValue);
 	      }
 	    });
 	  });
-	  Object.entries(options).forEach(([name, { optionList, defaultValues }]) => {
-	    result.addOption({
+	  Object.entries(valueOptions).forEach(([name, defaultValues]) => {
+	    result.addValueOption({
+	      name,
+	      defaultValue: singleMode(defaultValues)
+	    });
+	  });
+	  Object.entries(toggleOptions).forEach(([name, { optionList, defaultValues }]) => {
+	    result.addToggleOption({
 	      name,
 	      optionList,
 	      defaultValue: singleMode(defaultValues)
 	    });
 	  });
-
-	  result.prohibitedTypes = glompLists(specList.map(spec => spec.prohibitedTypes));
+	  Object.entries(itemRequirements).forEach(([name, { ItemType, defaultValues }]) => {
+	    result.addOption({
+	      name,
+	      ItemType,
+	      defaultValue: singleMode(defaultValues)
+	    });
+	  });
 
 	  return result;
 	};
 
 	class OutputSpec {
-	  constructor({ newSelectors = null, pollutedDocs = [] }) {
+	  constructor({ newSelectors = null, pollutedDocs = [] } = {}) {
 	    this.newSelectors = newSelectors;
 	    this.pollutedDocs = pollutedDocs;
 	  }
@@ -27169,11 +27201,11 @@
 	    } else if (spec.newSelectors === null) {
 	      return agg;
 	    } else {
-	      return glompLists(agg, spec.newSelectors);
+	      return glompLists([agg, spec.newSelectors]);
 	    }
 	  }, null);
 	  const pollutedDocs = specList.reduce((agg, spec) => {
-	    return glompLists(agg, spec.pollutedDocs);
+	    return glompLists([agg, spec.pollutedDocs]);
 	  }, []);
 	  return new OutputSpec({
 	    newSelectors,
@@ -27247,7 +27279,7 @@
 	  invalidateCache() {
 	    delete this._cachedDocLists;
 	    delete this._cachedItems;
-	    delete this._operationCaches;
+	    delete this._summaryCaches;
 	  }
 	  async docLists() {
 	    if (this._cachedDocLists) {
@@ -27376,9 +27408,9 @@
 	                }
 	                if (selector.followLinks) {
 	                  // We (potentially) selected a link that we need to follow
-	                  Object.values((await this.mure.ItemHandler.followRelativeLink(value, doc, this.selectSingle))).forEach(addItem);
+	                  Object.values((await this.mure.followRelativeLink(value, doc, this.selectSingle))).forEach(addItem);
 	                } else {
-	                  const ItemType = this.mure.ItemHandler.inferType(value);
+	                  const ItemType = this.mure.inferType(value);
 	                  addItem(new ItemType({
 	                    mure: this.mure,
 	                    value,
@@ -27430,7 +27462,7 @@ chaining additional operations.`);
 	    let outputSpec = new OutputSpec();
 	    for (let f = 0; f < this.pendingOperations.length; f++) {
 	      let { operation, inputOptions } = this.pendingOperations[f];
-	      outputSpec = OutputSpec.glomp((await operation.executeOnSelection(this, inputOptions)));
+	      outputSpec = await operation.executeOnSelection(this, inputOptions);
 	    }
 	    this.pendingOperations = [];
 
@@ -27463,6 +27495,190 @@ one-off operations.`);
 	    }
 	    this.pendingOperations.push({ operation, inputOptions });
 	    return this.executeChain();
+	  }
+
+	  /*
+	   These functions provide statistics / summaries of the selection:
+	   */
+
+	  async getAvailableOperations() {
+	    if (this._summaryCaches && this._summaryCaches.availableOps) {
+	      return this._summaryCaches.availableOps;
+	    }
+	    let availableOps = {};
+	    let opList = Object.entries(this.mure.OPERATIONS).reduce((agg, [opFamilyName, opFamily]) => {
+	      return agg.concat(Object.entries(opFamily).map(([opName, op]) => {
+	        return { opFamilyName, opName, op };
+	      }));
+	    }, []);
+	    let inputSpecs = await Promise.all(opList.map(({ op }) => {
+	      return op.inferSelectionInputs(this);
+	    }));
+	    inputSpecs.forEach((spec, i) => {
+	      let { opFamilyName, opName } = opList[i];
+	      availableOps[opFamilyName] = availableOps[opFamilyName] || {};
+	      availableOps[opFamilyName][opName] = spec;
+	    });
+	    this._summaryCaches = this._summaryCaches || {};
+	    this._summaryCaches.availableOps = availableOps;
+	    return availableOps;
+	  }
+	  async histograms(numBins = 10) {
+	    if (this._summaryCaches && this._summaryCaches.histograms) {
+	      return this._summaryCaches.histograms;
+	    }
+
+	    const items = await this.items();
+	    const itemList = Object.values(items);
+
+	    let result = {
+	      raw: {
+	        typeBins: {},
+	        categoricalBins: {},
+	        quantitativeBins: []
+	      },
+	      attributes: {}
+	    };
+
+	    const countPrimitive = (counters, item) => {
+	      // Attempt to count the value categorically
+	      if (counters.categoricalBins !== null) {
+	        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
+	        if (Object.keys(counters.categoricalBins).length > numBins) {
+	          // We've encountered too many categorical bins; this likely isn't a categorical attribute
+	          counters.categoricalBins = null;
+	        }
+	      }
+	      // Attempt to bin the value quantitatively
+	      if (counters.quantitativeBins !== null) {
+	        if (counters.quantitativeBins.length === 0) {
+	          // Init the counters with some temporary placeholders
+	          counters.quantitativeItems = [];
+	          counters.quantitativeType = item.type;
+	          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+	            counters.quantitativeScale = this.mure.d3.scaleLinear().domain([item.value, item.value]);
+	          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+	            counters.quantitativeScale = this.mure.d3.scaleTime().domain([item.value, item.value]);
+	          } else {
+	            // The first value is non-quantitative; this likely isn't a quantitative attribute
+	            counters.quantitativeBins = null;
+	            delete counters.quantitativeItems;
+	            delete counters.quantitativeType;
+	            delete counters.quantitativeScale;
+	          }
+	        } else if (counters.quantitativeType !== item.type) {
+	          // Encountered an item of a different type; this likely isn't a quantitative attribute
+	          counters.quantitativeBins = null;
+	          delete counters.quantitativeItems;
+	          delete counters.quantitativeType;
+	          delete counters.quantitativeScale;
+	        } else {
+	          // Update the scale's domain (we'll determine bins later)
+	          let domain = counters.quantitativeScale.domain();
+	          if (item.value < domain[0]) {
+	            domain[0] = item.value;
+	          }
+	          if (item.value > domain[1]) {
+	            domain[1] = item.value;
+	          }
+	          counters.quantitativeScale.domain(domain);
+	        }
+	      }
+	    };
+
+	    for (let i = 0; i < itemList.length; i++) {
+	      const item = itemList[i];
+	      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
+	      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+	        countPrimitive(result.raw, item);
+	      } else {
+	        if (item.contentItems) {
+	          (await item.contentItems()).forEach(childItem => {
+	            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+	              typeBins: {},
+	              categoricalBins: {},
+	              quantitativeBins: []
+	            };
+	            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
+	            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+	              countPrimitive(counters, childItem);
+	            }
+	          });
+	        }
+	        // TODO: collect more statistics, such as node degree, set size
+	        // (and a set's members' attributes, similar to contentItems?)
+	      }
+	    }
+
+	    const finalizeBins = counters => {
+	      // Clear out anything that didn't see any values
+	      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
+	        counters.typeBins = null;
+	      }
+	      if (counters.categoricalBins && Object.keys(counters.categoricalBins).length === 0) {
+	        counters.categoricalBins = null;
+	      }
+	      if (counters.quantitativeBins) {
+	        if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
+	          counters.quantitativeBins = null;
+	          delete counters.quantitativeItems;
+	          delete counters.quantitativeType;
+	          delete counters.quantitativeScale;
+	        } else {
+	          // Calculate quantitative bin sizes and their counts
+	          // Clean up the scale a bit
+	          counters.quantitativeScale.nice();
+	          // Histogram generator
+	          const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
+	          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+	          // Clean up some of the temporary placeholders
+	          delete counters.quantitativeItems;
+	          delete counters.quantitativeType;
+	        }
+	      }
+	    };
+	    finalizeBins(result.raw);
+	    Object.values(result.attributes).forEach(finalizeBins);
+
+	    this._summaryCaches = this._summaryCaches || {};
+	    this._summaryCaches.histograms = result;
+	    return result;
+	  }
+
+	  /*
+	   These functions are useful for deriving additional selections
+	   */
+	  deriveSelection(selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
+	    if (options.mode === this.mure.DERIVE_MODES.UNION) {
+	      selectorList = selectorList.concat(this.selectorList);
+	    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
+	      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1).concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
+	    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
+	    return new Selection(this.mure, selectorList, options);
+	  }
+	  merge(otherSelection, options = {}) {
+	    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
+	    return this.deriveSelection(otherSelection.selectorList, options);
+	  }
+	  select(selectorList, options = {}) {
+	    Object.assign(options, { selectSingle: true, parentSelection: this });
+	    return this.deriveSelection(selectorList, options);
+	  }
+	  selectAll(selectorList, options = {}) {
+	    Object.assign(options, { parentSelection: this });
+	    return this.deriveSelection(selectorList, options);
+	  }
+	  async selectAllSetMembers(options) {
+	    return this.deriveSelection((await this.metaObjUnion(['$members'])), options);
+	  }
+	  async selectAllContainingSets(options) {
+	    return this.deriveSelection((await this.metaObjUnion(['$tags'])), options);
+	  }
+	  async selectAllEdges(options) {
+	    return this.deriveSelection((await this.metaObjUnion(['$edges'])), options);
+	  }
+	  async selectAllNodes(options = false) {
+	    return this.deriveSelection((await this.metaObjUnion(['$nodes'])), options);
 	  }
 	}
 	Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
@@ -27507,6 +27723,9 @@ one-off operations.`);
 	    // this.parent is a pointer to the raw element, so we want to delete its
 	    // reference to this item
 	    delete this.parent[this.label];
+	  }
+	  equals(other) {
+	    return this.uniqueSelector === other.uniqueSelector;
 	  }
 	}
 	BaseItem.getHumanReadableType = function () {
@@ -33341,7 +33560,12 @@ one-off operations.`);
 	    return Object.entries(this.value).reduce((agg, [label, value]) => {
 	      if (!this.mure.RESERVED_OBJ_KEYS[label]) {
 	        let ItemType = this.mure.inferType(value);
-	        agg.push(new ItemType(value, this.path.concat([label]), this.doc));
+	        agg.push(new ItemType({
+	          mure: this.mure,
+	          value,
+	          path: this.path.concat([label]),
+	          doc: this.doc
+	        }));
 	      }
 	      return agg;
 	    }, []);
@@ -33353,7 +33577,7 @@ one-off operations.`);
 
 	class ContainerItem extends ContainerItemMixin(TypedItem) {
 	  constructor({ mure, value, path, doc }) {
-	    super(mure, value, path, doc);
+	    super({ mure, value, path, doc });
 	    this.nextLabel = Object.keys(this.value).reduce((max, key) => {
 	      key = parseInt(key);
 	      if (!isNaN(key) && key > max) {
@@ -33456,7 +33680,12 @@ one-off operations.`);
 	      uniqueSelector: '@' + docPathQuery,
 	      classes: []
 	    });
-	    this._contentItem = new ContainerItem(this.value.contents, this.path.concat(['contents']), this.doc);
+	    this._contentItem = new ContainerItem({
+	      mure: this.mure,
+	      value: this.value.contents,
+	      path: this.path.concat(['contents']),
+	      doc: this.doc
+	    });
 	  }
 	  remove() {
 	    // TODO: remove everything in this.value except _id, _rev, and add _deleted?
@@ -33618,7 +33847,7 @@ one-off operations.`);
 
 	class DateItem extends PrimitiveItem {
 	  constructor({ mure, value, path, doc }) {
-	    super(mure, DateItem.standardize(value), path, doc);
+	    super({ mure, value: DateItem.standardize(value), path, doc });
 	  }
 	  get value() {
 	    return new Date(this._value.str);
@@ -33652,7 +33881,7 @@ one-off operations.`);
 
 	class TaggableItem extends ContainerItem {
 	  constructor({ mure, value, path, doc }) {
-	    super(mure, value, path, doc);
+	    super({ mure, value, path, doc });
 	    if (!value.$tags) {
 	      throw new TypeError(`TaggableItem requires a $tags object`);
 	    }
@@ -33710,8 +33939,8 @@ one-off operations.`);
 	};
 
 	var SetItemMixin = (superclass => class extends superclass {
-	  constructor({ value, path, doc }) {
-	    super(value, path, doc);
+	  constructor({ mure, value, path, doc }) {
+	    super({ mure, value, path, doc });
 	    if (!value.$members) {
 	      throw new TypeError(`SetItem requires a $members object`);
 	    }
@@ -33743,7 +33972,7 @@ one-off operations.`);
 
 	class EdgeItem extends TaggableItem {
 	  constructor({ mure, value, path, doc }) {
-	    super(mure, value, path, doc);
+	    super({ mure, value, path, doc });
 	    if (!value.$nodes) {
 	      throw new TypeError(`EdgeItem requires a $nodes object`);
 	    }
@@ -33777,7 +34006,7 @@ one-off operations.`);
 
 	class NodeItem extends TaggableItem {
 	  constructor({ mure, value, path, doc }) {
-	    super(mure, value, path, doc);
+	    super({ mure, value, path, doc });
 	    if (!value.$edges) {
 	      throw new TypeError(`NodeItem requires an $edges object`);
 	    }
@@ -33849,46 +34078,56 @@ one-off operations.`);
 	  constructor(mure) {
 	    this.mure = mure;
 	    this.terminatesChain = false;
+	    this.acceptsInputOptions = true;
+	  }
+	  checkItemInputs(item, inputOptions) {
+	    return true;
 	  }
 	  inferItemInputs(item) {
-	    if (!this.checkInputs()) {
+	    if (!this.checkItemInputs(item)) {
 	      return null;
 	    } else {
-	      return this._inferItemInputs(item);
+	      return new InputSpec();
 	    }
-	  }
-	  _inferItemInputs(item) {
-	    return new InputSpec();
-	  }
-	  async inferSelectionInputs(selection) {
-	    const items = await selection.items();
-	    return InputSpec.glomp(items.map(item => this.inferItemInputs(item)));
-	  }
-	  checkInputs(item, inputOptions) {
-	    return true;
 	  }
 	  async executeOnItem(item, inputOptions) {
 	    throw new Error('unimplemented');
 	  }
+	  async checkSelectionInputs(selection) {
+	    return true;
+	  }
+	  async inferSelectionInputs(selection) {
+	    const items = await selection.items();
+	    const inputSpecPromises = Object.values(items).map(item => this.inferItemInputs(item));
+	    return InputSpec.glomp((await Promise.all(inputSpecPromises)));
+	  }
 	  async executeOnSelection(selection, inputOptions) {
 	    const items = await selection.items();
-	    return OutputSpec.glomp((await Promise.all(items.map(item => this.executeOnItem(item, inputOptions)))));
+	    const outputSpecPromises = Object.values(items).map(item => this.executeOnItem(item, inputOptions));
+	    return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
 	  }
 	}
 
-	class PivotOperation extends BaseOperation {
+	var ChainTerminatingMixin = (superclass => class extends superclass {
 	  constructor(mure) {
 	    super(mure);
 	    this.terminatesChain = true;
 	  }
-	}
+	});
 
-	class PivotToContents extends PivotOperation {
-	  checkInputs(item, inputOptions) {
-	    return item instanceof this.mure.ITEM_TYPES.ContainerItem && item instanceof this.mure.ITEM_TYPES.DocumentItem;
+	var ParameterlessMixin = (superclass => class extends superclass {
+	  constructor(mure) {
+	    super(mure);
+	    this.acceptsInputOptions = false;
 	  }
-	  async executeOnItem(item, inputOptions) {
-	    if (!this.checkInputs(item, inputOptions)) {
+	});
+
+	class PivotToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+	  checkItemInputs(item) {
+	    return item instanceof this.mure.ITEM_TYPES.ContainerItem || item instanceof this.mure.ITEM_TYPES.DocumentItem;
+	  }
+	  async executeOnItem(item) {
+	    if (!this.checkItemInputs(item)) {
 	      throw new Error(`Must be a ContainerItem or a DocumentItem to \
 PivotToContents`);
 	    }
@@ -33898,12 +34137,12 @@ PivotToContents`);
 	  }
 	}
 
-	class PivotToMembers extends PivotOperation {
-	  checkInputs(item, inputOptions) {
+	class PivotToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+	  checkItemInputs(item) {
 	    return item instanceof this.mure.ITEM_TYPES.SetItem;
 	  }
-	  async executeOnItem(item, inputOptions) {
-	    if (!this.checkInputs(item, inputOptions)) {
+	  async executeOnItem(item) {
+	    if (!this.checkItemInputs(item)) {
 	      throw new Error(`Must be a SetItem to PivotToMembers`);
 	    }
 	    return new OutputSpec({
@@ -33912,15 +34151,18 @@ PivotToContents`);
 	  }
 	}
 
-	var DirectedPivotMixin = (superclass => class extends superclass {
-	  checkInputs(item, inputOptions) {
+	class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
+	  checkItemInputs(item, inputOptions) {
 	    return item instanceof this.mure.ITEM_TYPES.EdgeItem || item instanceof this.mure.ITEM_TYPES.NodeItem;
 	  }
-	  _inferItemInputs(item) {
+	  inferItemInputs(item) {
+	    if (!this.checkItemInputs(item)) {
+	      return null;
+	    }
 	    const inputs = new InputSpec();
-	    inputs.addOption({
+	    inputs.addToggleOption({
 	      name: 'direction',
-	      options: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
+	      optionList: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
 	      defaultValue: 'Ignore Edge Direction'
 	    });
 	    return inputs;
@@ -33943,9 +34185,9 @@ PivotToContents`);
 	    delete this._forward;
 	    return temp;
 	  }
-	});
+	}
 
-	class PivotToNodes extends DirectedPivotMixin(PivotOperation) {
+	class PivotToNodes extends DirectedPivot {
 	  async executeOnItem(item, inputOptions) {
 	    if (!this.checkInputs(item, inputOptions)) {
 	      throw new Error(`Must be an EdgeItem or NodeItem to PivotToNodes`);
@@ -33967,7 +34209,7 @@ PivotToContents`);
 	  }
 	}
 
-	class PivotToEdges extends DirectedPivotMixin(PivotOperation) {
+	class PivotToEdges extends DirectedPivot {
 	  async executeOnItem(item, inputOptions) {
 	    if (!this.checkInputs(item, inputOptions)) {
 	      throw new Error(`Must be an EdgeItem or NodeItem to PivotToEdges`);
@@ -33986,6 +34228,130 @@ PivotToContents`);
 	        newSelectors: glompLists((await Promise.all(temp)))
 	      });
 	    }
+	  }
+	}
+
+	class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
+	  checkItemInputs(item) {
+	    return item instanceof this.mure.ITEM_TYPES.ContainerItem;
+	  }
+	  async executeOnItem(item) {
+	    if (!this.checkItemInputs(item)) {
+	      throw new Error(`Item must be a ContainerItem`);
+	    }
+	    item.value.$tags = item.value.$tags || {};
+	    item.value.$edges = item.value.$edges || {};
+	    return new OutputSpec({
+	      pollutedDocs: [item.doc]
+	    });
+	  }
+	  async executeOnSelection(selection) {
+	    const temp = await super.executeOnSelection(selection);
+	    // Invalidate the selection's cache of items so they're properly wrapped
+	    // for the next chained operation
+	    delete selection._cachedItems;
+	    return temp;
+	  }
+	}
+
+	class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
+	  checkItemInputs(item, inputOptions) {
+	    return item instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.otherItem instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.saveEdgesIn instanceof this.mure.ITEM_TYPES.ContainerItem && typeof inputOptions.connectWhen === 'string';
+	  }
+	  inferItemInputs(item) {
+	    const inputs = new InputSpec();
+	    inputs.addToggleOption({
+	      name: 'direction',
+	      optionList: ['Undirected', 'Directed'],
+	      defaultValue: 'Undirected'
+	    });
+	    inputs.addValueOption({
+	      name: 'connectWhen',
+	      defaultValue: '(a, b) => { return a.label === b.label; }'
+	    });
+	    inputs.addItemRequirement({
+	      name: 'otherItem',
+	      ItemType: this.mure.ITEM_TYPES.NodeItem
+	    });
+	    inputs.addItemRequirement({
+	      name: 'saveEdgesIn',
+	      ItemType: this.mure.ITEM_TYPES.ContainerItem,
+	      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(this.mure, item.doc.$orphanEdges, [`{"_id":"${item.doc._id}"}`, '$orphanEdges'], item.doc)
+	    });
+	    return inputs;
+	  }
+	  async executeOnItem(item, inputOptions, matchFunc) {
+	    if (!this.checkItemInputs(item, inputOptions)) {
+	      throw new Error(`Item and options.otherItem must be NodeItems, and \
+options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
+	    }
+	    matchFunc = matchFunc || new Function('a', 'b', inputOptions.connectWhen); // eslint-disable-line no-new-func
+	    if (matchFunc(item, inputOptions.otherItem)) {
+	      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
+
+	      return new OutputSpec({
+	        newSelectors: [newEdge.uniqueSelector],
+	        pollutedDocs: glompLists([[item.doc, inputOptions.otherItem.doc, newEdge.doc]])
+	      });
+	    } else {
+	      return new OutputSpec();
+	    }
+	  }
+	  extractNodeList(items) {
+	    let saveEdgesIn;
+	    let nodeList = Object.values(items).reduce((agg, item) => {
+	      if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
+	        if (saveEdgesIn === undefined) {
+	          saveEdgesIn = item;
+	        }
+	      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+	        return agg.concat([item]);
+	      }
+	      return agg;
+	    }, []);
+	    if (!saveEdgesIn) {
+	      const mostFrequentDoc = singleMode(nodeList.map(item => item.doc));
+	      if (mostFrequentDoc) {
+	        saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+	          mure: this.mure,
+	          value: mostFrequentDoc.$orphanEdges,
+	          path: [`{"_id":"${mostFrequentDoc._id}"}`, '$orphanEdges'],
+	          doc: mostFrequentDoc
+	        });
+	      }
+	    }
+	    return { nodeList, saveEdgesIn };
+	  }
+	  async inferSelectionInputs(selection) {
+	    const inputs = new InputSpec();
+	    inputs.addValueOption({
+	      name: 'connectWhen',
+	      defaultValue: '(a, b) => { return a.label === b.label; }'
+	    });
+	    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
+	    if (nodeList.length === 0) {
+	      return null;
+	    }
+	    inputs.addItemRequirement({
+	      name: 'saveEdgesIn',
+	      ItemType: this.mure.ITEM_TYPES.ContainerItem,
+	      defaultValue: saveEdgesIn
+	    });
+	    return inputs;
+	  }
+	  async executeOnSelection(selection, inputOptions) {
+	    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
+	    const matchFunc = new Function('a', 'b', inputOptions.connectWhen || '(a, b) => { return a.label === b.label; }'); // eslint-disable-line no-new-func
+	    const outputPromises = [];
+	    for (let i = 0; i < nodeList.length; i++) {
+	      for (let j = i; j < nodeList.length; j++) {
+	        outputPromises.push(this.executeOnItem(nodeList[i], {
+	          otherItem: nodeList[j],
+	          saveEdgesIn
+	        }, matchFunc));
+	      }
+	    }
+	    return OutputSpec.glomp((await Promise.all(outputPromises)));
 	  }
 	}
 
@@ -34065,23 +34431,28 @@ PivotToContents`);
 	      },
 	      'Filter': {},
 	      'Edit': {},
-	      'Convert': {},
-	      'Connect': {},
-	      'Derive': {},
-	      'Summarize': {}
+	      'Convert': {
+	        ConvertContainerToNode
+	      },
+	      'Connect': {
+	        ConnectNodesOnFunction
+	      },
+	      'Derive': {}
 	    };
 
-	    // With the operations defined and initialized, make them available as
+	    // Unlike ITEM_TYPES, we actually want to instantiate all the operations
+	    // with a reference to this. While we're at it, make them available as
 	    // functions on the Selection class
-	    Object.entries(this.OPERATIONS).forEach(([opFamily, ops]) => {
+	    Object.entries(this.OPERATIONS).forEach(([opFamilyName, ops]) => {
 	      // UpperCamelCase to lowerCamelCase
-	      opFamily[0] = opFamily[0].toLowerCase();
-	      Selection.prototype[opFamily] = {};
-	      Object.entries(ops).forEach(([opName, operation]) => {
+	      let opFamilyNameLower = opFamilyName.replace(/./, opFamilyName[0].toLowerCase());
+	      Selection.prototype[opFamilyNameLower] = {};
+	      Object.entries(ops).forEach(([opName, Operation]) => {
+	        this.OPERATIONS[opFamilyName][opName] = new Operation(this);
 	        // UpperCamelCase to lowerCamelCase
-	        opName[0] = opName[0].toLowerCase();
-	        Selection.prototype[opFamily][opName] = function (inputOptions) {
-	          return this.execute(operation, inputOptions);
+	        let opNameLower = opName.replace(/./, opName[0].toLowerCase());
+	        Selection.prototype[opFamilyNameLower][opNameLower] = function (inputOptions) {
+	          return this.execute(this.OPERATIONS[opFamilyName][opName], inputOptions);
 	        };
 	      });
 	    });
@@ -34187,7 +34558,7 @@ PivotToContents`);
 	    return results.rows.map(row => row.doc);
 	  }
 	  async allDocItems() {
-	    return (await this.allDocs()).map(doc => new this.ITEM_TYPES.DocumentItem(doc));
+	    return (await this.allDocs()).map(doc => new this.ITEM_TYPES.DocumentItem({ mure: this, doc }));
 	  }
 	  async queryDocs(queryObj) {
 	    await this.dbStatus;
@@ -34214,7 +34585,7 @@ PivotToContents`);
 	    await this.dbStatus;
 	    let doc;
 	    if (!docQuery) {
-	      return this.ITEM_TYPES.DocumentItem.launchStandardization({}, this);
+	      return this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: {}, mure: this });
 	    } else {
 	      if (typeof docQuery === 'string') {
 	        if (docQuery[0] === '@') {
@@ -34227,7 +34598,7 @@ PivotToContents`);
 	      if (matchingDocs.length === 0) {
 	        if (init) {
 	          // If missing, use the docQuery itself as the template for a new doc
-	          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
+	          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: docQuery, mure: this });
 	        } else {
 	          return null;
 	        }
@@ -34313,7 +34684,7 @@ PivotToContents`);
 	    doc.filename = filename || doc.filename;
 	    doc.mimeType = mimeType || doc.mimeType;
 	    doc.charset = encoding || doc.charset;
-	    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
+	    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
 	    return this.putDoc(doc);
 	  }
 	  async deleteDoc(docQuery) {
@@ -34512,16 +34883,16 @@ PivotToContents`);
 		"babel-plugin-external-helpers": "^6.22.0",
 		"babel-preset-env": "^1.7.0",
 		chalk: "^2.4.1",
-		"d3-node": "^1.1.3",
-		diff: "^3.4.0",
-		"pouchdb-node": "^6.4.3",
-		rollup: "^0.60.0",
-		"rollup-plugin-babel": "^3.0.4",
+		"d3-node": "^2.0.1",
+		diff: "^3.5.0",
+		"pouchdb-node": "^7.0.0",
+		rollup: "^0.61.2",
+		"rollup-plugin-babel": "^3.0.5",
 		"rollup-plugin-commonjs": "^9.1.3",
 		"rollup-plugin-json": "^3.0.0",
 		"rollup-plugin-node-builtins": "^2.1.2",
 		"rollup-plugin-node-globals": "^1.2.1",
-		"rollup-plugin-node-resolve": "^3.0.2",
+		"rollup-plugin-node-resolve": "^3.3.0",
 		"rollup-plugin-string": "^2.0.2"
 	};
 	var dependencies$2 = {
@@ -34530,8 +34901,8 @@ PivotToContents`);
 		jsonpath: "^1.0.0",
 		"mime-types": "^2.1.18",
 		"pouchdb-authentication": "^1.1.3",
-		"pouchdb-browser": "^6.4.3",
-		"pouchdb-find": "^6.4.3",
+		"pouchdb-browser": "^7.0.0",
+		"pouchdb-find": "^7.0.0",
 		uki: "^0.2.4"
 	};
 	var peerDependencies = {
@@ -34556,6 +34927,26 @@ PivotToContents`);
 		dependencies: dependencies$2,
 		peerDependencies: peerDependencies
 	};
+
+	var browser$3 = true;
+
+	var argsarray = argsArray;
+
+	function argsArray(fun) {
+	  return function () {
+	    var len = arguments.length;
+	    if (len) {
+	      var args = [];
+	      var i = -1;
+	      while (++i < len) {
+	        args[i] = arguments[i];
+	      }
+	      return fun.call(this, args);
+	    } else {
+	      return fun.call(this, []);
+	    }
+	  };
+	}
 
 	var Mutation = commonjsGlobal.MutationObserver || commonjsGlobal.WebKitMutationObserver;
 
@@ -34619,280 +35010,11 @@ PivotToContents`);
 	  draining$1 = false;
 	}
 
-	var browser$3 = immediate;
+	var browser$4 = immediate;
 	function immediate(task) {
 	  if (queue$1.push(task) === 1 && !draining$1) {
 	    scheduleDrain();
 	  }
-	}
-
-	/* istanbul ignore next */
-	function INTERNAL() {}
-
-	var handlers$1 = {};
-
-	var REJECTED = ['REJECTED'];
-	var FULFILLED = ['FULFILLED'];
-	var PENDING = ['PENDING'];
-
-	var browser$4 = Promise$1;
-
-	function Promise$1(resolver) {
-	  if (typeof resolver !== 'function') {
-	    throw new TypeError('resolver must be a function');
-	  }
-	  this.state = PENDING;
-	  this.queue = [];
-	  this.outcome = void 0;
-	  if (resolver !== INTERNAL) {
-	    safelyResolveThenable(this, resolver);
-	  }
-	}
-
-	Promise$1.prototype["catch"] = function (onRejected) {
-	  return this.then(null, onRejected);
-	};
-	Promise$1.prototype.then = function (onFulfilled, onRejected) {
-	  if (typeof onFulfilled !== 'function' && this.state === FULFILLED ||
-	    typeof onRejected !== 'function' && this.state === REJECTED) {
-	    return this;
-	  }
-	  var promise = new this.constructor(INTERNAL);
-	  if (this.state !== PENDING) {
-	    var resolver = this.state === FULFILLED ? onFulfilled : onRejected;
-	    unwrap(promise, resolver, this.outcome);
-	  } else {
-	    this.queue.push(new QueueItem(promise, onFulfilled, onRejected));
-	  }
-
-	  return promise;
-	};
-	function QueueItem(promise, onFulfilled, onRejected) {
-	  this.promise = promise;
-	  if (typeof onFulfilled === 'function') {
-	    this.onFulfilled = onFulfilled;
-	    this.callFulfilled = this.otherCallFulfilled;
-	  }
-	  if (typeof onRejected === 'function') {
-	    this.onRejected = onRejected;
-	    this.callRejected = this.otherCallRejected;
-	  }
-	}
-	QueueItem.prototype.callFulfilled = function (value) {
-	  handlers$1.resolve(this.promise, value);
-	};
-	QueueItem.prototype.otherCallFulfilled = function (value) {
-	  unwrap(this.promise, this.onFulfilled, value);
-	};
-	QueueItem.prototype.callRejected = function (value) {
-	  handlers$1.reject(this.promise, value);
-	};
-	QueueItem.prototype.otherCallRejected = function (value) {
-	  unwrap(this.promise, this.onRejected, value);
-	};
-
-	function unwrap(promise, func, value) {
-	  browser$3(function () {
-	    var returnValue;
-	    try {
-	      returnValue = func(value);
-	    } catch (e) {
-	      return handlers$1.reject(promise, e);
-	    }
-	    if (returnValue === promise) {
-	      handlers$1.reject(promise, new TypeError('Cannot resolve promise with itself'));
-	    } else {
-	      handlers$1.resolve(promise, returnValue);
-	    }
-	  });
-	}
-
-	handlers$1.resolve = function (self, value) {
-	  var result = tryCatch(getThen, value);
-	  if (result.status === 'error') {
-	    return handlers$1.reject(self, result.value);
-	  }
-	  var thenable = result.value;
-
-	  if (thenable) {
-	    safelyResolveThenable(self, thenable);
-	  } else {
-	    self.state = FULFILLED;
-	    self.outcome = value;
-	    var i = -1;
-	    var len = self.queue.length;
-	    while (++i < len) {
-	      self.queue[i].callFulfilled(value);
-	    }
-	  }
-	  return self;
-	};
-	handlers$1.reject = function (self, error) {
-	  self.state = REJECTED;
-	  self.outcome = error;
-	  var i = -1;
-	  var len = self.queue.length;
-	  while (++i < len) {
-	    self.queue[i].callRejected(error);
-	  }
-	  return self;
-	};
-
-	function getThen(obj) {
-	  // Make sure we only access the accessor once as required by the spec
-	  var then = obj && obj.then;
-	  if (obj && (typeof obj === 'object' || typeof obj === 'function') && typeof then === 'function') {
-	    return function appyThen() {
-	      then.apply(obj, arguments);
-	    };
-	  }
-	}
-
-	function safelyResolveThenable(self, thenable) {
-	  // Either fulfill, reject or reject with error
-	  var called = false;
-	  function onError(value) {
-	    if (called) {
-	      return;
-	    }
-	    called = true;
-	    handlers$1.reject(self, value);
-	  }
-
-	  function onSuccess(value) {
-	    if (called) {
-	      return;
-	    }
-	    called = true;
-	    handlers$1.resolve(self, value);
-	  }
-
-	  function tryToUnwrap() {
-	    thenable(onSuccess, onError);
-	  }
-
-	  var result = tryCatch(tryToUnwrap);
-	  if (result.status === 'error') {
-	    onError(result.value);
-	  }
-	}
-
-	function tryCatch(func, value) {
-	  var out = {};
-	  try {
-	    out.value = func(value);
-	    out.status = 'success';
-	  } catch (e) {
-	    out.status = 'error';
-	    out.value = e;
-	  }
-	  return out;
-	}
-
-	Promise$1.resolve = resolve$2;
-	function resolve$2(value) {
-	  if (value instanceof this) {
-	    return value;
-	  }
-	  return handlers$1.resolve(new this(INTERNAL), value);
-	}
-
-	Promise$1.reject = reject;
-	function reject(reason) {
-	  var promise = new this(INTERNAL);
-	  return handlers$1.reject(promise, reason);
-	}
-
-	Promise$1.all = all;
-	function all(iterable) {
-	  var self = this;
-	  if (Object.prototype.toString.call(iterable) !== '[object Array]') {
-	    return this.reject(new TypeError('must be an array'));
-	  }
-
-	  var len = iterable.length;
-	  var called = false;
-	  if (!len) {
-	    return this.resolve([]);
-	  }
-
-	  var values = new Array(len);
-	  var resolved = 0;
-	  var i = -1;
-	  var promise = new this(INTERNAL);
-
-	  while (++i < len) {
-	    allResolver(iterable[i], i);
-	  }
-	  return promise;
-	  function allResolver(value, i) {
-	    self.resolve(value).then(resolveFromAll, function (error) {
-	      if (!called) {
-	        called = true;
-	        handlers$1.reject(promise, error);
-	      }
-	    });
-	    function resolveFromAll(outValue) {
-	      values[i] = outValue;
-	      if (++resolved === len && !called) {
-	        called = true;
-	        handlers$1.resolve(promise, values);
-	      }
-	    }
-	  }
-	}
-
-	Promise$1.race = race;
-	function race(iterable) {
-	  var self = this;
-	  if (Object.prototype.toString.call(iterable) !== '[object Array]') {
-	    return this.reject(new TypeError('must be an array'));
-	  }
-
-	  var len = iterable.length;
-	  var called = false;
-	  if (!len) {
-	    return this.resolve([]);
-	  }
-
-	  var i = -1;
-	  var promise = new this(INTERNAL);
-
-	  while (++i < len) {
-	    resolver(iterable[i]);
-	  }
-	  return promise;
-	  function resolver(value) {
-	    self.resolve(value).then(function (response) {
-	      if (!called) {
-	        called = true;
-	        handlers$1.resolve(promise, response);
-	      }
-	    }, function (error) {
-	      if (!called) {
-	        called = true;
-	        handlers$1.reject(promise, error);
-	      }
-	    });
-	  }
-	}
-
-	var argsarray = argsArray;
-
-	function argsArray(fun) {
-	  return function () {
-	    var len = arguments.length;
-	    if (len) {
-	      var args = [];
-	      var i = -1;
-	      while (++i < len) {
-	        args[i] = arguments[i];
-	      }
-	      return fun.call(this, args);
-	    } else {
-	      return fun.call(this, []);
-	    }
-	  };
 	}
 
 	var domain;
@@ -34925,9 +35047,7 @@ PivotToContents`);
 	  this.domain = null;
 	  if (EventEmitter.usingDomains) {
 	    // if there is an active domain, then attach to it.
-	    if (domain.active && !(this instanceof domain.Domain)) {
-	      this.domain = domain.active;
-	    }
+	    if (domain.active) ;
 	  }
 
 	  if (!this._events || this._events === Object.getPrototypeOf(this)._events) {
@@ -35388,799 +35508,6 @@ PivotToContents`);
 	  };
 	}
 	});
-
-	var rngBrowser = createCommonjsModule(function (module) {
-	// Unique ID creation requires a high quality random # generator.  In the
-	// browser this is a little complicated due to unknown quality of Math.random()
-	// and inconsistent support for the `crypto` API.  We do the best we can via
-	// feature-detection
-
-	// getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
-	var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues.bind(crypto)) ||
-	                      (typeof(msCrypto) != 'undefined' && msCrypto.getRandomValues.bind(msCrypto));
-	if (getRandomValues) {
-	  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
-	  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
-
-	  module.exports = function whatwgRNG() {
-	    getRandomValues(rnds8);
-	    return rnds8;
-	  };
-	} else {
-	  // Math.random()-based (RNG)
-	  //
-	  // If all else fails, use Math.random().  It's fast, but is of unspecified
-	  // quality.
-	  var rnds = new Array(16);
-
-	  module.exports = function mathRNG() {
-	    for (var i = 0, r; i < 16; i++) {
-	      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
-	      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
-	    }
-
-	    return rnds;
-	  };
-	}
-	});
-
-	/**
-	 * Convert array of 16 byte values to UUID string format of the form:
-	 * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-	 */
-	var byteToHex = [];
-	for (var i = 0; i < 256; ++i) {
-	  byteToHex[i] = (i + 0x100).toString(16).substr(1);
-	}
-
-	function bytesToUuid(buf, offset) {
-	  var i = offset || 0;
-	  var bth = byteToHex;
-	  return bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] + '-' +
-	          bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]] +
-	          bth[buf[i++]] + bth[buf[i++]];
-	}
-
-	var bytesToUuid_1 = bytesToUuid;
-
-	// **`v1()` - Generate time-based UUID**
-	//
-	// Inspired by https://github.com/LiosK/UUID.js
-	// and http://docs.python.org/library/uuid.html
-
-	var _nodeId;
-	var _clockseq;
-
-	// Previous uuid creation time
-	var _lastMSecs = 0;
-	var _lastNSecs = 0;
-
-	// See https://github.com/broofa/node-uuid for API details
-	function v1(options, buf, offset) {
-	  var i = buf && offset || 0;
-	  var b = buf || [];
-
-	  options = options || {};
-	  var node = options.node || _nodeId;
-	  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
-
-	  // node and clockseq need to be initialized to random values if they're not
-	  // specified.  We do this lazily to minimize issues related to insufficient
-	  // system entropy.  See #189
-	  if (node == null || clockseq == null) {
-	    var seedBytes = rngBrowser();
-	    if (node == null) {
-	      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-	      node = _nodeId = [
-	        seedBytes[0] | 0x01,
-	        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
-	      ];
-	    }
-	    if (clockseq == null) {
-	      // Per 4.2.2, randomize (14 bit) clockseq
-	      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
-	    }
-	  }
-
-	  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-	  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
-
-	  // Per 4.2.1.2, use count of uuid's generated during the current clock
-	  // cycle to simulate higher resolution clock
-	  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
-
-	  // Time since last uuid creation (in msecs)
-	  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
-
-	  // Per 4.2.1.2, Bump clockseq on clock regression
-	  if (dt < 0 && options.clockseq === undefined) {
-	    clockseq = clockseq + 1 & 0x3fff;
-	  }
-
-	  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-	  // time interval
-	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-	    nsecs = 0;
-	  }
-
-	  // Per 4.2.1.2 Throw error if too many uuids are requested
-	  if (nsecs >= 10000) {
-	    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
-	  }
-
-	  _lastMSecs = msecs;
-	  _lastNSecs = nsecs;
-	  _clockseq = clockseq;
-
-	  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-	  msecs += 12219292800000;
-
-	  // `time_low`
-	  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-	  b[i++] = tl >>> 24 & 0xff;
-	  b[i++] = tl >>> 16 & 0xff;
-	  b[i++] = tl >>> 8 & 0xff;
-	  b[i++] = tl & 0xff;
-
-	  // `time_mid`
-	  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
-	  b[i++] = tmh >>> 8 & 0xff;
-	  b[i++] = tmh & 0xff;
-
-	  // `time_high_and_version`
-	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-	  b[i++] = tmh >>> 16 & 0xff;
-
-	  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-	  b[i++] = clockseq >>> 8 | 0x80;
-
-	  // `clock_seq_low`
-	  b[i++] = clockseq & 0xff;
-
-	  // `node`
-	  for (var n = 0; n < 6; ++n) {
-	    b[i + n] = node[n];
-	  }
-
-	  return buf ? buf : bytesToUuid_1(b);
-	}
-
-	var v1_1 = v1;
-
-	function v4(options, buf, offset) {
-	  var i = buf && offset || 0;
-
-	  if (typeof(options) == 'string') {
-	    buf = options === 'binary' ? new Array(16) : null;
-	    options = null;
-	  }
-	  options = options || {};
-
-	  var rnds = options.random || (options.rng || rngBrowser)();
-
-	  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-	  rnds[6] = (rnds[6] & 0x0f) | 0x40;
-	  rnds[8] = (rnds[8] & 0x3f) | 0x80;
-
-	  // Copy bytes to buffer, if provided
-	  if (buf) {
-	    for (var ii = 0; ii < 16; ++ii) {
-	      buf[i + ii] = rnds[ii];
-	    }
-	  }
-
-	  return buf || bytesToUuid_1(rnds);
-	}
-
-	var v4_1 = v4;
-
-	var uuid = v4_1;
-	uuid.v1 = v1_1;
-	uuid.v4 = v4_1;
-
-	var uuid_1 = uuid;
-
-	/**
-	 * Helpers.
-	 */
-
-	var s = 1000;
-	var m = s * 60;
-	var h = m * 60;
-	var d = h * 24;
-	var y = d * 365.25;
-
-	/**
-	 * Parse or format the given `val`.
-	 *
-	 * Options:
-	 *
-	 *  - `long` verbose formatting [false]
-	 *
-	 * @param {String|Number} val
-	 * @param {Object} [options]
-	 * @throws {Error} throw an error if val is not a non-empty string or a number
-	 * @return {String|Number}
-	 * @api public
-	 */
-
-	var ms = function(val, options) {
-	  options = options || {};
-	  var type = typeof val;
-	  if (type === 'string' && val.length > 0) {
-	    return parse$1(val);
-	  } else if (type === 'number' && isNaN(val) === false) {
-	    return options.long ? fmtLong(val) : fmtShort(val);
-	  }
-	  throw new Error(
-	    'val is not a non-empty string or a valid number. val=' +
-	      JSON.stringify(val)
-	  );
-	};
-
-	/**
-	 * Parse the given `str` and return milliseconds.
-	 *
-	 * @param {String} str
-	 * @return {Number}
-	 * @api private
-	 */
-
-	function parse$1(str) {
-	  str = String(str);
-	  if (str.length > 100) {
-	    return;
-	  }
-	  var match = /^((?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|years?|yrs?|y)?$/i.exec(
-	    str
-	  );
-	  if (!match) {
-	    return;
-	  }
-	  var n = parseFloat(match[1]);
-	  var type = (match[2] || 'ms').toLowerCase();
-	  switch (type) {
-	    case 'years':
-	    case 'year':
-	    case 'yrs':
-	    case 'yr':
-	    case 'y':
-	      return n * y;
-	    case 'days':
-	    case 'day':
-	    case 'd':
-	      return n * d;
-	    case 'hours':
-	    case 'hour':
-	    case 'hrs':
-	    case 'hr':
-	    case 'h':
-	      return n * h;
-	    case 'minutes':
-	    case 'minute':
-	    case 'mins':
-	    case 'min':
-	    case 'm':
-	      return n * m;
-	    case 'seconds':
-	    case 'second':
-	    case 'secs':
-	    case 'sec':
-	    case 's':
-	      return n * s;
-	    case 'milliseconds':
-	    case 'millisecond':
-	    case 'msecs':
-	    case 'msec':
-	    case 'ms':
-	      return n;
-	    default:
-	      return undefined;
-	  }
-	}
-
-	/**
-	 * Short format for `ms`.
-	 *
-	 * @param {Number} ms
-	 * @return {String}
-	 * @api private
-	 */
-
-	function fmtShort(ms) {
-	  if (ms >= d) {
-	    return Math.round(ms / d) + 'd';
-	  }
-	  if (ms >= h) {
-	    return Math.round(ms / h) + 'h';
-	  }
-	  if (ms >= m) {
-	    return Math.round(ms / m) + 'm';
-	  }
-	  if (ms >= s) {
-	    return Math.round(ms / s) + 's';
-	  }
-	  return ms + 'ms';
-	}
-
-	/**
-	 * Long format for `ms`.
-	 *
-	 * @param {Number} ms
-	 * @return {String}
-	 * @api private
-	 */
-
-	function fmtLong(ms) {
-	  return plural(ms, d, 'day') ||
-	    plural(ms, h, 'hour') ||
-	    plural(ms, m, 'minute') ||
-	    plural(ms, s, 'second') ||
-	    ms + ' ms';
-	}
-
-	/**
-	 * Pluralization helper.
-	 */
-
-	function plural(ms, n, name) {
-	  if (ms < n) {
-	    return;
-	  }
-	  if (ms < n * 1.5) {
-	    return Math.floor(ms / n) + ' ' + name;
-	  }
-	  return Math.ceil(ms / n) + ' ' + name + 's';
-	}
-
-	var debug = createCommonjsModule(function (module, exports) {
-	/**
-	 * This is the common logic for both the Node.js and web browser
-	 * implementations of `debug()`.
-	 *
-	 * Expose `debug()` as the module.
-	 */
-
-	exports = module.exports = createDebug.debug = createDebug['default'] = createDebug;
-	exports.coerce = coerce;
-	exports.disable = disable;
-	exports.enable = enable;
-	exports.enabled = enabled;
-	exports.humanize = ms;
-
-	/**
-	 * Active `debug` instances.
-	 */
-	exports.instances = [];
-
-	/**
-	 * The currently active debug mode names, and names to skip.
-	 */
-
-	exports.names = [];
-	exports.skips = [];
-
-	/**
-	 * Map of special "%n" handling functions, for the debug "format" argument.
-	 *
-	 * Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
-	 */
-
-	exports.formatters = {};
-
-	/**
-	 * Select a color.
-	 * @param {String} namespace
-	 * @return {Number}
-	 * @api private
-	 */
-
-	function selectColor(namespace) {
-	  var hash = 0, i;
-
-	  for (i in namespace) {
-	    hash  = ((hash << 5) - hash) + namespace.charCodeAt(i);
-	    hash |= 0; // Convert to 32bit integer
-	  }
-
-	  return exports.colors[Math.abs(hash) % exports.colors.length];
-	}
-
-	/**
-	 * Create a debugger with the given `namespace`.
-	 *
-	 * @param {String} namespace
-	 * @return {Function}
-	 * @api public
-	 */
-
-	function createDebug(namespace) {
-
-	  var prevTime;
-
-	  function debug() {
-	    // disabled?
-	    if (!debug.enabled) return;
-
-	    var self = debug;
-
-	    // set `diff` timestamp
-	    var curr = +new Date();
-	    var ms$$1 = curr - (prevTime || curr);
-	    self.diff = ms$$1;
-	    self.prev = prevTime;
-	    self.curr = curr;
-	    prevTime = curr;
-
-	    // turn the `arguments` into a proper Array
-	    var args = new Array(arguments.length);
-	    for (var i = 0; i < args.length; i++) {
-	      args[i] = arguments[i];
-	    }
-
-	    args[0] = exports.coerce(args[0]);
-
-	    if ('string' !== typeof args[0]) {
-	      // anything else let's inspect with %O
-	      args.unshift('%O');
-	    }
-
-	    // apply any `formatters` transformations
-	    var index = 0;
-	    args[0] = args[0].replace(/%([a-zA-Z%])/g, function(match, format) {
-	      // if we encounter an escaped % then don't increase the array index
-	      if (match === '%%') return match;
-	      index++;
-	      var formatter = exports.formatters[format];
-	      if ('function' === typeof formatter) {
-	        var val = args[index];
-	        match = formatter.call(self, val);
-
-	        // now we need to remove `args[index]` since it's inlined in the `format`
-	        args.splice(index, 1);
-	        index--;
-	      }
-	      return match;
-	    });
-
-	    // apply env-specific formatting (colors, etc.)
-	    exports.formatArgs.call(self, args);
-
-	    var logFn = debug.log || exports.log || console.log.bind(console);
-	    logFn.apply(self, args);
-	  }
-
-	  debug.namespace = namespace;
-	  debug.enabled = exports.enabled(namespace);
-	  debug.useColors = exports.useColors();
-	  debug.color = selectColor(namespace);
-	  debug.destroy = destroy;
-
-	  // env-specific initialization logic for debug instances
-	  if ('function' === typeof exports.init) {
-	    exports.init(debug);
-	  }
-
-	  exports.instances.push(debug);
-
-	  return debug;
-	}
-
-	function destroy () {
-	  var index = exports.instances.indexOf(this);
-	  if (index !== -1) {
-	    exports.instances.splice(index, 1);
-	    return true;
-	  } else {
-	    return false;
-	  }
-	}
-
-	/**
-	 * Enables a debug mode by namespaces. This can include modes
-	 * separated by a colon and wildcards.
-	 *
-	 * @param {String} namespaces
-	 * @api public
-	 */
-
-	function enable(namespaces) {
-	  exports.save(namespaces);
-
-	  exports.names = [];
-	  exports.skips = [];
-
-	  var i;
-	  var split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
-	  var len = split.length;
-
-	  for (i = 0; i < len; i++) {
-	    if (!split[i]) continue; // ignore empty strings
-	    namespaces = split[i].replace(/\*/g, '.*?');
-	    if (namespaces[0] === '-') {
-	      exports.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
-	    } else {
-	      exports.names.push(new RegExp('^' + namespaces + '$'));
-	    }
-	  }
-
-	  for (i = 0; i < exports.instances.length; i++) {
-	    var instance = exports.instances[i];
-	    instance.enabled = exports.enabled(instance.namespace);
-	  }
-	}
-
-	/**
-	 * Disable debug output.
-	 *
-	 * @api public
-	 */
-
-	function disable() {
-	  exports.enable('');
-	}
-
-	/**
-	 * Returns true if the given mode name is enabled, false otherwise.
-	 *
-	 * @param {String} name
-	 * @return {Boolean}
-	 * @api public
-	 */
-
-	function enabled(name) {
-	  if (name[name.length - 1] === '*') {
-	    return true;
-	  }
-	  var i, len;
-	  for (i = 0, len = exports.skips.length; i < len; i++) {
-	    if (exports.skips[i].test(name)) {
-	      return false;
-	    }
-	  }
-	  for (i = 0, len = exports.names.length; i < len; i++) {
-	    if (exports.names[i].test(name)) {
-	      return true;
-	    }
-	  }
-	  return false;
-	}
-
-	/**
-	 * Coerce `val`.
-	 *
-	 * @param {Mixed} val
-	 * @return {Mixed}
-	 * @api private
-	 */
-
-	function coerce(val) {
-	  if (val instanceof Error) return val.stack || val.message;
-	  return val;
-	}
-	});
-	var debug_1 = debug.coerce;
-	var debug_2 = debug.disable;
-	var debug_3 = debug.enable;
-	var debug_4 = debug.enabled;
-	var debug_5 = debug.humanize;
-	var debug_6 = debug.instances;
-	var debug_7 = debug.names;
-	var debug_8 = debug.skips;
-	var debug_9 = debug.formatters;
-
-	var browser$5 = createCommonjsModule(function (module, exports) {
-	/**
-	 * This is the web browser implementation of `debug()`.
-	 *
-	 * Expose `debug()` as the module.
-	 */
-
-	exports = module.exports = debug;
-	exports.log = log;
-	exports.formatArgs = formatArgs;
-	exports.save = save;
-	exports.load = load;
-	exports.useColors = useColors;
-	exports.storage = 'undefined' != typeof chrome
-	               && 'undefined' != typeof chrome.storage
-	                  ? chrome.storage.local
-	                  : localstorage();
-
-	/**
-	 * Colors.
-	 */
-
-	exports.colors = [
-	  '#0000CC', '#0000FF', '#0033CC', '#0033FF', '#0066CC', '#0066FF', '#0099CC',
-	  '#0099FF', '#00CC00', '#00CC33', '#00CC66', '#00CC99', '#00CCCC', '#00CCFF',
-	  '#3300CC', '#3300FF', '#3333CC', '#3333FF', '#3366CC', '#3366FF', '#3399CC',
-	  '#3399FF', '#33CC00', '#33CC33', '#33CC66', '#33CC99', '#33CCCC', '#33CCFF',
-	  '#6600CC', '#6600FF', '#6633CC', '#6633FF', '#66CC00', '#66CC33', '#9900CC',
-	  '#9900FF', '#9933CC', '#9933FF', '#99CC00', '#99CC33', '#CC0000', '#CC0033',
-	  '#CC0066', '#CC0099', '#CC00CC', '#CC00FF', '#CC3300', '#CC3333', '#CC3366',
-	  '#CC3399', '#CC33CC', '#CC33FF', '#CC6600', '#CC6633', '#CC9900', '#CC9933',
-	  '#CCCC00', '#CCCC33', '#FF0000', '#FF0033', '#FF0066', '#FF0099', '#FF00CC',
-	  '#FF00FF', '#FF3300', '#FF3333', '#FF3366', '#FF3399', '#FF33CC', '#FF33FF',
-	  '#FF6600', '#FF6633', '#FF9900', '#FF9933', '#FFCC00', '#FFCC33'
-	];
-
-	/**
-	 * Currently only WebKit-based Web Inspectors, Firefox >= v31,
-	 * and the Firebug extension (any Firefox version) are known
-	 * to support "%c" CSS customizations.
-	 *
-	 * TODO: add a `localStorage` variable to explicitly enable/disable colors
-	 */
-
-	function useColors() {
-	  // NB: In an Electron preload script, document will be defined but not fully
-	  // initialized. Since we know we're in Chrome, we'll just detect this case
-	  // explicitly
-	  if (typeof window !== 'undefined' && window.process && window.process.type === 'renderer') {
-	    return true;
-	  }
-
-	  // Internet Explorer and Edge do not support colors.
-	  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
-	    return false;
-	  }
-
-	  // is webkit? http://stackoverflow.com/a/16459606/376773
-	  // document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
-	  return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
-	    // is firebug? http://stackoverflow.com/a/398120/376773
-	    (typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
-	    // is firefox >= v31?
-	    // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-	    (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31) ||
-	    // double check webkit in userAgent just in case we are in a worker
-	    (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
-	}
-
-	/**
-	 * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
-	 */
-
-	exports.formatters.j = function(v) {
-	  try {
-	    return JSON.stringify(v);
-	  } catch (err) {
-	    return '[UnexpectedJSONParseError]: ' + err.message;
-	  }
-	};
-
-
-	/**
-	 * Colorize log arguments if enabled.
-	 *
-	 * @api public
-	 */
-
-	function formatArgs(args) {
-	  var useColors = this.useColors;
-
-	  args[0] = (useColors ? '%c' : '')
-	    + this.namespace
-	    + (useColors ? ' %c' : ' ')
-	    + args[0]
-	    + (useColors ? '%c ' : ' ')
-	    + '+' + exports.humanize(this.diff);
-
-	  if (!useColors) return;
-
-	  var c = 'color: ' + this.color;
-	  args.splice(1, 0, c, 'color: inherit');
-
-	  // the final "%c" is somewhat tricky, because there could be other
-	  // arguments passed either before or after the %c, so we need to
-	  // figure out the correct index to insert the CSS into
-	  var index = 0;
-	  var lastC = 0;
-	  args[0].replace(/%[a-zA-Z%]/g, function(match) {
-	    if ('%%' === match) return;
-	    index++;
-	    if ('%c' === match) {
-	      // we only are interested in the *last* %c
-	      // (the user may have provided their own)
-	      lastC = index;
-	    }
-	  });
-
-	  args.splice(lastC, 0, c);
-	}
-
-	/**
-	 * Invokes `console.log()` when available.
-	 * No-op when `console.log` is not a "function".
-	 *
-	 * @api public
-	 */
-
-	function log() {
-	  // this hackery is required for IE8/9, where
-	  // the `console.log` function doesn't have 'apply'
-	  return 'object' === typeof console
-	    && console.log
-	    && Function.prototype.apply.call(console.log, console, arguments);
-	}
-
-	/**
-	 * Save `namespaces`.
-	 *
-	 * @param {String} namespaces
-	 * @api private
-	 */
-
-	function save(namespaces) {
-	  try {
-	    if (null == namespaces) {
-	      exports.storage.removeItem('debug');
-	    } else {
-	      exports.storage.debug = namespaces;
-	    }
-	  } catch(e) {}
-	}
-
-	/**
-	 * Load `namespaces`.
-	 *
-	 * @return {String} returns the previously persisted debug modes
-	 * @api private
-	 */
-
-	function load() {
-	  var r;
-	  try {
-	    r = exports.storage.debug;
-	  } catch(e) {}
-
-	  // If debug isn't set in LS, and we're in Electron, try to load $DEBUG
-	  if (!r && typeof process !== 'undefined' && 'env' in process) {
-	    r = process.env.DEBUG;
-	  }
-
-	  return r;
-	}
-
-	/**
-	 * Enable namespaces listed in `localStorage.debug` initially.
-	 */
-
-	exports.enable(load());
-
-	/**
-	 * Localstorage attempts to return the localstorage.
-	 *
-	 * This is necessary because safari throws
-	 * when a user disables cookies/localstorage
-	 * and you attempt to access it.
-	 *
-	 * @return {LocalStorage}
-	 * @api private
-	 */
-
-	function localstorage() {
-	  try {
-	    return window.localStorage;
-	  } catch (e) {}
-	}
-	});
-	var browser_1 = browser$5.log;
-	var browser_2 = browser$5.formatArgs;
-	var browser_3 = browser$5.save;
-	var browser_4 = browser$5.load;
-	var browser_5 = browser$5.useColors;
-	var browser_6 = browser$5.storage;
-	var browser_7 = browser$5.colors;
 
 	var sparkMd5 = createCommonjsModule(function (module, exports) {
 	(function (factory) {
@@ -36905,6 +36232,205 @@ PivotToContents`);
 	}));
 	});
 
+	var rngBrowser = createCommonjsModule(function (module) {
+	// Unique ID creation requires a high quality random # generator.  In the
+	// browser this is a little complicated due to unknown quality of Math.random()
+	// and inconsistent support for the `crypto` API.  We do the best we can via
+	// feature-detection
+
+	// getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
+	var getRandomValues = (typeof(crypto) != 'undefined' && crypto.getRandomValues.bind(crypto)) ||
+	                      (typeof(msCrypto) != 'undefined' && msCrypto.getRandomValues.bind(msCrypto));
+	if (getRandomValues) {
+	  // WHATWG crypto RNG - http://wiki.whatwg.org/wiki/Crypto
+	  var rnds8 = new Uint8Array(16); // eslint-disable-line no-undef
+
+	  module.exports = function whatwgRNG() {
+	    getRandomValues(rnds8);
+	    return rnds8;
+	  };
+	} else {
+	  // Math.random()-based (RNG)
+	  //
+	  // If all else fails, use Math.random().  It's fast, but is of unspecified
+	  // quality.
+	  var rnds = new Array(16);
+
+	  module.exports = function mathRNG() {
+	    for (var i = 0, r; i < 16; i++) {
+	      if ((i & 0x03) === 0) r = Math.random() * 0x100000000;
+	      rnds[i] = r >>> ((i & 0x03) << 3) & 0xff;
+	    }
+
+	    return rnds;
+	  };
+	}
+	});
+
+	/**
+	 * Convert array of 16 byte values to UUID string format of the form:
+	 * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+	 */
+	var byteToHex = [];
+	for (var i = 0; i < 256; ++i) {
+	  byteToHex[i] = (i + 0x100).toString(16).substr(1);
+	}
+
+	function bytesToUuid(buf, offset) {
+	  var i = offset || 0;
+	  var bth = byteToHex;
+	  return bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] + '-' +
+	          bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]] +
+	          bth[buf[i++]] + bth[buf[i++]];
+	}
+
+	var bytesToUuid_1 = bytesToUuid;
+
+	// **`v1()` - Generate time-based UUID**
+	//
+	// Inspired by https://github.com/LiosK/UUID.js
+	// and http://docs.python.org/library/uuid.html
+
+	var _nodeId;
+	var _clockseq;
+
+	// Previous uuid creation time
+	var _lastMSecs = 0;
+	var _lastNSecs = 0;
+
+	// See https://github.com/broofa/node-uuid for API details
+	function v1(options, buf, offset) {
+	  var i = buf && offset || 0;
+	  var b = buf || [];
+
+	  options = options || {};
+	  var node = options.node || _nodeId;
+	  var clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq;
+
+	  // node and clockseq need to be initialized to random values if they're not
+	  // specified.  We do this lazily to minimize issues related to insufficient
+	  // system entropy.  See #189
+	  if (node == null || clockseq == null) {
+	    var seedBytes = rngBrowser();
+	    if (node == null) {
+	      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
+	      node = _nodeId = [
+	        seedBytes[0] | 0x01,
+	        seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]
+	      ];
+	    }
+	    if (clockseq == null) {
+	      // Per 4.2.2, randomize (14 bit) clockseq
+	      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+	    }
+	  }
+
+	  // UUID timestamps are 100 nano-second units since the Gregorian epoch,
+	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
+	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
+	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
+	  var msecs = options.msecs !== undefined ? options.msecs : new Date().getTime();
+
+	  // Per 4.2.1.2, use count of uuid's generated during the current clock
+	  // cycle to simulate higher resolution clock
+	  var nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1;
+
+	  // Time since last uuid creation (in msecs)
+	  var dt = (msecs - _lastMSecs) + (nsecs - _lastNSecs)/10000;
+
+	  // Per 4.2.1.2, Bump clockseq on clock regression
+	  if (dt < 0 && options.clockseq === undefined) {
+	    clockseq = clockseq + 1 & 0x3fff;
+	  }
+
+	  // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
+	  // time interval
+	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
+	    nsecs = 0;
+	  }
+
+	  // Per 4.2.1.2 Throw error if too many uuids are requested
+	  if (nsecs >= 10000) {
+	    throw new Error('uuid.v1(): Can\'t create more than 10M uuids/sec');
+	  }
+
+	  _lastMSecs = msecs;
+	  _lastNSecs = nsecs;
+	  _clockseq = clockseq;
+
+	  // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
+	  msecs += 12219292800000;
+
+	  // `time_low`
+	  var tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+	  b[i++] = tl >>> 24 & 0xff;
+	  b[i++] = tl >>> 16 & 0xff;
+	  b[i++] = tl >>> 8 & 0xff;
+	  b[i++] = tl & 0xff;
+
+	  // `time_mid`
+	  var tmh = (msecs / 0x100000000 * 10000) & 0xfffffff;
+	  b[i++] = tmh >>> 8 & 0xff;
+	  b[i++] = tmh & 0xff;
+
+	  // `time_high_and_version`
+	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
+	  b[i++] = tmh >>> 16 & 0xff;
+
+	  // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
+	  b[i++] = clockseq >>> 8 | 0x80;
+
+	  // `clock_seq_low`
+	  b[i++] = clockseq & 0xff;
+
+	  // `node`
+	  for (var n = 0; n < 6; ++n) {
+	    b[i + n] = node[n];
+	  }
+
+	  return buf ? buf : bytesToUuid_1(b);
+	}
+
+	var v1_1 = v1;
+
+	function v4(options, buf, offset) {
+	  var i = buf && offset || 0;
+
+	  if (typeof(options) == 'string') {
+	    buf = options === 'binary' ? new Array(16) : null;
+	    options = null;
+	  }
+	  options = options || {};
+
+	  var rnds = options.random || (options.rng || rngBrowser)();
+
+	  // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+	  rnds[6] = (rnds[6] & 0x0f) | 0x40;
+	  rnds[8] = (rnds[8] & 0x3f) | 0x80;
+
+	  // Copy bytes to buffer, if provided
+	  if (buf) {
+	    for (var ii = 0; ii < 16; ++ii) {
+	      buf[i + ii] = rnds[ii];
+	    }
+	  }
+
+	  return buf || bytesToUuid_1(rnds);
+	}
+
+	var v4_1 = v4;
+
+	var uuid = v4_1;
+	uuid.v1 = v1_1;
+	uuid.v4 = v4_1;
+
+	var uuid_1 = uuid;
+
 	/**
 	 * Stringify/parse functions that don't operate
 	 * recursively, so they avoid call stack exceeded
@@ -36977,7 +36503,7 @@ PivotToContents`);
 	  }
 	}
 
-	var parse$2 = function (str) {
+	var parse$1 = function (str) {
 	  var stack = [];
 	  var metaStack = []; // stack for arrays and objects
 	  var i = 0;
@@ -37079,11 +36605,8 @@ PivotToContents`);
 
 	var vuvuzela = {
 		stringify: stringify,
-		parse: parse$2
+		parse: parse$1
 	};
-
-	/* istanbul ignore next */
-	var PouchPromise = typeof Promise === 'function' ? Promise : browser$4;
 
 	function isBinaryObject(object) {
 	  return (typeof ArrayBuffer !== 'undefined' && object instanceof ArrayBuffer) ||
@@ -37200,7 +36723,7 @@ PivotToContents`);
 	    var self = this;
 	    // if the last argument is a function, assume its a callback
 	    var usedCB = (typeof args[args.length - 1] === 'function') ? args.pop() : false;
-	    var promise = new PouchPromise(function (fulfill, reject) {
+	    var promise = new Promise(function (fulfill, reject) {
 	      var resp;
 	      try {
 	        var callback = once$1(function (err, mesg) {
@@ -37256,15 +36779,15 @@ PivotToContents`);
 	function adapterFun(name, callback) {
 	  return toPromise(argsarray(function (args) {
 	    if (this._closed) {
-	      return PouchPromise.reject(new Error('database is closed'));
+	      return Promise.reject(new Error('database is closed'));
 	    }
 	    if (this._destroyed) {
-	      return PouchPromise.reject(new Error('database is destroyed'));
+	      return Promise.reject(new Error('database is destroyed'));
 	    }
 	    var self = this;
 	    logApiCall(self, name, args);
 	    if (!this.taskqueue.isReady) {
-	      return new PouchPromise(function (fulfill, reject) {
+	      return new Promise(function (fulfill, reject) {
 	        self.taskqueue.addTask(function (failed) {
 	          if (failed) {
 	            reject(failed);
@@ -37361,7 +36884,6 @@ PivotToContents`);
 	}
 
 	// based on https://github.com/montagejs/collections
-	/* global Map,Set */
 
 	var ExportedSet;
 	var ExportedMap;
@@ -37519,23 +37041,13 @@ PivotToContents`);
 
 	}
 
-	function isChromeApp() {
-	  return (typeof chrome !== "undefined" &&
-	    typeof chrome.storage !== "undefined" &&
-	    typeof chrome.storage.local !== "undefined");
-	}
-
 	var hasLocal;
 
-	if (isChromeApp()) {
+	try {
+	  localStorage.setItem('_pouch_check_localstorage', 1);
+	  hasLocal = !!localStorage.getItem('_pouch_check_localstorage');
+	} catch (e) {
 	  hasLocal = false;
-	} else {
-	  try {
-	    localStorage.setItem('_pouch_check_localstorage', 1);
-	    hasLocal = !!localStorage.getItem('_pouch_check_localstorage');
-	  } catch (e) {
-	    hasLocal = false;
-	  }
 	}
 
 	function hasLocalStorage() {
@@ -37543,39 +37055,15 @@ PivotToContents`);
 	}
 
 	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
-	// avoid using process.nextTick() directly because the polyfill is very large and we don't
-	// need all of it (see: https://github.com/defunctzombie/node-process).
-	// "immediate" 3.0.8 is used by lie, and it's a smaller version of the latest "immediate"
-	// package, so it's the one we use.
-	// When we use nextTick() in our codebase, we only care about not releasing Zalgo
-	// (see: http://blog.izs.me/post/59142742143/designing-apis-for-asynchrony).
-	// Microtask vs macrotask doesn't matter to us. So we're free to use the fastest
-	// (least latency) option, which is "immediate" due to use of microtasks.
-	// All of our nextTicks are isolated to this one function so we can easily swap out one
-	// implementation for another.
 
 	inherits_browser(Changes, EventEmitter);
 
 	/* istanbul ignore next */
 	function attachBrowserEvents(self) {
-	  if (isChromeApp()) {
-	    chrome.storage.onChanged.addListener(function (e) {
-	      // make sure it's event addressed to us
-	      if (e.db_name != null) {
-	        //object only has oldValue, newValue members
-	        self.emit(e.dbName.newValue);
-	      }
+	  if (hasLocalStorage()) {
+	    addEventListener("storage", function (e) {
+	      self.emit(e.key);
 	    });
-	  } else if (hasLocalStorage()) {
-	    if (typeof addEventListener !== 'undefined') {
-	      addEventListener("storage", function (e) {
-	        self.emit(e.key);
-	      });
-	    } else { // old IE
-	      window.attachEvent("storage", function (e) {
-	        self.emit(e.key);
-	      });
-	    }
 	  }
 	}
 
@@ -37604,7 +37092,7 @@ PivotToContents`);
 	    inprogress = true;
 	    var changesOpts = pick(opts, [
 	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
-	      'doc_ids', 'view', 'since', 'query_params', 'binary'
+	      'doc_ids', 'view', 'since', 'query_params', 'binary', 'return_docs'
 	    ]);
 
 	    /* istanbul ignore next */
@@ -37619,7 +37107,7 @@ PivotToContents`);
 	      }
 	    }).on('complete', function () {
 	      if (inprogress === 'waiting') {
-	        browser$3(eventFunction);
+	        browser$4(eventFunction);
 	      }
 	      inprogress = false;
 	    }).on('error', onError);
@@ -37643,9 +37131,7 @@ PivotToContents`);
 	Changes.prototype.notifyLocalWindows = function (dbName) {
 	  //do a useless change on a storage thing
 	  //in order to get other windows's listeners to activate
-	  if (isChromeApp()) {
-	    chrome.storage.local.set({dbName: dbName});
-	  } else if (hasLocalStorage()) {
+	  if (hasLocalStorage()) {
 	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
 	  }
 	};
@@ -37871,9 +37357,6 @@ PivotToContents`);
 	}
 
 	// shim for Function.prototype.name,
-	// for browsers that don't support it like IE
-
-	/* istanbul ignore next */
 
 	// Determine id an ID is valid
 	//   - invalid IDs begin with an underescore that does not begin '_design' or
@@ -37895,14 +37378,6 @@ PivotToContents`);
 	}
 
 	// Checks if a PouchDB object is "remote" or not. This is
-	// designed to opt-in to certain optimizations, such as
-	// avoiding checks for "dependentDbs" and other things that
-	// we know only apply to local databases. In general, "remote"
-	// should be true for the http adapter, and for third-party
-	// adapters with similar expensive boundaries to cross for
-	// every API call, such as socket-pouch and worker-pouch.
-	// Previously, this was handled via db.type() === 'http'
-	// which is now deprecated.
 
 	function isRemote(db) {
 	  if (typeof db._remote === 'boolean') {
@@ -37998,7 +37473,7 @@ PivotToContents`);
 	// the diffFun tells us what delta to apply to the doc.  it either returns
 	// the doc, or false if it doesn't need to do an update after all
 	function upsert(db, docId, diffFun) {
-	  return new PouchPromise(function (fulfill, reject) {
+	  return new Promise(function (fulfill, reject) {
 	    db.get(docId, function (err, doc) {
 	      if (err) {
 	        /* istanbul ignore next */
@@ -38042,8 +37517,194 @@ PivotToContents`);
 	  });
 	}
 
-	function rev() {
-	  return uuid_1.v4().replace(/-/g, '').toLowerCase();
+	var thisAtob = function (str) {
+	  return atob(str);
+	};
+
+	var thisBtoa = function (str) {
+	  return btoa(str);
+	};
+
+	// Abstracts constructing a Blob object, so it also works in older
+	// browsers that don't support the native Blob constructor (e.g.
+	// old QtWebKit versions, Android < 4.4).
+	function createBlob(parts, properties) {
+	  /* global BlobBuilder,MSBlobBuilder,MozBlobBuilder,WebKitBlobBuilder */
+	  parts = parts || [];
+	  properties = properties || {};
+	  try {
+	    return new Blob(parts, properties);
+	  } catch (e) {
+	    if (e.name !== "TypeError") {
+	      throw e;
+	    }
+	    var Builder = typeof BlobBuilder !== 'undefined' ? BlobBuilder :
+	                  typeof MSBlobBuilder !== 'undefined' ? MSBlobBuilder :
+	                  typeof MozBlobBuilder !== 'undefined' ? MozBlobBuilder :
+	                  WebKitBlobBuilder;
+	    var builder = new Builder();
+	    for (var i = 0; i < parts.length; i += 1) {
+	      builder.append(parts[i]);
+	    }
+	    return builder.getBlob(properties.type);
+	  }
+	}
+
+	// From http://stackoverflow.com/questions/14967647/ (continues on next line)
+	// encode-decode-image-with-base64-breaks-image (2013-04-21)
+	function binaryStringToArrayBuffer(bin) {
+	  var length = bin.length;
+	  var buf = new ArrayBuffer(length);
+	  var arr = new Uint8Array(buf);
+	  for (var i = 0; i < length; i++) {
+	    arr[i] = bin.charCodeAt(i);
+	  }
+	  return buf;
+	}
+
+	function binStringToBluffer(binString, type) {
+	  return createBlob([binaryStringToArrayBuffer(binString)], {type: type});
+	}
+
+	function b64ToBluffer(b64, type) {
+	  return binStringToBluffer(thisAtob(b64), type);
+	}
+
+	//Can't find original post, but this is close
+	//http://stackoverflow.com/questions/6965107/ (continues on next line)
+	//converting-between-strings-and-arraybuffers
+	function arrayBufferToBinaryString(buffer) {
+	  var binary = '';
+	  var bytes = new Uint8Array(buffer);
+	  var length = bytes.byteLength;
+	  for (var i = 0; i < length; i++) {
+	    binary += String.fromCharCode(bytes[i]);
+	  }
+	  return binary;
+	}
+
+	// shim for browsers that don't support it
+	function readAsBinaryString(blob, callback) {
+	  var reader = new FileReader();
+	  var hasBinaryString = typeof reader.readAsBinaryString === 'function';
+	  reader.onloadend = function (e) {
+	    var result = e.target.result || '';
+	    if (hasBinaryString) {
+	      return callback(result);
+	    }
+	    callback(arrayBufferToBinaryString(result));
+	  };
+	  if (hasBinaryString) {
+	    reader.readAsBinaryString(blob);
+	  } else {
+	    reader.readAsArrayBuffer(blob);
+	  }
+	}
+
+	function blobToBinaryString(blobOrBuffer, callback) {
+	  readAsBinaryString(blobOrBuffer, function (bin) {
+	    callback(bin);
+	  });
+	}
+
+	function blobToBase64(blobOrBuffer, callback) {
+	  blobToBinaryString(blobOrBuffer, function (base64) {
+	    callback(thisBtoa(base64));
+	  });
+	}
+
+	// simplified API. universal browser support is assumed
+	function readAsArrayBuffer(blob, callback) {
+	  var reader = new FileReader();
+	  reader.onloadend = function (e) {
+	    var result = e.target.result || new ArrayBuffer(0);
+	    callback(result);
+	  };
+	  reader.readAsArrayBuffer(blob);
+	}
+
+	// this is not used in the browser
+
+	var setImmediateShim = global$1.setImmediate || global$1.setTimeout;
+	var MD5_CHUNK_SIZE = 32768;
+
+	function rawToBase64(raw) {
+	  return thisBtoa(raw);
+	}
+
+	function sliceBlob(blob, start, end) {
+	  if (blob.webkitSlice) {
+	    return blob.webkitSlice(start, end);
+	  }
+	  return blob.slice(start, end);
+	}
+
+	function appendBlob(buffer, blob, start, end, callback) {
+	  if (start > 0 || end < blob.size) {
+	    // only slice blob if we really need to
+	    blob = sliceBlob(blob, start, end);
+	  }
+	  readAsArrayBuffer(blob, function (arrayBuffer) {
+	    buffer.append(arrayBuffer);
+	    callback();
+	  });
+	}
+
+	function appendString(buffer, string, start, end, callback) {
+	  if (start > 0 || end < string.length) {
+	    // only create a substring if we really need to
+	    string = string.substring(start, end);
+	  }
+	  buffer.appendBinary(string);
+	  callback();
+	}
+
+	function binaryMd5(data, callback) {
+	  var inputIsString = typeof data === 'string';
+	  var len = inputIsString ? data.length : data.size;
+	  var chunkSize = Math.min(MD5_CHUNK_SIZE, len);
+	  var chunks = Math.ceil(len / chunkSize);
+	  var currentChunk = 0;
+	  var buffer = inputIsString ? new sparkMd5() : new sparkMd5.ArrayBuffer();
+
+	  var append = inputIsString ? appendString : appendBlob;
+
+	  function next() {
+	    setImmediateShim(loadNextChunk);
+	  }
+
+	  function done() {
+	    var raw = buffer.end(true);
+	    var base64 = rawToBase64(raw);
+	    callback(base64);
+	    buffer.destroy();
+	  }
+
+	  function loadNextChunk() {
+	    var start = currentChunk * chunkSize;
+	    var end = start + chunkSize;
+	    currentChunk++;
+	    if (currentChunk < chunks) {
+	      append(buffer, data, start, end, next);
+	    } else {
+	      append(buffer, data, start, end, done);
+	    }
+	  }
+	  loadNextChunk();
+	}
+
+	function stringMd5(string) {
+	  return sparkMd5.hash(string);
+	}
+
+	function rev$$1(doc, deterministic_revs) {
+	  var clonedDoc = clone(doc);
+	  if (!deterministic_revs) {
+	    return uuid_1.v4().replace(/-/g, '').toLowerCase();
+	  }
+
+	  delete clonedDoc._rev_tree;
+	  return stringMd5(JSON.stringify(clonedDoc));
 	}
 
 	var uuid$1 = uuid_1.v4;
@@ -38177,15 +37838,6 @@ PivotToContents`);
 	}
 
 	// for a better overview of what this is doing, read:
-	// https://github.com/apache/couchdb-couch/blob/master/src/couch_key_tree.erl
-	//
-	// But for a quick intro, CouchDB uses a revision tree to store a documents
-	// history, A -> B -> C, when a document has conflicts, that is a branch in the
-	// tree, A -> (B1 | B2 -> C), We store these as a nested array in the format
-	//
-	// KeyTree = [Path ... ]
-	// Path = {pos: position_from_root, ids: Tree}
-	// Tree = [Key, Opts, [Tree, ...]], in particular single node: [Key, []]
 
 	function sortByPos$1(a, b) {
 	  return a.pos - b.pos;
@@ -38508,7 +38160,7 @@ PivotToContents`);
 	  throw new Error('Unable to resolve latest revision for id ' + metadata.id + ', rev ' + rev);
 	}
 
-	inherits_browser(Changes$2, EventEmitter);
+	inherits_browser(Changes$1, EventEmitter);
 
 	function tryCatchInChangeListener(self, change, pending, lastSeq) {
 	  // isolate try/catches to avoid V8 deoptimizations
@@ -38519,7 +38171,7 @@ PivotToContents`);
 	  }
 	}
 
-	function Changes$2(db, opts, callback) {
+	function Changes$1(db, opts, callback) {
 	  EventEmitter.call(this);
 	  var self = this;
 	  this.db = db;
@@ -38554,7 +38206,7 @@ PivotToContents`);
 	    tryCatchInChangeListener(self, change, pending, lastSeq);
 	  };
 
-	  var promise = new PouchPromise(function (fulfill, reject) {
+	  var promise = new Promise(function (fulfill, reject) {
 	    opts.complete = function (err, res) {
 	      if (err) {
 	        reject(err);
@@ -38589,7 +38241,7 @@ PivotToContents`);
 	    self.validateChanges(opts);
 	  }
 	}
-	Changes$2.prototype.cancel = function () {
+	Changes$1.prototype.cancel = function () {
 	  this.isCancelled = true;
 	  if (this.db.taskqueue.isReady) {
 	    this.emit('cancel');
@@ -38619,7 +38271,7 @@ PivotToContents`);
 	  return change;
 	}
 
-	Changes$2.prototype.validateChanges = function (opts) {
+	Changes$1.prototype.validateChanges = function (opts) {
 	  var callback = opts.complete;
 	  var self = this;
 
@@ -38636,7 +38288,7 @@ PivotToContents`);
 	  }
 	};
 
-	Changes$2.prototype.doChanges = function (opts) {
+	Changes$1.prototype.doChanges = function (opts) {
 	  var self = this;
 	  var callback = opts.complete;
 
@@ -38758,14 +38410,14 @@ PivotToContents`);
 	  var height = {};
 	  var edges = [];
 	  traverseRevTree(revs, function (isLeaf, pos, id, prnt) {
-	    var rev$$1 = pos + "-" + id;
+	    var rev = pos + "-" + id;
 	    if (isLeaf) {
-	      height[rev$$1] = 0;
+	      height[rev] = 0;
 	    }
 	    if (prnt !== undefined) {
-	      edges.push({from: prnt, to: rev$$1});
+	      edges.push({from: prnt, to: rev});
 	    }
-	    return rev$$1;
+	    return rev;
 	  });
 
 	  edges.reverse();
@@ -38811,7 +38463,7 @@ PivotToContents`);
 	      } else {
 	        callback(null, res);
 	      }
-	      browser$3(function () {
+	      browser$4(function () {
 	        self._compactionQueue.shift();
 	        if (self._compactionQueue.length) {
 	          doNextCompaction(self);
@@ -38833,6 +38485,13 @@ PivotToContents`);
 
 	function AbstractPouchDB() {
 	  EventEmitter.call(this);
+
+	  // re-bind prototyped methods
+	  for (var p in AbstractPouchDB.prototype) {
+	    if (typeof this[p] === 'function') {
+	      this[p] = this[p].bind(this);
+	    }
+	  }
 	}
 
 	AbstractPouchDB.prototype.post =
@@ -38880,7 +38539,7 @@ PivotToContents`);
 	    var oldRevNum = parseInt(parts[0], 10);
 
 	    var newRevNum = oldRevNum + 1;
-	    var newRevId = rev();
+	    var newRevId = rev$$1();
 
 	    doc._revisions = {
 	      start: newRevNum,
@@ -38899,20 +38558,20 @@ PivotToContents`);
 	});
 
 	AbstractPouchDB.prototype.putAttachment =
-	  adapterFun('putAttachment', function (docId, attachmentId, rev$$1,
+	  adapterFun('putAttachment', function (docId, attachmentId, rev,
 	                                              blob, type) {
 	  var api = this;
 	  if (typeof type === 'function') {
 	    type = blob;
-	    blob = rev$$1;
-	    rev$$1 = null;
+	    blob = rev;
+	    rev = null;
 	  }
 	  // Lets fix in https://github.com/pouchdb/pouchdb/issues/3267
 	  /* istanbul ignore if */
 	  if (typeof type === 'undefined') {
 	    type = blob;
-	    blob = rev$$1;
-	    rev$$1 = null;
+	    blob = rev;
+	    rev = null;
 	  }
 	  if (!type) {
 	    guardedConsole('warn', 'Attachment', attachmentId, 'on document', docId, 'is missing content_type');
@@ -38930,7 +38589,7 @@ PivotToContents`);
 	  }
 
 	  return api.get(docId).then(function (doc) {
-	    if (doc._rev !== rev$$1) {
+	    if (doc._rev !== rev) {
 	      throw createError(REV_CONFLICT);
 	    }
 
@@ -38947,7 +38606,7 @@ PivotToContents`);
 	});
 
 	AbstractPouchDB.prototype.removeAttachment =
-	  adapterFun('removeAttachment', function (docId, attachmentId, rev$$1,
+	  adapterFun('removeAttachment', function (docId, attachmentId, rev,
 	                                                 callback) {
 	  var self = this;
 	  self.get(docId, function (err, obj) {
@@ -38956,7 +38615,7 @@ PivotToContents`);
 	      callback(err);
 	      return;
 	    }
-	    if (obj._rev !== rev$$1) {
+	    if (obj._rev !== rev) {
 	      callback(createError(REV_CONFLICT));
 	      return;
 	    }
@@ -39033,8 +38692,8 @@ PivotToContents`);
 	    var missingForId = req[id].slice(0);
 	    traverseRevTree(rev_tree, function (isLeaf, pos, revHash, ctx,
 	      opts) {
-	        var rev$$1 = pos + '-' + revHash;
-	        var idx = missingForId.indexOf(rev$$1);
+	        var rev = pos + '-' + revHash;
+	        var idx = missingForId.indexOf(rev);
 	        if (idx === -1) {
 	          return;
 	        }
@@ -39042,14 +38701,14 @@ PivotToContents`);
 	        missingForId.splice(idx, 1);
 	        /* istanbul ignore if */
 	        if (opts.status !== 'available') {
-	          addToMissing(id, rev$$1);
+	          addToMissing(id, rev);
 	        }
 	      });
 
 	    // Traversing the tree is synchronous, so now `missingForId` contains
 	    // revisions that were not found in the tree
-	    missingForId.forEach(function (rev$$1) {
-	      addToMissing(id, rev$$1);
+	    missingForId.forEach(function (rev) {
+	      addToMissing(id, rev);
 	    });
 	  }
 
@@ -39102,16 +38761,16 @@ PivotToContents`);
 	    var height = computeHeight(revTree);
 	    var candidates = [];
 	    var revs = [];
-	    Object.keys(height).forEach(function (rev$$1) {
-	      if (height[rev$$1] > maxHeight) {
-	        candidates.push(rev$$1);
+	    Object.keys(height).forEach(function (rev) {
+	      if (height[rev] > maxHeight) {
+	        candidates.push(rev);
 	      }
 	    });
 
 	    traverseRevTree(revTree, function (isLeaf, pos, revHash, ctx, opts) {
-	      var rev$$1 = pos + '-' + revHash;
-	      if (opts.status === 'available' && candidates.indexOf(rev$$1) !== -1) {
-	        revs.push(rev$$1);
+	      var rev = pos + '-' + revHash;
+	      if (opts.status === 'available' && candidates.indexOf(rev) !== -1) {
+	        revs.push(rev);
 	      }
 	    });
 	    self._doCompaction(docId, revs, callback);
@@ -39149,7 +38808,7 @@ PivotToContents`);
 	  }
 	  function onComplete(resp) {
 	    var lastSeq = resp.last_seq;
-	    PouchPromise.all(promises).then(function () {
+	    Promise.all(promises).then(function () {
 	      return upsert(self, '_local/compaction', function deltaFunc(doc) {
 	        if (!doc.last_seq || doc.last_seq < lastSeq) {
 	          doc.last_seq = lastSeq;
@@ -39225,6 +38884,7 @@ PivotToContents`);
 	  if (opts.open_revs) {
 	    if (opts.open_revs === "all") {
 	      this._getRevisionTree(id, function (err, rev_tree) {
+	        /* istanbul ignore if */
 	        if (err) {
 	          return cb(err);
 	        }
@@ -39300,18 +38960,18 @@ PivotToContents`);
 	      if (opts.revs) {
 	        doc._revisions = {
 	          start: (path.pos + path.ids.length) - 1,
-	          ids: path.ids.map(function (rev$$1) {
-	            return rev$$1.id;
+	          ids: path.ids.map(function (rev) {
+	            return rev.id;
 	          })
 	        };
 	      }
 	      if (opts.revs_info) {
 	        var pos =  path.pos + path.ids.length;
-	        doc._revs_info = path.ids.map(function (rev$$1) {
+	        doc._revs_info = path.ids.map(function (rev) {
 	          pos--;
 	          return {
-	            rev: pos + '-' + rev$$1.id,
-	            status: rev$$1.opts.status
+	            rev: pos + '-' + rev.id,
+	            status: rev.opts.status
 	          };
 	        });
 	      }
@@ -39424,7 +39084,15 @@ PivotToContents`);
 	    callback = opts;
 	    opts = {};
 	  }
-	  return new Changes$2(this, opts, callback);
+
+	  opts = opts || {};
+
+	  // By default set return_docs to false if the caller has opts.live = true,
+	  // this will prevent us from collecting the set of changes indefinitely
+	  // resulting in growing memory
+	  opts.return_docs = ('return_docs' in opts) ? opts.return_docs : !opts.live;
+
+	  return new Changes$1(this, opts, callback);
 	};
 
 	AbstractPouchDB.prototype.close = adapterFun('close', function (callback) {
@@ -39607,17 +39275,17 @@ PivotToContents`);
 	        name.replace(new RegExp('^' + PouchDB.prefix), '') : name;
 	      return new PouchDB(trueName, self.__opts).destroy();
 	    });
-	    PouchPromise.all(deletedMap).then(destroyDb, callback);
+	    Promise.all(deletedMap).then(destroyDb, callback);
 	  });
 	});
 
-	function TaskQueue$1() {
+	function TaskQueue() {
 	  this.isReady = false;
 	  this.failed = false;
 	  this.queue = [];
 	}
 
-	TaskQueue$1.prototype.execute = function () {
+	TaskQueue.prototype.execute = function () {
 	  var fun;
 	  if (this.failed) {
 	    while ((fun = this.queue.shift())) {
@@ -39630,18 +39298,18 @@ PivotToContents`);
 	  }
 	};
 
-	TaskQueue$1.prototype.fail = function (err) {
+	TaskQueue.prototype.fail = function (err) {
 	  this.failed = err;
 	  this.execute();
 	};
 
-	TaskQueue$1.prototype.ready = function (db) {
+	TaskQueue.prototype.ready = function (db) {
 	  this.isReady = true;
 	  this.db = db;
 	  this.execute();
 	};
 
-	TaskQueue$1.prototype.addTask = function (fun) {
+	TaskQueue.prototype.addTask = function (fun) {
 	  this.queue.push(fun);
 	  if (this.failed) {
 	    this.execute();
@@ -39737,6 +39405,10 @@ PivotToContents`);
 	    delete opts.name;
 	  }
 
+	  if (opts.deterministic_revs === undefined) {
+	    opts.deterministic_revs = true;
+	  }
+
 	  this.__opts = opts = clone(opts);
 
 	  self.auto_compaction = opts.auto_compaction;
@@ -39762,7 +39434,7 @@ PivotToContents`);
 	  }
 
 	  AbstractPouchDB.call(self);
-	  self.taskqueue = new TaskQueue$1();
+	  self.taskqueue = new TaskQueue();
 
 	  self.adapter = opts.adapter;
 
@@ -39778,6 +39450,15 @@ PivotToContents`);
 	  });
 
 	}
+
+	// AbortController was introduced quite a while after fetch and
+	// isnt required for PouchDB to function so polyfill if needed
+	var a = (typeof AbortController !== 'undefined')
+	    ? AbortController
+	    : function () { return {abort: function () {}}; };
+
+	var f$1 = fetch;
+	var h = Headers;
 
 	PouchDB.adapters = {};
 	PouchDB.preferredAdapters = [];
@@ -39897,24 +39578,12 @@ PivotToContents`);
 	  return PouchAlt;
 	};
 
-	// managed automatically by set-version.js
-	var version$5 = "6.4.3";
+	PouchDB.fetch = function (url, opts) {
+	  return f$1(url, opts);
+	};
 
-	function debugPouch(PouchDB) {
-	  PouchDB.debug = browser$5;
-	  var logs = {};
-	  /* istanbul ignore next */
-	  PouchDB.on('debug', function (args) {
-	    // first argument is log identifier
-	    var logId = args[0];
-	    // rest should be passed verbatim to debug module
-	    var logArgs = args.slice(1);
-	    if (!logs[logId]) {
-	      logs[logId] = browser$5('pouchdb:' + logId);
-	    }
-	    logs[logId].apply(null, logArgs);
-	  });
-	}
+	// managed automatically by set-version.js
+	var version$5 = "7.0.0";
 
 	// this would just be "return doc[field]", but fields
 	// can be "deep" due to dot notation
@@ -40252,10 +39921,12 @@ PivotToContents`);
 	        // 0 -> 1, 1
 	        // 1 -> 1, 2
 	        // 2 -> 2, 2
+	        /* eslint-disable no-control-regex */
 	        return key
 	          .replace(/\u0002/g, '\u0002\u0002')
 	          .replace(/\u0001/g, '\u0001\u0002')
 	          .replace(/\u0000/g, '\u0001\u0001');
+	        /* eslint-enable no-control-regex */
 	      case 'object':
 	        var isArray = Array.isArray(key);
 	        var arr = isArray ? key : Object.keys(key);
@@ -40404,9 +40075,11 @@ PivotToContents`);
 	        }
 	        // perform the reverse of the order-preserving replacement
 	        // algorithm (see above)
+	        /* eslint-disable no-control-regex */
 	        parsedStr = parsedStr.replace(/\u0001\u0001/g, '\u0000')
 	          .replace(/\u0001\u0002/g, '\u0001')
 	          .replace(/\u0002\u0002/g, '\u0002');
+	        /* eslint-enable no-control-regex */
 	        stack.push(parsedStr);
 	        break;
 	      case '5':
@@ -40958,9 +40631,6 @@ PivotToContents`);
 	}
 
 	// TODO: remove from pouchdb-core (breaking)
-	PouchDB.plugin(debugPouch);
-
-	// TODO: remove from pouchdb-core (breaking)
 	PouchDB.plugin(applyChangesFilterPlugin);
 
 	PouchDB.version = version$5;
@@ -41004,13 +40674,13 @@ PivotToContents`);
 	  '_replication_stats'
 	]);
 
-	function parseRevisionInfo(rev$$1) {
-	  if (!/^\d+-./.test(rev$$1)) {
+	function parseRevisionInfo(rev) {
+	  if (!/^\d+-./.test(rev)) {
 	    return createError(INVALID_REV);
 	  }
-	  var idx = rev$$1.indexOf('-');
-	  var left = rev$$1.substring(0, idx);
-	  var right = rev$$1.substring(idx + 1);
+	  var idx = rev.indexOf('-');
+	  var left = rev.substring(0, idx);
+	  var right = rev.substring(idx + 1);
 	  return {
 	    prefix: parseInt(left, 10),
 	    id: right
@@ -41035,7 +40705,12 @@ PivotToContents`);
 
 	// Preprocess documents, parse their revisions, assign an id and a
 	// revision for new writes that are missing them, etc
-	function parseDoc(doc, newEdits) {
+	function parseDoc(doc, newEdits, dbOpts) {
+	  if (!dbOpts) {
+	    dbOpts = {
+	      deterministic_revs: true
+	    };
+	  }
 
 	  var nRevNum;
 	  var newRevId;
@@ -41049,7 +40724,7 @@ PivotToContents`);
 	    if (!doc._id) {
 	      doc._id = uuid$1();
 	    }
-	    newRevId = rev();
+	    newRevId = rev$$1(doc, dbOpts.deterministic_revs);
 	    if (doc._rev) {
 	      revInfo = parseRevisionInfo(doc._rev);
 	      if (revInfo.error) {
@@ -41108,199 +40783,6 @@ PivotToContents`);
 	    }
 	  }
 	  return result;
-	}
-
-	var thisAtob = function (str) {
-	  return atob(str);
-	};
-
-	var thisBtoa = function (str) {
-	  return btoa(str);
-	};
-
-	// Abstracts constructing a Blob object, so it also works in older
-	// browsers that don't support the native Blob constructor (e.g.
-	// old QtWebKit versions, Android < 4.4).
-	function createBlob(parts, properties) {
-	  /* global BlobBuilder,MSBlobBuilder,MozBlobBuilder,WebKitBlobBuilder */
-	  parts = parts || [];
-	  properties = properties || {};
-	  try {
-	    return new Blob(parts, properties);
-	  } catch (e) {
-	    if (e.name !== "TypeError") {
-	      throw e;
-	    }
-	    var Builder = typeof BlobBuilder !== 'undefined' ? BlobBuilder :
-	                  typeof MSBlobBuilder !== 'undefined' ? MSBlobBuilder :
-	                  typeof MozBlobBuilder !== 'undefined' ? MozBlobBuilder :
-	                  WebKitBlobBuilder;
-	    var builder = new Builder();
-	    for (var i = 0; i < parts.length; i += 1) {
-	      builder.append(parts[i]);
-	    }
-	    return builder.getBlob(properties.type);
-	  }
-	}
-
-	// From http://stackoverflow.com/questions/14967647/ (continues on next line)
-	// encode-decode-image-with-base64-breaks-image (2013-04-21)
-	function binaryStringToArrayBuffer(bin) {
-	  var length = bin.length;
-	  var buf = new ArrayBuffer(length);
-	  var arr = new Uint8Array(buf);
-	  for (var i = 0; i < length; i++) {
-	    arr[i] = bin.charCodeAt(i);
-	  }
-	  return buf;
-	}
-
-	function binStringToBluffer(binString, type) {
-	  return createBlob([binaryStringToArrayBuffer(binString)], {type: type});
-	}
-
-	function b64ToBluffer(b64, type) {
-	  return binStringToBluffer(thisAtob(b64), type);
-	}
-
-	//Can't find original post, but this is close
-	//http://stackoverflow.com/questions/6965107/ (continues on next line)
-	//converting-between-strings-and-arraybuffers
-	function arrayBufferToBinaryString(buffer) {
-	  var binary = '';
-	  var bytes = new Uint8Array(buffer);
-	  var length = bytes.byteLength;
-	  for (var i = 0; i < length; i++) {
-	    binary += String.fromCharCode(bytes[i]);
-	  }
-	  return binary;
-	}
-
-	// shim for browsers that don't support it
-	function readAsBinaryString(blob, callback) {
-	  if (typeof FileReader === 'undefined') {
-	    // fix for Firefox in a web worker
-	    // https://bugzilla.mozilla.org/show_bug.cgi?id=901097
-	    return callback(arrayBufferToBinaryString(
-	      new FileReaderSync().readAsArrayBuffer(blob)));
-	  }
-
-	  var reader = new FileReader();
-	  var hasBinaryString = typeof reader.readAsBinaryString === 'function';
-	  reader.onloadend = function (e) {
-	    var result = e.target.result || '';
-	    if (hasBinaryString) {
-	      return callback(result);
-	    }
-	    callback(arrayBufferToBinaryString(result));
-	  };
-	  if (hasBinaryString) {
-	    reader.readAsBinaryString(blob);
-	  } else {
-	    reader.readAsArrayBuffer(blob);
-	  }
-	}
-
-	function blobToBinaryString(blobOrBuffer, callback) {
-	  readAsBinaryString(blobOrBuffer, function (bin) {
-	    callback(bin);
-	  });
-	}
-
-	function blobToBase64(blobOrBuffer, callback) {
-	  blobToBinaryString(blobOrBuffer, function (base64) {
-	    callback(thisBtoa(base64));
-	  });
-	}
-
-	// simplified API. universal browser support is assumed
-	function readAsArrayBuffer(blob, callback) {
-	  if (typeof FileReader === 'undefined') {
-	    // fix for Firefox in a web worker:
-	    // https://bugzilla.mozilla.org/show_bug.cgi?id=901097
-	    return callback(new FileReaderSync().readAsArrayBuffer(blob));
-	  }
-
-	  var reader = new FileReader();
-	  reader.onloadend = function (e) {
-	    var result = e.target.result || new ArrayBuffer(0);
-	    callback(result);
-	  };
-	  reader.readAsArrayBuffer(blob);
-	}
-
-	// this is not used in the browser
-
-	var setImmediateShim = global$1.setImmediate || global$1.setTimeout;
-	var MD5_CHUNK_SIZE = 32768;
-
-	function rawToBase64(raw) {
-	  return thisBtoa(raw);
-	}
-
-	function sliceBlob(blob, start, end) {
-	  if (blob.webkitSlice) {
-	    return blob.webkitSlice(start, end);
-	  }
-	  return blob.slice(start, end);
-	}
-
-	function appendBlob(buffer, blob, start, end, callback) {
-	  if (start > 0 || end < blob.size) {
-	    // only slice blob if we really need to
-	    blob = sliceBlob(blob, start, end);
-	  }
-	  readAsArrayBuffer(blob, function (arrayBuffer) {
-	    buffer.append(arrayBuffer);
-	    callback();
-	  });
-	}
-
-	function appendString(buffer, string, start, end, callback) {
-	  if (start > 0 || end < string.length) {
-	    // only create a substring if we really need to
-	    string = string.substring(start, end);
-	  }
-	  buffer.appendBinary(string);
-	  callback();
-	}
-
-	function binaryMd5(data, callback) {
-	  var inputIsString = typeof data === 'string';
-	  var len = inputIsString ? data.length : data.size;
-	  var chunkSize = Math.min(MD5_CHUNK_SIZE, len);
-	  var chunks = Math.ceil(len / chunkSize);
-	  var currentChunk = 0;
-	  var buffer = inputIsString ? new sparkMd5() : new sparkMd5.ArrayBuffer();
-
-	  var append = inputIsString ? appendString : appendBlob;
-
-	  function next() {
-	    setImmediateShim(loadNextChunk);
-	  }
-
-	  function done() {
-	    var raw = buffer.end(true);
-	    var base64 = rawToBase64(raw);
-	    callback(base64);
-	    buffer.destroy();
-	  }
-
-	  function loadNextChunk() {
-	    var start = currentChunk * chunkSize;
-	    var end = start + chunkSize;
-	    currentChunk++;
-	    if (currentChunk < chunks) {
-	      append(buffer, data, start, end, next);
-	    } else {
-	      append(buffer, data, start, end, done);
-	    }
-	  }
-	  loadNextChunk();
-	}
-
-	function stringMd5(string) {
-	  return sparkMd5.hash(string);
 	}
 
 	function parseBase64(data) {
@@ -41414,7 +40896,7 @@ PivotToContents`);
 	function updateDoc(revLimit, prev, docInfo, results,
 	                   i, cb, writeDoc, newEdits) {
 
-	  if (revExists(prev.rev_tree, docInfo.metadata.rev)) {
+	  if (revExists(prev.rev_tree, docInfo.metadata.rev) && !newEdits) {
 	    results[i] = docInfo;
 	    return cb();
 	  }
@@ -41735,17 +41217,17 @@ PivotToContents`);
 	// a base64-encoded string, and if it's a Blob it
 	// needs to be read outside of the transaction context
 	function postProcessAttachments(results, asBlob) {
-	  return PouchPromise.all(results.map(function (row) {
+	  return Promise.all(results.map(function (row) {
 	    if (row.doc && row.doc._attachments) {
 	      var attNames = Object.keys(row.doc._attachments);
-	      return PouchPromise.all(attNames.map(function (att) {
+	      return Promise.all(attNames.map(function (att) {
 	        var attObj = row.doc._attachments[att];
 	        if (!('body' in attObj)) { // already processed
 	          return;
 	        }
 	        var body = attObj.body;
 	        var type = attObj.content_type;
-	        return new PouchPromise(function (resolve) {
+	        return new Promise(function (resolve) {
 	          readBlobData(body, type, asBlob, function (data) {
 	            row.doc._attachments[att] = $inject_Object_assign(
 	              pick(attObj, ['digest', 'content_type']),
@@ -41792,9 +41274,9 @@ PivotToContents`);
 	    });
 	  }
 
-	  revs.forEach(function (rev$$1) {
+	  revs.forEach(function (rev) {
 	    var index = seqStore.index('_doc_id_rev');
-	    var key = docId + "::" + rev$$1;
+	    var key = docId + "::" + rev;
 	    index.getKey(key).onsuccess = function (e) {
 	      var seq = e.target.result;
 	      if (typeof seq !== 'number') {
@@ -41832,7 +41314,7 @@ PivotToContents`);
 	  }
 	}
 
-	var changesHandler$$1 = new Changes();
+	var changesHandler = new Changes();
 
 	function idbBulkDocs(dbOpts, req, opts, api, idb, callback) {
 	  var docInfos = req.docs;
@@ -41850,7 +41332,7 @@ PivotToContents`);
 	    if (doc._id && isLocalId(doc._id)) {
 	      continue;
 	    }
-	    doc = docInfos[i] = parseDoc(doc, opts.new_edits);
+	    doc = docInfos[i] = parseDoc(doc, opts.new_edits, dbOpts);
 	    if (doc.error && !docInfoError) {
 	      docInfoError = doc;
 	    }
@@ -41969,7 +41451,7 @@ PivotToContents`);
 	      return;
 	    }
 
-	    changesHandler$$1.notify(api._meta.name);
+	    changesHandler.notify(api._meta.name);
 	    callback(null, results);
 	  }
 
@@ -42210,11 +41692,13 @@ PivotToContents`);
 	// we're not processing each document one-at-a-time.
 	function runBatchedCursor(objectStore, keyRange, descending, batchSize, onBatch) {
 
+	  if (batchSize === -1) {
+	    batchSize = 1000;
+	  }
+
 	  // Bail out of getAll()/getAllKeys() in the following cases:
 	  // 1) either method is unsupported - we need both
-	  // 2) batchSize is 1 (might as well use IDBCursor), or batchSize is -1 (i.e. batchSize unlimited,
-	  //    not really clear the user wants a batched approach where the entire DB is read into memory,
-	  //    perhaps they are filtering on a per-doc basis)
+	  // 2) batchSize is 1 (might as well use IDBCursor)
 	  // 3) descending – no real way to do this via getAll()/getAllKeys()
 
 	  var useGetAll = typeof objectStore.getAll === 'function' &&
@@ -42314,7 +41798,7 @@ PivotToContents`);
 
 	function allDocsKeys(keys, docStore, onBatch) {
 	  // It's not guaranted to be returned in right order  
-	  var valuesBatch = [];
+	  var valuesBatch = new Array(keys.length);
 	  var count = 0;
 	  keys.forEach(function (key, index) {
 	    docStore.get(key).onsuccess = function (event) {
@@ -42369,7 +41853,7 @@ PivotToContents`);
 	  var limit = typeof opts.limit === 'number' ? opts.limit : -1;
 	  var inclusiveEnd = opts.inclusive_end !== false;
 
-	  var keyRange; 
+	  var keyRange ; 
 	  var keyRangeError;
 	  if (!keys) {
 	    keyRange = createKeyRange(start, end, inclusiveEnd, key, opts.descending);
@@ -42437,7 +41921,7 @@ PivotToContents`);
 	  function fetchDocAsynchronously(metadata, row, winningRev$$1) {
 	    var key = metadata.id + "::" + winningRev$$1;
 	    docIdRevIndex.get(key).onsuccess =  function onGetDoc(e) {
-	      row.doc = decodeDoc(e.target.result);
+	      row.doc = decodeDoc(e.target.result) || {};
 	      if (opts.conflicts) {
 	        var conflicts = collectConflicts(metadata);
 	        if (conflicts.length) {
@@ -42557,7 +42041,7 @@ PivotToContents`);
 	// FileReader bug: https://code.google.com/p/chromium/issues/detail?id=447836
 	//
 	function checkBlobSupport(txn) {
-	  return new PouchPromise(function (resolve) {
+	  return new Promise(function (resolve) {
 	    var blob$$1 = createBlob(['']);
 	    var req = txn.objectStore(DETECT_BLOB_SUPPORT_STORE).put(blob$$1, 'key');
 
@@ -42570,7 +42054,7 @@ PivotToContents`);
 	        parseInt(matchedChrome[1], 10) >= 43);
 	    };
 
-	    txn.onabort = function (e) {
+	    req.onerror = txn.onabort = function (e) {
 	      // If the transaction aborts now its due to not being able to
 	      // write to the database, likely due to the disk being full
 	      e.preventDefault();
@@ -42590,8 +42074,6 @@ PivotToContents`);
 	}
 
 	// This task queue ensures that IDB open calls are done in their own tick
-	// and sequentially - i.e. we wait for the async IDB open to *fully* complete
-	// before calling the next one. This works around IE/Edge race conditions in IDB.
 
 	var running = false;
 	var queue$2 = [];
@@ -42620,7 +42102,7 @@ PivotToContents`);
 	    action(function runCallback(err, res) {
 	      tryCode(callback, err, res, PouchDB);
 	      running = false;
-	      browser$3(function runNext() {
+	      browser$4(function runNext() {
 	        applyNext(PouchDB);
 	      });
 	    });
@@ -42633,11 +42115,11 @@ PivotToContents`);
 
 	  if (opts.continuous) {
 	    var id = dbName + ':' + uuid$1();
-	    changesHandler$$1.addListener(dbName, id, api, opts);
-	    changesHandler$$1.notify(dbName);
+	    changesHandler.addListener(dbName, id, api, opts);
+	    changesHandler.notify(dbName);
 	    return {
 	      cancel: function () {
-	        changesHandler$$1.removeListener(dbName, id);
+	        changesHandler.removeListener(dbName, id);
 	      }
 	    };
 	  }
@@ -42650,15 +42132,6 @@ PivotToContents`);
 	  var limit = 'limit' in opts ? opts.limit : -1;
 	  if (limit === 0) {
 	    limit = 1; // per CouchDB _changes spec
-	  }
-	  var returnDocs;
-	  if ('return_docs' in opts) {
-	    returnDocs = opts.return_docs;
-	  } else if ('returnDocs' in opts) {
-	    // TODO: Remove 'returnDocs' in favor of 'return_docs' in a future release
-	    returnDocs = opts.returnDocs;
-	  } else {
-	    returnDocs = true;
 	  }
 
 	  var results = [];
@@ -42685,29 +42158,33 @@ PivotToContents`);
 
 	      var filtered = filter(change);
 	      if (typeof filtered === 'object') { // anything but true/false indicates error
-	        return opts.complete(filtered);
+	        return Promise.reject(filtered);
 	      }
 
-	      if (filtered) {
-	        numResults++;
-	        if (returnDocs) {
-	          results.push(change);
-	        }
-	        // process the attachment immediately
-	        // for the benefit of live listeners
-	        if (opts.attachments && opts.include_docs) {
+	      if (!filtered) {
+	        return Promise.resolve();
+	      }
+	      numResults++;
+	      if (opts.return_docs) {
+	        results.push(change);
+	      }
+	      // process the attachment immediately
+	      // for the benefit of live listeners
+	      if (opts.attachments && opts.include_docs) {
+	        return new Promise(function (resolve) {
 	          fetchAttachmentsIfNecessary(winningDoc, opts, txn, function () {
 	            postProcessAttachments([change], opts.binary).then(function () {
-	              opts.onChange(change);
+	              resolve(change);
 	            });
 	          });
-	        } else {
-	          opts.onChange(change);
-	        }
+	        });
+	      } else {
+	        return Promise.resolve(change);
 	      }
 	    }
 
 	    function onBatchDone() {
+	      var promises = [];
 	      for (var i = 0, len = winningDocs.length; i < len; i++) {
 	        if (numResults === limit) {
 	          break;
@@ -42717,8 +42194,16 @@ PivotToContents`);
 	          continue;
 	        }
 	        var metadata = metadatas[i];
-	        processMetadataAndWinningDoc(metadata, winningDoc);
+	        promises.push(processMetadataAndWinningDoc(metadata, winningDoc));
 	      }
+
+	      Promise.all(promises).then(function (changes) {
+	        for (var i = 0, len = changes.length; i < len; i++) {
+	          if (changes[i]) {
+	            opts.onChange(changes[i]);
+	          }
+	        }
+	      }).catch(opts.complete);
 
 	      if (numResults !== limit) {
 	        cursor.continue();
@@ -42898,9 +42383,9 @@ PivotToContents`);
 	        var metadata = cursor.value;
 	        var docId = metadata.id;
 	        var local = isLocalId(docId);
-	        var rev$$1 = winningRev(metadata);
+	        var rev = winningRev(metadata);
 	        if (local) {
-	          var docIdRev = docId + "::" + rev$$1;
+	          var docIdRev = docId + "::" + rev;
 	          // remove all seq entries
 	          // associated with this docId
 	          var start = docId + "::";
@@ -43101,20 +42586,20 @@ PivotToContents`);
 	        return finish();
 	      }
 
-	      var rev$$1;
+	      var rev;
 	      if (!opts.rev) {
-	        rev$$1 = metadata.winningRev;
+	        rev = metadata.winningRev;
 	        var deleted = isDeleted(metadata);
 	        if (deleted) {
 	          err = createError(MISSING_DOC, "deleted");
 	          return finish();
 	        }
 	      } else {
-	        rev$$1 = opts.latest ? latest(opts.rev, metadata) : opts.rev;
+	        rev = opts.latest ? latest(opts.rev, metadata) : opts.rev;
 	      }
 
 	      var objectStore = txn.objectStore(BY_SEQ_STORE);
-	      var key = metadata.id + '::' + rev$$1;
+	      var key = metadata.id + '::' + rev;
 
 	      objectStore.index('_doc_id_rev').get(key).onsuccess = function (e) {
 	        doc = e.target.result;
@@ -43235,8 +42720,8 @@ PivotToContents`);
 	      var metadata = decodeMetadata(event.target.result);
 	      traverseRevTree(metadata.rev_tree, function (isLeaf, pos,
 	                                                         revHash, ctx, opts) {
-	        var rev$$1 = pos + '-' + revHash;
-	        if (revs.indexOf(rev$$1) !== -1) {
+	        var rev = pos + '-' + revHash;
+	        if (revs.indexOf(rev) !== -1) {
 	          opts.status = 'missing';
 	        }
 	      });
@@ -43377,7 +42862,7 @@ PivotToContents`);
 	  };
 
 	  api._destroy = function (opts, callback) {
-	    changesHandler$$1.removeAllListeners(dbName);
+	    changesHandler.removeAllListeners(dbName);
 
 	    //Close open request for "dbName" database to fix ie delay.
 	    var openReq = openReqList.get(dbName);
@@ -43404,18 +42889,12 @@ PivotToContents`);
 	  if (cached) {
 	    idb = cached.idb;
 	    api._meta = cached.global;
-	    return browser$3(function () {
+	    return browser$4(function () {
 	      callback(null, api);
 	    });
 	  }
 
-	  var req;
-	  if (opts.storage) {
-	    req = tryStorageOption(dbName, opts.storage);
-	  } else {
-	    req = indexedDB.open(dbName, ADAPTER_VERSION);
-	  }
-
+	  var req = indexedDB.open(dbName, ADAPTER_VERSION);
 	  openReqList.set(dbName, req);
 
 	  req.onupgradeneeded = function (e) {
@@ -43567,2148 +43046,22 @@ PivotToContents`);
 	}
 
 	IdbPouch.valid = function () {
-	  // Issue #2533, we finally gave up on doing bug
-	  // detection instead of browser sniffing. Safari brought us
-	  // to our knees.
-	  var isSafari = typeof openDatabase !== 'undefined' &&
-	    /(Safari|iPhone|iPad|iPod)/.test(navigator.userAgent) &&
-	    !/Chrome/.test(navigator.userAgent) &&
-	    !/BlackBerry/.test(navigator.platform);
-
-	  // Safari <10.1 does not meet our requirements for IDB support (#5572)
-	  // since Safari 10.1 shipped with fetch, we can use that to detect it
-	  var hasFetch = typeof fetch === 'function' &&
-	    fetch.toString().indexOf('[native code') !== -1;
+	  // Following #7085 buggy idb versions (typically Safari < 10.1) are
+	  // considered valid.
 
 	  // On Firefox SecurityError is thrown while referencing indexedDB if cookies
 	  // are not allowed. `typeof indexedDB` also triggers the error.
 	  try {
 	    // some outdated implementations of IDB that appear on Samsung
 	    // and HTC Android devices <4.4 are missing IDBKeyRange
-	    return (!isSafari || hasFetch) && typeof indexedDB !== 'undefined' &&
-	      typeof IDBKeyRange !== 'undefined';
+	    return typeof indexedDB !== 'undefined' && typeof IDBKeyRange !== 'undefined';
 	  } catch (e) {
 	    return false;
 	  }
 	};
 
-	function tryStorageOption(dbName, storage) {
-	  try { // option only available in Firefox 26+
-	    return indexedDB.open(dbName, {
-	      version: ADAPTER_VERSION,
-	      storage: storage
-	    });
-	  } catch (err) {
-	      return indexedDB.open(dbName, ADAPTER_VERSION);
-	  }
-	}
-
 	function IDBPouch (PouchDB) {
 	  PouchDB.adapter('idb', IdbPouch, true);
-	}
-
-	//
-	// Parsing hex strings. Yeah.
-	//
-	// So basically we need this because of a bug in WebSQL:
-	// https://code.google.com/p/chromium/issues/detail?id=422690
-	// https://bugs.webkit.org/show_bug.cgi?id=137637
-	//
-	// UTF-8 and UTF-16 are provided as separate functions
-	// for meager performance improvements
-	//
-
-	function decodeUtf8(str) {
-	  return decodeURIComponent(escape(str));
-	}
-
-	function hexToInt(charCode) {
-	  // '0'-'9' is 48-57
-	  // 'A'-'F' is 65-70
-	  // SQLite will only give us uppercase hex
-	  return charCode < 65 ? (charCode - 48) : (charCode - 55);
-	}
-
-
-	// Example:
-	// pragma encoding=utf8;
-	// select hex('A');
-	// returns '41'
-	function parseHexUtf8(str, start, end) {
-	  var result = '';
-	  while (start < end) {
-	    result += String.fromCharCode(
-	      (hexToInt(str.charCodeAt(start++)) << 4) |
-	        hexToInt(str.charCodeAt(start++)));
-	  }
-	  return result;
-	}
-
-	// Example:
-	// pragma encoding=utf16;
-	// select hex('A');
-	// returns '4100'
-	// notice that the 00 comes after the 41 (i.e. it's swizzled)
-	function parseHexUtf16(str, start, end) {
-	  var result = '';
-	  while (start < end) {
-	    // UTF-16, so swizzle the bytes
-	    result += String.fromCharCode(
-	      (hexToInt(str.charCodeAt(start + 2)) << 12) |
-	        (hexToInt(str.charCodeAt(start + 3)) << 8) |
-	        (hexToInt(str.charCodeAt(start)) << 4) |
-	        hexToInt(str.charCodeAt(start + 1)));
-	    start += 4;
-	  }
-	  return result;
-	}
-
-	function parseHexString(str, encoding) {
-	  if (encoding === 'UTF-8') {
-	    return decodeUtf8(parseHexUtf8(str, 0, str.length));
-	  } else {
-	    return parseHexUtf16(str, 0, str.length);
-	  }
-	}
-
-	function quote(str) {
-	  return "'" + str + "'";
-	}
-
-	var ADAPTER_VERSION$1 = 7; // used to manage migrations
-
-	// The object stores created for each database
-	// DOC_STORE stores the document meta data, its revision history and state
-	var DOC_STORE$1 = quote('document-store');
-	// BY_SEQ_STORE stores a particular version of a document, keyed by its
-	// sequence id
-	var BY_SEQ_STORE$1 = quote('by-sequence');
-	// Where we store attachments
-	var ATTACH_STORE$1 = quote('attach-store');
-	var LOCAL_STORE$1 = quote('local-store');
-	var META_STORE$1 = quote('metadata-store');
-	// where we store many-to-many relations between attachment
-	// digests and seqs
-	var ATTACH_AND_SEQ_STORE$1 = quote('attach-seq-store');
-
-	// escapeBlob and unescapeBlob are workarounds for a websql bug:
-	// https://code.google.com/p/chromium/issues/detail?id=422690
-	// https://bugs.webkit.org/show_bug.cgi?id=137637
-	// The goal is to never actually insert the \u0000 character
-	// in the database.
-	function escapeBlob(str) {
-	  return str
-	    .replace(/\u0002/g, '\u0002\u0002')
-	    .replace(/\u0001/g, '\u0001\u0002')
-	    .replace(/\u0000/g, '\u0001\u0001');
-	}
-
-	function unescapeBlob(str) {
-	  return str
-	    .replace(/\u0001\u0001/g, '\u0000')
-	    .replace(/\u0001\u0002/g, '\u0001')
-	    .replace(/\u0002\u0002/g, '\u0002');
-	}
-
-	function stringifyDoc(doc) {
-	  // don't bother storing the id/rev. it uses lots of space,
-	  // in persistent map/reduce especially
-	  delete doc._id;
-	  delete doc._rev;
-	  return JSON.stringify(doc);
-	}
-
-	function unstringifyDoc(doc, id, rev$$1) {
-	  doc = JSON.parse(doc);
-	  doc._id = id;
-	  doc._rev = rev$$1;
-	  return doc;
-	}
-
-	// question mark groups IN queries, e.g. 3 -> '(?,?,?)'
-	function qMarks(num) {
-	  var s = '(';
-	  while (num--) {
-	    s += '?';
-	    if (num) {
-	      s += ',';
-	    }
-	  }
-	  return s + ')';
-	}
-
-	function select(selector, table, joiner, where, orderBy) {
-	  return 'SELECT ' + selector + ' FROM ' +
-	    (typeof table === 'string' ? table : table.join(' JOIN ')) +
-	    (joiner ? (' ON ' + joiner) : '') +
-	    (where ? (' WHERE ' +
-	    (typeof where === 'string' ? where : where.join(' AND '))) : '') +
-	    (orderBy ? (' ORDER BY ' + orderBy) : '');
-	}
-
-	function compactRevs$1(revs, docId, tx) {
-
-	  if (!revs.length) {
-	    return;
-	  }
-
-	  var numDone = 0;
-	  var seqs = [];
-
-	  function checkDone() {
-	    if (++numDone === revs.length) { // done
-	      deleteOrphans();
-	    }
-	  }
-
-	  function deleteOrphans() {
-	    // find orphaned attachment digests
-
-	    if (!seqs.length) {
-	      return;
-	    }
-
-	    var sql = 'SELECT DISTINCT digest AS digest FROM ' +
-	      ATTACH_AND_SEQ_STORE$1 + ' WHERE seq IN ' + qMarks(seqs.length);
-
-	    tx.executeSql(sql, seqs, function (tx, res) {
-
-	      var digestsToCheck = [];
-	      for (var i = 0; i < res.rows.length; i++) {
-	        digestsToCheck.push(res.rows.item(i).digest);
-	      }
-	      if (!digestsToCheck.length) {
-	        return;
-	      }
-
-	      var sql = 'DELETE FROM ' + ATTACH_AND_SEQ_STORE$1 +
-	        ' WHERE seq IN (' +
-	        seqs.map(function () { return '?'; }).join(',') +
-	        ')';
-	      tx.executeSql(sql, seqs, function (tx) {
-
-	        var sql = 'SELECT digest FROM ' + ATTACH_AND_SEQ_STORE$1 +
-	          ' WHERE digest IN (' +
-	          digestsToCheck.map(function () { return '?'; }).join(',') +
-	          ')';
-	        tx.executeSql(sql, digestsToCheck, function (tx, res) {
-	          var nonOrphanedDigests = new ExportedSet();
-	          for (var i = 0; i < res.rows.length; i++) {
-	            nonOrphanedDigests.add(res.rows.item(i).digest);
-	          }
-	          digestsToCheck.forEach(function (digest) {
-	            if (nonOrphanedDigests.has(digest)) {
-	              return;
-	            }
-	            tx.executeSql(
-	              'DELETE FROM ' + ATTACH_AND_SEQ_STORE$1 + ' WHERE digest=?',
-	              [digest]);
-	            tx.executeSql(
-	              'DELETE FROM ' + ATTACH_STORE$1 + ' WHERE digest=?', [digest]);
-	          });
-	        });
-	      });
-	    });
-	  }
-
-	  // update by-seq and attach stores in parallel
-	  revs.forEach(function (rev$$1) {
-	    var sql = 'SELECT seq FROM ' + BY_SEQ_STORE$1 +
-	      ' WHERE doc_id=? AND rev=?';
-
-	    tx.executeSql(sql, [docId, rev$$1], function (tx, res) {
-	      if (!res.rows.length) { // already deleted
-	        return checkDone();
-	      }
-	      var seq = res.rows.item(0).seq;
-	      seqs.push(seq);
-
-	      tx.executeSql(
-	        'DELETE FROM ' + BY_SEQ_STORE$1 + ' WHERE seq=?', [seq], checkDone);
-	    });
-	  });
-	}
-
-	function websqlError(callback) {
-	  return function (event) {
-	    guardedConsole('error', 'WebSQL threw an error', event);
-	    // event may actually be a SQLError object, so report is as such
-	    var errorNameMatch = event && event.constructor.toString()
-	        .match(/function ([^(]+)/);
-	    var errorName = (errorNameMatch && errorNameMatch[1]) || event.type;
-	    var errorReason = event.target || event.message;
-	    callback(createError(WSQ_ERROR, errorReason, errorName));
-	  };
-	}
-
-	function getSize(opts) {
-	  if ('size' in opts) {
-	    // triggers immediate popup in iOS, fixes #2347
-	    // e.g. 5000001 asks for 5 MB, 10000001 asks for 10 MB,
-	    return opts.size * 1000000;
-	  }
-	  // In iOS, doesn't matter as long as it's <= 5000000.
-	  // Except that if you request too much, our tests fail
-	  // because of the native "do you accept?" popup.
-	  // In Android <=4.3, this value is actually used as an
-	  // honest-to-god ceiling for data, so we need to
-	  // set it to a decently high number.
-	  var isAndroid = typeof navigator !== 'undefined' &&
-	    /Android/.test(navigator.userAgent);
-	  return isAndroid ? 5000000 : 1; // in PhantomJS, if you use 0 it will crash
-	}
-
-	function websqlBulkDocs(dbOpts, req, opts, api, db, websqlChanges, callback) {
-	  var newEdits = opts.new_edits;
-	  var userDocs = req.docs;
-
-	  // Parse the docs, give them a sequence number for the result
-	  var docInfos = userDocs.map(function (doc) {
-	    if (doc._id && isLocalId(doc._id)) {
-	      return doc;
-	    }
-	    var newDoc = parseDoc(doc, newEdits);
-	    return newDoc;
-	  });
-
-	  var docInfoErrors = docInfos.filter(function (docInfo) {
-	    return docInfo.error;
-	  });
-	  if (docInfoErrors.length) {
-	    return callback(docInfoErrors[0]);
-	  }
-
-	  var tx;
-	  var results = new Array(docInfos.length);
-	  var fetchedDocs = new ExportedMap();
-
-	  var preconditionErrored;
-	  function complete() {
-	    if (preconditionErrored) {
-	      return callback(preconditionErrored);
-	    }
-	    websqlChanges.notify(api._name);
-	    callback(null, results);
-	  }
-
-	  function verifyAttachment(digest, callback) {
-	    var sql = 'SELECT count(*) as cnt FROM ' + ATTACH_STORE$1 +
-	      ' WHERE digest=?';
-	    tx.executeSql(sql, [digest], function (tx, result) {
-	      if (result.rows.item(0).cnt === 0) {
-	        var err = createError(MISSING_STUB,
-	          'unknown stub attachment with digest ' +
-	          digest);
-	        callback(err);
-	      } else {
-	        callback();
-	      }
-	    });
-	  }
-
-	  function verifyAttachments(finish) {
-	    var digests = [];
-	    docInfos.forEach(function (docInfo) {
-	      if (docInfo.data && docInfo.data._attachments) {
-	        Object.keys(docInfo.data._attachments).forEach(function (filename) {
-	          var att = docInfo.data._attachments[filename];
-	          if (att.stub) {
-	            digests.push(att.digest);
-	          }
-	        });
-	      }
-	    });
-	    if (!digests.length) {
-	      return finish();
-	    }
-	    var numDone = 0;
-	    var err;
-
-	    function checkDone() {
-	      if (++numDone === digests.length) {
-	        finish(err);
-	      }
-	    }
-	    digests.forEach(function (digest) {
-	      verifyAttachment(digest, function (attErr) {
-	        if (attErr && !err) {
-	          err = attErr;
-	        }
-	        checkDone();
-	      });
-	    });
-	  }
-
-	  function writeDoc(docInfo, winningRev$$1, winningRevIsDeleted, newRevIsDeleted,
-	                    isUpdate, delta, resultsIdx, callback) {
-
-	    function finish() {
-	      var data = docInfo.data;
-	      var deletedInt = newRevIsDeleted ? 1 : 0;
-
-	      var id = data._id;
-	      var rev = data._rev;
-	      var json = stringifyDoc(data);
-	      var sql = 'INSERT INTO ' + BY_SEQ_STORE$1 +
-	        ' (doc_id, rev, json, deleted) VALUES (?, ?, ?, ?);';
-	      var sqlArgs = [id, rev, json, deletedInt];
-
-	      // map seqs to attachment digests, which
-	      // we will need later during compaction
-	      function insertAttachmentMappings(seq, callback) {
-	        var attsAdded = 0;
-	        var attsToAdd = Object.keys(data._attachments || {});
-
-	        if (!attsToAdd.length) {
-	          return callback();
-	        }
-	        function checkDone() {
-	          if (++attsAdded === attsToAdd.length) {
-	            callback();
-	          }
-	          return false; // ack handling a constraint error
-	        }
-	        function add(att) {
-	          var sql = 'INSERT INTO ' + ATTACH_AND_SEQ_STORE$1 +
-	            ' (digest, seq) VALUES (?,?)';
-	          var sqlArgs = [data._attachments[att].digest, seq];
-	          tx.executeSql(sql, sqlArgs, checkDone, checkDone);
-	          // second callback is for a constaint error, which we ignore
-	          // because this docid/rev has already been associated with
-	          // the digest (e.g. when new_edits == false)
-	        }
-	        for (var i = 0; i < attsToAdd.length; i++) {
-	          add(attsToAdd[i]); // do in parallel
-	        }
-	      }
-
-	      tx.executeSql(sql, sqlArgs, function (tx, result) {
-	        var seq = result.insertId;
-	        insertAttachmentMappings(seq, function () {
-	          dataWritten(tx, seq);
-	        });
-	      }, function () {
-	        // constraint error, recover by updating instead (see #1638)
-	        var fetchSql = select('seq', BY_SEQ_STORE$1, null,
-	          'doc_id=? AND rev=?');
-	        tx.executeSql(fetchSql, [id, rev], function (tx, res) {
-	          var seq = res.rows.item(0).seq;
-	          var sql = 'UPDATE ' + BY_SEQ_STORE$1 +
-	            ' SET json=?, deleted=? WHERE doc_id=? AND rev=?;';
-	          var sqlArgs = [json, deletedInt, id, rev];
-	          tx.executeSql(sql, sqlArgs, function (tx) {
-	            insertAttachmentMappings(seq, function () {
-	              dataWritten(tx, seq);
-	            });
-	          });
-	        });
-	        return false; // ack that we've handled the error
-	      });
-	    }
-
-	    function collectResults(attachmentErr) {
-	      if (!err) {
-	        if (attachmentErr) {
-	          err = attachmentErr;
-	          callback(err);
-	        } else if (recv === attachments.length) {
-	          finish();
-	        }
-	      }
-	    }
-
-	    var err = null;
-	    var recv = 0;
-
-	    docInfo.data._id = docInfo.metadata.id;
-	    docInfo.data._rev = docInfo.metadata.rev;
-	    var attachments = Object.keys(docInfo.data._attachments || {});
-
-
-	    if (newRevIsDeleted) {
-	      docInfo.data._deleted = true;
-	    }
-
-	    function attachmentSaved(err) {
-	      recv++;
-	      collectResults(err);
-	    }
-
-	    attachments.forEach(function (key) {
-	      var att = docInfo.data._attachments[key];
-	      if (!att.stub) {
-	        var data = att.data;
-	        delete att.data;
-	        att.revpos = parseInt(winningRev$$1, 10);
-	        var digest = att.digest;
-	        saveAttachment(digest, data, attachmentSaved);
-	      } else {
-	        recv++;
-	        collectResults();
-	      }
-	    });
-
-	    if (!attachments.length) {
-	      finish();
-	    }
-
-	    function dataWritten(tx, seq) {
-	      var id = docInfo.metadata.id;
-
-	      var revsToCompact = docInfo.stemmedRevs || [];
-	      if (isUpdate && api.auto_compaction) {
-	        revsToCompact = compactTree(docInfo.metadata).concat(revsToCompact);
-	      }
-	      if (revsToCompact.length) {
-	        compactRevs$1(revsToCompact, id, tx);
-	      }
-
-	      docInfo.metadata.seq = seq;
-	      var rev = docInfo.metadata.rev;
-	      delete docInfo.metadata.rev;
-
-	      var sql = isUpdate ?
-	      'UPDATE ' + DOC_STORE$1 +
-	      ' SET json=?, max_seq=?, winningseq=' +
-	      '(SELECT seq FROM ' + BY_SEQ_STORE$1 +
-	      ' WHERE doc_id=' + DOC_STORE$1 + '.id AND rev=?) WHERE id=?'
-	        : 'INSERT INTO ' + DOC_STORE$1 +
-	      ' (id, winningseq, max_seq, json) VALUES (?,?,?,?);';
-	      var metadataStr = safeJsonStringify(docInfo.metadata);
-	      var params = isUpdate ?
-	        [metadataStr, seq, winningRev$$1, id] :
-	        [id, seq, seq, metadataStr];
-	      tx.executeSql(sql, params, function () {
-	        results[resultsIdx] = {
-	          ok: true,
-	          id: docInfo.metadata.id,
-	          rev: rev
-	        };
-	        fetchedDocs.set(id, docInfo.metadata);
-	        callback();
-	      });
-	    }
-	  }
-
-	  function websqlProcessDocs() {
-	    processDocs(dbOpts.revs_limit, docInfos, api, fetchedDocs, tx,
-	                results, writeDoc, opts);
-	  }
-
-	  function fetchExistingDocs(callback) {
-	    if (!docInfos.length) {
-	      return callback();
-	    }
-
-	    var numFetched = 0;
-
-	    function checkDone() {
-	      if (++numFetched === docInfos.length) {
-	        callback();
-	      }
-	    }
-
-	    docInfos.forEach(function (docInfo) {
-	      if (docInfo._id && isLocalId(docInfo._id)) {
-	        return checkDone(); // skip local docs
-	      }
-	      var id = docInfo.metadata.id;
-	      tx.executeSql('SELECT json FROM ' + DOC_STORE$1 +
-	      ' WHERE id = ?', [id], function (tx, result) {
-	        if (result.rows.length) {
-	          var metadata = safeJsonParse(result.rows.item(0).json);
-	          fetchedDocs.set(id, metadata);
-	        }
-	        checkDone();
-	      });
-	    });
-	  }
-
-	  function saveAttachment(digest, data, callback) {
-	    var sql = 'SELECT digest FROM ' + ATTACH_STORE$1 + ' WHERE digest=?';
-	    tx.executeSql(sql, [digest], function (tx, result) {
-	      if (result.rows.length) { // attachment already exists
-	        return callback();
-	      }
-	      // we could just insert before selecting and catch the error,
-	      // but my hunch is that it's cheaper not to serialize the blob
-	      // from JS to C if we don't have to (TODO: confirm this)
-	      sql = 'INSERT INTO ' + ATTACH_STORE$1 +
-	      ' (digest, body, escaped) VALUES (?,?,1)';
-	      tx.executeSql(sql, [digest, escapeBlob(data)], function () {
-	        callback();
-	      }, function () {
-	        // ignore constaint errors, means it already exists
-	        callback();
-	        return false; // ack we handled the error
-	      });
-	    });
-	  }
-
-	  preprocessAttachments(docInfos, 'binary', function (err) {
-	    if (err) {
-	      return callback(err);
-	    }
-	    db.transaction(function (txn) {
-	      tx = txn;
-	      verifyAttachments(function (err) {
-	        if (err) {
-	          preconditionErrored = err;
-	        } else {
-	          fetchExistingDocs(websqlProcessDocs);
-	        }
-	      });
-	    }, websqlError(callback), complete);
-	  });
-	}
-
-	var cachedDatabases = new ExportedMap();
-
-	// openDatabase passed in through opts (e.g. for node-websql)
-	function openDatabaseWithOpts(opts) {
-	  return opts.websql(opts.name, opts.version, opts.description, opts.size);
-	}
-
-	function openDBSafely(opts) {
-	  try {
-	    return {
-	      db: openDatabaseWithOpts(opts)
-	    };
-	  } catch (err) {
-	    return {
-	      error: err
-	    };
-	  }
-	}
-
-	function openDB(opts) {
-	  var cachedResult = cachedDatabases.get(opts.name);
-	  if (!cachedResult) {
-	    cachedResult = openDBSafely(opts);
-	    cachedDatabases.set(opts.name, cachedResult);
-	  }
-	  return cachedResult;
-	}
-
-	var websqlChanges = new Changes();
-
-	function fetchAttachmentsIfNecessary$1(doc, opts, api, txn, cb) {
-	  var attachments = Object.keys(doc._attachments || {});
-	  if (!attachments.length) {
-	    return cb && cb();
-	  }
-	  var numDone = 0;
-
-	  function checkDone() {
-	    if (++numDone === attachments.length && cb) {
-	      cb();
-	    }
-	  }
-
-	  function fetchAttachment(doc, att) {
-	    var attObj = doc._attachments[att];
-	    var attOpts = {binary: opts.binary, ctx: txn};
-	    api._getAttachment(doc._id, att, attObj, attOpts, function (_, data) {
-	      doc._attachments[att] = $inject_Object_assign(
-	        pick(attObj, ['digest', 'content_type']),
-	        { data: data }
-	      );
-	      checkDone();
-	    });
-	  }
-
-	  attachments.forEach(function (att) {
-	    if (opts.attachments && opts.include_docs) {
-	      fetchAttachment(doc, att);
-	    } else {
-	      doc._attachments[att].stub = true;
-	      checkDone();
-	    }
-	  });
-	}
-
-	var POUCH_VERSION = 1;
-
-	// these indexes cover the ground for most allDocs queries
-	var BY_SEQ_STORE_DELETED_INDEX_SQL =
-	  'CREATE INDEX IF NOT EXISTS \'by-seq-deleted-idx\' ON ' +
-	  BY_SEQ_STORE$1 + ' (seq, deleted)';
-	var BY_SEQ_STORE_DOC_ID_REV_INDEX_SQL =
-	  'CREATE UNIQUE INDEX IF NOT EXISTS \'by-seq-doc-id-rev\' ON ' +
-	    BY_SEQ_STORE$1 + ' (doc_id, rev)';
-	var DOC_STORE_WINNINGSEQ_INDEX_SQL =
-	  'CREATE INDEX IF NOT EXISTS \'doc-winningseq-idx\' ON ' +
-	  DOC_STORE$1 + ' (winningseq)';
-	var ATTACH_AND_SEQ_STORE_SEQ_INDEX_SQL =
-	  'CREATE INDEX IF NOT EXISTS \'attach-seq-seq-idx\' ON ' +
-	    ATTACH_AND_SEQ_STORE$1 + ' (seq)';
-	var ATTACH_AND_SEQ_STORE_ATTACH_INDEX_SQL =
-	  'CREATE UNIQUE INDEX IF NOT EXISTS \'attach-seq-digest-idx\' ON ' +
-	    ATTACH_AND_SEQ_STORE$1 + ' (digest, seq)';
-
-	var DOC_STORE_AND_BY_SEQ_JOINER = BY_SEQ_STORE$1 +
-	  '.seq = ' + DOC_STORE$1 + '.winningseq';
-
-	var SELECT_DOCS = BY_SEQ_STORE$1 + '.seq AS seq, ' +
-	  BY_SEQ_STORE$1 + '.deleted AS deleted, ' +
-	  BY_SEQ_STORE$1 + '.json AS data, ' +
-	  BY_SEQ_STORE$1 + '.rev AS rev, ' +
-	  DOC_STORE$1 + '.json AS metadata';
-
-	function WebSqlPouch(opts, callback) {
-	  var api = this;
-	  var instanceId = null;
-	  var size = getSize(opts);
-	  var idRequests = [];
-	  var encoding;
-
-	  api._name = opts.name;
-
-	  // extend the options here, because sqlite plugin has a ton of options
-	  // and they are constantly changing, so it's more prudent to allow anything
-	  var websqlOpts = $inject_Object_assign({}, opts, {
-	    version: POUCH_VERSION,
-	    description: opts.name,
-	    size: size
-	  });
-	  var openDBResult = openDB(websqlOpts);
-	  if (openDBResult.error) {
-	    return websqlError(callback)(openDBResult.error);
-	  }
-	  var db = openDBResult.db;
-	  if (typeof db.readTransaction !== 'function') {
-	    // doesn't exist in sqlite plugin
-	    db.readTransaction = db.transaction;
-	  }
-
-	  function dbCreated() {
-	    // note the db name in case the browser upgrades to idb
-	    if (hasLocalStorage()) {
-	      window.localStorage['_pouch__websqldb_' + api._name] = true;
-	    }
-	    callback(null, api);
-	  }
-
-	  // In this migration, we added the 'deleted' and 'local' columns to the
-	  // by-seq and doc store tables.
-	  // To preserve existing user data, we re-process all the existing JSON
-	  // and add these values.
-	  // Called migration2 because it corresponds to adapter version (db_version) #2
-	  function runMigration2(tx, callback) {
-	    // index used for the join in the allDocs query
-	    tx.executeSql(DOC_STORE_WINNINGSEQ_INDEX_SQL);
-
-	    tx.executeSql('ALTER TABLE ' + BY_SEQ_STORE$1 +
-	      ' ADD COLUMN deleted TINYINT(1) DEFAULT 0', [], function () {
-	      tx.executeSql(BY_SEQ_STORE_DELETED_INDEX_SQL);
-	      tx.executeSql('ALTER TABLE ' + DOC_STORE$1 +
-	        ' ADD COLUMN local TINYINT(1) DEFAULT 0', [], function () {
-	        tx.executeSql('CREATE INDEX IF NOT EXISTS \'doc-store-local-idx\' ON ' +
-	          DOC_STORE$1 + ' (local, id)');
-
-	        var sql = 'SELECT ' + DOC_STORE$1 + '.winningseq AS seq, ' + DOC_STORE$1 +
-	          '.json AS metadata FROM ' + BY_SEQ_STORE$1 + ' JOIN ' + DOC_STORE$1 +
-	          ' ON ' + BY_SEQ_STORE$1 + '.seq = ' + DOC_STORE$1 + '.winningseq';
-
-	        tx.executeSql(sql, [], function (tx, result) {
-
-	          var deleted = [];
-	          var local = [];
-
-	          for (var i = 0; i < result.rows.length; i++) {
-	            var item = result.rows.item(i);
-	            var seq = item.seq;
-	            var metadata = JSON.parse(item.metadata);
-	            if (isDeleted(metadata)) {
-	              deleted.push(seq);
-	            }
-	            if (isLocalId(metadata.id)) {
-	              local.push(metadata.id);
-	            }
-	          }
-	          tx.executeSql('UPDATE ' + DOC_STORE$1 + 'SET local = 1 WHERE id IN ' +
-	            qMarks(local.length), local, function () {
-	            tx.executeSql('UPDATE ' + BY_SEQ_STORE$1 +
-	              ' SET deleted = 1 WHERE seq IN ' +
-	              qMarks(deleted.length), deleted, callback);
-	          });
-	        });
-	      });
-	    });
-	  }
-
-	  // in this migration, we make all the local docs unversioned
-	  function runMigration3(tx, callback) {
-	    var local = 'CREATE TABLE IF NOT EXISTS ' + LOCAL_STORE$1 +
-	      ' (id UNIQUE, rev, json)';
-	    tx.executeSql(local, [], function () {
-	      var sql = 'SELECT ' + DOC_STORE$1 + '.id AS id, ' +
-	        BY_SEQ_STORE$1 + '.json AS data ' +
-	        'FROM ' + BY_SEQ_STORE$1 + ' JOIN ' +
-	        DOC_STORE$1 + ' ON ' + BY_SEQ_STORE$1 + '.seq = ' +
-	        DOC_STORE$1 + '.winningseq WHERE local = 1';
-	      tx.executeSql(sql, [], function (tx, res) {
-	        var rows = [];
-	        for (var i = 0; i < res.rows.length; i++) {
-	          rows.push(res.rows.item(i));
-	        }
-	        function doNext() {
-	          if (!rows.length) {
-	            return callback(tx);
-	          }
-	          var row = rows.shift();
-	          var rev$$1 = JSON.parse(row.data)._rev;
-	          tx.executeSql('INSERT INTO ' + LOCAL_STORE$1 +
-	              ' (id, rev, json) VALUES (?,?,?)',
-	              [row.id, rev$$1, row.data], function (tx) {
-	            tx.executeSql('DELETE FROM ' + DOC_STORE$1 + ' WHERE id=?',
-	                [row.id], function (tx) {
-	              tx.executeSql('DELETE FROM ' + BY_SEQ_STORE$1 + ' WHERE seq=?',
-	                  [row.seq], function () {
-	                doNext();
-	              });
-	            });
-	          });
-	        }
-	        doNext();
-	      });
-	    });
-	  }
-
-	  // in this migration, we remove doc_id_rev and just use rev
-	  function runMigration4(tx, callback) {
-
-	    function updateRows(rows) {
-	      function doNext() {
-	        if (!rows.length) {
-	          return callback(tx);
-	        }
-	        var row = rows.shift();
-	        var doc_id_rev = parseHexString(row.hex, encoding);
-	        var idx = doc_id_rev.lastIndexOf('::');
-	        var doc_id = doc_id_rev.substring(0, idx);
-	        var rev$$1 = doc_id_rev.substring(idx + 2);
-	        var sql = 'UPDATE ' + BY_SEQ_STORE$1 +
-	          ' SET doc_id=?, rev=? WHERE doc_id_rev=?';
-	        tx.executeSql(sql, [doc_id, rev$$1, doc_id_rev], function () {
-	          doNext();
-	        });
-	      }
-	      doNext();
-	    }
-
-	    var sql = 'ALTER TABLE ' + BY_SEQ_STORE$1 + ' ADD COLUMN doc_id';
-	    tx.executeSql(sql, [], function (tx) {
-	      var sql = 'ALTER TABLE ' + BY_SEQ_STORE$1 + ' ADD COLUMN rev';
-	      tx.executeSql(sql, [], function (tx) {
-	        tx.executeSql(BY_SEQ_STORE_DOC_ID_REV_INDEX_SQL, [], function (tx) {
-	          var sql = 'SELECT hex(doc_id_rev) as hex FROM ' + BY_SEQ_STORE$1;
-	          tx.executeSql(sql, [], function (tx, res) {
-	            var rows = [];
-	            for (var i = 0; i < res.rows.length; i++) {
-	              rows.push(res.rows.item(i));
-	            }
-	            updateRows(rows);
-	          });
-	        });
-	      });
-	    });
-	  }
-
-	  // in this migration, we add the attach_and_seq table
-	  // for issue #2818
-	  function runMigration5(tx, callback) {
-
-	    function migrateAttsAndSeqs(tx) {
-	      // need to actually populate the table. this is the expensive part,
-	      // so as an optimization, check first that this database even
-	      // contains attachments
-	      var sql = 'SELECT COUNT(*) AS cnt FROM ' + ATTACH_STORE$1;
-	      tx.executeSql(sql, [], function (tx, res) {
-	        var count = res.rows.item(0).cnt;
-	        if (!count) {
-	          return callback(tx);
-	        }
-
-	        var offset = 0;
-	        var pageSize = 10;
-	        function nextPage() {
-	          var sql = select(
-	            SELECT_DOCS + ', ' + DOC_STORE$1 + '.id AS id',
-	            [DOC_STORE$1, BY_SEQ_STORE$1],
-	            DOC_STORE_AND_BY_SEQ_JOINER,
-	            null,
-	            DOC_STORE$1 + '.id '
-	          );
-	          sql += ' LIMIT ' + pageSize + ' OFFSET ' + offset;
-	          offset += pageSize;
-	          tx.executeSql(sql, [], function (tx, res) {
-	            if (!res.rows.length) {
-	              return callback(tx);
-	            }
-	            var digestSeqs = {};
-	            function addDigestSeq(digest, seq) {
-	              // uniq digest/seq pairs, just in case there are dups
-	              var seqs = digestSeqs[digest] = (digestSeqs[digest] || []);
-	              if (seqs.indexOf(seq) === -1) {
-	                seqs.push(seq);
-	              }
-	            }
-	            for (var i = 0; i < res.rows.length; i++) {
-	              var row = res.rows.item(i);
-	              var doc = unstringifyDoc(row.data, row.id, row.rev);
-	              var atts = Object.keys(doc._attachments || {});
-	              for (var j = 0; j < atts.length; j++) {
-	                var att = doc._attachments[atts[j]];
-	                addDigestSeq(att.digest, row.seq);
-	              }
-	            }
-	            var digestSeqPairs = [];
-	            Object.keys(digestSeqs).forEach(function (digest) {
-	              var seqs = digestSeqs[digest];
-	              seqs.forEach(function (seq) {
-	                digestSeqPairs.push([digest, seq]);
-	              });
-	            });
-	            if (!digestSeqPairs.length) {
-	              return nextPage();
-	            }
-	            var numDone = 0;
-	            digestSeqPairs.forEach(function (pair) {
-	              var sql = 'INSERT INTO ' + ATTACH_AND_SEQ_STORE$1 +
-	                ' (digest, seq) VALUES (?,?)';
-	              tx.executeSql(sql, pair, function () {
-	                if (++numDone === digestSeqPairs.length) {
-	                  nextPage();
-	                }
-	              });
-	            });
-	          });
-	        }
-	        nextPage();
-	      });
-	    }
-
-	    var attachAndRev = 'CREATE TABLE IF NOT EXISTS ' +
-	      ATTACH_AND_SEQ_STORE$1 + ' (digest, seq INTEGER)';
-	    tx.executeSql(attachAndRev, [], function (tx) {
-	      tx.executeSql(
-	        ATTACH_AND_SEQ_STORE_ATTACH_INDEX_SQL, [], function (tx) {
-	          tx.executeSql(
-	            ATTACH_AND_SEQ_STORE_SEQ_INDEX_SQL, [],
-	            migrateAttsAndSeqs);
-	        });
-	    });
-	  }
-
-	  // in this migration, we use escapeBlob() and unescapeBlob()
-	  // instead of reading out the binary as HEX, which is slow
-	  function runMigration6(tx, callback) {
-	    var sql = 'ALTER TABLE ' + ATTACH_STORE$1 +
-	      ' ADD COLUMN escaped TINYINT(1) DEFAULT 0';
-	    tx.executeSql(sql, [], callback);
-	  }
-
-	  // issue #3136, in this migration we need a "latest seq" as well
-	  // as the "winning seq" in the doc store
-	  function runMigration7(tx, callback) {
-	    var sql = 'ALTER TABLE ' + DOC_STORE$1 +
-	      ' ADD COLUMN max_seq INTEGER';
-	    tx.executeSql(sql, [], function (tx) {
-	      var sql = 'UPDATE ' + DOC_STORE$1 + ' SET max_seq=(SELECT MAX(seq) FROM ' +
-	        BY_SEQ_STORE$1 + ' WHERE doc_id=id)';
-	      tx.executeSql(sql, [], function (tx) {
-	        // add unique index after filling, else we'll get a constraint
-	        // error when we do the ALTER TABLE
-	        var sql =
-	          'CREATE UNIQUE INDEX IF NOT EXISTS \'doc-max-seq-idx\' ON ' +
-	          DOC_STORE$1 + ' (max_seq)';
-	        tx.executeSql(sql, [], callback);
-	      });
-	    });
-	  }
-
-	  function checkEncoding(tx, cb) {
-	    // UTF-8 on chrome/android, UTF-16 on safari < 7.1
-	    tx.executeSql('SELECT HEX("a") AS hex', [], function (tx, res) {
-	        var hex = res.rows.item(0).hex;
-	        encoding = hex.length === 2 ? 'UTF-8' : 'UTF-16';
-	        cb();
-	      }
-	    );
-	  }
-
-	  function onGetInstanceId() {
-	    while (idRequests.length > 0) {
-	      var idCallback = idRequests.pop();
-	      idCallback(null, instanceId);
-	    }
-	  }
-
-	  function onGetVersion(tx, dbVersion) {
-	    if (dbVersion === 0) {
-	      // initial schema
-
-	      var meta = 'CREATE TABLE IF NOT EXISTS ' + META_STORE$1 +
-	        ' (dbid, db_version INTEGER)';
-	      var attach = 'CREATE TABLE IF NOT EXISTS ' + ATTACH_STORE$1 +
-	        ' (digest UNIQUE, escaped TINYINT(1), body BLOB)';
-	      var attachAndRev = 'CREATE TABLE IF NOT EXISTS ' +
-	        ATTACH_AND_SEQ_STORE$1 + ' (digest, seq INTEGER)';
-	      // TODO: migrate winningseq to INTEGER
-	      var doc = 'CREATE TABLE IF NOT EXISTS ' + DOC_STORE$1 +
-	        ' (id unique, json, winningseq, max_seq INTEGER UNIQUE)';
-	      var seq = 'CREATE TABLE IF NOT EXISTS ' + BY_SEQ_STORE$1 +
-	        ' (seq INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, ' +
-	        'json, deleted TINYINT(1), doc_id, rev)';
-	      var local = 'CREATE TABLE IF NOT EXISTS ' + LOCAL_STORE$1 +
-	        ' (id UNIQUE, rev, json)';
-
-	      // creates
-	      tx.executeSql(attach);
-	      tx.executeSql(local);
-	      tx.executeSql(attachAndRev, [], function () {
-	        tx.executeSql(ATTACH_AND_SEQ_STORE_SEQ_INDEX_SQL);
-	        tx.executeSql(ATTACH_AND_SEQ_STORE_ATTACH_INDEX_SQL);
-	      });
-	      tx.executeSql(doc, [], function () {
-	        tx.executeSql(DOC_STORE_WINNINGSEQ_INDEX_SQL);
-	        tx.executeSql(seq, [], function () {
-	          tx.executeSql(BY_SEQ_STORE_DELETED_INDEX_SQL);
-	          tx.executeSql(BY_SEQ_STORE_DOC_ID_REV_INDEX_SQL);
-	          tx.executeSql(meta, [], function () {
-	            // mark the db version, and new dbid
-	            var initSeq = 'INSERT INTO ' + META_STORE$1 +
-	              ' (db_version, dbid) VALUES (?,?)';
-	            instanceId = uuid$1();
-	            var initSeqArgs = [ADAPTER_VERSION$1, instanceId];
-	            tx.executeSql(initSeq, initSeqArgs, function () {
-	              onGetInstanceId();
-	            });
-	          });
-	        });
-	      });
-	    } else { // version > 0
-
-	      var setupDone = function () {
-	        var migrated = dbVersion < ADAPTER_VERSION$1;
-	        if (migrated) {
-	          // update the db version within this transaction
-	          tx.executeSql('UPDATE ' + META_STORE$1 + ' SET db_version = ' +
-	            ADAPTER_VERSION$1);
-	        }
-	        // notify db.id() callers
-	        var sql = 'SELECT dbid FROM ' + META_STORE$1;
-	        tx.executeSql(sql, [], function (tx, result) {
-	          instanceId = result.rows.item(0).dbid;
-	          onGetInstanceId();
-	        });
-	      };
-
-	      // would love to use promises here, but then websql
-	      // ends the transaction early
-	      var tasks = [
-	        runMigration2,
-	        runMigration3,
-	        runMigration4,
-	        runMigration5,
-	        runMigration6,
-	        runMigration7,
-	        setupDone
-	      ];
-
-	      // run each migration sequentially
-	      var i = dbVersion;
-	      var nextMigration = function (tx) {
-	        tasks[i - 1](tx, nextMigration);
-	        i++;
-	      };
-	      nextMigration(tx);
-	    }
-	  }
-
-	  function setup() {
-	    db.transaction(function (tx) {
-	      // first check the encoding
-	      checkEncoding(tx, function () {
-	        // then get the version
-	        fetchVersion(tx);
-	      });
-	    }, websqlError(callback), dbCreated);
-	  }
-
-	  function fetchVersion(tx) {
-	    var sql = 'SELECT sql FROM sqlite_master WHERE tbl_name = ' + META_STORE$1;
-	    tx.executeSql(sql, [], function (tx, result) {
-	      if (!result.rows.length) {
-	        // database hasn't even been created yet (version 0)
-	        onGetVersion(tx, 0);
-	      } else if (!/db_version/.test(result.rows.item(0).sql)) {
-	        // table was created, but without the new db_version column,
-	        // so add it.
-	        tx.executeSql('ALTER TABLE ' + META_STORE$1 +
-	          ' ADD COLUMN db_version INTEGER', [], function () {
-	          // before version 2, this column didn't even exist
-	          onGetVersion(tx, 1);
-	        });
-	      } else { // column exists, we can safely get it
-	        tx.executeSql('SELECT db_version FROM ' + META_STORE$1,
-	          [], function (tx, result) {
-	          var dbVersion = result.rows.item(0).db_version;
-	          onGetVersion(tx, dbVersion);
-	        });
-	      }
-	    });
-	  }
-
-	  setup();
-
-	  function getMaxSeq(tx, callback) {
-	    var sql = 'SELECT MAX(seq) AS seq FROM ' + BY_SEQ_STORE$1;
-	    tx.executeSql(sql, [], function (tx, res) {
-	      var updateSeq = res.rows.item(0).seq || 0;
-	      callback(updateSeq);
-	    });
-	  }
-
-	  function countDocs(tx, callback) {
-	    // count the total rows
-	    var sql = select(
-	      'COUNT(' + DOC_STORE$1 + '.id) AS \'num\'',
-	      [DOC_STORE$1, BY_SEQ_STORE$1],
-	      DOC_STORE_AND_BY_SEQ_JOINER,
-	      BY_SEQ_STORE$1 + '.deleted=0');
-
-	    tx.executeSql(sql, [], function (tx, result) {
-	      callback(result.rows.item(0).num);
-	    });
-	  }
-
-	  api._remote = false;
-	  api.type = function () {
-	    return 'websql';
-	  };
-
-	  api._id = toPromise(function (callback) {
-	    callback(null, instanceId);
-	  });
-
-	  api._info = function (callback) {
-	    var seq;
-	    var docCount;
-	    db.readTransaction(function (tx) {
-	      getMaxSeq(tx, function (theSeq) {
-	        seq = theSeq;
-	      });
-	      countDocs(tx, function (theDocCount) {
-	        docCount = theDocCount;
-	      });
-	    }, websqlError(callback), function () {
-	      callback(null, {
-	        doc_count: docCount,
-	        update_seq: seq,
-	        websql_encoding: encoding
-	      });
-	    });
-	  };
-
-	  api._bulkDocs = function (req, reqOpts, callback) {
-	    websqlBulkDocs(opts, req, reqOpts, api, db, websqlChanges, callback);
-	  };
-
-	  function latest$$1(tx, id, rev$$1, callback, finish) {
-	    var sql = select(
-	        SELECT_DOCS,
-	        [DOC_STORE$1, BY_SEQ_STORE$1],
-	        DOC_STORE_AND_BY_SEQ_JOINER,
-	        DOC_STORE$1 + '.id=?');
-	    var sqlArgs = [id];
-
-	    tx.executeSql(sql, sqlArgs, function (a, results) {
-	      if (!results.rows.length) {
-	        var err = createError(MISSING_DOC, 'missing');
-	        return finish(err);
-	      }
-	      var item = results.rows.item(0);
-	      var metadata = safeJsonParse(item.metadata);
-	      callback(latest(rev$$1, metadata));
-	    });
-	  }
-
-	  api._get = function (id, opts, callback) {
-	    var doc;
-	    var metadata;
-	    var tx = opts.ctx;
-	    if (!tx) {
-	      return db.readTransaction(function (txn) {
-	        api._get(id, $inject_Object_assign({ctx: txn}, opts), callback);
-	      });
-	    }
-
-	    function finish(err) {
-	      callback(err, {doc: doc, metadata: metadata, ctx: tx});
-	    }
-
-	    var sql;
-	    var sqlArgs;
-
-	    if (!opts.rev) {
-	      sql = select(
-	        SELECT_DOCS,
-	        [DOC_STORE$1, BY_SEQ_STORE$1],
-	        DOC_STORE_AND_BY_SEQ_JOINER,
-	        DOC_STORE$1 + '.id=?');
-	      sqlArgs = [id];
-	    } else if (opts.latest) {
-	      latest$$1(tx, id, opts.rev, function (latestRev) {
-	        opts.latest = false;
-	        opts.rev = latestRev;
-	        api._get(id, opts, callback);
-	      }, finish);
-	      return;
-	    } else {
-	      sql = select(
-	        SELECT_DOCS,
-	        [DOC_STORE$1, BY_SEQ_STORE$1],
-	        DOC_STORE$1 + '.id=' + BY_SEQ_STORE$1 + '.doc_id',
-	        [BY_SEQ_STORE$1 + '.doc_id=?', BY_SEQ_STORE$1 + '.rev=?']);
-	      sqlArgs = [id, opts.rev];
-	    }
-
-	    tx.executeSql(sql, sqlArgs, function (a, results) {
-	      if (!results.rows.length) {
-	        var missingErr = createError(MISSING_DOC, 'missing');
-	        return finish(missingErr);
-	      }
-	      var item = results.rows.item(0);
-	      metadata = safeJsonParse(item.metadata);
-	      if (item.deleted && !opts.rev) {
-	        var deletedErr = createError(MISSING_DOC, 'deleted');
-	        return finish(deletedErr);
-	      }
-	      doc = unstringifyDoc(item.data, metadata.id, item.rev);
-	      finish();
-	    });
-	  };
-
-	  api._allDocs = function (opts, callback) {
-	    var results = [];
-	    var totalRows;
-	    var updateSeq;
-
-	    var start = 'startkey' in opts ? opts.startkey : false;
-	    var end = 'endkey' in opts ? opts.endkey : false;
-	    var key = 'key' in opts ? opts.key : false;
-	    var keys = 'keys' in opts ? opts.keys : false;
-	    var descending = 'descending' in opts ? opts.descending : false;
-	    var limit = 'limit' in opts ? opts.limit : -1;
-	    var offset = 'skip' in opts ? opts.skip : 0;
-	    var inclusiveEnd = opts.inclusive_end !== false;
-	    
-	    var sqlArgs = [];
-	    var criteria = [];
-
-	    if (keys) {
-	      var destinctKeys = [];
-	      var bindingStr = "";
-	      keys.forEach(function (key) {
-	        if (destinctKeys.indexOf(key) === -1) {
-	          destinctKeys.push(key);
-	          bindingStr += '?,';
-	        }
-	      });
-	      bindingStr = bindingStr.substring(0, bindingStr.length - 1); // keys is never empty
-	      criteria.push(DOC_STORE$1 + '.id IN (' + bindingStr + ')');
-	      sqlArgs = sqlArgs.concat(destinctKeys);
-	    } else if (key !== false) {
-	      criteria.push(DOC_STORE$1 + '.id = ?');
-	      sqlArgs.push(key);
-	    } else if (start !== false || end !== false) {
-	      if (start !== false) {
-	        criteria.push(DOC_STORE$1 + '.id ' + (descending ? '<=' : '>=') + ' ?');
-	        sqlArgs.push(start);
-	      }
-	      if (end !== false) {
-	        var comparator = descending ? '>' : '<';
-	        if (inclusiveEnd) {
-	          comparator += '=';
-	        }
-	        criteria.push(DOC_STORE$1 + '.id ' + comparator + ' ?');
-	        sqlArgs.push(end);
-	      }
-	      if (key !== false) {
-	        criteria.push(DOC_STORE$1 + '.id = ?');
-	        sqlArgs.push(key);
-	      }
-	    }
-
-	    if (!keys) {
-	      // report deleted if keys are specified
-	      criteria.push(BY_SEQ_STORE$1 + '.deleted = 0');
-	    }
-
-	    db.readTransaction(function (tx) {
-	      // count the docs in parallel to other operations
-	      countDocs(tx, function (docCount) {
-	        totalRows = docCount;
-	      });
-
-	      /* istanbul ignore if */
-	      if (opts.update_seq) {
-	        // get max sequence in parallel to other operations
-	        getMaxSeq(tx, function (theSeq) {
-	          updateSeq = theSeq;
-	        });
-	      }
-
-	      if (limit === 0) {
-	        return;
-	      }
-
-	      // do a single query to fetch the documents
-	      var sql = select(
-	        SELECT_DOCS,
-	        [DOC_STORE$1, BY_SEQ_STORE$1],
-	        DOC_STORE_AND_BY_SEQ_JOINER,
-	        criteria,
-	        DOC_STORE$1 + '.id ' + (descending ? 'DESC' : 'ASC')
-	        );
-	      sql += ' LIMIT ' + limit + ' OFFSET ' + offset;
-
-	      tx.executeSql(sql, sqlArgs, function (tx, result) {
-	        for (var i = 0, l = result.rows.length; i < l; i++) {
-	          var item = result.rows.item(i);
-	          var metadata = safeJsonParse(item.metadata);
-	          var id = metadata.id;
-	          var data = unstringifyDoc(item.data, id, item.rev);
-	          var winningRev$$1 = data._rev;
-	          var doc = {
-	            id: id,
-	            key: id,
-	            value: {rev: winningRev$$1}
-	          };
-	          if (opts.include_docs) {
-	            doc.doc = data;
-	            doc.doc._rev = winningRev$$1;
-	            if (opts.conflicts) {
-	              var conflicts = collectConflicts(metadata);
-	              if (conflicts.length) {
-	                doc.doc._conflicts = conflicts;
-	              }
-	            }
-	            fetchAttachmentsIfNecessary$1(doc.doc, opts, api, tx);
-	          }
-	          if (item.deleted) {
-	            if (keys) {
-	              doc.value.deleted = true;
-	              doc.doc = null;
-	            } else {
-	              // propably should not happen
-	              continue;
-	            }
-	          }
-	          if (!keys) {
-	            results.push(doc);
-	          } else {
-	            var index = keys.indexOf(id, index);
-	            do {
-	              results[index] = doc;
-	              index = keys.indexOf(id, index + 1);
-	            } while (index > -1 && index < keys.length);
-	          }
-	        }
-	        if (keys) {
-	          keys.forEach(function (key, index) {
-	            if (!results[index]) {
-	              results[index] = {key: key, error: 'not_found'};
-	            }
-	          });
-	        }
-	      });
-	    }, websqlError(callback), function () {
-	      var returnVal = {
-	        total_rows: totalRows,
-	        offset: opts.skip,
-	        rows: results
-	      };
-
-	      /* istanbul ignore if */
-	      if (opts.update_seq) {
-	        returnVal.update_seq = updateSeq;
-	      }
-	      callback(null, returnVal);
-	    });
-	  };
-
-	  api._changes = function (opts) {
-	    opts = clone(opts);
-
-	    if (opts.continuous) {
-	      var id = api._name + ':' + uuid$1();
-	      websqlChanges.addListener(api._name, id, api, opts);
-	      websqlChanges.notify(api._name);
-	      return {
-	        cancel: function () {
-	          websqlChanges.removeListener(api._name, id);
-	        }
-	      };
-	    }
-
-	    var descending = opts.descending;
-
-	    // Ignore the `since` parameter when `descending` is true
-	    opts.since = opts.since && !descending ? opts.since : 0;
-
-	    var limit = 'limit' in opts ? opts.limit : -1;
-	    if (limit === 0) {
-	      limit = 1; // per CouchDB _changes spec
-	    }
-
-	    var returnDocs;
-	    if ('return_docs' in opts) {
-	      returnDocs = opts.return_docs;
-	    } else if ('returnDocs' in opts) {
-	      // TODO: Remove 'returnDocs' in favor of 'return_docs' in a future release
-	      returnDocs = opts.returnDocs;
-	    } else {
-	      returnDocs = true;
-	    }
-	    var results = [];
-	    var numResults = 0;
-
-	    function fetchChanges() {
-
-	      var selectStmt =
-	        DOC_STORE$1 + '.json AS metadata, ' +
-	        DOC_STORE$1 + '.max_seq AS maxSeq, ' +
-	        BY_SEQ_STORE$1 + '.json AS winningDoc, ' +
-	        BY_SEQ_STORE$1 + '.rev AS winningRev ';
-
-	      var from = DOC_STORE$1 + ' JOIN ' + BY_SEQ_STORE$1;
-
-	      var joiner = DOC_STORE$1 + '.id=' + BY_SEQ_STORE$1 + '.doc_id' +
-	        ' AND ' + DOC_STORE$1 + '.winningseq=' + BY_SEQ_STORE$1 + '.seq';
-
-	      var criteria = ['maxSeq > ?'];
-	      var sqlArgs = [opts.since];
-
-	      if (opts.doc_ids) {
-	        criteria.push(DOC_STORE$1 + '.id IN ' + qMarks(opts.doc_ids.length));
-	        sqlArgs = sqlArgs.concat(opts.doc_ids);
-	      }
-
-	      var orderBy = 'maxSeq ' + (descending ? 'DESC' : 'ASC');
-
-	      var sql = select(selectStmt, from, joiner, criteria, orderBy);
-
-	      var filter = filterChange(opts);
-	      if (!opts.view && !opts.filter) {
-	        // we can just limit in the query
-	        sql += ' LIMIT ' + limit;
-	      }
-
-	      var lastSeq = opts.since || 0;
-	      db.readTransaction(function (tx) {
-	        tx.executeSql(sql, sqlArgs, function (tx, result) {
-	          function reportChange(change) {
-	            return function () {
-	              opts.onChange(change);
-	            };
-	          }
-	          for (var i = 0, l = result.rows.length; i < l; i++) {
-	            var item = result.rows.item(i);
-	            var metadata = safeJsonParse(item.metadata);
-	            lastSeq = item.maxSeq;
-
-	            var doc = unstringifyDoc(item.winningDoc, metadata.id,
-	              item.winningRev);
-	            var change = opts.processChange(doc, metadata, opts);
-	            change.seq = item.maxSeq;
-
-	            var filtered = filter(change);
-	            if (typeof filtered === 'object') {
-	              return opts.complete(filtered);
-	            }
-
-	            if (filtered) {
-	              numResults++;
-	              if (returnDocs) {
-	                results.push(change);
-	              }
-	              // process the attachment immediately
-	              // for the benefit of live listeners
-	              if (opts.attachments && opts.include_docs) {
-	                fetchAttachmentsIfNecessary$1(doc, opts, api, tx,
-	                  reportChange(change));
-	              } else {
-	                reportChange(change)();
-	              }
-	            }
-	            if (numResults === limit) {
-	              break;
-	            }
-	          }
-	        });
-	      }, websqlError(opts.complete), function () {
-	        if (!opts.continuous) {
-	          opts.complete(null, {
-	            results: results,
-	            last_seq: lastSeq
-	          });
-	        }
-	      });
-	    }
-
-	    fetchChanges();
-	  };
-
-	  api._close = function (callback) {
-	    //WebSQL databases do not need to be closed
-	    callback();
-	  };
-
-	  api._getAttachment = function (docId, attachId, attachment, opts, callback) {
-	    var res;
-	    var tx = opts.ctx;
-	    var digest = attachment.digest;
-	    var type = attachment.content_type;
-	    var sql = 'SELECT escaped, ' +
-	      'CASE WHEN escaped = 1 THEN body ELSE HEX(body) END AS body FROM ' +
-	      ATTACH_STORE$1 + ' WHERE digest=?';
-	    tx.executeSql(sql, [digest], function (tx, result) {
-	      // websql has a bug where \u0000 causes early truncation in strings
-	      // and blobs. to work around this, we used to use the hex() function,
-	      // but that's not performant. after migration 6, we remove \u0000
-	      // and add it back in afterwards
-	      var item = result.rows.item(0);
-	      var data = item.escaped ? unescapeBlob(item.body) :
-	        parseHexString(item.body, encoding);
-	      if (opts.binary) {
-	        res = binStringToBluffer(data, type);
-	      } else {
-	        res = thisBtoa(data);
-	      }
-	      callback(null, res);
-	    });
-	  };
-
-	  api._getRevisionTree = function (docId, callback) {
-	    db.readTransaction(function (tx) {
-	      var sql = 'SELECT json AS metadata FROM ' + DOC_STORE$1 + ' WHERE id = ?';
-	      tx.executeSql(sql, [docId], function (tx, result) {
-	        if (!result.rows.length) {
-	          callback(createError(MISSING_DOC));
-	        } else {
-	          var data = safeJsonParse(result.rows.item(0).metadata);
-	          callback(null, data.rev_tree);
-	        }
-	      });
-	    });
-	  };
-
-	  api._doCompaction = function (docId, revs, callback) {
-	    if (!revs.length) {
-	      return callback();
-	    }
-	    db.transaction(function (tx) {
-
-	      // update doc store
-	      var sql = 'SELECT json AS metadata FROM ' + DOC_STORE$1 + ' WHERE id = ?';
-	      tx.executeSql(sql, [docId], function (tx, result) {
-	        var metadata = safeJsonParse(result.rows.item(0).metadata);
-	        traverseRevTree(metadata.rev_tree, function (isLeaf, pos,
-	                                                           revHash, ctx, opts) {
-	          var rev$$1 = pos + '-' + revHash;
-	          if (revs.indexOf(rev$$1) !== -1) {
-	            opts.status = 'missing';
-	          }
-	        });
-
-	        var sql = 'UPDATE ' + DOC_STORE$1 + ' SET json = ? WHERE id = ?';
-	        tx.executeSql(sql, [safeJsonStringify(metadata), docId]);
-	      });
-
-	      compactRevs$1(revs, docId, tx);
-	    }, websqlError(callback), function () {
-	      callback();
-	    });
-	  };
-
-	  api._getLocal = function (id, callback) {
-	    db.readTransaction(function (tx) {
-	      var sql = 'SELECT json, rev FROM ' + LOCAL_STORE$1 + ' WHERE id=?';
-	      tx.executeSql(sql, [id], function (tx, res) {
-	        if (res.rows.length) {
-	          var item = res.rows.item(0);
-	          var doc = unstringifyDoc(item.json, id, item.rev);
-	          callback(null, doc);
-	        } else {
-	          callback(createError(MISSING_DOC));
-	        }
-	      });
-	    });
-	  };
-
-	  api._putLocal = function (doc, opts, callback) {
-	    if (typeof opts === 'function') {
-	      callback = opts;
-	      opts = {};
-	    }
-	    delete doc._revisions; // ignore this, trust the rev
-	    var oldRev = doc._rev;
-	    var id = doc._id;
-	    var newRev;
-	    if (!oldRev) {
-	      newRev = doc._rev = '0-1';
-	    } else {
-	      newRev = doc._rev = '0-' + (parseInt(oldRev.split('-')[1], 10) + 1);
-	    }
-	    var json = stringifyDoc(doc);
-
-	    var ret;
-	    function putLocal(tx) {
-	      var sql;
-	      var values;
-	      if (oldRev) {
-	        sql = 'UPDATE ' + LOCAL_STORE$1 + ' SET rev=?, json=? ' +
-	          'WHERE id=? AND rev=?';
-	        values = [newRev, json, id, oldRev];
-	      } else {
-	        sql = 'INSERT INTO ' + LOCAL_STORE$1 + ' (id, rev, json) VALUES (?,?,?)';
-	        values = [id, newRev, json];
-	      }
-	      tx.executeSql(sql, values, function (tx, res) {
-	        if (res.rowsAffected) {
-	          ret = {ok: true, id: id, rev: newRev};
-	          if (opts.ctx) { // return immediately
-	            callback(null, ret);
-	          }
-	        } else {
-	          callback(createError(REV_CONFLICT));
-	        }
-	      }, function () {
-	        callback(createError(REV_CONFLICT));
-	        return false; // ack that we handled the error
-	      });
-	    }
-
-	    if (opts.ctx) {
-	      putLocal(opts.ctx);
-	    } else {
-	      db.transaction(putLocal, websqlError(callback), function () {
-	        if (ret) {
-	          callback(null, ret);
-	        }
-	      });
-	    }
-	  };
-
-	  api._removeLocal = function (doc, opts, callback) {
-	    if (typeof opts === 'function') {
-	      callback = opts;
-	      opts = {};
-	    }
-	    var ret;
-
-	    function removeLocal(tx) {
-	      var sql = 'DELETE FROM ' + LOCAL_STORE$1 + ' WHERE id=? AND rev=?';
-	      var params = [doc._id, doc._rev];
-	      tx.executeSql(sql, params, function (tx, res) {
-	        if (!res.rowsAffected) {
-	          return callback(createError(MISSING_DOC));
-	        }
-	        ret = {ok: true, id: doc._id, rev: '0-0'};
-	        if (opts.ctx) { // return immediately
-	          callback(null, ret);
-	        }
-	      });
-	    }
-
-	    if (opts.ctx) {
-	      removeLocal(opts.ctx);
-	    } else {
-	      db.transaction(removeLocal, websqlError(callback), function () {
-	        if (ret) {
-	          callback(null, ret);
-	        }
-	      });
-	    }
-	  };
-
-	  api._destroy = function (opts, callback) {
-	    websqlChanges.removeAllListeners(api._name);
-	    db.transaction(function (tx) {
-	      var stores = [DOC_STORE$1, BY_SEQ_STORE$1, ATTACH_STORE$1, META_STORE$1,
-	        LOCAL_STORE$1, ATTACH_AND_SEQ_STORE$1];
-	      stores.forEach(function (store) {
-	        tx.executeSql('DROP TABLE IF EXISTS ' + store, []);
-	      });
-	    }, websqlError(callback), function () {
-	      if (hasLocalStorage()) {
-	        delete window.localStorage['_pouch__websqldb_' + api._name];
-	        delete window.localStorage[api._name];
-	      }
-	      callback(null, {'ok': true});
-	    });
-	  };
-	}
-
-	function canOpenTestDB() {
-	  try {
-	    openDatabase('_pouch_validate_websql', 1, '', 1);
-	    return true;
-	  } catch (err) {
-	    return false;
-	  }
-	}
-
-	// WKWebView had a bug where WebSQL would throw a DOM Exception 18
-	// (see https://bugs.webkit.org/show_bug.cgi?id=137760 and
-	// https://github.com/pouchdb/pouchdb/issues/5079)
-	// This has been fixed in latest WebKit, so we try to detect it here.
-	function isValidWebSQL() {
-	  // WKWebView UA:
-	  //   Mozilla/5.0 (iPhone; CPU iPhone OS 9_2 like Mac OS X)
-	  //   AppleWebKit/601.1.46 (KHTML, like Gecko) Mobile/13C75
-	  // Chrome for iOS UA:
-	  //   Mozilla/5.0 (iPhone; U; CPU iPhone OS 5_1_1 like Mac OS X; en)
-	  //   AppleWebKit/534.46.0 (KHTML, like Gecko) CriOS/19.0.1084.60
-	  //   Mobile/9B206 Safari/7534.48.3
-	  // Firefox for iOS UA:
-	  //   Mozilla/5.0 (iPhone; CPU iPhone OS 8_3 like Mac OS X) AppleWebKit/600.1.4
-	  //   (KHTML, like Gecko) FxiOS/1.0 Mobile/12F69 Safari/600.1.4
-
-	  // indexedDB is null on some UIWebViews and undefined in others
-	  // see: https://bugs.webkit.org/show_bug.cgi?id=137034
-	  if (typeof indexedDB === 'undefined' || indexedDB === null ||
-	      !/iP(hone|od|ad)/.test(navigator.userAgent)) {
-	    // definitely not WKWebView, avoid creating an unnecessary database
-	    return true;
-	  }
-	  // Cache the result in LocalStorage. Reason we do this is because if we
-	  // call openDatabase() too many times, Safari craps out in SauceLabs and
-	  // starts throwing DOM Exception 14s.
-	  var hasLS = hasLocalStorage();
-	  // Include user agent in the hash, so that if Safari is upgraded, we don't
-	  // continually think it's broken.
-	  var localStorageKey = '_pouch__websqldb_valid_' + navigator.userAgent;
-	  if (hasLS && localStorage[localStorageKey]) {
-	    return localStorage[localStorageKey] === '1';
-	  }
-	  var openedTestDB = canOpenTestDB();
-	  if (hasLS) {
-	    localStorage[localStorageKey] = openedTestDB ? '1' : '0';
-	  }
-	  return openedTestDB;
-	}
-
-	function valid() {
-	  if (typeof openDatabase !== 'function') {
-	    return false;
-	  }
-	  return isValidWebSQL();
-	}
-
-	function openDB$2(name, version, description, size) {
-	  // Traditional WebSQL API
-	  return openDatabase(name, version, description, size);
-	}
-
-	function WebSQLPouch(opts, callback) {
-	  var msg = 'WebSQL is deprecated and will be removed in future releases of PouchDB. ' +
-	      'Please migrate to IndexedDB: https://pouchdb.com/2018/01/23/pouchdb-6.4.2.html';
-	  guardedConsole('warn', msg);
-	  var _opts = $inject_Object_assign({
-	    websql: openDB$2
-	  }, opts);
-
-	  WebSqlPouch.call(this, _opts, callback);
-	}
-
-	WebSQLPouch.valid = valid;
-
-	WebSQLPouch.use_prefix = true;
-
-	function WebSqlPouch$1 (PouchDB) {
-	  PouchDB.adapter('websql', WebSQLPouch, true);
-	}
-
-	/* global fetch */
-	/* global Headers */
-	function wrappedFetch() {
-	  var wrappedPromise = {};
-
-	  var promise = new PouchPromise(function (resolve, reject) {
-	    wrappedPromise.resolve = resolve;
-	    wrappedPromise.reject = reject;
-	  });
-
-	  var args = new Array(arguments.length);
-
-	  for (var i = 0; i < args.length; i++) {
-	    args[i] = arguments[i];
-	  }
-
-	  wrappedPromise.promise = promise;
-
-	  PouchPromise.resolve().then(function () {
-	    return fetch.apply(null, args);
-	  }).then(function (response) {
-	    wrappedPromise.resolve(response);
-	  }).catch(function (error) {
-	    wrappedPromise.reject(error);
-	  });
-
-	  return wrappedPromise;
-	}
-
-	function fetchRequest(options, callback) {
-	  var wrappedPromise, timer, response;
-
-	  var headers = new Headers();
-
-	  var fetchOptions = {
-	    method: options.method,
-	    credentials: 'include',
-	    headers: headers
-	  };
-
-	  if (options.json) {
-	    headers.set('Accept', 'application/json');
-	    headers.set('Content-Type', options.headers['Content-Type'] ||
-	      'application/json');
-	  }
-
-	  if (options.body &&
-	      options.processData &&
-	      typeof options.body !== 'string') {
-	    fetchOptions.body = JSON.stringify(options.body);
-	  } else if ('body' in options) {
-	    fetchOptions.body = options.body;
-	  } else {
-	    fetchOptions.body = null;
-	  }
-
-	  Object.keys(options.headers).forEach(function (key) {
-	    if (options.headers.hasOwnProperty(key)) {
-	      headers.set(key, options.headers[key]);
-	    }
-	  });
-
-	  wrappedPromise = wrappedFetch(options.url, fetchOptions);
-
-	  if (options.timeout > 0) {
-	    timer = setTimeout(function () {
-	      wrappedPromise.reject(new Error('Load timeout for resource: ' +
-	        options.url));
-	    }, options.timeout);
-	  }
-
-	  wrappedPromise.promise.then(function (fetchResponse) {
-	    response = {
-	      statusCode: fetchResponse.status
-	    };
-
-	    if (options.timeout > 0) {
-	      clearTimeout(timer);
-	    }
-
-	    if (response.statusCode >= 200 && response.statusCode < 300) {
-	      return options.binary ? fetchResponse.blob() : fetchResponse.text();
-	    }
-
-	    return fetchResponse.json();
-	  }).then(function (result) {
-	    if (response.statusCode >= 200 && response.statusCode < 300) {
-	      callback(null, response, result);
-	    } else {
-	      result.status = response.statusCode;
-	      callback(result);
-	    }
-	  }).catch(function (error) {
-	    if (!error) {
-	      // this happens when the listener is canceled
-	      error = new Error('canceled');
-	    }
-	    callback(error);
-	  });
-
-	  return {abort: wrappedPromise.reject};
-	}
-
-	function xhRequest(options, callback) {
-
-	  var xhr, timer;
-	  var timedout = false;
-
-	  var abortReq = function () {
-	    xhr.abort();
-	    cleanUp();
-	  };
-
-	  var timeoutReq = function () {
-	    timedout = true;
-	    xhr.abort();
-	    cleanUp();
-	  };
-
-	  var ret = {abort: abortReq};
-
-	  var cleanUp = function () {
-	    clearTimeout(timer);
-	    ret.abort = function () {};
-	    if (xhr) {
-	      xhr.onprogress = undefined;
-	      if (xhr.upload) {
-	        xhr.upload.onprogress = undefined;
-	      }
-	      xhr.onreadystatechange = undefined;
-	      xhr = undefined;
-	    }
-	  };
-
-	  if (options.xhr) {
-	    xhr = new options.xhr();
-	  } else {
-	    xhr = new XMLHttpRequest();
-	  }
-
-	  try {
-	    xhr.open(options.method, options.url);
-	  } catch (exception) {
-	    return callback(new Error(exception.name || 'Url is invalid'));
-	  }
-
-	  xhr.withCredentials = ('withCredentials' in options) ?
-	    options.withCredentials : true;
-
-	  if (options.method === 'GET') {
-	    delete options.headers['Content-Type'];
-	  } else if (options.json) {
-	    options.headers.Accept = 'application/json';
-	    options.headers['Content-Type'] = options.headers['Content-Type'] ||
-	      'application/json';
-	    if (options.body &&
-	        options.processData &&
-	        typeof options.body !== "string") {
-	      options.body = JSON.stringify(options.body);
-	    }
-	  }
-
-	  if (options.binary) {
-	    xhr.responseType = 'arraybuffer';
-	  }
-
-	  if (!('body' in options)) {
-	    options.body = null;
-	  }
-
-	  for (var key in options.headers) {
-	    if (options.headers.hasOwnProperty(key)) {
-	      xhr.setRequestHeader(key, options.headers[key]);
-	    }
-	  }
-
-	  if (options.timeout > 0) {
-	    timer = setTimeout(timeoutReq, options.timeout);
-	    xhr.onprogress = function () {
-	      clearTimeout(timer);
-	      if (xhr.readyState !== 4) {
-	        timer = setTimeout(timeoutReq, options.timeout);
-	      }
-	    };
-	    if (typeof xhr.upload !== 'undefined') { // does not exist in ie9
-	      xhr.upload.onprogress = xhr.onprogress;
-	    }
-	  }
-
-	  xhr.onreadystatechange = function () {
-	    if (xhr.readyState !== 4) {
-	      return;
-	    }
-
-	    var response = {
-	      statusCode: xhr.status
-	    };
-
-	    if (xhr.status >= 200 && xhr.status < 300) {
-	      var data;
-	      if (options.binary) {
-	        data = createBlob([xhr.response || ''], {
-	          type: xhr.getResponseHeader('Content-Type')
-	        });
-	      } else {
-	        data = xhr.responseText;
-	      }
-	      callback(null, response, data);
-	    } else {
-	      var err = {};
-	      if (timedout) {
-	        err = new Error('ETIMEDOUT');
-	        err.code = 'ETIMEDOUT';
-	      } else if (typeof xhr.response === 'string' && xhr.response !== '') {
-	        try {
-	          err = JSON.parse(xhr.response);
-	        } catch (e) {}
-	      }
-
-	      err.status = xhr.status;
-
-	      callback(err);
-	    }
-	    cleanUp();
-	  };
-
-	  if (options.body && (options.body instanceof Blob)) {
-	    readAsArrayBuffer(options.body, function (arrayBuffer) {
-	      xhr.send(arrayBuffer);
-	    });
-	  } else {
-	    xhr.send(options.body);
-	  }
-
-	  return ret;
-	}
-
-	function testXhr() {
-	  try {
-	    new XMLHttpRequest();
-	    return true;
-	  } catch (err) {
-	    return false;
-	  }
-	}
-
-	var hasXhr = testXhr();
-
-	function ajax(options, callback) {
-	  if (hasXhr || options.xhr) {
-	    return xhRequest(options, callback);
-	  } else {
-	    return fetchRequest(options, callback);
-	  }
-	}
-
-	// the blob already has a type; do nothing
-
-	function defaultBody() {
-	  return '';
-	}
-
-	function ajaxCore(options, callback) {
-
-	  options = clone(options);
-
-	  var defaultOptions = {
-	    method : "GET",
-	    headers: {},
-	    json: true,
-	    processData: true,
-	    timeout: 10000,
-	    cache: false
-	  };
-
-	  options = $inject_Object_assign(defaultOptions, options);
-
-	  function onSuccess(obj, resp, cb) {
-	    if (!options.binary && options.json && typeof obj === 'string') {
-	      /* istanbul ignore next */
-	      try {
-	        obj = JSON.parse(obj);
-	      } catch (e) {
-	        // Probably a malformed JSON from server
-	        return cb(e);
-	      }
-	    }
-	    if (Array.isArray(obj)) {
-	      obj = obj.map(function (v) {
-	        if (v.error || v.missing) {
-	          return generateErrorFromResponse(v);
-	        } else {
-	          return v;
-	        }
-	      });
-	    }
-	    if (options.binary) ;
-	    cb(null, obj, resp);
-	  }
-
-	  if (options.json) {
-	    if (!options.binary) {
-	      options.headers.Accept = 'application/json';
-	    }
-	    options.headers['Content-Type'] = options.headers['Content-Type'] ||
-	      'application/json';
-	  }
-
-	  if (options.binary) {
-	    options.encoding = null;
-	    options.json = false;
-	  }
-
-	  if (!options.processData) {
-	    options.json = false;
-	  }
-
-	  return ajax(options, function (err, response, body) {
-
-	    if (err) {
-	      return callback(generateErrorFromResponse(err));
-	    }
-
-	    var error;
-	    var content_type = response.headers && response.headers['content-type'];
-	    var data = body || defaultBody();
-
-	    // CouchDB doesn't always return the right content-type for JSON data, so
-	    // we check for ^{ and }$ (ignoring leading/trailing whitespace)
-	    if (!options.binary && (options.json || !options.processData) &&
-	        typeof data !== 'object' &&
-	        (/json/.test(content_type) ||
-	         (/^[\s]*\{/.test(data) && /\}[\s]*$/.test(data)))) {
-	      try {
-	        data = JSON.parse(data.toString());
-	      } catch (e) {}
-	    }
-
-	    if (response.statusCode >= 200 && response.statusCode < 300) {
-	      onSuccess(data, response, callback);
-	    } else {
-	      error = generateErrorFromResponse(data);
-	      error.status = response.statusCode;
-	      callback(error);
-	    }
-	  });
-	}
-
-	function ajax$1(opts, callback) {
-
-	  // cache-buster, specifically designed to work around IE's aggressive caching
-	  // see http://www.dashbay.com/2011/05/internet-explorer-caches-ajax/
-	  // Also Safari caches POSTs, so we need to cache-bust those too.
-	  var ua = (navigator && navigator.userAgent) ?
-	    navigator.userAgent.toLowerCase() : '';
-
-	  var isSafari = ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1;
-	  var isIE = ua.indexOf('msie') !== -1;
-	  var isTrident = ua.indexOf('trident') !== -1;
-	  var isEdge = ua.indexOf('edge') !== -1;
-
-	  // it appears the new version of safari also caches GETs,
-	  // see https://github.com/pouchdb/pouchdb/issues/5010
-	  var shouldCacheBust = (isSafari ||
-	    ((isIE || isTrident || isEdge) && opts.method === 'GET'));
-
-	  var cache = 'cache' in opts ? opts.cache : true;
-
-	  var isBlobUrl = /^blob:/.test(opts.url); // don't append nonces for blob URLs
-
-	  if (!isBlobUrl && (shouldCacheBust || !cache)) {
-	    var hasArgs = opts.url.indexOf('?') !== -1;
-	    opts.url += (hasArgs ? '&' : '?') + '_nonce=' + Date.now();
-	  }
-
-	  return ajaxCore(opts, callback);
 	}
 
 	// dead simple promise pool, inspired by https://github.com/timdp/es6-promise-pool
@@ -45716,7 +43069,7 @@ PivotToContents`);
 
 
 	function pool(promiseFactories, limit) {
-	  return new PouchPromise(function (resolve, reject) {
+	  return new Promise(function (resolve, reject) {
 	    var running = 0;
 	    var current = 0;
 	    var done = 0;
@@ -45792,15 +43145,15 @@ PivotToContents`);
 	  return encodeURIComponent(id);
 	}
 
-	function preprocessAttachments$2(doc) {
+	function preprocessAttachments$1(doc) {
 	  if (!doc._attachments || !Object.keys(doc._attachments)) {
-	    return PouchPromise.resolve();
+	    return Promise.resolve();
 	  }
 
-	  return PouchPromise.all(Object.keys(doc._attachments).map(function (key) {
+	  return Promise.all(Object.keys(doc._attachments).map(function (key) {
 	    var attachment = doc._attachments[key];
 	    if (attachment.data && typeof attachment.data !== 'string') {
-	      return new PouchPromise(function (resolve) {
+	      return new Promise(function (resolve) {
 	        blobToBase64(attachment.data, resolve);
 	      }).then(function (b64) {
 	        attachment.data = b64;
@@ -45813,26 +43166,22 @@ PivotToContents`);
 	  if (!opts.prefix) {
 	    return false;
 	  }
-
 	  var protocol = parseUri(opts.prefix).protocol;
-
 	  return protocol === 'http' || protocol === 'https';
 	}
 
 	// Get all the information you possibly can about the URI given by name and
 	// return it as a suitable object.
 	function getHost(name, opts) {
-
 	  // encode db name if opts.prefix is a url (#5574)
 	  if (hasUrlPrefix(opts)) {
 	    var dbName = opts.name.substr(opts.prefix.length);
-	    name = opts.prefix + encodeURIComponent(dbName);
+	    // Ensure prefix has a trailing slash
+	    var prefix = opts.prefix.replace(/\/?$/, '/');
+	    name = prefix + encodeURIComponent(dbName);
 	  }
 
-	  // Prase the URI into all its little bits
 	  var uri = parseUri(name);
-
-	  // Store the user and password as a separate auth object
 	  if (uri.user || uri.password) {
 	    uri.auth = {username: uri.user, password: uri.password};
 	  }
@@ -45841,16 +43190,12 @@ PivotToContents`);
 	  // after removing any leading '/' and any trailing '/'
 	  var parts = uri.path.replace(/(^\/|\/$)/g, '').split('/');
 
-	  // Store the first part as the database name and remove it from the parts
-	  // array
 	  uri.db = parts.pop();
 	  // Prevent double encoding of URI component
 	  if (uri.db.indexOf('%') === -1) {
 	    uri.db = encodeURIComponent(uri.db);
 	  }
 
-	  // Restore the path by joining all the remaining parts (all the parts
-	  // except for the database name) with '/'s
 	  uri.path = parts.join('/');
 
 	  return uri;
@@ -45880,6 +43225,16 @@ PivotToContents`);
 	  }).join('&');
 	}
 
+	function shouldCacheBust(opts) {
+	  var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ?
+	      navigator.userAgent.toLowerCase() : '';
+	  var isIE = ua.indexOf('msie') !== -1;
+	  var isTrident = ua.indexOf('trident') !== -1;
+	  var isEdge = ua.indexOf('edge') !== -1;
+	  var isGET = !('method' in opts) || opts.method === 'GET';
+	  return (isIE || isTrident || isEdge) && isGET;
+	}
+
 	// Implements the PouchDB API for dealing with CouchDB instances over HTTP
 	function HttpPouch(opts, callback) {
 
@@ -45890,44 +43245,32 @@ PivotToContents`);
 	  var dbUrl = genDBUrl(host, '');
 
 	  opts = clone(opts);
-	  var ajaxOpts = opts.ajax || {};
 
-	  if (opts.auth || host.auth) {
-	    var nAuth = opts.auth || host.auth;
-	    var str = nAuth.username + ':' + nAuth.password;
-	    var token = thisBtoa(unescape(encodeURIComponent(str)));
-	    ajaxOpts.headers = ajaxOpts.headers || {};
-	    ajaxOpts.headers.Authorization = 'Basic ' + token;
-	  }
+	  var ourFetch = function (url, options) {
 
-	  // Not strictly necessary, but we do this because numerous tests
-	  // rely on swapping ajax in and out.
-	  api._ajax = ajax$1;
+	    options = options || {};
+	    options.headers = options.headers || new h();
 
-	  function ajax(userOpts, options, callback) {
-	    var reqAjax = (userOpts || {}).ajax || {};
-	    var reqOpts = $inject_Object_assign(clone(ajaxOpts), reqAjax, options);
-	    var defaultHeaders = clone(ajaxOpts.headers || {});
-	    reqOpts.headers = $inject_Object_assign(defaultHeaders, reqAjax.headers,
-	      options.headers || {});
-	    /* istanbul ignore if */
-	    if (api.constructor.listeners('debug').length) {
-	      api.constructor.emit('debug', ['http', reqOpts.method, reqOpts.url]);
+	    if (opts.auth || host.auth) {
+	      var nAuth = opts.auth || host.auth;
+	      var str = nAuth.username + ':' + nAuth.password;
+	      var token = thisBtoa(unescape(encodeURIComponent(str)));
+	      options.headers.set('Authorization', 'Basic ' + token);
 	    }
-	    return api._ajax(reqOpts, callback);
-	  }
 
-	  function ajaxPromise(userOpts, opts) {
-	    return new PouchPromise(function (resolve, reject) {
-	      ajax(userOpts, opts, function (err, res) {
-	        /* istanbul ignore if */
-	        if (err) {
-	          return reject(err);
-	        }
-	        resolve(res);
-	      });
+	    var headers = opts.headers || {};
+	    Object.keys(headers).forEach(function (key) {
+	      options.headers.append(key, headers[key]);
 	    });
-	  }
+
+	    /* istanbul ignore if */
+	    if (shouldCacheBust(options)) {
+	      url += (url.indexOf('?') === -1 ? '?' : '&') + '_nonce=' + Date.now();
+	    }
+
+	    var fetchFun = opts.fetch || f$1;
+	    return fetchFun(url, options);
+	  };
 
 	  function adapterFun$$1(name, fun) {
 	    return adapterFun(name, argsarray(function (args) {
@@ -45937,15 +43280,62 @@ PivotToContents`);
 	        var callback = args.pop();
 	        callback(e);
 	      });
-	    }));
+	    })).bind(api);
+	  }
+
+	  function fetchJSON(url, options, callback) {
+
+	    var result = {};
+
+	    options = options || {};
+	    options.headers = options.headers || new h();
+
+	    if (!options.headers.get('Content-Type')) {
+	      options.headers.set('Content-Type', 'application/json');
+	    }
+	    if (!options.headers.get('Accept')) {
+	      options.headers.set('Accept', 'application/json');
+	    }
+
+	    return ourFetch(url, options).then(function (response) {
+	      result.ok = response.ok;
+	      result.status = response.status;
+	      return response.json();
+	    }).then(function (json) {
+	      result.data = json;
+	      if (!result.ok) {
+	        result.data.status = result.status;
+	        var err = generateErrorFromResponse(result.data);
+	        if (callback) {
+	          return callback(err);
+	        } else {
+	          throw err;
+	        }
+	      }
+
+	      if (Array.isArray(result.data)) {
+	        result.data = result.data.map(function (v) {
+	          if (v.error || v.missing) {
+	            return generateErrorFromResponse(v);
+	          } else {
+	            return v;
+	          }
+	        });
+	      }
+
+	      if (callback) {
+	        callback(null, result.data);
+	      } else {
+	        return result;
+	      }
+	    });
 	  }
 
 	  var setupPromise;
 
 	  function setup() {
-	    // TODO: Remove `skipSetup` in favor of `skip_setup` in a future release
-	    if (opts.skipSetup || opts.skip_setup) {
-	      return PouchPromise.resolve();
+	    if (opts.skip_setup) {
+	      return Promise.resolve();
 	    }
 
 	    // If there is a setup in process or previous successful setup
@@ -45955,14 +43345,13 @@ PivotToContents`);
 	      return setupPromise;
 	    }
 
-	    var checkExists = {method: 'GET', url: dbUrl};
-	    setupPromise = ajaxPromise({}, checkExists).catch(function (err) {
+	    setupPromise = fetchJSON(dbUrl).catch(function (err) {
 	      if (err && err.status && err.status === 404) {
 	        // Doesnt exist, create it
 	        explainError(404, 'PouchDB is just detecting if the remote exists.');
-	        return ajaxPromise({}, {method: 'PUT', url: dbUrl});
+	        return fetchJSON(dbUrl, {method: 'PUT'});
 	      } else {
-	        return PouchPromise.reject(err);
+	        return Promise.reject(err);
 	      }
 	    }).catch(function (err) {
 	      // If we try to create a database that already exists, skipped in
@@ -45971,7 +43360,7 @@ PivotToContents`);
 	      if (err && err.status && err.status === 412) {
 	        return true;
 	      }
-	      return PouchPromise.reject(err);
+	      return Promise.reject(err);
 	    });
 
 	    setupPromise.catch(function () {
@@ -45981,27 +43370,27 @@ PivotToContents`);
 	    return setupPromise;
 	  }
 
-	  browser$3(function () {
+	  browser$4(function () {
 	    callback(null, api);
 	  });
 
 	  api._remote = true;
+
 	  /* istanbul ignore next */
 	  api.type = function () {
 	    return 'http';
 	  };
 
 	  api.id = adapterFun$$1('id', function (callback) {
-	    ajax({}, {method: 'GET', url: genUrl(host, '')}, function (err, result) {
+	    ourFetch(genUrl(host, '')).then(function (response) {
+	      return response.json();
+	    }).then(function (result) {
 	      var uuid$$1 = (result && result.uuid) ?
-	        (result.uuid + host.db) : genDBUrl(host, '');
+	          (result.uuid + host.db) : genDBUrl(host, '');
 	      callback(null, uuid$$1);
+	    }).catch(function (err) {
+	      callback(err);
 	    });
-	  });
-
-	  api.request = adapterFun$$1('request', function (options, callback) {
-	    options.url = genDBUrl(host, options.url);
-	    ajax({}, options, callback);
 	  });
 
 	  // Sends a POST request to the host calling the couchdb _compact function
@@ -46012,10 +43401,8 @@ PivotToContents`);
 	      opts = {};
 	    }
 	    opts = clone(opts);
-	    ajax(opts, {
-	      url: genDBUrl(host, '_compact'),
-	      method: 'POST'
-	    }, function () {
+
+	    fetchJSON(genDBUrl(host, '_compact'), {method: 'POST'}).then(function () {
 	      function ping() {
 	        api.info(function (err, res) {
 	          // CouchDB may send a "compact_running:true" if it's
@@ -46048,18 +43435,17 @@ PivotToContents`);
 	      if (opts.latest) {
 	        params.latest = true;
 	      }
-	      ajax(opts, {
-	        url: genDBUrl(host, '_bulk_get' + paramsToStr(params)),
+	      fetchJSON(genDBUrl(host, '_bulk_get' + paramsToStr(params)), {
 	        method: 'POST',
-	        body: { docs: opts.docs}
-	      }, function (err, result) {
-	        if (!err && opts.attachments && opts.binary) {
-	          result.results.forEach(function (res) {
+	        body: JSON.stringify({ docs: opts.docs})
+	      }).then(function (result) {
+	        if (opts.attachments && opts.binary) {
+	          result.data.results.forEach(function (res) {
 	            res.docs.forEach(readAttachmentsAsBlobOrBuffer);
 	          });
 	        }
-	        cb(err, result);
-	      });
+	        cb(null, result.data);
+	      }).catch(cb);
 	    }
 
 	    /* istanbul ignore next */
@@ -46082,7 +43468,6 @@ PivotToContents`);
 
 	      for (var i = 0; i < numBatches; i++) {
 	        var subOpts = pick(opts, ['revs', 'attachments', 'binary', 'latest']);
-	        subOpts.ajax = ajaxOpts;
 	        subOpts.docs = opts.docs.slice(i * batchSize,
 	          Math.min(opts.docs.length, (i + 1) * batchSize));
 	        bulkGet(self, subOpts, onResult(i));
@@ -46122,18 +43507,19 @@ PivotToContents`);
 	  //    version: The version of CouchDB it is running
 	  api._info = function (callback) {
 	    setup().then(function () {
-	      ajax({}, {
-	        method: 'GET',
-	        url: genDBUrl(host, '')
-	      }, function (err, res) {
-	        /* istanbul ignore next */
-	        if (err) {
-	        return callback(err);
-	        }
-	        res.host = genDBUrl(host, '');
-	        callback(null, res);
-	      });
+	      return ourFetch(genDBUrl(host, ''));
+	    }).then(function (response) {
+	      return response.json();
+	    }).then(function (info) {
+	      info.host = genDBUrl(host, '');
+	      callback(null, info);
 	    }).catch(callback);
+	  };
+
+	  api.fetch = function (path, options) {
+	    return setup().then(function () {
+	      return ourFetch(genDBUrl(host, path), options);
+	    });
 	  };
 
 	  // Get the document with the given id from the database given by host.
@@ -46184,12 +43570,6 @@ PivotToContents`);
 
 	    id = encodeDocId(id);
 
-	    // Set the options for the ajax call
-	    var options = {
-	      method: 'GET',
-	      url: genDBUrl(host, id + paramsToStr(params))
-	    };
-
 	    function fetchAttachments(doc) {
 	      var atts = doc._attachments;
 	      var filenames = atts && Object.keys(atts);
@@ -46200,19 +43580,26 @@ PivotToContents`);
 	      // Sync Gateway would normally send it back as multipart/mixed,
 	      // which we cannot parse. Also, this is more efficient than
 	      // receiving attachments as base64-encoded strings.
-	      function fetch(filename) {
+	      function fetchData(filename) {
 	        var att = atts[filename];
 	        var path = encodeDocId(doc._id) + '/' + encodeAttachmentId(filename) +
-	          '?rev=' + doc._rev;
-	        return ajaxPromise(opts, {
-	          method: 'GET',
-	          url: genDBUrl(host, path),
-	          binary: true
+	            '?rev=' + doc._rev;
+	        return ourFetch(genDBUrl(host, path)).then(function (response) {
+	          if (typeof process !== 'undefined' && !browser$3) {
+	            return response.buffer();
+	          } else {
+	            /* istanbul ignore next */
+	            return response.blob();
+	          }
 	        }).then(function (blob) {
 	          if (opts.binary) {
+	            // TODO: Can we remove this?
+	            if (typeof process !== 'undefined' && !browser$3) {
+	              blob.type = att.content_type;
+	            }
 	            return blob;
 	          }
-	          return new PouchPromise(function (resolve) {
+	          return new Promise(function (resolve) {
 	            blobToBase64(blob, resolve);
 	          });
 	        }).then(function (data) {
@@ -46224,7 +43611,7 @@ PivotToContents`);
 
 	      var promiseFactories = filenames.map(function (filename) {
 	        return function () {
-	          return fetch(filename);
+	          return fetchData(filename);
 	        };
 	      });
 
@@ -46235,7 +43622,7 @@ PivotToContents`);
 
 	    function fetchAllAttachments(docOrDocs) {
 	      if (Array.isArray(docOrDocs)) {
-	        return PouchPromise.all(docOrDocs.map(function (doc) {
+	        return Promise.all(docOrDocs.map(function (doc) {
 	          if (doc.ok) {
 	            return fetchAttachments(doc.ok);
 	          }
@@ -46244,13 +43631,14 @@ PivotToContents`);
 	      return fetchAttachments(docOrDocs);
 	    }
 
-	    ajaxPromise(opts, options).then(function (res) {
-	      return PouchPromise.resolve().then(function () {
+	    var url = genDBUrl(host, id + paramsToStr(params));
+	    fetchJSON(url).then(function (res) {
+	      return Promise.resolve().then(function () {
 	        if (opts.attachments) {
-	          return fetchAllAttachments(res);
+	          return fetchAllAttachments(res.data);
 	        }
 	      }).then(function () {
-	        callback(null, res);
+	        callback(null, res.data);
 	      });
 	    }).catch(function (e) {
 	      e.docId = id;
@@ -46258,9 +43646,9 @@ PivotToContents`);
 	    });
 	  });
 
+
 	  // Delete the document given by doc from the database given by host.
-	  api.remove = adapterFun$$1('remove',
-	      function (docOrId, optsOrRev, opts, callback) {
+	  api.remove = adapterFun$$1('remove', function (docOrId, optsOrRev, opts, cb) {
 	    var doc;
 	    if (typeof optsOrRev === 'string') {
 	      // id, rev, opts, callback style
@@ -46269,28 +43657,25 @@ PivotToContents`);
 	        _rev: optsOrRev
 	      };
 	      if (typeof opts === 'function') {
-	        callback = opts;
+	        cb = opts;
 	        opts = {};
 	      }
 	    } else {
 	      // doc, opts, callback style
 	      doc = docOrId;
 	      if (typeof optsOrRev === 'function') {
-	        callback = optsOrRev;
+	        cb = optsOrRev;
 	        opts = {};
 	      } else {
-	        callback = opts;
+	        cb = opts;
 	        opts = optsOrRev;
 	      }
 	    }
 
-	    var rev$$1 = (doc._rev || opts.rev);
+	    var rev = (doc._rev || opts.rev);
+	    var url = genDBUrl(host, encodeDocId(doc._id)) + '?rev=' + rev;
 
-	    // Delete the document
-	    ajax(opts, {
-	      method: 'DELETE',
-	      url: genDBUrl(host, encodeDocId(doc._id)) + '?rev=' + rev$$1
-	    }, callback);
+	    fetchJSON(url, {method: 'DELETE'}, cb).catch(cb);
 	  });
 
 	  function encodeAttachmentId(attachmentId) {
@@ -46298,53 +43683,65 @@ PivotToContents`);
 	  }
 
 	  // Get the attachment
-	  api.getAttachment =
-	    adapterFun$$1('getAttachment', function (docId, attachmentId, opts,
-	                                                callback) {
+	  api.getAttachment = adapterFun$$1('getAttachment', function (docId, attachmentId,
+	                                                            opts, callback) {
 	    if (typeof opts === 'function') {
 	      callback = opts;
 	      opts = {};
 	    }
 	    var params = opts.rev ? ('?rev=' + opts.rev) : '';
 	    var url = genDBUrl(host, encodeDocId(docId)) + '/' +
-	      encodeAttachmentId(attachmentId) + params;
-	    ajax(opts, {
-	      method: 'GET',
-	      url: url,
-	      binary: true
-	    }, callback);
+	        encodeAttachmentId(attachmentId) + params;
+	    var contentType;
+	    ourFetch(url, {method: 'GET'}).then(function (response) {
+	      contentType = response.headers.get('content-type');
+	      if (!response.ok) {
+	        throw response;
+	      } else {
+	        if (typeof process !== 'undefined' && !browser$3) {
+	          return response.buffer();
+	        } else {
+	          /* istanbul ignore next */
+	          return response.blob();
+	        }
+	      }
+	    }).then(function (blob) {
+	      // TODO: also remove
+	      if (typeof process !== 'undefined' && !browser$3) {
+	        blob.type = contentType;
+	      }
+	      callback(null, blob);
+	    }).catch(function (err) {
+	      callback(err);
+	    });
 	  });
 
 	  // Remove the attachment given by the id and rev
-	  api.removeAttachment =
-	    adapterFun$$1('removeAttachment', function (docId, attachmentId, rev$$1,
-	                                                   callback) {
-
+	  api.removeAttachment =  adapterFun$$1('removeAttachment', function (docId,
+	                                                                   attachmentId,
+	                                                                   rev,
+	                                                                   callback) {
 	    var url = genDBUrl(host, encodeDocId(docId) + '/' +
-	      encodeAttachmentId(attachmentId)) + '?rev=' + rev$$1;
-
-	    ajax({}, {
-	      method: 'DELETE',
-	      url: url
-	    }, callback);
+	                       encodeAttachmentId(attachmentId)) + '?rev=' + rev;
+	    fetchJSON(url, {method: 'DELETE'}, callback).catch(callback);
 	  });
 
 	  // Add the attachment given by blob and its contentType property
 	  // to the document with the given id, the revision given by rev, and
 	  // add it to the database given by host.
-	  api.putAttachment =
-	    adapterFun$$1('putAttachment', function (docId, attachmentId, rev$$1, blob,
-	                                                type, callback) {
+	  api.putAttachment = adapterFun$$1('putAttachment', function (docId, attachmentId,
+	                                                            rev, blob,
+	                                                            type, callback) {
 	    if (typeof type === 'function') {
 	      callback = type;
 	      type = blob;
-	      blob = rev$$1;
-	      rev$$1 = null;
+	      blob = rev;
+	      rev = null;
 	    }
 	    var id = encodeDocId(docId) + '/' + encodeAttachmentId(attachmentId);
 	    var url = genDBUrl(host, id);
-	    if (rev$$1) {
-	      url += '?rev=' + rev$$1;
+	    if (rev) {
+	      url += '?rev=' + rev;
 	    }
 
 	    if (typeof blob === 'string') {
@@ -46359,16 +43756,12 @@ PivotToContents`);
 	      blob = binary ? binStringToBluffer(binary, type) : '';
 	    }
 
-	    var opts = {
-	      headers: {'Content-Type': type},
-	      method: 'PUT',
-	      url: url,
-	      processData: false,
-	      body: blob,
-	      timeout: ajaxOpts.timeout || 60000
-	    };
 	    // Add the attachment
-	    ajax({}, opts, callback);
+	    fetchJSON(url, {
+	      headers: new h({'Content-Type': type}),
+	      method: 'PUT',
+	      body: blob
+	    }, callback).catch(callback);
 	  });
 
 	  // Update/create multiple documents given by req in the database
@@ -46380,23 +43773,13 @@ PivotToContents`);
 	    req.new_edits = opts.new_edits;
 
 	    setup().then(function () {
-	      return PouchPromise.all(req.docs.map(preprocessAttachments$2));
+	      return Promise.all(req.docs.map(preprocessAttachments$1));
 	    }).then(function () {
 	      // Update/create the documents
-	      ajax(opts, {
+	      return fetchJSON(genDBUrl(host, '_bulk_docs'), {
 	        method: 'POST',
-	        url: genDBUrl(host, '_bulk_docs'),
-	        timeout: opts.timeout,
-	        body: req
-	      }, function (err, results) {
-	        if (err) {
-	          return callback(err);
-	        }
-	        results.forEach(function (result) {
-	          result.ok = true; // smooths out cloudant not adding this
-	        });
-	        callback(null, results);
-	      });
+	        body: JSON.stringify(req)
+	      }, callback);
 	    }).catch(callback);
 	  };
 
@@ -46404,21 +43787,18 @@ PivotToContents`);
 	  // Update/create document
 	  api._put = function (doc, opts, callback) {
 	    setup().then(function () {
-	      return preprocessAttachments$2(doc);
+	      return preprocessAttachments$1(doc);
 	    }).then(function () {
-	      // Update/create the document
-	      ajax(opts, {
+	      return fetchJSON(genDBUrl(host, encodeDocId(doc._id)), {
 	        method: 'PUT',
-	        url: genDBUrl(host, encodeDocId(doc._id)),
-	        body: doc
-	      }, function (err, result) {
-	        if (err) {
-	          err.docId = doc && doc._id;
-	          return callback(err);
-	        }
-	        callback(null, result);
+	        body: JSON.stringify(doc)
 	      });
-	    }).catch(callback);
+	    }).then(function (result) {
+	      callback(null, result.data);
+	    }).catch(function (err) {
+	      err.docId = doc && doc._id;
+	      callback(err);
+	    });
 	  };
 
 
@@ -46497,16 +43877,14 @@ PivotToContents`);
 	      body = {keys: opts.keys};
 	    }
 
-	    // Get the document listing
-	    ajaxPromise(opts, {
-	      method: method,
-	      url: genDBUrl(host, '_all_docs' + paramStr),
-	      body: body
-	    }).then(function (res) {
+	    fetchJSON(genDBUrl(host, '_all_docs' + paramStr), {
+	       method: method,
+	      body: JSON.stringify(body)
+	    }).then(function (result) {
 	      if (opts.include_docs && opts.attachments && opts.binary) {
-	        res.rows.forEach(readAttachmentsAsBlobOrBuffer);
+	        result.data.rows.forEach(readAttachmentsAsBlobOrBuffer);
 	      }
-	      callback(null, res);
+	      callback(null, result.data);
 	    }).catch(callback);
 	  });
 
@@ -46527,9 +43905,7 @@ PivotToContents`);
 	      opts.heartbeat = DEFAULT_HEARTBEAT;
 	    }
 
-	    var requestTimeout = ('timeout' in opts) ? opts.timeout :
-	      ('timeout' in ajaxOpts) ? ajaxOpts.timeout :
-	      30 * 1000;
+	    var requestTimeout = ('timeout' in opts) ? opts.timeout : 30 * 1000;
 
 	    // ensure CHANGES_TIMEOUT_BUFFER applies
 	    if ('timeout' in opts && opts.timeout &&
@@ -46537,6 +43913,7 @@ PivotToContents`);
 	        requestTimeout = opts.timeout + CHANGES_TIMEOUT_BUFFER;
 	    }
 
+	    /* istanbul ignore if */
 	    if ('heartbeat' in opts && opts.heartbeat &&
 	       (requestTimeout - opts.heartbeat) < CHANGES_TIMEOUT_BUFFER) {
 	        requestTimeout = opts.heartbeat + CHANGES_TIMEOUT_BUFFER;
@@ -46548,16 +43925,6 @@ PivotToContents`);
 	    }
 
 	    var limit = (typeof opts.limit !== 'undefined') ? opts.limit : false;
-	    var returnDocs;
-	    if ('return_docs' in opts) {
-	      returnDocs = opts.return_docs;
-	    } else if ('returnDocs' in opts) {
-	      // TODO: Remove 'returnDocs' in favor of 'return_docs' in a future release
-	      returnDocs = opts.returnDocs;
-	    } else {
-	      returnDocs = true;
-	    }
-	    //
 	    var leftToFetch = limit;
 
 	    if (opts.style) {
@@ -46638,17 +44005,17 @@ PivotToContents`);
 	      body = {selector: opts.selector };
 	    }
 
-	    var xhr;
+	    var controller = new a();
 	    var lastFetchedSeq;
 
 	    // Get all the changes starting wtih the one immediately after the
 	    // sequence number given by since.
-	    var fetch = function (since, callback) {
+	    var fetchData = function (since, callback) {
 	      if (opts.aborted) {
 	        return;
 	      }
 	      params.since = since;
-	      // "since" can be any kind of json object in Coudant/CouchDB 2.x
+	      // "since" can be any kind of json object in Cloudant/CouchDB 2.x
 	      /* istanbul ignore next */
 	      if (typeof params.since === "object") {
 	        params.since = JSON.stringify(params.since);
@@ -46664,11 +44031,11 @@ PivotToContents`);
 	      }
 
 	      // Set the options for the ajax call
-	      var xhrOpts = {
+	      var url = genDBUrl(host, '_changes' + paramsToStr(params));
+	      var fetchOpts = {
+	        signal: controller.signal,
 	        method: method,
-	        url: genDBUrl(host, '_changes' + paramsToStr(params)),
-	        timeout: requestTimeout,
-	        body: body
+	        body: JSON.stringify(body)
 	      };
 	      lastFetchedSeq = since;
 
@@ -46679,7 +44046,7 @@ PivotToContents`);
 
 	      // Get the changes
 	      setup().then(function () {
-	        xhr = ajax(opts, xhrOpts, callback);
+	        return fetchJSON(url, fetchOpts, callback);
 	      }).catch(callback);
 	    };
 
@@ -46717,7 +44084,7 @@ PivotToContents`);
 	            if (opts.include_docs && opts.attachments && opts.binary) {
 	              readAttachmentsAsBlobOrBuffer(c);
 	            }
-	            if (returnDocs) {
+	            if (opts.return_docs) {
 	              results.results.push(c);
 	            }
 	            opts.onChange(c, pending, lastSeq);
@@ -46744,22 +44111,20 @@ PivotToContents`);
 
 	      if ((opts.continuous && !(limit && leftToFetch <= 0)) || !finished) {
 	        // Queue a call to fetch again with the newest sequence number
-	        browser$3(function () { fetch(lastFetchedSeq, fetched); });
+	        browser$4(function () { fetchData(lastFetchedSeq, fetched); });
 	      } else {
 	        // We're done, call the callback
 	        opts.complete(null, results);
 	      }
 	    };
 
-	    fetch(opts.since || 0, fetched);
+	    fetchData(opts.since || 0, fetched);
 
 	    // Return a method to cancel this method from processing any more
 	    return {
 	      cancel: function () {
 	        opts.aborted = true;
-	        if (xhr) {
-	          xhr.abort();
-	        }
+	        controller.abort();
 	      }
 	    };
 	  };
@@ -46775,11 +44140,10 @@ PivotToContents`);
 	    }
 
 	    // Get the missing document/revision IDs
-	    ajax(opts, {
+	    fetchJSON(genDBUrl(host, '_revs_diff'), {
 	      method: 'POST',
-	      url: genDBUrl(host, '_revs_diff'),
-	      body: req
-	    }, callback);
+	      body: JSON.stringify(req)
+	    }, callback).catch(callback);
 	  });
 
 	  api._close = function (callback) {
@@ -46787,14 +44151,15 @@ PivotToContents`);
 	  };
 
 	  api._destroy = function (options, callback) {
-	    ajax(options, {
-	      url: genDBUrl(host, ''),
-	      method: 'DELETE'
-	    }, function (err, resp) {
-	      if (err && err.status && err.status !== 404) {
-	        return callback(err);
+	    fetchJSON(genDBUrl(host, ''), {method: 'DELETE'}).then(function (json) {
+	      callback(null, json);
+	    }).catch(function (err) {
+	      /* istanbul ignore if */
+	      if (err.status === 404) {
+	        callback(null, {ok: true});
+	      } else {
+	        callback(err);
 	      }
-	      callback(null, resp);
 	    });
 	  };
 	}
@@ -46848,11 +44213,11 @@ PivotToContents`);
 	function promisedCallback(promise, callback) {
 	  if (callback) {
 	    promise.then(function (res) {
-	      browser$3(function () {
+	      browser$4(function () {
 	        callback(null, res);
 	      });
 	    }, function (reason) {
-	      browser$3(function () {
+	      browser$4(function () {
 	        callback(reason);
 	      });
 	    });
@@ -46956,11 +44321,11 @@ PivotToContents`);
 	var isArray$2 = Array.isArray;
 	var toJSON = JSON.parse;
 
-	function evalFunctionWithEval(func, emit) {
+	function evalFunctionWithEval(func, emit$$1) {
 	  return scopeEval(
 	    "return (" + func.replace(/;\s*$/, "") + ");",
 	    {
-	      emit: emit,
+	      emit: emit$$1,
 	      sum: sum,
 	      log: log$1,
 	      isArray: isArray$2,
@@ -46975,10 +44340,10 @@ PivotToContents`);
 	 */
 
 
-	function TaskQueue$2() {
-	  this.promise = new PouchPromise(function (fulfill) {fulfill(); });
+	function TaskQueue$1() {
+	  this.promise = new Promise(function (fulfill) {fulfill(); });
 	}
-	TaskQueue$2.prototype.add = function (promiseFactory) {
+	TaskQueue$1.prototype.add = function (promiseFactory) {
 	  this.promise = this.promise.catch(function () {
 	    // just recover
 	  }).then(function () {
@@ -46986,7 +44351,7 @@ PivotToContents`);
 	  });
 	  return this.promise;
 	};
-	TaskQueue$2.prototype.finish = function () {
+	TaskQueue$1.prototype.finish = function () {
 	  return this.promise;
 	};
 
@@ -47085,7 +44450,7 @@ PivotToContents`);
 	}
 
 	var persistentQueues = {};
-	var tempViewQueue = new TaskQueue$2();
+	var tempViewQueue = new TaskQueue$1();
 	var CHANGES_BATCH_SIZE$1 = 50;
 
 	function parseViewName(name) {
@@ -47283,6 +44648,7 @@ PivotToContents`);
 	    var params = [];
 	    var body;
 	    var method = 'GET';
+	    var ok, status;
 
 	    // If opts.reduce exists and is defined, then add it to the list
 	    // of parameters.
@@ -47336,23 +44702,28 @@ PivotToContents`);
 	    // We are referencing a query defined in the design doc
 	    if (typeof fun === 'string') {
 	      var parts = parseViewName(fun);
-	      return db.request({
+	      return db.fetch('_design/' + parts[0] + '/_view/' + parts[1] + params, {
+	        headers: new h({'Content-Type': 'application/json'}),
 	        method: method,
-	        url: '_design/' + parts[0] + '/_view/' + parts[1] + params,
-	        body: body
-	      }).then(
-	        /* istanbul ignore next */
-	        function (result) {
-	          // fail the entire request if the result contains an error
-	          result.rows.forEach(function (row) {
-	            if (row.value && row.value.error && row.value.error === "builtin_reduce_error") {
-	              throw new Error(row.reason);
-	            }
-	          });
-
-	          return result;
-	      })
-	      .then(postprocessAttachments(opts));
+	        body: JSON.stringify(body)
+	      }).then(function (response) {
+	        ok = response.ok;
+	        status = response.status;
+	        return response.json();
+	      }).then(function (result) {
+	        if (!ok) {
+	          result.status = status;
+	          throw generateErrorFromResponse(result);
+	        }
+	        // fail the entire request if the result contains an error
+	        result.rows.forEach(function (row) {
+	          /* istanbul ignore if */
+	          if (row.value && row.value.error && row.value.error === "builtin_reduce_error") {
+	            throw new Error(row.reason);
+	          }
+	        });
+	        return result;
+	      }).then(postprocessAttachments(opts));
 	    }
 
 	    // We are using a temporary view, terrible for performance, good for testing
@@ -47364,10 +44735,21 @@ PivotToContents`);
 	        body[key] = fun[key].toString();
 	      }
 	    });
-	    return db.request({
+
+	    return db.fetch('_temp_view' + params, {
+	      headers: new h({'Content-Type': 'application/json'}),
 	      method: 'POST',
-	      url: '_temp_view' + params,
-	      body: body
+	      body: JSON.stringify(body)
+	    }).then(function (response) {
+	        ok = response.ok;
+	        status = response.status;
+	      return response.json();
+	    }).then(function (result) {
+	      if (!ok) {
+	        result.status = status;
+	        throw generateErrorFromResponse(result);
+	      }
+	      return result;
 	    }).then(postprocessAttachments(opts));
 	  }
 
@@ -47375,7 +44757,7 @@ PivotToContents`);
 	  // and override the default behavior
 	  /* istanbul ignore next */
 	  function customQuery(db, fun, opts) {
-	    return new PouchPromise(function (resolve, reject) {
+	    return new Promise(function (resolve, reject) {
 	      db._query(fun, opts, function (err, res) {
 	        if (err) {
 	          return reject(err);
@@ -47389,7 +44771,7 @@ PivotToContents`);
 	  // and override the default behavior
 	  /* istanbul ignore next */
 	  function customViewCleanup(db) {
-	    return new PouchPromise(function (resolve, reject) {
+	    return new Promise(function (resolve, reject) {
 	      db._viewCleanup(function (err, res) {
 	        if (err) {
 	          return reject(err);
@@ -47424,7 +44806,7 @@ PivotToContents`);
 	      if (isGenOne(changes)) {
 	        // generation 1, so we can safely assume initial state
 	        // for performance reasons (avoids unnecessary GETs)
-	        return PouchPromise.resolve(defaultMetaDoc);
+	        return Promise.resolve(defaultMetaDoc);
 	      }
 	      return view.db.get(metaDocId).catch(defaultsTo(defaultMetaDoc));
 	    }
@@ -47432,7 +44814,7 @@ PivotToContents`);
 	    function getKeyValueDocs(metaDoc) {
 	      if (!metaDoc.keys.length) {
 	        // no keys, no need for a lookup
-	        return PouchPromise.resolve({rows: []});
+	        return Promise.resolve({rows: []});
 	      }
 	      return view.db.allDocs({
 	        keys: metaDoc.keys,
@@ -47495,7 +44877,7 @@ PivotToContents`);
 	      .catch(defaultsTo({_id: seqDocId, seq: 0}))
 	      .then(function (lastSeqDoc) {
 	        var docIds = mapToKeysArray(docIdsToChangesAndEmits);
-	        return PouchPromise.all(docIds.map(function (docId) {
+	        return Promise.all(docIds.map(function (docId) {
 	          return getDocsToPersist(docId, view, docIdsToChangesAndEmits);
 	        })).then(function (listOfDocsToPersist) {
 	          var docsToPersist = flatten(listOfDocsToPersist);
@@ -47511,7 +44893,7 @@ PivotToContents`);
 	    var viewName = typeof view === 'string' ? view : view.name;
 	    var queue = persistentQueues[viewName];
 	    if (!queue) {
-	      queue = persistentQueues[viewName] = new TaskQueue$2();
+	      queue = persistentQueues[viewName] = new TaskQueue$1();
 	    }
 	    return queue;
 	  }
@@ -47527,7 +44909,7 @@ PivotToContents`);
 	    var mapResults;
 	    var doc;
 
-	    function emit(key, value) {
+	    function emit$$1(key, value) {
 	      var output = {id: doc._id, key: normalizeKey(key)};
 	      // Don't explicitly store the value unless it's defined and non-null.
 	      // This saves on storage space, because often people don't use it.
@@ -47537,7 +44919,7 @@ PivotToContents`);
 	      mapResults.push(output);
 	    }
 
-	    var mapFun = mapper(view.mapFun, emit);
+	    var mapFun = mapper(view.mapFun, emit$$1);
 
 	    var currentSeq = view.seq || 0;
 
@@ -47547,10 +44929,11 @@ PivotToContents`);
 	      };
 	    }
 
-	    var queue = new TaskQueue$2();
+	    var queue = new TaskQueue$1();
 
 	    function processNextBatch() {
 	      return view.sourceDB.changes({
+	        return_docs: true,
 	        conflicts: true,
 	        include_docs: true,
 	        style: 'all_docs',
@@ -47771,7 +45154,7 @@ PivotToContents`);
 	        }
 	        return fetchFromView(viewOpts);
 	      });
-	      return PouchPromise.all(fetchPromises).then(flatten).then(onMapResultsReady);
+	      return Promise.all(fetchPromises).then(flatten).then(onMapResultsReady);
 	    } else { // normal query, no 'keys'
 	      var viewOpts = {
 	        descending : opts.descending
@@ -47830,9 +45213,11 @@ PivotToContents`);
 	  }
 
 	  function httpViewCleanup(db) {
-	    return db.request({
-	      method: 'POST',
-	      url: '_view_cleanup'
+	    return db.fetch('_view_cleanup', {
+	      headers: new h({'Content-Type': 'application/json'}),
+	      method: 'POST'
+	    }).then(function (response) {
+	      return response.json();
 	    });
 	  }
 
@@ -47883,7 +45268,7 @@ PivotToContents`);
 	            return new db.constructor(viewDBName, db.__opts).destroy();
 	          })();
 	        });
-	        return PouchPromise.all(destroyPromises).then(function () {
+	        return Promise.all(destroyPromises).then(function () {
 	          return {ok: true};
 	        });
 	      });
@@ -47898,7 +45283,7 @@ PivotToContents`);
 	    if (isRemote(db)) {
 	      return httpQuery(db, fun, opts);
 	    }
-	    
+
 	    if (typeof fun !== 'string') {
 	      // temp_view
 	      checkQueryParseError(opts, fun);
@@ -47948,7 +45333,7 @@ PivotToContents`);
 	        return createViewPromise.then(function (view) {
 	          if (opts.stale === 'ok' || opts.stale === 'update_after') {
 	            if (opts.stale === 'update_after') {
-	              browser$3(function () {
+	              browser$4(function () {
 	                updateView(view);
 	              });
 	            }
@@ -47975,7 +45360,7 @@ PivotToContents`);
 	      fun = {map : fun};
 	    }
 
-	    var promise = PouchPromise.resolve().then(function () {
+	    var promise = Promise.resolve().then(function () {
 	      return queryPromised(db, fun, opts);
 	    });
 	    promisedCallback(promise, callback);
@@ -48042,15 +45427,15 @@ PivotToContents`);
 	  }
 	}
 
-	function mapper(mapFun, emit) {
+	function mapper(mapFun, emit$$1) {
 	  // for temp_views one can use emit(doc, emit), see #38
 	  if (typeof mapFun === "function" && mapFun.length === 2) {
 	    var origMap = mapFun;
 	    return function (doc) {
-	      return origMap(doc, emit);
+	      return origMap(doc, emit$$1);
 	    };
 	  } else {
-	    return evalFunctionWithEval(mapFun.toString(), emit);
+	    return evalFunctionWithEval(mapFun.toString(), emit$$1);
 	  }
 	}
 
@@ -48088,8 +45473,8 @@ PivotToContents`);
 	  viewCleanup: viewCleanup
 	};
 
-	function isGenOne$1(rev$$1) {
-	  return /^1-/.test(rev$$1);
+	function isGenOne$1(rev) {
+	  return /^1-/.test(rev);
 	}
 
 	function fileHasChanged(localDoc, remoteDoc, filename) {
@@ -48100,7 +45485,7 @@ PivotToContents`);
 
 	function getDocAttachments(db, doc) {
 	  var filenames = Object.keys(doc._attachments);
-	  return PouchPromise.all(filenames.map(function (filename) {
+	  return Promise.all(filenames.map(function (filename) {
 	    return db.getAttachment(doc._id, filename, {rev: doc._rev});
 	  }));
 	}
@@ -48114,7 +45499,7 @@ PivotToContents`);
 	  }
 
 	  return target.get(doc._id).then(function (localDoc) {
-	    return PouchPromise.all(filenames.map(function (filename) {
+	    return Promise.all(filenames.map(function (filename) {
 	      if (fileHasChanged(localDoc, doc, filename)) {
 	        return src.getAttachment(doc._id, filename);
 	      }
@@ -48175,8 +45560,8 @@ PivotToContents`);
 	      if (state.cancelled) {
 	        throw new Error('cancelled');
 	      }
-	      return PouchPromise.all(bulkGetResponse.results.map(function (bulkGetInfo) {
-	        return PouchPromise.all(bulkGetInfo.docs.map(function (doc) {
+	      return Promise.all(bulkGetResponse.results.map(function (bulkGetInfo) {
+	        return Promise.all(bulkGetInfo.docs.map(function (doc) {
 	          var remoteDoc = doc.ok;
 
 	          if (doc.error) {
@@ -48266,7 +45651,7 @@ PivotToContents`);
 	    return { ok:ok, docs:resultDocs };
 	  }
 
-	  return PouchPromise.resolve()
+	  return Promise.resolve()
 	    .then(getRevisionOneDocs)
 	    .then(getAllDocs)
 	    .then(returnResult);
@@ -48363,7 +45748,7 @@ PivotToContents`);
 	    return updateCheckpoint(this.target, this.id, checkpoint,
 	      session, this.returnValue);
 	  } else {
-	    return PouchPromise.resolve(true);
+	    return Promise.resolve(true);
 	  }
 	};
 
@@ -48380,7 +45765,7 @@ PivotToContents`);
 	        throw err;
 	      });
 	  } else {
-	    return PouchPromise.resolve(true);
+	    return Promise.resolve(true);
 	  }
 	};
 
@@ -48427,15 +45812,15 @@ PivotToContents`);
 	        return LOWEST_SEQ;
 	      }
 
-	      var version;
+	      var version$$1;
 	      if (targetDoc.version) {
-	        version = targetDoc.version.toString();
+	        version$$1 = targetDoc.version.toString();
 	      } else {
-	        version = "undefined";
+	        version$$1 = "undefined";
 	      }
 
-	      if (version in comparisons) {
-	        return comparisons[version](targetDoc, sourceDoc);
+	      if (version$$1 in comparisons) {
+	        return comparisons[version$$1](targetDoc, sourceDoc);
 	      }
 	      /* istanbul ignore next */
 	      return LOWEST_SEQ;
@@ -48541,6 +45926,7 @@ PivotToContents`);
 	    returnValue.removeAllListeners();
 	    return;
 	  }
+	  /* istanbul ignore if */
 	  if (typeof opts.back_off_function !== 'function') {
 	    opts.back_off_function = defaultBackOff;
 	  }
@@ -48594,10 +45980,10 @@ PivotToContents`);
 	    filterViewName = opts.view.toString();
 	  }
 
-	  return PouchPromise.all([src.id(), target.id()]).then(function (res) {
+	  return Promise.all([src.id(), target.id()]).then(function (res) {
 	    var queryData = res[0] + res[1] + filterFun + filterViewName +
 	      queryParams + docIds + selector;
-	    return new PouchPromise(function (resolve) {
+	    return new Promise(function (resolve) {
 	      binaryMd5(queryData, resolve);
 	    });
 	  }).then(function (md5sum) {
@@ -48632,11 +46018,10 @@ PivotToContents`);
 	  var changedDocs = [];
 	  // Like couchdb, every replication gets a unique session id
 	  var session = uuid$1();
-	  var seq_interval = opts.seq_interval;
 
 	  result = result || {
 	    ok: true,
-	    start_time: new Date(),
+	    start_time: new Date().toISOString(),
 	    docs_read: 0,
 	    docs_written: 0,
 	    doc_write_failures: 0,
@@ -48648,7 +46033,7 @@ PivotToContents`);
 
 	  function initCheckpointer() {
 	    if (checkpointer) {
-	      return PouchPromise.resolve();
+	      return Promise.resolve();
 	    }
 	    return generateReplicationId(src, target, opts).then(function (res) {
 	      repId = res;
@@ -48869,7 +46254,7 @@ PivotToContents`);
 	      }
 	    }
 	    result.status = result.status || 'complete';
-	    result.end_time = new Date();
+	    result.end_time = new Date().toISOString();
 	    result.last_seq = last_seq;
 	    replicationCompleted = true;
 
@@ -48912,7 +46297,9 @@ PivotToContents`);
 	    }
 	    pendingBatch.seq = change.seq || lastSeq;
 	    pendingBatch.changes.push(change);
-	    processPendingBatch(batches.length === 0 && changesOpts.live);
+	    browser$4(function () {
+	      processPendingBatch(batches.length === 0 && changesOpts.live);
+	    });
 	  }
 
 
@@ -48926,7 +46313,7 @@ PivotToContents`);
 	    // if no results were returned then we're done,
 	    // else fetch more
 	    if (changes.results.length > 0) {
-	      changesOpts.since = changes.last_seq;
+	      changesOpts.since = changes.results[changes.results.length - 1].seq;
 	      getChanges();
 	      processPendingBatch(true);
 	    } else {
@@ -48980,7 +46367,7 @@ PivotToContents`);
 	    function abortChanges() {
 	      changes.cancel();
 	    }
-	    function removeListener() {
+	    function removeListener$$1() {
 	      returnValue.removeListener('cancel', abortChanges);
 	    }
 
@@ -48992,7 +46379,7 @@ PivotToContents`);
 
 	    var changes = src.changes(changesOpts)
 	      .on('change', onChange);
-	    changes.then(removeListener, removeListener);
+	    changes.then(removeListener$$1, removeListener$$1);
 	    changes.then(onChangesComplete)
 	      .catch(onChangesError);
 
@@ -49022,9 +46409,6 @@ PivotToContents`);
 	          selector: selector,
 	          return_docs: true // required so we know when we're done
 	        };
-	        if (seq_interval !== false) {
-	          changesOpts.seq_interval = seq_interval || batch_size;
-	        }
 	        if (opts.filter) {
 	          if (typeof opts.filter !== 'string') {
 	            // required for the client-side filter in onChange
@@ -49103,7 +46487,7 @@ PivotToContents`);
 	  this.cancelled = false;
 	  this.state = 'pending';
 	  var self = this;
-	  var promise = new PouchPromise(function (fulfill, reject) {
+	  var promise = new Promise(function (fulfill, reject) {
 	    self.once('complete', fulfill);
 	    self.once('error', reject);
 	  });
@@ -49181,7 +46565,7 @@ PivotToContents`);
 	}
 
 	inherits_browser(Sync, EventEmitter);
-	function sync$1(src, target, opts, callback) {
+	function sync(src, target, opts, callback) {
 	  if (typeof opts === 'function') {
 	    callback = opts;
 	    opts = {};
@@ -49339,7 +46723,7 @@ PivotToContents`);
 	  this.pull.on('removeListener', removeAll('pull'));
 	  this.push.on('removeListener', removeAll('push'));
 
-	  var promise = PouchPromise.all([
+	  var promise = Promise.all([
 	    this.push,
 	    this.pull
 	  ]).then(function (resp) {
@@ -49391,7 +46775,7 @@ PivotToContents`);
 
 	function replication(PouchDB) {
 	  PouchDB.replicate = replicateWrapper;
-	  PouchDB.sync = sync$1;
+	  PouchDB.sync = sync;
 
 	  Object.defineProperty(PouchDB.prototype, 'replicate', {
 	    get: function () {
@@ -49416,13 +46800,9 @@ PivotToContents`);
 	}
 
 	PouchDB.plugin(IDBPouch)
-	  .plugin(WebSqlPouch$1)
 	  .plugin(HttpPouch$1)
 	  .plugin(mapreduce)
 	  .plugin(replication);
-
-	/* istanbul ignore next */
-	var PouchPromise$1 = typeof Promise === 'function' ? Promise : browser$4;
 
 	function mangle$1(key) {
 	  return '$' + key;
@@ -49493,34 +46873,6 @@ PivotToContents`);
 	    return this._store.size;
 	  }
 	});
-
-	/* global Map,Set,Symbol */
-	// Based on https://kangax.github.io/compat-table/es6/ we can sniff out
-	// incomplete Map/Set implementations which would otherwise cause our tests to fail.
-	// Notably they fail in IE11 and iOS 8.4, which this prevents.
-	function supportsMapAndSet$1() {
-	  if (typeof Symbol === 'undefined' || typeof Map === 'undefined' || typeof Set === 'undefined') {
-	    return false;
-	  }
-	  var prop = Object.getOwnPropertyDescriptor(Map, Symbol.species);
-	  return prop && 'get' in prop && Map[Symbol.species] === Map;
-	}
-
-	// based on https://github.com/montagejs/collections
-	/* global Map,Set */
-
-	var ExportedSet$1;
-	var ExportedMap$1;
-
-	{
-	  if (supportsMapAndSet$1()) { // prefer built-in Map/Set
-	    ExportedSet$1 = Set;
-	    ExportedMap$1 = Map;
-	  } else { // fall back to our polyfill
-	    ExportedSet$1 = Set$1$1;
-	    ExportedMap$1 = Map$1$1;
-	  }
-	}
 
 	inherits_browser(PouchError$1, Error);
 
@@ -49594,6 +46946,12 @@ PivotToContents`);
 	  return err;
 	}
 
+	var setImmediateShim$1 = global$1.setImmediate || global$1.setTimeout;
+
+	function stringMd5$1(string) {
+	  return sparkMd5.hash(string);
+	}
+
 	function isBinaryObject$1(object) {
 	  return (typeof ArrayBuffer !== 'undefined' && object instanceof ArrayBuffer) ||
 	    (typeof Blob !== 'undefined' && object instanceof Blob);
@@ -49643,7 +47001,7 @@ PivotToContents`);
 	    Ctor instanceof Ctor && funcToString$1.call(Ctor) == objectCtorString$1);
 	}
 
-	function clone$1(object) {
+	function clone$1$$1(object) {
 	  var newObject;
 	  var i;
 	  var len;
@@ -49655,7 +47013,7 @@ PivotToContents`);
 	  if (Array.isArray(object)) {
 	    newObject = [];
 	    for (i = 0, len = object.length; i < len; i++) {
-	      newObject[i] = clone$1(object[i]);
+	      newObject[i] = clone$1$$1(object[i]);
 	    }
 	    return newObject;
 	  }
@@ -49678,7 +47036,7 @@ PivotToContents`);
 	  for (i in object) {
 	    /* istanbul ignore else */
 	    if (Object.prototype.hasOwnProperty.call(object, i)) {
-	      var value = clone$1(object[i]);
+	      var value = clone$1$$1(object[i]);
 	      if (typeof value !== 'undefined') {
 	        newObject[i] = value;
 	      }
@@ -49687,7 +47045,7 @@ PivotToContents`);
 	  return newObject;
 	}
 
-	function once$2(fun) {
+	function once$$1(fun) {
 	  var called = false;
 	  return argsarray(function (args) {
 	    /* istanbul ignore if */
@@ -49701,18 +47059,18 @@ PivotToContents`);
 	  });
 	}
 
-	function toPromise$1(func) {
+	function toPromise$$1(func) {
 	  //create the function we will be returning
 	  return argsarray(function (args) {
 	    // Clone arguments
-	    args = clone$1(args);
+	    args = clone$1$$1(args);
 	    var self = this;
 	    // if the last argument is a function, assume its a callback
 	    var usedCB = (typeof args[args.length - 1] === 'function') ? args.pop() : false;
-	    var promise = new PouchPromise$1(function (fulfill, reject) {
+	    var promise = new Promise(function (fulfill, reject) {
 	      var resp;
 	      try {
-	        var callback = once$2(function (err, mesg) {
+	        var callback = once$$1(function (err, mesg) {
 	          if (err) {
 	            reject(err);
 	          } else {
@@ -49741,7 +47099,7 @@ PivotToContents`);
 	}
 
 	// like underscore/lodash _.pick()
-	function pick$1(obj, arr) {
+	function pick$$1(obj, arr) {
 	  var res = {};
 	  for (var i = 0, len = arr.length; i < len; i++) {
 	    var prop = arr[i];
@@ -49752,73 +47110,39 @@ PivotToContents`);
 	  return res;
 	}
 
-	function isChromeApp$1() {
-	  return (typeof chrome !== "undefined" &&
-	    typeof chrome.storage !== "undefined" &&
-	    typeof chrome.storage.local !== "undefined");
-	}
-
 	var hasLocal$1;
 
-	if (isChromeApp$1()) {
+	try {
+	  localStorage.setItem('_pouch_check_localstorage', 1);
+	  hasLocal$1 = !!localStorage.getItem('_pouch_check_localstorage');
+	} catch (e) {
 	  hasLocal$1 = false;
-	} else {
-	  try {
-	    localStorage.setItem('_pouch_check_localstorage', 1);
-	    hasLocal$1 = !!localStorage.getItem('_pouch_check_localstorage');
-	  } catch (e) {
-	    hasLocal$1 = false;
-	  }
 	}
 
-	function hasLocalStorage$1() {
+	function hasLocalStorage$$1() {
 	  return hasLocal$1;
 	}
 
 	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
-	// avoid using process.nextTick() directly because the polyfill is very large and we don't
-	// need all of it (see: https://github.com/defunctzombie/node-process).
-	// "immediate" 3.0.8 is used by lie, and it's a smaller version of the latest "immediate"
-	// package, so it's the one we use.
-	// When we use nextTick() in our codebase, we only care about not releasing Zalgo
-	// (see: http://blog.izs.me/post/59142742143/designing-apis-for-asynchrony).
-	// Microtask vs macrotask doesn't matter to us. So we're free to use the fastest
-	// (least latency) option, which is "immediate" due to use of microtasks.
-	// All of our nextTicks are isolated to this one function so we can easily swap out one
-	// implementation for another.
 
-	inherits_browser(Changes$1, EventEmitter);
+	inherits_browser(Changes$$1, EventEmitter);
 
 	/* istanbul ignore next */
 	function attachBrowserEvents$1(self) {
-	  if (isChromeApp$1()) {
-	    chrome.storage.onChanged.addListener(function (e) {
-	      // make sure it's event addressed to us
-	      if (e.db_name != null) {
-	        //object only has oldValue, newValue members
-	        self.emit(e.dbName.newValue);
-	      }
+	  if (hasLocalStorage$$1()) {
+	    addEventListener("storage", function (e) {
+	      self.emit(e.key);
 	    });
-	  } else if (hasLocalStorage$1()) {
-	    if (typeof addEventListener !== 'undefined') {
-	      addEventListener("storage", function (e) {
-	        self.emit(e.key);
-	      });
-	    } else { // old IE
-	      window.attachEvent("storage", function (e) {
-	        self.emit(e.key);
-	      });
-	    }
 	  }
 	}
 
-	function Changes$1() {
+	function Changes$$1() {
 	  EventEmitter.call(this);
 	  this._listeners = {};
 
 	  attachBrowserEvents$1(this);
 	}
-	Changes$1.prototype.addListener = function (dbName, id, db, opts) {
+	Changes$$1.prototype.addListener = function (dbName, id, db, opts) {
 	  /* istanbul ignore if */
 	  if (this._listeners[id]) {
 	    return;
@@ -49835,9 +47159,9 @@ PivotToContents`);
 	      return;
 	    }
 	    inprogress = true;
-	    var changesOpts = pick$1(opts, [
+	    var changesOpts = pick$$1(opts, [
 	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
-	      'doc_ids', 'view', 'since', 'query_params', 'binary'
+	      'doc_ids', 'view', 'since', 'query_params', 'binary', 'return_docs'
 	    ]);
 
 	    /* istanbul ignore next */
@@ -49852,7 +47176,7 @@ PivotToContents`);
 	      }
 	    }).on('complete', function () {
 	      if (inprogress === 'waiting') {
-	        browser$3(eventFunction);
+	        browser$4(eventFunction);
 	      }
 	      inprogress = false;
 	    }).on('error', onError);
@@ -49861,7 +47185,7 @@ PivotToContents`);
 	  this.on(dbName, eventFunction);
 	};
 
-	Changes$1.prototype.removeListener = function (dbName, id) {
+	Changes$$1.prototype.removeListener = function (dbName, id) {
 	  /* istanbul ignore if */
 	  if (!(id in this._listeners)) {
 	    return;
@@ -49873,22 +47197,20 @@ PivotToContents`);
 
 
 	/* istanbul ignore next */
-	Changes$1.prototype.notifyLocalWindows = function (dbName) {
+	Changes$$1.prototype.notifyLocalWindows = function (dbName) {
 	  //do a useless change on a storage thing
 	  //in order to get other windows's listeners to activate
-	  if (isChromeApp$1()) {
-	    chrome.storage.local.set({dbName: dbName});
-	  } else if (hasLocalStorage$1()) {
+	  if (hasLocalStorage$$1()) {
 	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
 	  }
 	};
 
-	Changes$1.prototype.notify = function (dbName) {
+	Changes$$1.prototype.notify = function (dbName) {
 	  this.emit(dbName);
 	  this.notifyLocalWindows(dbName);
 	};
 
-	function guardedConsole$1(method) {
+	function guardedConsole$$1(method) {
 	  /* istanbul ignore else */
 	  if (typeof console !== 'undefined' && typeof console[method] === 'function') {
 	    var args = Array.prototype.slice.call(arguments, 1);
@@ -49923,33 +47245,17 @@ PivotToContents`);
 	  }
 	}
 
-	var assign$1$1 = assign$1;
-
-	function flatten$1(arrs) {
-	  var res = [];
-	  for (var i = 0, len = arrs.length; i < len; i++) {
-	    res = res.concat(arrs[i]);
-	  }
-	  return res;
-	}
+	var assign$1$$1 = assign$1;
 
 	// Checks if a PouchDB object is "remote" or not. This is
-	// designed to opt-in to certain optimizations, such as
-	// avoiding checks for "dependentDbs" and other things that
-	// we know only apply to local databases. In general, "remote"
-	// should be true for the http adapter, and for third-party
-	// adapters with similar expensive boundaries to cross for
-	// every API call, such as socket-pouch and worker-pouch.
-	// Previously, this was handled via db.type() === 'http'
-	// which is now deprecated.
 
-	function isRemote$1(db) {
+	function isRemote$$1(db) {
 	  if (typeof db._remote === 'boolean') {
 	    return db._remote;
 	  }
 	  /* istanbul ignore next */
 	  if (typeof db.type === 'function') {
-	    guardedConsole$1('warn',
+	    guardedConsole$$1('warn',
 	      'db.type() is deprecated and will be removed in ' +
 	      'a future version of PouchDB');
 	    return db.type() === 'http';
@@ -49961,8 +47267,8 @@ PivotToContents`);
 	// this is essentially the "update sugar" function from daleharvey/pouchdb#1388
 	// the diffFun tells us what delta to apply to the doc.  it either returns
 	// the doc, or false if it doesn't need to do an update after all
-	function upsert$1(db, docId, diffFun) {
-	  return new PouchPromise$1(function (fulfill, reject) {
+	function upsert$$1(db, docId, diffFun) {
+	  return new Promise(function (fulfill, reject) {
 	    db.get(docId, function (err, doc) {
 	      if (err) {
 	        /* istanbul ignore next */
@@ -50002,9 +47308,331 @@ PivotToContents`);
 	    if (err.status !== 409) {
 	      throw err;
 	    }
-	    return upsert$1(db, doc._id, diffFun);
+	    return upsert$$1(db, doc._id, diffFun);
 	  });
 	}
+
+	// AbortController was introduced quite a while after fetch and
+	var h$1 = Headers;
+
+	function mangle$2(key) {
+	  return '$' + key;
+	}
+	function unmangle$2(key) {
+	  return key.substring(1);
+	}
+	function Map$1$2() {
+	  this._store = {};
+	}
+	Map$1$2.prototype.get = function (key) {
+	  var mangled = mangle$2(key);
+	  return this._store[mangled];
+	};
+	Map$1$2.prototype.set = function (key, value) {
+	  var mangled = mangle$2(key);
+	  this._store[mangled] = value;
+	  return true;
+	};
+	Map$1$2.prototype.has = function (key) {
+	  var mangled = mangle$2(key);
+	  return mangled in this._store;
+	};
+	Map$1$2.prototype.delete = function (key) {
+	  var mangled = mangle$2(key);
+	  var res = mangled in this._store;
+	  delete this._store[mangled];
+	  return res;
+	};
+	Map$1$2.prototype.forEach = function (cb) {
+	  var keys = Object.keys(this._store);
+	  for (var i = 0, len = keys.length; i < len; i++) {
+	    var key = keys[i];
+	    var value = this._store[key];
+	    key = unmangle$2(key);
+	    cb(value, key);
+	  }
+	};
+	Object.defineProperty(Map$1$2.prototype, 'size', {
+	  get: function () {
+	    return Object.keys(this._store).length;
+	  }
+	});
+
+	function Set$1$2(array) {
+	  this._store = new Map$1$2();
+
+	  // init with an array
+	  if (array && Array.isArray(array)) {
+	    for (var i = 0, len = array.length; i < len; i++) {
+	      this.add(array[i]);
+	    }
+	  }
+	}
+	Set$1$2.prototype.add = function (key) {
+	  return this._store.set(key, true);
+	};
+	Set$1$2.prototype.has = function (key) {
+	  return this._store.has(key);
+	};
+	Set$1$2.prototype.forEach = function (cb) {
+	  this._store.forEach(function (value, key) {
+	    cb(key);
+	  });
+	};
+	Object.defineProperty(Set$1$2.prototype, 'size', {
+	  get: function () {
+	    return this._store.size;
+	  }
+	});
+
+	inherits_browser(PouchError$2, Error);
+
+	function PouchError$2(status, error, reason) {
+	  Error.call(this, reason);
+	  this.status = status;
+	  this.name = error;
+	  this.message = reason;
+	  this.error = true;
+	}
+
+	PouchError$2.prototype.toString = function () {
+	  return JSON.stringify({
+	    status: this.status,
+	    name: this.name,
+	    message: this.message,
+	    reason: this.reason
+	  });
+	};
+
+	var UNAUTHORIZED$2 = new PouchError$2(401, 'unauthorized', "Name or password is incorrect.");
+	var MISSING_BULK_DOCS$2 = new PouchError$2(400, 'bad_request', "Missing JSON list of 'docs'");
+	var MISSING_DOC$2 = new PouchError$2(404, 'not_found', 'missing');
+	var REV_CONFLICT$2 = new PouchError$2(409, 'conflict', 'Document update conflict');
+	var INVALID_ID$2 = new PouchError$2(400, 'bad_request', '_id field must contain a string');
+	var MISSING_ID$2 = new PouchError$2(412, 'missing_id', '_id is required for puts');
+	var RESERVED_ID$2 = new PouchError$2(400, 'bad_request', 'Only reserved document ids may start with underscore.');
+	var NOT_OPEN$2 = new PouchError$2(412, 'precondition_failed', 'Database not open');
+	var UNKNOWN_ERROR$2 = new PouchError$2(500, 'unknown_error', 'Database encountered an unknown error');
+	var BAD_ARG$2 = new PouchError$2(500, 'badarg', 'Some query argument is invalid');
+	var INVALID_REQUEST$2 = new PouchError$2(400, 'invalid_request', 'Request was invalid');
+	var QUERY_PARSE_ERROR$2 = new PouchError$2(400, 'query_parse_error', 'Some query parameter is invalid');
+	var DOC_VALIDATION$2 = new PouchError$2(500, 'doc_validation', 'Bad special document member');
+	var BAD_REQUEST$2 = new PouchError$2(400, 'bad_request', 'Something wrong with the request');
+	var NOT_AN_OBJECT$2 = new PouchError$2(400, 'bad_request', 'Document must be a JSON object');
+	var DB_MISSING$2 = new PouchError$2(404, 'not_found', 'Database not found');
+	var IDB_ERROR$2 = new PouchError$2(500, 'indexed_db_went_bad', 'unknown');
+	var WSQ_ERROR$2 = new PouchError$2(500, 'web_sql_went_bad', 'unknown');
+	var LDB_ERROR$2 = new PouchError$2(500, 'levelDB_went_went_bad', 'unknown');
+	var FORBIDDEN$2 = new PouchError$2(403, 'forbidden', 'Forbidden by design doc validate_doc_update function');
+	var INVALID_REV$2 = new PouchError$2(400, 'bad_request', 'Invalid rev format');
+	var FILE_EXISTS$2 = new PouchError$2(412, 'file_exists', 'The database could not be created, the file already exists.');
+	var MISSING_STUB$2 = new PouchError$2(412, 'missing_stub', 'A pre-existing attachment stub wasn\'t found');
+	var INVALID_URL$2 = new PouchError$2(413, 'invalid_url', 'Provided URL is invalid');
+
+	function isBinaryObject$2(object) {
+	  return (typeof ArrayBuffer !== 'undefined' && object instanceof ArrayBuffer) ||
+	    (typeof Blob !== 'undefined' && object instanceof Blob);
+	}
+
+	function cloneArrayBuffer$2(buff) {
+	  if (typeof buff.slice === 'function') {
+	    return buff.slice(0);
+	  }
+	  // IE10-11 slice() polyfill
+	  var target = new ArrayBuffer(buff.byteLength);
+	  var targetArray = new Uint8Array(target);
+	  var sourceArray = new Uint8Array(buff);
+	  targetArray.set(sourceArray);
+	  return target;
+	}
+
+	function cloneBinaryObject$2(object) {
+	  if (object instanceof ArrayBuffer) {
+	    return cloneArrayBuffer$2(object);
+	  }
+	  var size = object.size;
+	  var type = object.type;
+	  // Blob
+	  if (typeof object.slice === 'function') {
+	    return object.slice(0, size, type);
+	  }
+	  // PhantomJS slice() replacement
+	  return object.webkitSlice(0, size, type);
+	}
+
+	// most of this is borrowed from lodash.isPlainObject:
+	// https://github.com/fis-components/lodash.isplainobject/
+	// blob/29c358140a74f252aeb08c9eb28bef86f2217d4a/index.js
+
+	var funcToString$2 = Function.prototype.toString;
+	var objectCtorString$2 = funcToString$2.call(Object);
+
+	function isPlainObject$2(value) {
+	  var proto = Object.getPrototypeOf(value);
+	  /* istanbul ignore if */
+	  if (proto === null) { // not sure when this happens, but I guess it can
+	    return true;
+	  }
+	  var Ctor = proto.constructor;
+	  return (typeof Ctor == 'function' &&
+	    Ctor instanceof Ctor && funcToString$2.call(Ctor) == objectCtorString$2);
+	}
+
+	function clone$1$$1(object) {
+	  var newObject;
+	  var i;
+	  var len;
+
+	  if (!object || typeof object !== 'object') {
+	    return object;
+	  }
+
+	  if (Array.isArray(object)) {
+	    newObject = [];
+	    for (i = 0, len = object.length; i < len; i++) {
+	      newObject[i] = clone$1$$1(object[i]);
+	    }
+	    return newObject;
+	  }
+
+	  // special case: to avoid inconsistencies between IndexedDB
+	  // and other backends, we automatically stringify Dates
+	  if (object instanceof Date) {
+	    return object.toISOString();
+	  }
+
+	  if (isBinaryObject$2(object)) {
+	    return cloneBinaryObject$2(object);
+	  }
+
+	  if (!isPlainObject$2(object)) {
+	    return object; // don't clone objects like Workers
+	  }
+
+	  newObject = {};
+	  for (i in object) {
+	    /* istanbul ignore else */
+	    if (Object.prototype.hasOwnProperty.call(object, i)) {
+	      var value = clone$1$$1(object[i]);
+	      if (typeof value !== 'undefined') {
+	        newObject[i] = value;
+	      }
+	    }
+	  }
+	  return newObject;
+	}
+
+	// like underscore/lodash _.pick()
+	function pick$$1(obj, arr) {
+	  var res = {};
+	  for (var i = 0, len = arr.length; i < len; i++) {
+	    var prop = arr[i];
+	    if (prop in obj) {
+	      res[prop] = obj[prop];
+	    }
+	  }
+	  return res;
+	}
+
+	var hasLocal$2;
+
+	try {
+	  localStorage.setItem('_pouch_check_localstorage', 1);
+	  hasLocal$2 = !!localStorage.getItem('_pouch_check_localstorage');
+	} catch (e) {
+	  hasLocal$2 = false;
+	}
+
+	function hasLocalStorage$$1() {
+	  return hasLocal$2;
+	}
+
+	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
+
+	inherits_browser(Changes$$1, EventEmitter);
+
+	/* istanbul ignore next */
+	function attachBrowserEvents$2(self) {
+	  if (hasLocalStorage$$1()) {
+	    addEventListener("storage", function (e) {
+	      self.emit(e.key);
+	    });
+	  }
+	}
+
+	function Changes$$1() {
+	  EventEmitter.call(this);
+	  this._listeners = {};
+
+	  attachBrowserEvents$2(this);
+	}
+	Changes$$1.prototype.addListener = function (dbName, id, db, opts) {
+	  /* istanbul ignore if */
+	  if (this._listeners[id]) {
+	    return;
+	  }
+	  var self = this;
+	  var inprogress = false;
+	  function eventFunction() {
+	    /* istanbul ignore if */
+	    if (!self._listeners[id]) {
+	      return;
+	    }
+	    if (inprogress) {
+	      inprogress = 'waiting';
+	      return;
+	    }
+	    inprogress = true;
+	    var changesOpts = pick$$1(opts, [
+	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
+	      'doc_ids', 'view', 'since', 'query_params', 'binary', 'return_docs'
+	    ]);
+
+	    /* istanbul ignore next */
+	    function onError() {
+	      inprogress = false;
+	    }
+
+	    db.changes(changesOpts).on('change', function (c) {
+	      if (c.seq > opts.since && !opts.cancelled) {
+	        opts.since = c.seq;
+	        opts.onChange(c);
+	      }
+	    }).on('complete', function () {
+	      if (inprogress === 'waiting') {
+	        browser$4(eventFunction);
+	      }
+	      inprogress = false;
+	    }).on('error', onError);
+	  }
+	  this._listeners[id] = eventFunction;
+	  this.on(dbName, eventFunction);
+	};
+
+	Changes$$1.prototype.removeListener = function (dbName, id) {
+	  /* istanbul ignore if */
+	  if (!(id in this._listeners)) {
+	    return;
+	  }
+	  EventEmitter.prototype.removeListener.call(this, dbName,
+	    this._listeners[id]);
+	  delete this._listeners[id];
+	};
+
+
+	/* istanbul ignore next */
+	Changes$$1.prototype.notifyLocalWindows = function (dbName) {
+	  //do a useless change on a storage thing
+	  //in order to get other windows's listeners to activate
+	  if (hasLocalStorage$$1()) {
+	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
+	  }
+	};
+
+	Changes$$1.prototype.notify = function (dbName) {
+	  this.emit(dbName);
+	  this.notifyLocalWindows(dbName);
+	};
 
 	function pad$2(str, padWith, upToLength) {
 	  var padding = '';
@@ -50100,10 +47728,12 @@ PivotToContents`);
 	        // 0 -> 1, 1
 	        // 1 -> 1, 2
 	        // 2 -> 2, 2
+	        /* eslint-disable no-control-regex */
 	        return key
 	          .replace(/\u0002/g, '\u0002\u0002')
 	          .replace(/\u0001/g, '\u0001\u0002')
 	          .replace(/\u0000/g, '\u0001\u0001');
+	        /* eslint-enable no-control-regex */
 	      case 'object':
 	        var isArray = Array.isArray(key);
 	        var arr = isArray ? key : Object.keys(key);
@@ -50252,9 +47882,11 @@ PivotToContents`);
 	        }
 	        // perform the reverse of the order-preserving replacement
 	        // algorithm (see above)
+	        /* eslint-disable no-control-regex */
 	        parsedStr = parsedStr.replace(/\u0001\u0001/g, '\u0000')
 	          .replace(/\u0001\u0002/g, '\u0001')
 	          .replace(/\u0002\u0002/g, '\u0002');
+	        /* eslint-enable no-control-regex */
 	        stack.push(parsedStr);
 	        break;
 	      case '5':
@@ -50580,7 +48212,7 @@ PivotToContents`);
 	// normalize the selector
 	//
 	function massageSelector$1(input) {
-	  var result = clone$1(input);
+	  var result = clone$1$$1(input);
 	  var wasAnded = false;
 	  if ('$and' in result) {
 	    result = mergeAndedSelectors$1(result['$and']);
@@ -50914,18 +48546,383 @@ PivotToContents`);
 	  }
 	};
 
-	var thisAtob$1 = function (str) {
-	  return atob(str);
+	function mangle$3(key) {
+	  return '$' + key;
+	}
+	function unmangle$3(key) {
+	  return key.substring(1);
+	}
+	function Map$1$3() {
+	  this._store = {};
+	}
+	Map$1$3.prototype.get = function (key) {
+	  var mangled = mangle$3(key);
+	  return this._store[mangled];
+	};
+	Map$1$3.prototype.set = function (key, value) {
+	  var mangled = mangle$3(key);
+	  this._store[mangled] = value;
+	  return true;
+	};
+	Map$1$3.prototype.has = function (key) {
+	  var mangled = mangle$3(key);
+	  return mangled in this._store;
+	};
+	Map$1$3.prototype.delete = function (key) {
+	  var mangled = mangle$3(key);
+	  var res = mangled in this._store;
+	  delete this._store[mangled];
+	  return res;
+	};
+	Map$1$3.prototype.forEach = function (cb) {
+	  var keys = Object.keys(this._store);
+	  for (var i = 0, len = keys.length; i < len; i++) {
+	    var key = keys[i];
+	    var value = this._store[key];
+	    key = unmangle$3(key);
+	    cb(value, key);
+	  }
+	};
+	Object.defineProperty(Map$1$3.prototype, 'size', {
+	  get: function () {
+	    return Object.keys(this._store).length;
+	  }
+	});
+
+	function Set$1$3(array) {
+	  this._store = new Map$1$3();
+
+	  // init with an array
+	  if (array && Array.isArray(array)) {
+	    for (var i = 0, len = array.length; i < len; i++) {
+	      this.add(array[i]);
+	    }
+	  }
+	}
+	Set$1$3.prototype.add = function (key) {
+	  return this._store.set(key, true);
+	};
+	Set$1$3.prototype.has = function (key) {
+	  return this._store.has(key);
+	};
+	Set$1$3.prototype.forEach = function (cb) {
+	  this._store.forEach(function (value, key) {
+	    cb(key);
+	  });
+	};
+	Object.defineProperty(Set$1$3.prototype, 'size', {
+	  get: function () {
+	    return this._store.size;
+	  }
+	});
+
+	/* global Map,Set,Symbol */
+	// Based on https://kangax.github.io/compat-table/es6/ we can sniff out
+	// incomplete Map/Set implementations which would otherwise cause our tests to fail.
+	// Notably they fail in IE11 and iOS 8.4, which this prevents.
+	function supportsMapAndSet$3() {
+	  if (typeof Symbol === 'undefined' || typeof Map === 'undefined' || typeof Set === 'undefined') {
+	    return false;
+	  }
+	  var prop = Object.getOwnPropertyDescriptor(Map, Symbol.species);
+	  return prop && 'get' in prop && Map[Symbol.species] === Map;
+	}
+
+	// based on https://github.com/montagejs/collections
+
+	var ExportedSet$3;
+	var ExportedMap$3;
+
+	{
+	  if (supportsMapAndSet$3()) { // prefer built-in Map/Set
+	    ExportedSet$3 = Set;
+	    ExportedMap$3 = Map;
+	  } else { // fall back to our polyfill
+	    ExportedSet$3 = Set$1$3;
+	    ExportedMap$3 = Map$1$3;
+	  }
+	}
+
+	inherits_browser(PouchError$3, Error);
+
+	function PouchError$3(status, error, reason) {
+	  Error.call(this, reason);
+	  this.status = status;
+	  this.name = error;
+	  this.message = reason;
+	  this.error = true;
+	}
+
+	PouchError$3.prototype.toString = function () {
+	  return JSON.stringify({
+	    status: this.status,
+	    name: this.name,
+	    message: this.message,
+	    reason: this.reason
+	  });
 	};
 
-	var thisBtoa$1 = function (str) {
-	  return btoa(str);
+	var UNAUTHORIZED$3 = new PouchError$3(401, 'unauthorized', "Name or password is incorrect.");
+	var MISSING_BULK_DOCS$3 = new PouchError$3(400, 'bad_request', "Missing JSON list of 'docs'");
+	var MISSING_DOC$3 = new PouchError$3(404, 'not_found', 'missing');
+	var REV_CONFLICT$3 = new PouchError$3(409, 'conflict', 'Document update conflict');
+	var INVALID_ID$3 = new PouchError$3(400, 'bad_request', '_id field must contain a string');
+	var MISSING_ID$3 = new PouchError$3(412, 'missing_id', '_id is required for puts');
+	var RESERVED_ID$3 = new PouchError$3(400, 'bad_request', 'Only reserved document ids may start with underscore.');
+	var NOT_OPEN$3 = new PouchError$3(412, 'precondition_failed', 'Database not open');
+	var UNKNOWN_ERROR$3 = new PouchError$3(500, 'unknown_error', 'Database encountered an unknown error');
+	var BAD_ARG$3 = new PouchError$3(500, 'badarg', 'Some query argument is invalid');
+	var INVALID_REQUEST$3 = new PouchError$3(400, 'invalid_request', 'Request was invalid');
+	var QUERY_PARSE_ERROR$3 = new PouchError$3(400, 'query_parse_error', 'Some query parameter is invalid');
+	var DOC_VALIDATION$3 = new PouchError$3(500, 'doc_validation', 'Bad special document member');
+	var BAD_REQUEST$3 = new PouchError$3(400, 'bad_request', 'Something wrong with the request');
+	var NOT_AN_OBJECT$3 = new PouchError$3(400, 'bad_request', 'Document must be a JSON object');
+	var DB_MISSING$3 = new PouchError$3(404, 'not_found', 'Database not found');
+	var IDB_ERROR$3 = new PouchError$3(500, 'indexed_db_went_bad', 'unknown');
+	var WSQ_ERROR$3 = new PouchError$3(500, 'web_sql_went_bad', 'unknown');
+	var LDB_ERROR$3 = new PouchError$3(500, 'levelDB_went_went_bad', 'unknown');
+	var FORBIDDEN$3 = new PouchError$3(403, 'forbidden', 'Forbidden by design doc validate_doc_update function');
+	var INVALID_REV$3 = new PouchError$3(400, 'bad_request', 'Invalid rev format');
+	var FILE_EXISTS$3 = new PouchError$3(412, 'file_exists', 'The database could not be created, the file already exists.');
+	var MISSING_STUB$3 = new PouchError$3(412, 'missing_stub', 'A pre-existing attachment stub wasn\'t found');
+	var INVALID_URL$3 = new PouchError$3(413, 'invalid_url', 'Provided URL is invalid');
+
+	function generateErrorFromResponse$3(err) {
+
+	  if (typeof err !== 'object') {
+	    var data = err;
+	    err = UNKNOWN_ERROR$3;
+	    err.data = data;
+	  }
+
+	  if ('error' in err && err.error === 'conflict') {
+	    err.name = 'conflict';
+	    err.status = 409;
+	  }
+
+	  if (!('name' in err)) {
+	    err.name = err.error || 'unknown';
+	  }
+
+	  if (!('status' in err)) {
+	    err.status = 500;
+	  }
+
+	  if (!('message' in err)) {
+	    err.message = err.message || err.reason;
+	  }
+
+	  return err;
+	}
+
+	// most of this is borrowed from lodash.isPlainObject:
+	// https://github.com/fis-components/lodash.isplainobject/
+	// blob/29c358140a74f252aeb08c9eb28bef86f2217d4a/index.js
+
+	var funcToString$3 = Function.prototype.toString;
+	var objectCtorString$3 = funcToString$3.call(Object);
+
+	// like underscore/lodash _.pick()
+	function pick$$1(obj, arr) {
+	  var res = {};
+	  for (var i = 0, len = arr.length; i < len; i++) {
+	    var prop = arr[i];
+	    if (prop in obj) {
+	      res[prop] = obj[prop];
+	    }
+	  }
+	  return res;
+	}
+
+	var hasLocal$3;
+
+	try {
+	  localStorage.setItem('_pouch_check_localstorage', 1);
+	  hasLocal$3 = !!localStorage.getItem('_pouch_check_localstorage');
+	} catch (e) {
+	  hasLocal$3 = false;
+	}
+
+	function hasLocalStorage$$1() {
+	  return hasLocal$3;
+	}
+
+	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
+
+	inherits_browser(Changes$$1, EventEmitter);
+
+	/* istanbul ignore next */
+	function attachBrowserEvents$3(self) {
+	  if (hasLocalStorage$$1()) {
+	    addEventListener("storage", function (e) {
+	      self.emit(e.key);
+	    });
+	  }
+	}
+
+	function Changes$$1() {
+	  EventEmitter.call(this);
+	  this._listeners = {};
+
+	  attachBrowserEvents$3(this);
+	}
+	Changes$$1.prototype.addListener = function (dbName, id, db, opts) {
+	  /* istanbul ignore if */
+	  if (this._listeners[id]) {
+	    return;
+	  }
+	  var self = this;
+	  var inprogress = false;
+	  function eventFunction() {
+	    /* istanbul ignore if */
+	    if (!self._listeners[id]) {
+	      return;
+	    }
+	    if (inprogress) {
+	      inprogress = 'waiting';
+	      return;
+	    }
+	    inprogress = true;
+	    var changesOpts = pick$$1(opts, [
+	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
+	      'doc_ids', 'view', 'since', 'query_params', 'binary', 'return_docs'
+	    ]);
+
+	    /* istanbul ignore next */
+	    function onError() {
+	      inprogress = false;
+	    }
+
+	    db.changes(changesOpts).on('change', function (c) {
+	      if (c.seq > opts.since && !opts.cancelled) {
+	        opts.since = c.seq;
+	        opts.onChange(c);
+	      }
+	    }).on('complete', function () {
+	      if (inprogress === 'waiting') {
+	        browser$4(eventFunction);
+	      }
+	      inprogress = false;
+	    }).on('error', onError);
+	  }
+	  this._listeners[id] = eventFunction;
+	  this.on(dbName, eventFunction);
+	};
+
+	Changes$$1.prototype.removeListener = function (dbName, id) {
+	  /* istanbul ignore if */
+	  if (!(id in this._listeners)) {
+	    return;
+	  }
+	  EventEmitter.prototype.removeListener.call(this, dbName,
+	    this._listeners[id]);
+	  delete this._listeners[id];
+	};
+
+
+	/* istanbul ignore next */
+	Changes$$1.prototype.notifyLocalWindows = function (dbName) {
+	  //do a useless change on a storage thing
+	  //in order to get other windows's listeners to activate
+	  if (hasLocalStorage$$1()) {
+	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
+	  }
+	};
+
+	Changes$$1.prototype.notify = function (dbName) {
+	  this.emit(dbName);
+	  this.notifyLocalWindows(dbName);
+	};
+
+	function guardedConsole$$1(method) {
+	  /* istanbul ignore else */
+	  if (typeof console !== 'undefined' && typeof console[method] === 'function') {
+	    var args = Array.prototype.slice.call(arguments, 1);
+	    console[method].apply(console, args);
+	  }
+	}
+
+	function flatten$$1(arrs) {
+	  var res = [];
+	  for (var i = 0, len = arrs.length; i < len; i++) {
+	    res = res.concat(arrs[i]);
+	  }
+	  return res;
+	}
+
+	// Checks if a PouchDB object is "remote" or not. This is
+
+	function isRemote$$1(db) {
+	  if (typeof db._remote === 'boolean') {
+	    return db._remote;
+	  }
+	  /* istanbul ignore next */
+	  if (typeof db.type === 'function') {
+	    guardedConsole$$1('warn',
+	      'db.type() is deprecated and will be removed in ' +
+	      'a future version of PouchDB');
+	    return db.type() === 'http';
+	  }
+	  /* istanbul ignore next */
+	  return false;
+	}
+
+	// this is essentially the "update sugar" function from daleharvey/pouchdb#1388
+	// the diffFun tells us what delta to apply to the doc.  it either returns
+	// the doc, or false if it doesn't need to do an update after all
+	function upsert$$1(db, docId, diffFun) {
+	  return new Promise(function (fulfill, reject) {
+	    db.get(docId, function (err, doc) {
+	      if (err) {
+	        /* istanbul ignore next */
+	        if (err.status !== 404) {
+	          return reject(err);
+	        }
+	        doc = {};
+	      }
+
+	      // the user might change the _rev, so save it for posterity
+	      var docRev = doc._rev;
+	      var newDoc = diffFun(doc);
+
+	      if (!newDoc) {
+	        // if the diffFun returns falsy, we short-circuit as
+	        // an optimization
+	        return fulfill({updated: false, rev: docRev});
+	      }
+
+	      // users aren't allowed to modify these values,
+	      // so reset them here
+	      newDoc._id = docId;
+	      newDoc._rev = docRev;
+	      fulfill(tryAndPut$3(db, newDoc, diffFun));
+	    });
+	  });
+	}
+
+	function tryAndPut$3(db, doc, diffFun) {
+	  return db.put(doc).then(function (res) {
+	    return {
+	      updated: true,
+	      rev: res.rev
+	    };
+	  }, function (err) {
+	    /* istanbul ignore next */
+	    if (err.status !== 409) {
+	      throw err;
+	    }
+	    return upsert$$1(db, doc._id, diffFun);
+	  });
+	}
+
+	var thisAtob$2 = function (str) {
+	  return atob(str);
 	};
 
 	// Abstracts constructing a Blob object, so it also works in older
 	// browsers that don't support the native Blob constructor (e.g.
 	// old QtWebKit versions, Android < 4.4).
-	function createBlob$1(parts, properties) {
+	function createBlob$2(parts, properties) {
 	  /* global BlobBuilder,MSBlobBuilder,MozBlobBuilder,WebKitBlobBuilder */
 	  parts = parts || [];
 	  properties = properties || {};
@@ -50949,7 +48946,7 @@ PivotToContents`);
 
 	// From http://stackoverflow.com/questions/14967647/ (continues on next line)
 	// encode-decode-image-with-base64-breaks-image (2013-04-21)
-	function binaryStringToArrayBuffer$1(bin) {
+	function binaryStringToArrayBuffer$2(bin) {
 	  var length = bin.length;
 	  var buf = new ArrayBuffer(length);
 	  var arr = new Uint8Array(buf);
@@ -50959,35 +48956,270 @@ PivotToContents`);
 	  return buf;
 	}
 
-	function binStringToBluffer$1(binString, type) {
-	  return createBlob$1([binaryStringToArrayBuffer$1(binString)], {type: type});
+	function binStringToBluffer$2(binString, type) {
+	  return createBlob$2([binaryStringToArrayBuffer$2(binString)], {type: type});
 	}
 
-	function b64ToBluffer$1(b64, type) {
-	  return binStringToBluffer$1(thisAtob$1(b64), type);
+	function b64ToBluffer$2(b64, type) {
+	  return binStringToBluffer$2(thisAtob$2(b64), type);
 	}
 
-	// simplified API. universal browser support is assumed
-	function readAsArrayBuffer$1(blob, callback) {
-	  if (typeof FileReader === 'undefined') {
-	    // fix for Firefox in a web worker:
-	    // https://bugzilla.mozilla.org/show_bug.cgi?id=901097
-	    return callback(new FileReaderSync().readAsArrayBuffer(blob));
+	function mangle$4(key) {
+	  return '$' + key;
+	}
+	function unmangle$4(key) {
+	  return key.substring(1);
+	}
+	function Map$1$4() {
+	  this._store = {};
+	}
+	Map$1$4.prototype.get = function (key) {
+	  var mangled = mangle$4(key);
+	  return this._store[mangled];
+	};
+	Map$1$4.prototype.set = function (key, value) {
+	  var mangled = mangle$4(key);
+	  this._store[mangled] = value;
+	  return true;
+	};
+	Map$1$4.prototype.has = function (key) {
+	  var mangled = mangle$4(key);
+	  return mangled in this._store;
+	};
+	Map$1$4.prototype.delete = function (key) {
+	  var mangled = mangle$4(key);
+	  var res = mangled in this._store;
+	  delete this._store[mangled];
+	  return res;
+	};
+	Map$1$4.prototype.forEach = function (cb) {
+	  var keys = Object.keys(this._store);
+	  for (var i = 0, len = keys.length; i < len; i++) {
+	    var key = keys[i];
+	    var value = this._store[key];
+	    key = unmangle$4(key);
+	    cb(value, key);
 	  }
+	};
+	Object.defineProperty(Map$1$4.prototype, 'size', {
+	  get: function () {
+	    return Object.keys(this._store).length;
+	  }
+	});
 
-	  var reader = new FileReader();
-	  reader.onloadend = function (e) {
-	    var result = e.target.result || new ArrayBuffer(0);
-	    callback(result);
-	  };
-	  reader.readAsArrayBuffer(blob);
+	function Set$1$4(array) {
+	  this._store = new Map$1$4();
+
+	  // init with an array
+	  if (array && Array.isArray(array)) {
+	    for (var i = 0, len = array.length; i < len; i++) {
+	      this.add(array[i]);
+	    }
+	  }
+	}
+	Set$1$4.prototype.add = function (key) {
+	  return this._store.set(key, true);
+	};
+	Set$1$4.prototype.has = function (key) {
+	  return this._store.has(key);
+	};
+	Set$1$4.prototype.forEach = function (cb) {
+	  this._store.forEach(function (value, key) {
+	    cb(key);
+	  });
+	};
+	Object.defineProperty(Set$1$4.prototype, 'size', {
+	  get: function () {
+	    return this._store.size;
+	  }
+	});
+
+	/* global Map,Set,Symbol */
+	// Based on https://kangax.github.io/compat-table/es6/ we can sniff out
+	// incomplete Map/Set implementations which would otherwise cause our tests to fail.
+	// Notably they fail in IE11 and iOS 8.4, which this prevents.
+	function supportsMapAndSet$4() {
+	  if (typeof Symbol === 'undefined' || typeof Map === 'undefined' || typeof Set === 'undefined') {
+	    return false;
+	  }
+	  var prop = Object.getOwnPropertyDescriptor(Map, Symbol.species);
+	  return prop && 'get' in prop && Map[Symbol.species] === Map;
 	}
 
-	var setImmediateShim$1 = global$1.setImmediate || global$1.setTimeout;
+	// based on https://github.com/montagejs/collections
 
-	function stringMd5$1(string) {
-	  return sparkMd5.hash(string);
+	var ExportedSet$4;
+
+	{
+	  if (supportsMapAndSet$4()) { // prefer built-in Map/Set
+	    ExportedSet$4 = Set;
+	  } else { // fall back to our polyfill
+	    ExportedSet$4 = Set$1$4;
+	  }
 	}
+
+	inherits_browser(PouchError$4, Error);
+
+	function PouchError$4(status, error, reason) {
+	  Error.call(this, reason);
+	  this.status = status;
+	  this.name = error;
+	  this.message = reason;
+	  this.error = true;
+	}
+
+	PouchError$4.prototype.toString = function () {
+	  return JSON.stringify({
+	    status: this.status,
+	    name: this.name,
+	    message: this.message,
+	    reason: this.reason
+	  });
+	};
+
+	var UNAUTHORIZED$4 = new PouchError$4(401, 'unauthorized', "Name or password is incorrect.");
+	var MISSING_BULK_DOCS$4 = new PouchError$4(400, 'bad_request', "Missing JSON list of 'docs'");
+	var MISSING_DOC$4 = new PouchError$4(404, 'not_found', 'missing');
+	var REV_CONFLICT$4 = new PouchError$4(409, 'conflict', 'Document update conflict');
+	var INVALID_ID$4 = new PouchError$4(400, 'bad_request', '_id field must contain a string');
+	var MISSING_ID$4 = new PouchError$4(412, 'missing_id', '_id is required for puts');
+	var RESERVED_ID$4 = new PouchError$4(400, 'bad_request', 'Only reserved document ids may start with underscore.');
+	var NOT_OPEN$4 = new PouchError$4(412, 'precondition_failed', 'Database not open');
+	var UNKNOWN_ERROR$4 = new PouchError$4(500, 'unknown_error', 'Database encountered an unknown error');
+	var BAD_ARG$4 = new PouchError$4(500, 'badarg', 'Some query argument is invalid');
+	var INVALID_REQUEST$4 = new PouchError$4(400, 'invalid_request', 'Request was invalid');
+	var QUERY_PARSE_ERROR$4 = new PouchError$4(400, 'query_parse_error', 'Some query parameter is invalid');
+	var DOC_VALIDATION$4 = new PouchError$4(500, 'doc_validation', 'Bad special document member');
+	var BAD_REQUEST$4 = new PouchError$4(400, 'bad_request', 'Something wrong with the request');
+	var NOT_AN_OBJECT$4 = new PouchError$4(400, 'bad_request', 'Document must be a JSON object');
+	var DB_MISSING$4 = new PouchError$4(404, 'not_found', 'Database not found');
+	var IDB_ERROR$4 = new PouchError$4(500, 'indexed_db_went_bad', 'unknown');
+	var WSQ_ERROR$4 = new PouchError$4(500, 'web_sql_went_bad', 'unknown');
+	var LDB_ERROR$4 = new PouchError$4(500, 'levelDB_went_went_bad', 'unknown');
+	var FORBIDDEN$4 = new PouchError$4(403, 'forbidden', 'Forbidden by design doc validate_doc_update function');
+	var INVALID_REV$4 = new PouchError$4(400, 'bad_request', 'Invalid rev format');
+	var FILE_EXISTS$4 = new PouchError$4(412, 'file_exists', 'The database could not be created, the file already exists.');
+	var MISSING_STUB$4 = new PouchError$4(412, 'missing_stub', 'A pre-existing attachment stub wasn\'t found');
+	var INVALID_URL$4 = new PouchError$4(413, 'invalid_url', 'Provided URL is invalid');
+
+	// most of this is borrowed from lodash.isPlainObject:
+	// https://github.com/fis-components/lodash.isplainobject/
+	// blob/29c358140a74f252aeb08c9eb28bef86f2217d4a/index.js
+
+	var funcToString$4 = Function.prototype.toString;
+	var objectCtorString$4 = funcToString$4.call(Object);
+
+	// like underscore/lodash _.pick()
+	function pick$$1(obj, arr) {
+	  var res = {};
+	  for (var i = 0, len = arr.length; i < len; i++) {
+	    var prop = arr[i];
+	    if (prop in obj) {
+	      res[prop] = obj[prop];
+	    }
+	  }
+	  return res;
+	}
+
+	var hasLocal$4;
+
+	try {
+	  localStorage.setItem('_pouch_check_localstorage', 1);
+	  hasLocal$4 = !!localStorage.getItem('_pouch_check_localstorage');
+	} catch (e) {
+	  hasLocal$4 = false;
+	}
+
+	function hasLocalStorage$$1() {
+	  return hasLocal$4;
+	}
+
+	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
+
+	inherits_browser(Changes$$1, EventEmitter);
+
+	/* istanbul ignore next */
+	function attachBrowserEvents$4(self) {
+	  if (hasLocalStorage$$1()) {
+	    addEventListener("storage", function (e) {
+	      self.emit(e.key);
+	    });
+	  }
+	}
+
+	function Changes$$1() {
+	  EventEmitter.call(this);
+	  this._listeners = {};
+
+	  attachBrowserEvents$4(this);
+	}
+	Changes$$1.prototype.addListener = function (dbName, id, db, opts) {
+	  /* istanbul ignore if */
+	  if (this._listeners[id]) {
+	    return;
+	  }
+	  var self = this;
+	  var inprogress = false;
+	  function eventFunction() {
+	    /* istanbul ignore if */
+	    if (!self._listeners[id]) {
+	      return;
+	    }
+	    if (inprogress) {
+	      inprogress = 'waiting';
+	      return;
+	    }
+	    inprogress = true;
+	    var changesOpts = pick$$1(opts, [
+	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
+	      'doc_ids', 'view', 'since', 'query_params', 'binary', 'return_docs'
+	    ]);
+
+	    /* istanbul ignore next */
+	    function onError() {
+	      inprogress = false;
+	    }
+
+	    db.changes(changesOpts).on('change', function (c) {
+	      if (c.seq > opts.since && !opts.cancelled) {
+	        opts.since = c.seq;
+	        opts.onChange(c);
+	      }
+	    }).on('complete', function () {
+	      if (inprogress === 'waiting') {
+	        browser$4(eventFunction);
+	      }
+	      inprogress = false;
+	    }).on('error', onError);
+	  }
+	  this._listeners[id] = eventFunction;
+	  this.on(dbName, eventFunction);
+	};
+
+	Changes$$1.prototype.removeListener = function (dbName, id) {
+	  /* istanbul ignore if */
+	  if (!(id in this._listeners)) {
+	    return;
+	  }
+	  EventEmitter.prototype.removeListener.call(this, dbName,
+	    this._listeners[id]);
+	  delete this._listeners[id];
+	};
+
+
+	/* istanbul ignore next */
+	Changes$$1.prototype.notifyLocalWindows = function (dbName) {
+	  //do a useless change on a storage thing
+	  //in order to get other windows's listeners to activate
+	  if (hasLocalStorage$$1()) {
+	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
+	  }
+	};
+
+	Changes$$1.prototype.notify = function (dbName) {
+	  this.emit(dbName);
+	  this.notifyLocalWindows(dbName);
+	};
 
 	function QueryParseError$1(message) {
 	  this.status = 400;
@@ -51028,11 +49260,11 @@ PivotToContents`);
 	function promisedCallback$1(promise, callback) {
 	  if (callback) {
 	    promise.then(function (res) {
-	      browser$3(function () {
+	      browser$4(function () {
 	        callback(null, res);
 	      });
 	    }, function (reason) {
-	      browser$3(function () {
+	      browser$4(function () {
 	        callback(reason);
 	      });
 	    });
@@ -51077,7 +49309,7 @@ PivotToContents`);
 	// uniq an array of strings, order not guaranteed
 	// similar to underscore/lodash _.uniq
 	function uniq$1(arr) {
-	  var theSet = new ExportedSet$1(arr);
+	  var theSet = new ExportedSet$4(arr);
 	  var result = new Array(theSet.size);
 	  var index = -1;
 	  theSet.forEach(function (value) {
@@ -51101,10 +49333,10 @@ PivotToContents`);
 	 */
 
 
-	function TaskQueue() {
-	  this.promise = new PouchPromise$1(function (fulfill) {fulfill(); });
+	function TaskQueue$2() {
+	  this.promise = new Promise(function (fulfill) {fulfill(); });
 	}
-	TaskQueue.prototype.add = function (promiseFactory) {
+	TaskQueue$2.prototype.add = function (promiseFactory) {
 	  this.promise = this.promise.catch(function () {
 	    // just recover
 	  }).then(function () {
@@ -51112,7 +49344,7 @@ PivotToContents`);
 	  });
 	  return this.promise;
 	};
-	TaskQueue.prototype.finish = function () {
+	TaskQueue$2.prototype.finish = function () {
 	  return this.promise;
 	};
 
@@ -51174,7 +49406,7 @@ PivotToContents`);
 	      depDbs[depDbName] = true;
 	      return doc;
 	    }
-	    return upsert$1(sourceDB, '_local/' + localDocName, diffFunction).then(function () {
+	    return upsert$$1(sourceDB, '_local/' + localDocName, diffFunction).then(function () {
 	      return sourceDB.registerDependentDatabase(depDbName).then(function (res) {
 	        var db = res.db;
 	        db.auto_compaction = true;
@@ -51211,7 +49443,7 @@ PivotToContents`);
 	}
 
 	var persistentQueues$1 = {};
-	var tempViewQueue$1 = new TaskQueue();
+	var tempViewQueue$1 = new TaskQueue$2();
 	var CHANGES_BATCH_SIZE$2 = 50;
 
 	function parseViewName$1(name) {
@@ -51230,12 +49462,12 @@ PivotToContents`);
 	  try {
 	    db.emit('error', e);
 	  } catch (err) {
-	    guardedConsole$1('error',
+	    guardedConsole$$1('error',
 	      'The user\'s map/reduce function threw an uncaught error.\n' +
 	      'You can debug this error by doing:\n' +
 	      'myDatabase.on(\'error\', function (err) { debugger; });\n' +
 	      'Please double-check your map/reduce function.');
-	    guardedConsole$1('error', e);
+	    guardedConsole$$1('error', e);
 	  }
 	}
 
@@ -51321,7 +49553,7 @@ PivotToContents`);
 	      }
 	      Object.keys(atts).forEach(function (filename) {
 	        var att = atts[filename];
-	        atts[filename].data = b64ToBluffer$1(att.data, att.content_type);
+	        atts[filename].data = b64ToBluffer$2(att.data, att.content_type);
 	      });
 	    });
 	  }
@@ -51409,6 +49641,7 @@ PivotToContents`);
 	    var params = [];
 	    var body;
 	    var method = 'GET';
+	    var ok, status;
 
 	    // If opts.reduce exists and is defined, then add it to the list
 	    // of parameters.
@@ -51462,23 +49695,28 @@ PivotToContents`);
 	    // We are referencing a query defined in the design doc
 	    if (typeof fun === 'string') {
 	      var parts = parseViewName$1(fun);
-	      return db.request({
+	      return db.fetch('_design/' + parts[0] + '/_view/' + parts[1] + params, {
+	        headers: new h$1({'Content-Type': 'application/json'}),
 	        method: method,
-	        url: '_design/' + parts[0] + '/_view/' + parts[1] + params,
-	        body: body
-	      }).then(
-	        /* istanbul ignore next */
-	        function (result) {
-	          // fail the entire request if the result contains an error
-	          result.rows.forEach(function (row) {
-	            if (row.value && row.value.error && row.value.error === "builtin_reduce_error") {
-	              throw new Error(row.reason);
-	            }
-	          });
-
-	          return result;
-	      })
-	      .then(postprocessAttachments(opts));
+	        body: JSON.stringify(body)
+	      }).then(function (response) {
+	        ok = response.ok;
+	        status = response.status;
+	        return response.json();
+	      }).then(function (result) {
+	        if (!ok) {
+	          result.status = status;
+	          throw generateErrorFromResponse$3(result);
+	        }
+	        // fail the entire request if the result contains an error
+	        result.rows.forEach(function (row) {
+	          /* istanbul ignore if */
+	          if (row.value && row.value.error && row.value.error === "builtin_reduce_error") {
+	            throw new Error(row.reason);
+	          }
+	        });
+	        return result;
+	      }).then(postprocessAttachments(opts));
 	    }
 
 	    // We are using a temporary view, terrible for performance, good for testing
@@ -51490,10 +49728,21 @@ PivotToContents`);
 	        body[key] = fun[key].toString();
 	      }
 	    });
-	    return db.request({
+
+	    return db.fetch('_temp_view' + params, {
+	      headers: new h$1({'Content-Type': 'application/json'}),
 	      method: 'POST',
-	      url: '_temp_view' + params,
-	      body: body
+	      body: JSON.stringify(body)
+	    }).then(function (response) {
+	        ok = response.ok;
+	        status = response.status;
+	      return response.json();
+	    }).then(function (result) {
+	      if (!ok) {
+	        result.status = status;
+	        throw generateErrorFromResponse$3(result);
+	      }
+	      return result;
 	    }).then(postprocessAttachments(opts));
 	  }
 
@@ -51501,7 +49750,7 @@ PivotToContents`);
 	  // and override the default behavior
 	  /* istanbul ignore next */
 	  function customQuery(db, fun, opts) {
-	    return new PouchPromise$1(function (resolve, reject) {
+	    return new Promise(function (resolve, reject) {
 	      db._query(fun, opts, function (err, res) {
 	        if (err) {
 	          return reject(err);
@@ -51515,7 +49764,7 @@ PivotToContents`);
 	  // and override the default behavior
 	  /* istanbul ignore next */
 	  function customViewCleanup(db) {
-	    return new PouchPromise$1(function (resolve, reject) {
+	    return new Promise(function (resolve, reject) {
 	      db._viewCleanup(function (err, res) {
 	        if (err) {
 	          return reject(err);
@@ -51550,7 +49799,7 @@ PivotToContents`);
 	      if (isGenOne$2(changes)) {
 	        // generation 1, so we can safely assume initial state
 	        // for performance reasons (avoids unnecessary GETs)
-	        return PouchPromise$1.resolve(defaultMetaDoc);
+	        return Promise.resolve(defaultMetaDoc);
 	      }
 	      return view.db.get(metaDocId).catch(defaultsTo(defaultMetaDoc));
 	    }
@@ -51558,7 +49807,7 @@ PivotToContents`);
 	    function getKeyValueDocs(metaDoc) {
 	      if (!metaDoc.keys.length) {
 	        // no keys, no need for a lookup
-	        return PouchPromise$1.resolve({rows: []});
+	        return Promise.resolve({rows: []});
 	      }
 	      return view.db.allDocs({
 	        keys: metaDoc.keys,
@@ -51568,7 +49817,7 @@ PivotToContents`);
 
 	    function processKeyValueDocs(metaDoc, kvDocsRes) {
 	      var kvDocs = [];
-	      var oldKeys = new ExportedSet$1();
+	      var oldKeys = new ExportedSet$3();
 
 	      for (var i = 0, len = kvDocsRes.rows.length; i < len; i++) {
 	        var row = kvDocsRes.rows[i];
@@ -51621,10 +49870,10 @@ PivotToContents`);
 	      .catch(defaultsTo({_id: seqDocId, seq: 0}))
 	      .then(function (lastSeqDoc) {
 	        var docIds = mapToKeysArray$1(docIdsToChangesAndEmits);
-	        return PouchPromise$1.all(docIds.map(function (docId) {
+	        return Promise.all(docIds.map(function (docId) {
 	          return getDocsToPersist(docId, view, docIdsToChangesAndEmits);
 	        })).then(function (listOfDocsToPersist) {
-	          var docsToPersist = flatten$1(listOfDocsToPersist);
+	          var docsToPersist = flatten$$1(listOfDocsToPersist);
 	          lastSeqDoc.seq = seq;
 	          docsToPersist.push(lastSeqDoc);
 	          // write all docs in a single operation, update the seq once
@@ -51637,7 +49886,7 @@ PivotToContents`);
 	    var viewName = typeof view === 'string' ? view : view.name;
 	    var queue = persistentQueues$1[viewName];
 	    if (!queue) {
-	      queue = persistentQueues$1[viewName] = new TaskQueue();
+	      queue = persistentQueues$1[viewName] = new TaskQueue$2();
 	    }
 	    return queue;
 	  }
@@ -51673,10 +49922,11 @@ PivotToContents`);
 	      };
 	    }
 
-	    var queue = new TaskQueue();
+	    var queue = new TaskQueue$2();
 
 	    function processNextBatch() {
 	      return view.sourceDB.changes({
+	        return_docs: true,
 	        conflicts: true,
 	        include_docs: true,
 	        style: 'all_docs',
@@ -51699,7 +49949,7 @@ PivotToContents`);
 	    }
 
 	    function createDocIdsToChangesAndEmits(results) {
-	      var docIdsToChangesAndEmits = new ExportedMap$1();
+	      var docIdsToChangesAndEmits = new ExportedMap$3();
 	      for (var i = 0, len = results.length; i < len; i++) {
 	        var change = results[i];
 	        if (change.doc._id[0] !== '_') {
@@ -51723,7 +49973,7 @@ PivotToContents`);
 	    }
 
 	    function createIndexableKeysToKeyValues(mapResults) {
-	      var indexableKeysToKeyValues = new ExportedMap$1();
+	      var indexableKeysToKeyValues = new ExportedMap$3();
 	      var lastKey;
 	      for (var i = 0, len = mapResults.length; i < len; i++) {
 	        var emittedKeyValue = mapResults[i];
@@ -51866,7 +50116,7 @@ PivotToContents`);
 	          attachments: opts.attachments,
 	          binary: opts.binary
 	        }).then(function (allDocsRes) {
-	          var docIdsToDocs = new ExportedMap$1();
+	          var docIdsToDocs = new ExportedMap$3();
 	          allDocsRes.rows.forEach(function (row) {
 	            docIdsToDocs.set(row.id, row.doc);
 	          });
@@ -51897,7 +50147,7 @@ PivotToContents`);
 	        }
 	        return fetchFromView(viewOpts);
 	      });
-	      return PouchPromise$1.all(fetchPromises).then(flatten$1).then(onMapResultsReady);
+	      return Promise.all(fetchPromises).then(flatten$$1).then(onMapResultsReady);
 	    } else { // normal query, no 'keys'
 	      var viewOpts = {
 	        descending : opts.descending
@@ -51956,22 +50206,24 @@ PivotToContents`);
 	  }
 
 	  function httpViewCleanup(db) {
-	    return db.request({
-	      method: 'POST',
-	      url: '_view_cleanup'
+	    return db.fetch('_view_cleanup', {
+	      headers: new h$1({'Content-Type': 'application/json'}),
+	      method: 'POST'
+	    }).then(function (response) {
+	      return response.json();
 	    });
 	  }
 
 	  function localViewCleanup(db) {
 	    return db.get('_local/' + localDocName).then(function (metaDoc) {
-	      var docsToViews = new ExportedMap$1();
+	      var docsToViews = new ExportedMap$3();
 	      Object.keys(metaDoc.views).forEach(function (fullViewName) {
 	        var parts = parseViewName$1(fullViewName);
 	        var designDocName = '_design/' + parts[0];
 	        var viewName = parts[1];
 	        var views = docsToViews.get(designDocName);
 	        if (!views) {
-	          views = new ExportedSet$1();
+	          views = new ExportedSet$3();
 	          docsToViews.set(designDocName, views);
 	        }
 	        views.add(viewName);
@@ -52009,7 +50261,7 @@ PivotToContents`);
 	            return new db.constructor(viewDBName, db.__opts).destroy();
 	          })();
 	        });
-	        return PouchPromise$1.all(destroyPromises).then(function () {
+	        return Promise.all(destroyPromises).then(function () {
 	          return {ok: true};
 	        });
 	      });
@@ -52021,10 +50273,10 @@ PivotToContents`);
 	    if (typeof db._query === 'function') {
 	      return customQuery(db, fun, opts);
 	    }
-	    if (isRemote$1(db)) {
+	    if (isRemote$$1(db)) {
 	      return httpQuery(db, fun, opts);
 	    }
-	    
+
 	    if (typeof fun !== 'string') {
 	      // temp_view
 	      checkQueryParseError(opts, fun);
@@ -52074,7 +50326,7 @@ PivotToContents`);
 	        return createViewPromise.then(function (view) {
 	          if (opts.stale === 'ok' || opts.stale === 'update_after') {
 	            if (opts.stale === 'update_after') {
-	              browser$3(function () {
+	              browser$4(function () {
 	                updateView(view);
 	              });
 	            }
@@ -52101,7 +50353,7 @@ PivotToContents`);
 	      fun = {map : fun};
 	    }
 
-	    var promise = PouchPromise$1.resolve().then(function () {
+	    var promise = Promise.resolve().then(function () {
 	      return queryPromised(db, fun, opts);
 	    });
 	    promisedCallback$1(promise, callback);
@@ -52114,7 +50366,7 @@ PivotToContents`);
 	    if (typeof db._viewCleanup === 'function') {
 	      return customViewCleanup(db);
 	    }
-	    if (isRemote$1(db)) {
+	    if (isRemote$$1(db)) {
 	      return httpViewCleanup(db);
 	    }
 	    return localViewCleanup(db);
@@ -52131,7 +50383,7 @@ PivotToContents`);
 	// to be liberal with what we accept in order to prevent mental
 	// breakdowns in our users
 	function massageCreateIndexRequest(requestDef) {
-	  requestDef = clone$1(requestDef);
+	  requestDef = clone$1$$1(requestDef);
 
 	  if (!requestDef.index) {
 	    requestDef.index = {};
@@ -52155,36 +50407,49 @@ PivotToContents`);
 	  return requestDef;
 	}
 
+	function dbFetch(db, path, opts, callback) {
+	  var status, ok;
+	  opts.headers = new h$1({'Content-type': 'application/json'});
+	  db.fetch(path, opts).then(function (response) {
+	    status = response.status;
+	    ok = response.ok;
+	    return response.json();
+	  }).then(function (json) {
+	    if (!ok) {
+	      json.status = status;
+	      var err = generateErrorFromResponse$1(json);
+	      callback(err);
+	    } else {
+	      callback(null, json);
+	    }
+	  }).catch(callback);
+	}
+
 	function createIndex(db, requestDef, callback) {
 	  requestDef = massageCreateIndexRequest(requestDef);
-
-	  db.request({
+	  dbFetch(db, '_index', {
 	    method: 'POST',
-	    url: '_index',
-	    body: requestDef
+	    body: JSON.stringify(requestDef)
 	  }, callback);
 	}
 
 	function find$1(db, requestDef, callback) {
-	  db.request({
+	  dbFetch(db, '_find', {
 	    method: 'POST',
-	    url: '_find',
-	    body: requestDef
+	    body: JSON.stringify(requestDef)
 	  }, callback);
 	}
 
 	function explain(db, requestDef, callback) {
-	  db.request({
+	  dbFetch(db, '_explain', {
 	    method: 'POST',
-	    url: '_explain',
-	    body: requestDef
+	    body: JSON.stringify(requestDef)
 	  }, callback);
 	}
 
 	function getIndexes(db, callback) {
-	  db.request({
-	    method: 'GET',
-	    url: '_index'
+	  dbFetch(db, '_index', {
+	    method: 'GET'
 	  }, callback);
 	}
 
@@ -52205,10 +50470,7 @@ PivotToContents`);
 
 	  var url = '_index/' + [ddoc, type, name].map(encodeURIComponent).join('/');
 
-	  db.request({
-	    method: 'DELETE',
-	    url: url
-	  }, callback);
+	  dbFetch(db, url, {method: 'DELETE'}, callback);
 	}
 
 	function getArguments(fun) {
@@ -52222,6 +50484,7 @@ PivotToContents`);
 	    return fun.call(this, args);
 	  };
 	}
+
 	function callbackify$2(fun) {
 	  return getArguments(function (args) {
 	    var cb = args.pop();
@@ -52233,23 +50496,23 @@ PivotToContents`);
 
 	function promisedCallback$2(promise, callback) {
 	  promise.then(function (res) {
-	    nextTick(function () {
+	    browser$4(function () {
 	      callback(null, res);
 	    });
 	  }, function (reason) {
-	    nextTick(function () {
+	    browser$4(function () {
 	      callback(reason);
 	    });
 	  });
 	  return promise;
 	}
 
-	var flatten$2 = getArguments(function (args) {
+	var flatten$5 = getArguments(function (args) {
 	  var res = [];
 	  for (var i = 0, len = args.length; i < len; i++) {
 	    var subArr = args[i];
 	    if (Array.isArray(subArr)) {
-	      res = res.concat(flatten$2.apply(null, subArr));
+	      res = res.concat(flatten$5.apply(null, subArr));
 	    } else {
 	      res.push(subArr);
 	    }
@@ -52260,14 +50523,14 @@ PivotToContents`);
 	function mergeObjects(arr) {
 	  var res = {};
 	  for (var i = 0, len = arr.length; i < len; i++) {
-	    res = assign$1$1(res, arr[i]);
+	    res = assign$1$$1(res, arr[i]);
 	  }
 	  return res;
 	}
 
 	// Selects a list of fields defined in dot notation from one doc
 	// and copies them to a new doc. Like underscore _.pick but supports nesting.
-	function pick$2(obj, arr) {
+	function pick$5(obj, arr) {
 	  var res = {};
 	  for (var i = 0, len = arr.length; i < len; i++) {
 	    var parsedField = parseField$1(arr[i]);
@@ -52375,7 +50638,7 @@ PivotToContents`);
 	//
 
 
-	function createDeepMultiMapper(fields, emit$$1) {
+	function createDeepMultiMapper(fields, emit) {
 	  return function (doc) {
 	    var toEmit = [];
 	    for (var i = 0, iLen = fields.length; i < iLen; i++) {
@@ -52390,11 +50653,11 @@ PivotToContents`);
 	      }
 	      toEmit.push(value);
 	    }
-	    emit$$1(toEmit);
+	    emit(toEmit);
 	  };
 	}
 
-	function createDeepSingleMapper(field, emit$$1) {
+	function createDeepSingleMapper(field, emit) {
 	  var parsedField = parseField$1(field);
 	  return function (doc) {
 	    var value = doc;
@@ -52405,23 +50668,23 @@ PivotToContents`);
 	        return; // do nothing
 	      }
 	    }
-	    emit$$1(value);
+	    emit(value);
 	  };
 	}
 
-	function createShallowSingleMapper(field, emit$$1) {
+	function createShallowSingleMapper(field, emit) {
 	  return function (doc) {
-	    emit$$1(doc[field]);
+	    emit(doc[field]);
 	  };
 	}
 
-	function createShallowMultiMapper(fields, emit$$1) {
+	function createShallowMultiMapper(fields, emit) {
 	  return function (doc) {
 	    var toEmit = [];
 	    for (var i = 0, len = fields.length; i < len; i++) {
 	      toEmit.push(doc[fields[i]]);
 	    }
-	    emit$$1(toEmit);
+	    emit(toEmit);
 	  };
 	}
 
@@ -52435,7 +50698,7 @@ PivotToContents`);
 	  return true;
 	}
 
-	function createMapper(fields, emit$$1) {
+	function createMapper(fields, emit) {
 	  var isShallow = checkShallow(fields);
 	  var isSingle = fields.length === 1;
 
@@ -52443,25 +50706,25 @@ PivotToContents`);
 	  // i.e. single shallow indexes
 	  if (isShallow) {
 	    if (isSingle) {
-	      return createShallowSingleMapper(fields[0], emit$$1);
+	      return createShallowSingleMapper(fields[0], emit);
 	    } else { // multi
-	      return createShallowMultiMapper(fields, emit$$1);
+	      return createShallowMultiMapper(fields, emit);
 	    }
 	  } else { // deep
 	    if (isSingle) {
-	      return createDeepSingleMapper(fields[0], emit$$1);
+	      return createDeepSingleMapper(fields[0], emit);
 	    } else { // multi
-	      return createDeepMultiMapper(fields, emit$$1);
+	      return createDeepMultiMapper(fields, emit);
 	    }
 	  }
 	}
 
-	function mapper$1(mapFunDef, emit$$1) {
+	function mapper$1(mapFunDef, emit) {
 	  // mapFunDef is a list of fields
 
 	  var fields = Object.keys(mapFunDef.fields);
 
-	  return createMapper(fields, emit$$1);
+	  return createMapper(fields, emit);
 	}
 
 	/* istanbul ignore next */
@@ -52568,7 +50831,7 @@ PivotToContents`);
 	}
 
 	function reverseOptions(opts) {
-	  var newOpts = clone$1(opts);
+	  var newOpts = clone$1$$1(opts);
 	  delete newOpts.startkey;
 	  delete newOpts.endkey;
 	  delete newOpts.inclusive_start;
@@ -52678,7 +50941,7 @@ PivotToContents`);
 
 	function createIndex$1(db, requestDef) {
 	  requestDef = massageCreateIndexRequest(requestDef);
-	  var originalIndexDef = clone$1(requestDef.index);
+	  var originalIndexDef = clone$1$$1(requestDef.index);
 	  requestDef.index = massageIndexDef(requestDef.index);
 
 	  validateIndex(requestDef.index);
@@ -52726,7 +50989,7 @@ PivotToContents`);
 
 	  db.constructor.emit('debug', ['find', 'creating index', ddocId]);
 
-	  return upsert$1(db, ddocId, updateDdoc).then(function () {
+	  return upsert$$1(db, ddocId, updateDdoc).then(function () {
 	    if (hasInvalidLanguage) {
 	      throw new Error('invalid language for ddoc with id "' +
 	      ddocId +
@@ -52769,7 +51032,7 @@ PivotToContents`);
 	      }]
 	    };
 
-	    res.indexes = flatten$2(res.indexes, allDocsRes.rows.filter(function (row) {
+	    res.indexes = flatten$5(res.indexes, allDocsRes.rows.filter(function (row) {
 	      return row.doc.language === 'query';
 	    }).map(function (row) {
 	      var viewNames = row.doc.views !== undefined ? Object.keys(row.doc.views) : [];
@@ -52876,7 +51139,7 @@ PivotToContents`);
 	}
 
 	function getInMemoryFields(coreInMemoryFields, index, selector, userFields) {
-	  var result = flatten$2(
+	  var result = flatten$5(
 	    // in-memory fields reported as necessary by the query planner
 	    coreInMemoryFields,
 	    // combine with another pass that checks for any we may have missed
@@ -53265,7 +51528,7 @@ PivotToContents`);
 	}
 
 	function doAllDocs(db, originalOpts) {
-	  var opts = clone$1(originalOpts);
+	  var opts = clone$1$$1(originalOpts);
 
 	  // CouchDB responds in weird ways when you provide a non-string to _id;
 	  // we mimic the behavior for consistency. See issue66 tests for details.
@@ -53324,7 +51587,7 @@ PivotToContents`);
 
 	    validateSort(requestDef, indexToUse);
 
-	    var opts = assign$1$1({
+	    var opts = assign$1$$1({
 	      include_docs: true,
 	      reduce: false
 	    }, queryPlan.queryOpts);
@@ -53358,10 +51621,10 @@ PivotToContents`);
 	    }
 
 	    if (explain) {
-	      return PouchPromise$1.resolve(queryPlan, opts);
+	      return Promise.resolve(queryPlan, opts);
 	    }
 
-	    return PouchPromise$1.resolve().then(function () {
+	    return Promise.resolve().then(function () {
 	      if (indexToUse.name === '_all_docs') {
 	        return doAllDocs(db, opts);
 	      } else {
@@ -53384,7 +51647,7 @@ PivotToContents`);
 	        docs: res.rows.map(function (row) {
 	          var doc = row.doc;
 	          if (requestDef.fields) {
-	            return pick$2(doc, requestDef.fields);
+	            return pick$5(doc, requestDef.fields);
 	          }
 	          return doc;
 	        })
@@ -53450,7 +51713,7 @@ PivotToContents`);
 	    return doc;
 	  }
 
-	  return upsert$1(db, docId, deltaFun).then(function () {
+	  return upsert$$1(db, docId, deltaFun).then(function () {
 	    return abstractMapper.viewCleanup.apply(db);
 	  }).then(function () {
 	    return {ok: true};
@@ -53464,18 +51727,18 @@ PivotToContents`);
 	var deleteIndexAsCallback = callbackify$2(deleteIndex$1);
 
 	var plugin = {};
-	plugin.createIndex = toPromise$1(function (requestDef, callback) {
+	plugin.createIndex = toPromise$$1(function (requestDef, callback) {
 
 	  if (typeof requestDef !== 'object') {
 	    return callback(new Error('you must provide an index to create'));
 	  }
 
-	  var createIndex$$1 = isRemote$1(this) ?
+	  var createIndex$$1 = isRemote$$1(this) ?
 	    createIndex : createIndexAsCallback;
 	  createIndex$$1(this, requestDef, callback);
 	});
 
-	plugin.find = toPromise$1(function (requestDef, callback) {
+	plugin.find = toPromise$$1(function (requestDef, callback) {
 
 	  if (typeof callback === 'undefined') {
 	    callback = requestDef;
@@ -53486,11 +51749,11 @@ PivotToContents`);
 	    return callback(new Error('you must provide search parameters to find()'));
 	  }
 
-	  var find$$1 = isRemote$1(this) ? find$1 : findAsCallback;
+	  var find$$1 = isRemote$$1(this) ? find$1 : findAsCallback;
 	  find$$1(this, requestDef, callback);
 	});
 
-	plugin.explain = toPromise$1(function (requestDef, callback) {
+	plugin.explain = toPromise$$1(function (requestDef, callback) {
 
 	  if (typeof callback === 'undefined') {
 	    callback = requestDef;
@@ -53501,23 +51764,23 @@ PivotToContents`);
 	    return callback(new Error('you must provide search parameters to explain()'));
 	  }
 
-	  var find$$1 = isRemote$1(this) ? explain : explainAsCallback;
+	  var find$$1 = isRemote$$1(this) ? explain : explainAsCallback;
 	  find$$1(this, requestDef, callback);
 	});
 
-	plugin.getIndexes = toPromise$1(function (callback) {
+	plugin.getIndexes = toPromise$$1(function (callback) {
 
-	  var getIndexes$$1 = isRemote$1(this) ? getIndexes : getIndexesAsCallback;
+	  var getIndexes$$1 = isRemote$$1(this) ? getIndexes : getIndexesAsCallback;
 	  getIndexes$$1(this, callback);
 	});
 
-	plugin.deleteIndex = toPromise$1(function (indexDef, callback) {
+	plugin.deleteIndex = toPromise$$1(function (indexDef, callback) {
 
 	  if (typeof indexDef !== 'object') {
 	    return callback(new Error('you must provide an index to delete'));
 	  }
 
-	  var deleteIndex$$1 = isRemote$1(this) ?
+	  var deleteIndex$$1 = isRemote$$1(this) ?
 	    deleteIndex : deleteIndexAsCallback;
 	  deleteIndex$$1(this, indexDef, callback);
 	});
@@ -53525,7 +51788,6 @@ PivotToContents`);
 	var urlJoin = createCommonjsModule(function (module) {
 	(function (name, context, definition) {
 	  if (module.exports) module.exports = definition();
-	  else if (typeof undefined === 'function' && undefined.amd) undefined(definition);
 	  else context[name] = definition();
 	})('urljoin', commonjsGlobal, function () {
 
@@ -53704,11 +51966,11 @@ PivotToContents`);
 	// Expose the module.
 	//
 	var stringify$3 = querystringify;
-	var parse$3 = querystring;
+	var parse$2 = querystring;
 
 	var querystringify_1 = {
 		stringify: stringify$3,
-		parse: parse$3
+		parse: parse$2
 	};
 
 	var protocolre = /^([a-z][a-z0-9.+-]*:)?(\/\/)?([\S\s]*)/i
@@ -53817,7 +52079,7 @@ PivotToContents`);
 	 * @return {String} Resolved pathname.
 	 * @api private
 	 */
-	function resolve$3(relative, base) {
+	function resolve$2(relative, base) {
 	  var path = (base || '/').split('/').slice(0, -1).concat(relative.split('/'))
 	    , i = path.length
 	    , last = path[i - 1]
@@ -53949,7 +52211,7 @@ PivotToContents`);
 	    && url.pathname.charAt(0) !== '/'
 	    && (url.pathname !== '' || location.pathname !== '')
 	  ) {
-	    url.pathname = resolve$3(url.pathname, location.pathname);
+	    url.pathname = resolve$2(url.pathname, location.pathname);
 	  }
 
 	  //
@@ -54120,12 +52382,776 @@ PivotToContents`);
 
 	var urlParse = URL;
 
+	var thisBtoa$3 = function (str) {
+	  return btoa(str);
+	};
+
+	// Abstracts constructing a Blob object, so it also works in older
+	// browsers that don't support the native Blob constructor (e.g.
+	// old QtWebKit versions, Android < 4.4).
+	function createBlob$3(parts, properties) {
+	  /* global BlobBuilder,MSBlobBuilder,MozBlobBuilder,WebKitBlobBuilder */
+	  parts = parts || [];
+	  properties = properties || {};
+	  try {
+	    return new Blob(parts, properties);
+	  } catch (e) {
+	    if (e.name !== "TypeError") {
+	      throw e;
+	    }
+	    var Builder = typeof BlobBuilder !== 'undefined' ? BlobBuilder :
+	                  typeof MSBlobBuilder !== 'undefined' ? MSBlobBuilder :
+	                  typeof MozBlobBuilder !== 'undefined' ? MozBlobBuilder :
+	                  WebKitBlobBuilder;
+	    var builder = new Builder();
+	    for (var i = 0; i < parts.length; i += 1) {
+	      builder.append(parts[i]);
+	    }
+	    return builder.getBlob(properties.type);
+	  }
+	}
+
+	// simplified API. universal browser support is assumed
+	function readAsArrayBuffer$3(blob, callback) {
+	  if (typeof FileReader === 'undefined') {
+	    // fix for Firefox in a web worker:
+	    // https://bugzilla.mozilla.org/show_bug.cgi?id=901097
+	    return callback(new FileReaderSync().readAsArrayBuffer(blob));
+	  }
+
+	  var reader = new FileReader();
+	  reader.onloadend = function (e) {
+	    var result = e.target.result || new ArrayBuffer(0);
+	    callback(result);
+	  };
+	  reader.readAsArrayBuffer(blob);
+	}
+
+	/* istanbul ignore next */
+	function INTERNAL() {}
+
+	var handlers$1 = {};
+
+	var REJECTED = ['REJECTED'];
+	var FULFILLED = ['FULFILLED'];
+	var PENDING = ['PENDING'];
+
+	var browser$5 = Promise$1;
+
+	function Promise$1(resolver) {
+	  if (typeof resolver !== 'function') {
+	    throw new TypeError('resolver must be a function');
+	  }
+	  this.state = PENDING;
+	  this.queue = [];
+	  this.outcome = void 0;
+	  if (resolver !== INTERNAL) {
+	    safelyResolveThenable(this, resolver);
+	  }
+	}
+
+	Promise$1.prototype["catch"] = function (onRejected) {
+	  return this.then(null, onRejected);
+	};
+	Promise$1.prototype.then = function (onFulfilled, onRejected) {
+	  if (typeof onFulfilled !== 'function' && this.state === FULFILLED ||
+	    typeof onRejected !== 'function' && this.state === REJECTED) {
+	    return this;
+	  }
+	  var promise = new this.constructor(INTERNAL);
+	  if (this.state !== PENDING) {
+	    var resolver = this.state === FULFILLED ? onFulfilled : onRejected;
+	    unwrap(promise, resolver, this.outcome);
+	  } else {
+	    this.queue.push(new QueueItem(promise, onFulfilled, onRejected));
+	  }
+
+	  return promise;
+	};
+	function QueueItem(promise, onFulfilled, onRejected) {
+	  this.promise = promise;
+	  if (typeof onFulfilled === 'function') {
+	    this.onFulfilled = onFulfilled;
+	    this.callFulfilled = this.otherCallFulfilled;
+	  }
+	  if (typeof onRejected === 'function') {
+	    this.onRejected = onRejected;
+	    this.callRejected = this.otherCallRejected;
+	  }
+	}
+	QueueItem.prototype.callFulfilled = function (value) {
+	  handlers$1.resolve(this.promise, value);
+	};
+	QueueItem.prototype.otherCallFulfilled = function (value) {
+	  unwrap(this.promise, this.onFulfilled, value);
+	};
+	QueueItem.prototype.callRejected = function (value) {
+	  handlers$1.reject(this.promise, value);
+	};
+	QueueItem.prototype.otherCallRejected = function (value) {
+	  unwrap(this.promise, this.onRejected, value);
+	};
+
+	function unwrap(promise, func, value) {
+	  browser$4(function () {
+	    var returnValue;
+	    try {
+	      returnValue = func(value);
+	    } catch (e) {
+	      return handlers$1.reject(promise, e);
+	    }
+	    if (returnValue === promise) {
+	      handlers$1.reject(promise, new TypeError('Cannot resolve promise with itself'));
+	    } else {
+	      handlers$1.resolve(promise, returnValue);
+	    }
+	  });
+	}
+
+	handlers$1.resolve = function (self, value) {
+	  var result = tryCatch(getThen, value);
+	  if (result.status === 'error') {
+	    return handlers$1.reject(self, result.value);
+	  }
+	  var thenable = result.value;
+
+	  if (thenable) {
+	    safelyResolveThenable(self, thenable);
+	  } else {
+	    self.state = FULFILLED;
+	    self.outcome = value;
+	    var i = -1;
+	    var len = self.queue.length;
+	    while (++i < len) {
+	      self.queue[i].callFulfilled(value);
+	    }
+	  }
+	  return self;
+	};
+	handlers$1.reject = function (self, error) {
+	  self.state = REJECTED;
+	  self.outcome = error;
+	  var i = -1;
+	  var len = self.queue.length;
+	  while (++i < len) {
+	    self.queue[i].callRejected(error);
+	  }
+	  return self;
+	};
+
+	function getThen(obj) {
+	  // Make sure we only access the accessor once as required by the spec
+	  var then = obj && obj.then;
+	  if (obj && (typeof obj === 'object' || typeof obj === 'function') && typeof then === 'function') {
+	    return function appyThen() {
+	      then.apply(obj, arguments);
+	    };
+	  }
+	}
+
+	function safelyResolveThenable(self, thenable) {
+	  // Either fulfill, reject or reject with error
+	  var called = false;
+	  function onError(value) {
+	    if (called) {
+	      return;
+	    }
+	    called = true;
+	    handlers$1.reject(self, value);
+	  }
+
+	  function onSuccess(value) {
+	    if (called) {
+	      return;
+	    }
+	    called = true;
+	    handlers$1.resolve(self, value);
+	  }
+
+	  function tryToUnwrap() {
+	    thenable(onSuccess, onError);
+	  }
+
+	  var result = tryCatch(tryToUnwrap);
+	  if (result.status === 'error') {
+	    onError(result.value);
+	  }
+	}
+
+	function tryCatch(func, value) {
+	  var out = {};
+	  try {
+	    out.value = func(value);
+	    out.status = 'success';
+	  } catch (e) {
+	    out.status = 'error';
+	    out.value = e;
+	  }
+	  return out;
+	}
+
+	Promise$1.resolve = resolve$3;
+	function resolve$3(value) {
+	  if (value instanceof this) {
+	    return value;
+	  }
+	  return handlers$1.resolve(new this(INTERNAL), value);
+	}
+
+	Promise$1.reject = reject;
+	function reject(reason) {
+	  var promise = new this(INTERNAL);
+	  return handlers$1.reject(promise, reason);
+	}
+
+	Promise$1.all = all;
+	function all(iterable) {
+	  var self = this;
+	  if (Object.prototype.toString.call(iterable) !== '[object Array]') {
+	    return this.reject(new TypeError('must be an array'));
+	  }
+
+	  var len = iterable.length;
+	  var called = false;
+	  if (!len) {
+	    return this.resolve([]);
+	  }
+
+	  var values = new Array(len);
+	  var resolved = 0;
+	  var i = -1;
+	  var promise = new this(INTERNAL);
+
+	  while (++i < len) {
+	    allResolver(iterable[i], i);
+	  }
+	  return promise;
+	  function allResolver(value, i) {
+	    self.resolve(value).then(resolveFromAll, function (error) {
+	      if (!called) {
+	        called = true;
+	        handlers$1.reject(promise, error);
+	      }
+	    });
+	    function resolveFromAll(outValue) {
+	      values[i] = outValue;
+	      if (++resolved === len && !called) {
+	        called = true;
+	        handlers$1.resolve(promise, values);
+	      }
+	    }
+	  }
+	}
+
+	Promise$1.race = race;
+	function race(iterable) {
+	  var self = this;
+	  if (Object.prototype.toString.call(iterable) !== '[object Array]') {
+	    return this.reject(new TypeError('must be an array'));
+	  }
+
+	  var len = iterable.length;
+	  var called = false;
+	  if (!len) {
+	    return this.resolve([]);
+	  }
+
+	  var i = -1;
+	  var promise = new this(INTERNAL);
+
+	  while (++i < len) {
+	    resolver(iterable[i]);
+	  }
+	  return promise;
+	  function resolver(value) {
+	    self.resolve(value).then(function (response) {
+	      if (!called) {
+	        called = true;
+	        handlers$1.resolve(promise, response);
+	      }
+	    }, function (error) {
+	      if (!called) {
+	        called = true;
+	        handlers$1.reject(promise, error);
+	      }
+	    });
+	  }
+	}
+
+	/* istanbul ignore next */
+	var PouchPromise = typeof Promise === 'function' ? Promise : browser$5;
+
+	function mangle$5(key) {
+	  return '$' + key;
+	}
+	function unmangle$5(key) {
+	  return key.substring(1);
+	}
+	function Map$1$5() {
+	  this._store = {};
+	}
+	Map$1$5.prototype.get = function (key) {
+	  var mangled = mangle$5(key);
+	  return this._store[mangled];
+	};
+	Map$1$5.prototype.set = function (key, value) {
+	  var mangled = mangle$5(key);
+	  this._store[mangled] = value;
+	  return true;
+	};
+	Map$1$5.prototype.has = function (key) {
+	  var mangled = mangle$5(key);
+	  return mangled in this._store;
+	};
+	Map$1$5.prototype.delete = function (key) {
+	  var mangled = mangle$5(key);
+	  var res = mangled in this._store;
+	  delete this._store[mangled];
+	  return res;
+	};
+	Map$1$5.prototype.forEach = function (cb) {
+	  var keys = Object.keys(this._store);
+	  for (var i = 0, len = keys.length; i < len; i++) {
+	    var key = keys[i];
+	    var value = this._store[key];
+	    key = unmangle$5(key);
+	    cb(value, key);
+	  }
+	};
+	Object.defineProperty(Map$1$5.prototype, 'size', {
+	  get: function () {
+	    return Object.keys(this._store).length;
+	  }
+	});
+
+	function Set$1$5(array) {
+	  this._store = new Map$1$5();
+
+	  // init with an array
+	  if (array && Array.isArray(array)) {
+	    for (var i = 0, len = array.length; i < len; i++) {
+	      this.add(array[i]);
+	    }
+	  }
+	}
+	Set$1$5.prototype.add = function (key) {
+	  return this._store.set(key, true);
+	};
+	Set$1$5.prototype.has = function (key) {
+	  return this._store.has(key);
+	};
+	Set$1$5.prototype.forEach = function (cb) {
+	  this._store.forEach(function (value, key) {
+	    cb(key);
+	  });
+	};
+	Object.defineProperty(Set$1$5.prototype, 'size', {
+	  get: function () {
+	    return this._store.size;
+	  }
+	});
+
+	inherits_browser(PouchError$5, Error);
+
+	function PouchError$5(status, error, reason) {
+	  Error.call(this, reason);
+	  this.status = status;
+	  this.name = error;
+	  this.message = reason;
+	  this.error = true;
+	}
+
+	PouchError$5.prototype.toString = function () {
+	  return JSON.stringify({
+	    status: this.status,
+	    name: this.name,
+	    message: this.message,
+	    reason: this.reason
+	  });
+	};
+
+	var UNAUTHORIZED$5 = new PouchError$5(401, 'unauthorized', "Name or password is incorrect.");
+	var MISSING_BULK_DOCS$5 = new PouchError$5(400, 'bad_request', "Missing JSON list of 'docs'");
+	var MISSING_DOC$5 = new PouchError$5(404, 'not_found', 'missing');
+	var REV_CONFLICT$5 = new PouchError$5(409, 'conflict', 'Document update conflict');
+	var INVALID_ID$5 = new PouchError$5(400, 'bad_request', '_id field must contain a string');
+	var MISSING_ID$5 = new PouchError$5(412, 'missing_id', '_id is required for puts');
+	var RESERVED_ID$5 = new PouchError$5(400, 'bad_request', 'Only reserved document ids may start with underscore.');
+	var NOT_OPEN$5 = new PouchError$5(412, 'precondition_failed', 'Database not open');
+	var UNKNOWN_ERROR$5 = new PouchError$5(500, 'unknown_error', 'Database encountered an unknown error');
+	var BAD_ARG$5 = new PouchError$5(500, 'badarg', 'Some query argument is invalid');
+	var INVALID_REQUEST$5 = new PouchError$5(400, 'invalid_request', 'Request was invalid');
+	var QUERY_PARSE_ERROR$5 = new PouchError$5(400, 'query_parse_error', 'Some query parameter is invalid');
+	var DOC_VALIDATION$5 = new PouchError$5(500, 'doc_validation', 'Bad special document member');
+	var BAD_REQUEST$5 = new PouchError$5(400, 'bad_request', 'Something wrong with the request');
+	var NOT_AN_OBJECT$5 = new PouchError$5(400, 'bad_request', 'Document must be a JSON object');
+	var DB_MISSING$5 = new PouchError$5(404, 'not_found', 'Database not found');
+	var IDB_ERROR$5 = new PouchError$5(500, 'indexed_db_went_bad', 'unknown');
+	var WSQ_ERROR$5 = new PouchError$5(500, 'web_sql_went_bad', 'unknown');
+	var LDB_ERROR$5 = new PouchError$5(500, 'levelDB_went_went_bad', 'unknown');
+	var FORBIDDEN$5 = new PouchError$5(403, 'forbidden', 'Forbidden by design doc validate_doc_update function');
+	var INVALID_REV$5 = new PouchError$5(400, 'bad_request', 'Invalid rev format');
+	var FILE_EXISTS$5 = new PouchError$5(412, 'file_exists', 'The database could not be created, the file already exists.');
+	var MISSING_STUB$5 = new PouchError$5(412, 'missing_stub', 'A pre-existing attachment stub wasn\'t found');
+	var INVALID_URL$5 = new PouchError$5(413, 'invalid_url', 'Provided URL is invalid');
+
+	function generateErrorFromResponse$5(err) {
+
+	  if (typeof err !== 'object') {
+	    var data = err;
+	    err = UNKNOWN_ERROR$5;
+	    err.data = data;
+	  }
+
+	  if ('error' in err && err.error === 'conflict') {
+	    err.name = 'conflict';
+	    err.status = 409;
+	  }
+
+	  if (!('name' in err)) {
+	    err.name = err.error || 'unknown';
+	  }
+
+	  if (!('status' in err)) {
+	    err.status = 500;
+	  }
+
+	  if (!('message' in err)) {
+	    err.message = err.message || err.reason;
+	  }
+
+	  return err;
+	}
+
+	function isBinaryObject$5(object) {
+	  return (typeof ArrayBuffer !== 'undefined' && object instanceof ArrayBuffer) ||
+	    (typeof Blob !== 'undefined' && object instanceof Blob);
+	}
+
+	function cloneArrayBuffer$5(buff) {
+	  if (typeof buff.slice === 'function') {
+	    return buff.slice(0);
+	  }
+	  // IE10-11 slice() polyfill
+	  var target = new ArrayBuffer(buff.byteLength);
+	  var targetArray = new Uint8Array(target);
+	  var sourceArray = new Uint8Array(buff);
+	  targetArray.set(sourceArray);
+	  return target;
+	}
+
+	function cloneBinaryObject$5(object) {
+	  if (object instanceof ArrayBuffer) {
+	    return cloneArrayBuffer$5(object);
+	  }
+	  var size = object.size;
+	  var type = object.type;
+	  // Blob
+	  if (typeof object.slice === 'function') {
+	    return object.slice(0, size, type);
+	  }
+	  // PhantomJS slice() replacement
+	  return object.webkitSlice(0, size, type);
+	}
+
+	// most of this is borrowed from lodash.isPlainObject:
+	// https://github.com/fis-components/lodash.isplainobject/
+	// blob/29c358140a74f252aeb08c9eb28bef86f2217d4a/index.js
+
+	var funcToString$5 = Function.prototype.toString;
+	var objectCtorString$5 = funcToString$5.call(Object);
+
+	function isPlainObject$5(value) {
+	  var proto = Object.getPrototypeOf(value);
+	  /* istanbul ignore if */
+	  if (proto === null) { // not sure when this happens, but I guess it can
+	    return true;
+	  }
+	  var Ctor = proto.constructor;
+	  return (typeof Ctor == 'function' &&
+	    Ctor instanceof Ctor && funcToString$5.call(Ctor) == objectCtorString$5);
+	}
+
+	function clone$2(object) {
+	  var newObject;
+	  var i;
+	  var len;
+
+	  if (!object || typeof object !== 'object') {
+	    return object;
+	  }
+
+	  if (Array.isArray(object)) {
+	    newObject = [];
+	    for (i = 0, len = object.length; i < len; i++) {
+	      newObject[i] = clone$2(object[i]);
+	    }
+	    return newObject;
+	  }
+
+	  // special case: to avoid inconsistencies between IndexedDB
+	  // and other backends, we automatically stringify Dates
+	  if (object instanceof Date) {
+	    return object.toISOString();
+	  }
+
+	  if (isBinaryObject$5(object)) {
+	    return cloneBinaryObject$5(object);
+	  }
+
+	  if (!isPlainObject$5(object)) {
+	    return object; // don't clone objects like Workers
+	  }
+
+	  newObject = {};
+	  for (i in object) {
+	    /* istanbul ignore else */
+	    if (Object.prototype.hasOwnProperty.call(object, i)) {
+	      var value = clone$2(object[i]);
+	      if (typeof value !== 'undefined') {
+	        newObject[i] = value;
+	      }
+	    }
+	  }
+	  return newObject;
+	}
+
+	function once$6(fun) {
+	  var called = false;
+	  return argsarray(function (args) {
+	    /* istanbul ignore if */
+	    if (called) {
+	      // this is a smoke test and should never actually happen
+	      throw new Error('once called more than once');
+	    } else {
+	      called = true;
+	      fun.apply(this, args);
+	    }
+	  });
+	}
+
+	function toPromise$5(func) {
+	  //create the function we will be returning
+	  return argsarray(function (args) {
+	    // Clone arguments
+	    args = clone$2(args);
+	    var self = this;
+	    // if the last argument is a function, assume its a callback
+	    var usedCB = (typeof args[args.length - 1] === 'function') ? args.pop() : false;
+	    var promise = new PouchPromise(function (fulfill, reject) {
+	      var resp;
+	      try {
+	        var callback = once$6(function (err, mesg) {
+	          if (err) {
+	            reject(err);
+	          } else {
+	            fulfill(mesg);
+	          }
+	        });
+	        // create a callback for this invocation
+	        // apply the function in the orig context
+	        args.push(callback);
+	        resp = func.apply(self, args);
+	        if (resp && typeof resp.then === 'function') {
+	          fulfill(resp);
+	        }
+	      } catch (e) {
+	        reject(e);
+	      }
+	    });
+	    // if there is a callback, call it back
+	    if (usedCB) {
+	      promise.then(function (result) {
+	        usedCB(null, result);
+	      }, usedCB);
+	    }
+	    return promise;
+	  });
+	}
+
+	// like underscore/lodash _.pick()
+	function pick$6(obj, arr) {
+	  var res = {};
+	  for (var i = 0, len = arr.length; i < len; i++) {
+	    var prop = arr[i];
+	    if (prop in obj) {
+	      res[prop] = obj[prop];
+	    }
+	  }
+	  return res;
+	}
+
+	function isChromeApp() {
+	  return (typeof chrome !== "undefined" &&
+	    typeof chrome.storage !== "undefined" &&
+	    typeof chrome.storage.local !== "undefined");
+	}
+
+	var hasLocal$5;
+
+	if (isChromeApp()) {
+	  hasLocal$5 = false;
+	} else {
+	  try {
+	    localStorage.setItem('_pouch_check_localstorage', 1);
+	    hasLocal$5 = !!localStorage.getItem('_pouch_check_localstorage');
+	  } catch (e) {
+	    hasLocal$5 = false;
+	  }
+	}
+
+	function hasLocalStorage$5() {
+	  return hasLocal$5;
+	}
+
+	// Custom nextTick() shim for browsers. In node, this will just be process.nextTick(). We
+	// avoid using process.nextTick() directly because the polyfill is very large and we don't
+	// need all of it (see: https://github.com/defunctzombie/node-process).
+	// "immediate" 3.0.8 is used by lie, and it's a smaller version of the latest "immediate"
+	// package, so it's the one we use.
+	// When we use nextTick() in our codebase, we only care about not releasing Zalgo
+	// (see: http://blog.izs.me/post/59142742143/designing-apis-for-asynchrony).
+	// Microtask vs macrotask doesn't matter to us. So we're free to use the fastest
+	// (least latency) option, which is "immediate" due to use of microtasks.
+	// All of our nextTicks are isolated to this one function so we can easily swap out one
+	// implementation for another.
+
+	inherits_browser(Changes$6, EventEmitter);
+
+	/* istanbul ignore next */
+	function attachBrowserEvents$5(self) {
+	  if (isChromeApp()) {
+	    chrome.storage.onChanged.addListener(function (e) {
+	      // make sure it's event addressed to us
+	      if (e.db_name != null) {
+	        //object only has oldValue, newValue members
+	        self.emit(e.dbName.newValue);
+	      }
+	    });
+	  } else if (hasLocalStorage$5()) {
+	    if (typeof addEventListener !== 'undefined') {
+	      addEventListener("storage", function (e) {
+	        self.emit(e.key);
+	      });
+	    } else { // old IE
+	      window.attachEvent("storage", function (e) {
+	        self.emit(e.key);
+	      });
+	    }
+	  }
+	}
+
+	function Changes$6() {
+	  EventEmitter.call(this);
+	  this._listeners = {};
+
+	  attachBrowserEvents$5(this);
+	}
+	Changes$6.prototype.addListener = function (dbName, id, db, opts) {
+	  /* istanbul ignore if */
+	  if (this._listeners[id]) {
+	    return;
+	  }
+	  var self = this;
+	  var inprogress = false;
+	  function eventFunction() {
+	    /* istanbul ignore if */
+	    if (!self._listeners[id]) {
+	      return;
+	    }
+	    if (inprogress) {
+	      inprogress = 'waiting';
+	      return;
+	    }
+	    inprogress = true;
+	    var changesOpts = pick$6(opts, [
+	      'style', 'include_docs', 'attachments', 'conflicts', 'filter',
+	      'doc_ids', 'view', 'since', 'query_params', 'binary'
+	    ]);
+
+	    /* istanbul ignore next */
+	    function onError() {
+	      inprogress = false;
+	    }
+
+	    db.changes(changesOpts).on('change', function (c) {
+	      if (c.seq > opts.since && !opts.cancelled) {
+	        opts.since = c.seq;
+	        opts.onChange(c);
+	      }
+	    }).on('complete', function () {
+	      if (inprogress === 'waiting') {
+	        browser$4(eventFunction);
+	      }
+	      inprogress = false;
+	    }).on('error', onError);
+	  }
+	  this._listeners[id] = eventFunction;
+	  this.on(dbName, eventFunction);
+	};
+
+	Changes$6.prototype.removeListener = function (dbName, id) {
+	  /* istanbul ignore if */
+	  if (!(id in this._listeners)) {
+	    return;
+	  }
+	  EventEmitter.prototype.removeListener.call(this, dbName,
+	    this._listeners[id]);
+	  delete this._listeners[id];
+	};
+
+
+	/* istanbul ignore next */
+	Changes$6.prototype.notifyLocalWindows = function (dbName) {
+	  //do a useless change on a storage thing
+	  //in order to get other windows's listeners to activate
+	  if (isChromeApp()) {
+	    chrome.storage.local.set({dbName: dbName});
+	  } else if (hasLocalStorage$5()) {
+	    localStorage[dbName] = (localStorage[dbName] === "a") ? "b" : "a";
+	  }
+	};
+
+	Changes$6.prototype.notify = function (dbName) {
+	  this.emit(dbName);
+	  this.notifyLocalWindows(dbName);
+	};
+
+	var assign$5;
+	{
+	  if (typeof Object.assign === 'function') {
+	    assign$5 = Object.assign;
+	  } else {
+	    // lite Object.assign polyfill based on
+	    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
+	    assign$5 = function (target) {
+	      var to = Object(target);
+
+	      for (var index = 1; index < arguments.length; index++) {
+	        var nextSource = arguments[index];
+
+	        if (nextSource != null) { // Skip over if undefined or null
+	          for (var nextKey in nextSource) {
+	            // Avoid bugs when hasOwnProperty is shadowed
+	            if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+	              to[nextKey] = nextSource[nextKey];
+	            }
+	          }
+	        }
+	      }
+	      return to;
+	    };
+	  }
+	}
+
+	var assign$1$5 = assign$5;
+
 	/* global fetch */
 	/* global Headers */
-	function wrappedFetch$1() {
+	function wrappedFetch() {
 	  var wrappedPromise = {};
 
-	  var promise = new PouchPromise$1(function (resolve, reject) {
+	  var promise = new PouchPromise(function (resolve, reject) {
 	    wrappedPromise.resolve = resolve;
 	    wrappedPromise.reject = reject;
 	  });
@@ -54138,7 +53164,7 @@ PivotToContents`);
 
 	  wrappedPromise.promise = promise;
 
-	  PouchPromise$1.resolve().then(function () {
+	  PouchPromise.resolve().then(function () {
 	    return fetch.apply(null, args);
 	  }).then(function (response) {
 	    wrappedPromise.resolve(response);
@@ -54149,7 +53175,7 @@ PivotToContents`);
 	  return wrappedPromise;
 	}
 
-	function fetchRequest$1(options, callback) {
+	function fetchRequest(options, callback) {
 	  var wrappedPromise, timer, response;
 
 	  var headers = new Headers();
@@ -54182,7 +53208,7 @@ PivotToContents`);
 	    }
 	  });
 
-	  wrappedPromise = wrappedFetch$1(options.url, fetchOptions);
+	  wrappedPromise = wrappedFetch(options.url, fetchOptions);
 
 	  if (options.timeout > 0) {
 	    timer = setTimeout(function () {
@@ -54223,7 +53249,7 @@ PivotToContents`);
 	  return {abort: wrappedPromise.reject};
 	}
 
-	function xhRequest$1(options, callback) {
+	function xhRequest(options, callback) {
 
 	  var xhr, timer;
 	  var timedout = false;
@@ -54321,7 +53347,7 @@ PivotToContents`);
 	    if (xhr.status >= 200 && xhr.status < 300) {
 	      var data;
 	      if (options.binary) {
-	        data = createBlob$1([xhr.response || ''], {
+	        data = createBlob$3([xhr.response || ''], {
 	          type: xhr.getResponseHeader('Content-Type')
 	        });
 	      } else {
@@ -54347,7 +53373,7 @@ PivotToContents`);
 	  };
 
 	  if (options.body && (options.body instanceof Blob)) {
-	    readAsArrayBuffer$1(options.body, function (arrayBuffer) {
+	    readAsArrayBuffer$3(options.body, function (arrayBuffer) {
 	      xhr.send(arrayBuffer);
 	    });
 	  } else {
@@ -54357,7 +53383,7 @@ PivotToContents`);
 	  return ret;
 	}
 
-	function testXhr$1() {
+	function testXhr() {
 	  try {
 	    new XMLHttpRequest();
 	    return true;
@@ -54366,25 +53392,25 @@ PivotToContents`);
 	  }
 	}
 
-	var hasXhr$1 = testXhr$1();
+	var hasXhr = testXhr();
 
-	function ajax$2(options, callback) {
-	  if (hasXhr$1 || options.xhr) {
-	    return xhRequest$1(options, callback);
+	function ajax(options, callback) {
+	  if (hasXhr || options.xhr) {
+	    return xhRequest(options, callback);
 	  } else {
-	    return fetchRequest$1(options, callback);
+	    return fetchRequest(options, callback);
 	  }
 	}
 
 	// the blob already has a type; do nothing
 
-	function defaultBody$1() {
+	function defaultBody() {
 	  return '';
 	}
 
-	function ajaxCore$1(options, callback) {
+	function ajaxCore(options, callback) {
 
-	  options = clone$1(options);
+	  options = clone$2(options);
 
 	  var defaultOptions = {
 	    method : "GET",
@@ -54395,7 +53421,7 @@ PivotToContents`);
 	    cache: false
 	  };
 
-	  options = assign$1$1(defaultOptions, options);
+	  options = assign$1$5(defaultOptions, options);
 
 	  function onSuccess(obj, resp, cb) {
 	    if (!options.binary && options.json && typeof obj === 'string') {
@@ -54410,7 +53436,7 @@ PivotToContents`);
 	    if (Array.isArray(obj)) {
 	      obj = obj.map(function (v) {
 	        if (v.error || v.missing) {
-	          return generateErrorFromResponse$1(v);
+	          return generateErrorFromResponse$5(v);
 	        } else {
 	          return v;
 	        }
@@ -54437,15 +53463,15 @@ PivotToContents`);
 	    options.json = false;
 	  }
 
-	  return ajax$2(options, function (err, response, body) {
+	  return ajax(options, function (err, response, body) {
 
 	    if (err) {
-	      return callback(generateErrorFromResponse$1(err));
+	      return callback(generateErrorFromResponse$5(err));
 	    }
 
 	    var error;
 	    var content_type = response.headers && response.headers['content-type'];
-	    var data = body || defaultBody$1();
+	    var data = body || defaultBody();
 
 	    // CouchDB doesn't always return the right content-type for JSON data, so
 	    // we check for ^{ and }$ (ignoring leading/trailing whitespace)
@@ -54461,14 +53487,14 @@ PivotToContents`);
 	    if (response.statusCode >= 200 && response.statusCode < 300) {
 	      onSuccess(data, response, callback);
 	    } else {
-	      error = generateErrorFromResponse$1(data);
+	      error = generateErrorFromResponse$5(data);
 	      error.status = response.statusCode;
 	      callback(error);
 	    }
 	  });
 	}
 
-	function ajax$1$1(opts, callback) {
+	function ajax$1(opts, callback) {
 
 	  // cache-buster, specifically designed to work around IE's aggressive caching
 	  // see http://www.dashbay.com/2011/05/internet-explorer-caches-ajax/
@@ -54495,7 +53521,7 @@ PivotToContents`);
 	    opts.url += (hasArgs ? '&' : '?') + '_nonce=' + Date.now();
 	  }
 
-	  return ajaxCore$1(opts, callback);
+	  return ajaxCore(opts, callback);
 	}
 
 	function getBaseUrl(db) {
@@ -54546,7 +53572,7 @@ PivotToContents`);
 	  }
 
 	  var str = auth.username + ':' + auth.password;
-	  var token = thisBtoa$1(unescape(encodeURIComponent(str)));
+	  var token = thisBtoa$3(unescape(encodeURIComponent(str)));
 	  return {Authorization: 'Basic ' + token};
 	}
 
@@ -54575,7 +53601,7 @@ PivotToContents`);
 
 	inherits_browser(AuthError, Error);
 
-	var getMembership = toPromise$1(function (opts, callback) {
+	var getMembership = toPromise$5(function (opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = opts;
@@ -54583,15 +53609,15 @@ PivotToContents`);
 	  }
 
 	  var url = getBaseUrl(db) + '/_membership';
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'GET',
 	    url: url,
 	    headers: getBasicAuthHeaders(db),
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	});
 
-	var signUpAdmin = toPromise$1(function (username, password, opts, callback) {
+	var signUpAdmin = toPromise$5(function (username, password, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? (typeof password === 'undefined' ?
@@ -54623,18 +53649,18 @@ PivotToContents`);
 
 	    var configUrl = getConfigUrl(db, nodeName);
 	    var url = (opts.configUrl || configUrl) + '/admins/' + encodeURIComponent(username);
-	    var ajaxOpts = assign$1$1({
+	    var ajaxOpts = assign$1$5({
 	      method: 'PUT',
 	      url: url,
 	      processData: false,
 	      headers: getBasicAuthHeaders(db),
 	      body: '"' + password + '"',
 	    }, opts.ajax || {});
-	    ajax$1$1(ajaxOpts, wrapError(callback));
+	    ajax$1(ajaxOpts, wrapError(callback));
 	  });
 	});
 
-	var deleteAdmin = toPromise$1(function (username, opts, callback) {
+	var deleteAdmin = toPromise$5(function (username, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? username : opts;
@@ -54663,17 +53689,17 @@ PivotToContents`);
 
 	    var configUrl = getConfigUrl(db, nodeName);
 	    var url = (opts.configUrl || configUrl) + '/admins/' + encodeURIComponent(username);
-	    var ajaxOpts = assign$1$1({
+	    var ajaxOpts = assign$1$5({
 	      method: 'DELETE',
 	      url: url,
 	      processData: false,
 	      headers: getBasicAuthHeaders(db),
 	    }, opts.ajax || {});
-	    ajax$1$1(ajaxOpts, wrapError(callback));
+	    ajax$1(ajaxOpts, wrapError(callback));
 	  });
 	});
 
-	var logIn = toPromise$1(function (username, password, opts, callback) {
+	var logIn = toPromise$5(function (username, password, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = opts;
@@ -54689,30 +53715,30 @@ PivotToContents`);
 	    return callback(new AuthError('you must provide a password'));
 	  }
 
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'POST',
 	    url: getSessionUrl(db),
-	    headers: assign$1$1({'Content-Type': 'application/json'}, getBasicAuthHeaders(db)),
+	    headers: assign$1$5({'Content-Type': 'application/json'}, getBasicAuthHeaders(db)),
 	    body: {name: username, password: password},
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	});
 
-	var logOut = toPromise$1(function (opts, callback) {
+	var logOut = toPromise$5(function (opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = opts;
 	    opts = {};
 	  }
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'DELETE',
 	    url: getSessionUrl(db),
 	    headers: getBasicAuthHeaders(db),
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	});
 
-	var getSession = toPromise$1(function (opts, callback) {
+	var getSession = toPromise$5(function (opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = opts;
@@ -54720,12 +53746,12 @@ PivotToContents`);
 	  }
 	  var url = getSessionUrl(db);
 
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'GET',
 	    url: url,
 	    headers: getBasicAuthHeaders(db),
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	});
 
 	var getUsersDatabaseUrl = function () {
@@ -54752,24 +53778,24 @@ PivotToContents`);
 	        return callback(new AuthError('cannot use reserved word in metadata: "' + key + '"'));
 	      }
 	    }
-	    user = assign$1$1(user, opts.metadata);
+	    user = assign$1$5(user, opts.metadata);
 	  }
 
 	  if (opts.roles) {
-	    user = assign$1$1(user, {roles: opts.roles});
+	    user = assign$1$5(user, {roles: opts.roles});
 	  }
 
 	  var url = getUsersUrl(db) + '/' + encodeURIComponent(user._id);
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'PUT',
 	    url: url,
 	    body: user,
 	    headers: getBasicAuthHeaders(db),
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	}
 
-	var signUp = toPromise$1(function (username, password, opts, callback) {
+	var signUp = toPromise$5(function (username, password, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? (typeof password === 'undefined' ?
@@ -54797,7 +53823,7 @@ PivotToContents`);
 	  updateUser(db, user, opts, callback);
 	});
 
-	var getUser = toPromise$1(function (username, opts, callback) {
+	var getUser = toPromise$5(function (username, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? username : opts;
@@ -54808,15 +53834,15 @@ PivotToContents`);
 	  }
 
 	  var url = getUsersUrl(db);
-	  var ajaxOpts = assign$1$1({
+	  var ajaxOpts = assign$1$5({
 	    method: 'GET',
 	    url: url + '/' + encodeURIComponent('org.couchdb.user:' + username),
 	    headers: getBasicAuthHeaders(db),
 	  }, opts.ajax || {});
-	  ajax$1$1(ajaxOpts, wrapError(callback));
+	  ajax$1(ajaxOpts, wrapError(callback));
 	});
 
-	var putUser = toPromise$1(function (username, opts, callback) {
+	var putUser = toPromise$5(function (username, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? username : opts;
@@ -54838,7 +53864,7 @@ PivotToContents`);
 	  });
 	});
 
-	var deleteUser = toPromise$1(function (username, opts, callback) {
+	var deleteUser = toPromise$5(function (username, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? username : opts;
@@ -54857,16 +53883,16 @@ PivotToContents`);
 	    }
 
 	    var url = getUsersUrl(db) + '/' + encodeURIComponent(user._id) + '?rev=' + user._rev;
-	    var ajaxOpts = assign$1$1({
+	    var ajaxOpts = assign$1$5({
 	      method: 'DELETE',
 	      url: url,
 	      headers: getBasicAuthHeaders(db),
 	    }, opts.ajax || {});
-	    ajax$1$1(ajaxOpts, wrapError(callback));
+	    ajax$1(ajaxOpts, wrapError(callback));
 	  });
 	});
 
-	var changePassword = toPromise$1(function (username, password, opts, callback) {
+	var changePassword = toPromise$5(function (username, password, opts, callback) {
 	  var db = this;
 	  if (typeof callback === 'undefined') {
 	    callback = typeof opts === 'undefined' ? (typeof password === 'undefined' ?
@@ -54890,22 +53916,22 @@ PivotToContents`);
 	    user.password = password;
 
 	    var url = getUsersUrl(db) + '/' + encodeURIComponent(user._id);
-	    var ajaxOpts = assign$1$1({
+	    var ajaxOpts = assign$1$5({
 	      method: 'PUT',
 	      url: url,
 	      headers: getBasicAuthHeaders(db),
 	      body: user,
 	    }, opts.ajax || {});
-	    ajax$1$1(ajaxOpts, wrapError(callback));
+	    ajax$1(ajaxOpts, wrapError(callback));
 	  });
 	});
 
-	var changeUsername = toPromise$1(function (oldUsername, newUsername, opts, callback) {
+	var changeUsername = toPromise$5(function (oldUsername, newUsername, opts, callback) {
 	  var db = this;
 	  var USERNAME_PREFIX = 'org.couchdb.user:';
 	  var ajax = function (opts) {
-	    return new PouchPromise$1(function (resolve, reject) {
-	      ajax$1$1(opts, wrapError(function (err, res) {
+	    return new PouchPromise(function (resolve, reject) {
+	      ajax$1(opts, wrapError(function (err, res) {
 	        if (err) {
 	          return reject(err);
 	        }
@@ -54915,7 +53941,7 @@ PivotToContents`);
 	  };
 	  var updateUser = function (user, opts) {
 	    var url = getUsersUrl(db) + '/' + encodeURIComponent(user._id);
-	    var updateOpts = assign$1$1({
+	    var updateOpts = assign$1$5({
 	      method: 'PUT',
 	      url: url,
 	      headers: getBasicAuthHeaders(db),
@@ -54948,7 +53974,7 @@ PivotToContents`);
 	    return db.getUser(oldUsername, opts);
 	  })
 	  .then(function (user) {
-	    var newUser = clone$1(user);
+	    var newUser = clone$2(user);
 	    delete newUser._rev;
 	    newUser._id = USERNAME_PREFIX + newUsername;
 	    newUser.name = newUsername;

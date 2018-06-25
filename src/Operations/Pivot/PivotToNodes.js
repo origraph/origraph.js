@@ -1,5 +1,5 @@
 import { OutputSpec, glompLists } from '../common.js';
-import DirectedPivot from '../DirectedPivot.js';
+import DirectedPivot from './DirectedPivot.js';
 
 class PivotToNodes extends DirectedPivot {
   async executeOnItem (item, inputOptions) {

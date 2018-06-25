@@ -9,6 +9,7 @@ const glompLists = listList => {
         agg.push(value);
       }
     });
+    return agg;
   }, []);
 };
 
@@ -108,7 +109,7 @@ InputSpec.glomp = specList => {
 };
 
 class OutputSpec {
-  constructor ({ newSelectors = null, pollutedDocs = [] }) {
+  constructor ({ newSelectors = null, pollutedDocs = [] } = {}) {
     this.newSelectors = newSelectors;
     this.pollutedDocs = pollutedDocs;
   }
@@ -120,11 +121,11 @@ OutputSpec.glomp = specList => {
     } else if (spec.newSelectors === null) {
       return agg;
     } else {
-      return glompLists(agg, spec.newSelectors);
+      return glompLists([agg, spec.newSelectors]);
     }
   }, null);
   const pollutedDocs = specList.reduce((agg, spec) => {
-    return glompLists(agg, spec.pollutedDocs);
+    return glompLists([agg, spec.pollutedDocs]);
   }, []);
   return new OutputSpec({
     newSelectors,

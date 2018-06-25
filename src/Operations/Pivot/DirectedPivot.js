@@ -12,9 +12,9 @@ class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
       return null;
     }
     const inputs = new InputSpec();
-    inputs.addOption({
+    inputs.addToggleOption({
       name: 'direction',
-      options: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
+      optionList: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
       defaultValue: 'Ignore Edge Direction'
     });
     return inputs;

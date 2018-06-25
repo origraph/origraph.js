@@ -3,7 +3,7 @@ import EdgeItem from './EdgeItem.js';
 
 class NodeItem extends TaggableItem {
   constructor ({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$edges) {
       throw new TypeError(`NodeItem requires an $edges object`);
     }

@@ -26,7 +26,12 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       uniqueSelector: '@' + docPathQuery,
       classes: []
     });
-    this._contentItem = new ContainerItem(this.value.contents, this.path.concat(['contents']), this.doc);
+    this._contentItem = new ContainerItem({
+      mure: this.mure,
+      value: this.value.contents,
+      path: this.path.concat(['contents']),
+      doc: this.doc
+    });
   }
   remove () {
     // TODO: remove everything in this.value except _id, _rev, and add _deleted?

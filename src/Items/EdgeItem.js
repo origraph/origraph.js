@@ -2,7 +2,7 @@ import TaggableItem from './TaggableItem.js';
 
 class EdgeItem extends TaggableItem {
   constructor ({ mure, value, path, doc }) {
-    super(mure, value, path, doc);
+    super({ mure, value, path, doc });
     if (!value.$nodes) {
       throw new TypeError(`EdgeItem requires a $nodes object`);
     }

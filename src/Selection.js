@@ -71,7 +71,7 @@ class Selection {
   invalidateCache () {
     delete this._cachedDocLists;
     delete this._cachedItems;
-    delete this._operationCaches;
+    delete this._summaryCaches;
   }
   async docLists () {
     if (this._cachedDocLists) {
@@ -201,10 +201,10 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values(await this.mure.ItemHandler.followRelativeLink(value, doc, this.selectSingle))
+                  Object.values(await this.mure.followRelativeLink(value, doc, this.selectSingle))
                     .forEach(addItem);
                 } else {
-                  const ItemType = this.mure.ItemHandler.inferType(value);
+                  const ItemType = this.mure.inferType(value);
                   addItem(new ItemType({
                     mure: this.mure,
                     value,
@@ -250,7 +250,7 @@ chaining additional operations.`);
     let outputSpec = new OutputSpec();
     for (let f = 0; f < this.pendingOperations.length; f++) {
       let { operation, inputOptions } = this.pendingOperations[f];
-      outputSpec = OutputSpec.glomp(await operation.executeOnSelection(this, inputOptions));
+      outputSpec = await operation.executeOnSelection(this, inputOptions);
     }
     this.pendingOperations = [];
 
@@ -283,6 +283,199 @@ one-off operations.`);
     }
     this.pendingOperations.push({ operation, inputOptions });
     return this.executeChain();
+  }
+
+  /*
+   These functions provide statistics / summaries of the selection:
+   */
+
+  async getAvailableOperations () {
+    if (this._summaryCaches && this._summaryCaches.availableOps) {
+      return this._summaryCaches.availableOps;
+    }
+    let availableOps = {};
+    let opList = Object.entries(this.mure.OPERATIONS)
+      .reduce((agg, [opFamilyName, opFamily]) => {
+        return agg.concat(Object.entries(opFamily).map(([opName, op]) => {
+          return { opFamilyName, opName, op };
+        }));
+      }, []);
+    let inputSpecs = await Promise.all(opList.map(({ op }) => {
+      return op.inferSelectionInputs(this);
+    }));
+    inputSpecs.forEach((spec, i) => {
+      let { opFamilyName, opName } = opList[i];
+      availableOps[opFamilyName] = availableOps[opFamilyName] || {};
+      availableOps[opFamilyName][opName] = spec;
+    });
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.availableOps = availableOps;
+    return availableOps;
+  }
+  async histograms (numBins = 10) {
+    if (this._summaryCaches && this._summaryCaches.histograms) {
+      return this._summaryCaches.histograms;
+    }
+
+    const items = await this.items();
+    const itemList = Object.values(items);
+
+    let result = {
+      raw: {
+        typeBins: {},
+        categoricalBins: {},
+        quantitativeBins: []
+      },
+      attributes: {}
+    };
+
+    const countPrimitive = (counters, item) => {
+      // Attempt to count the value categorically
+      if (counters.categoricalBins !== null) {
+        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
+        if (Object.keys(counters.categoricalBins).length > numBins) {
+          // We've encountered too many categorical bins; this likely isn't a categorical attribute
+          counters.categoricalBins = null;
+        }
+      }
+      // Attempt to bin the value quantitatively
+      if (counters.quantitativeBins !== null) {
+        if (counters.quantitativeBins.length === 0) {
+          // Init the counters with some temporary placeholders
+          counters.quantitativeItems = [];
+          counters.quantitativeType = item.type;
+          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+            counters.quantitativeScale = this.mure.d3.scaleLinear()
+              .domain([item.value, item.value]);
+          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+            counters.quantitativeScale = this.mure.d3.scaleTime()
+              .domain([item.value, item.value]);
+          } else {
+            // The first value is non-quantitative; this likely isn't a quantitative attribute
+            counters.quantitativeBins = null;
+            delete counters.quantitativeItems;
+            delete counters.quantitativeType;
+            delete counters.quantitativeScale;
+          }
+        } else if (counters.quantitativeType !== item.type) {
+          // Encountered an item of a different type; this likely isn't a quantitative attribute
+          counters.quantitativeBins = null;
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+          delete counters.quantitativeScale;
+        } else {
+          // Update the scale's domain (we'll determine bins later)
+          let domain = counters.quantitativeScale.domain();
+          if (item.value < domain[0]) {
+            domain[0] = item.value;
+          }
+          if (item.value > domain[1]) {
+            domain[1] = item.value;
+          }
+          counters.quantitativeScale.domain(domain);
+        }
+      }
+    };
+
+    for (let i = 0; i < itemList.length; i++) {
+      const item = itemList[i];
+      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
+      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+        countPrimitive(result.raw, item);
+      } else {
+        if (item.contentItems) {
+          (await item.contentItems()).forEach(childItem => {
+            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+              typeBins: {},
+              categoricalBins: {},
+              quantitativeBins: []
+            };
+            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
+            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+              countPrimitive(counters, childItem);
+            }
+          });
+        }
+        // TODO: collect more statistics, such as node degree, set size
+        // (and a set's members' attributes, similar to contentItems?)
+      }
+    }
+
+    const finalizeBins = counters => {
+      // Clear out anything that didn't see any values
+      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
+        counters.typeBins = null;
+      }
+      if (counters.categoricalBins &&
+          Object.keys(counters.categoricalBins).length === 0) {
+        counters.categoricalBins = null;
+      }
+      if (counters.quantitativeBins) {
+        if (!counters.quantitativeItems ||
+             counters.quantitativeItems.length === 0) {
+          counters.quantitativeBins = null;
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+          delete counters.quantitativeScale;
+        } else {
+          // Calculate quantitative bin sizes and their counts
+          // Clean up the scale a bit
+          counters.quantitativeScale.nice();
+          // Histogram generator
+          const histogramGenerator = this.mure.d3.histogram()
+            .domain(counters.quantitativeScale.domain())
+            .thresholds(counters.quantitativeScale.ticks(numBins))
+            .value(d => d.value);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+          // Clean up some of the temporary placeholders
+          delete counters.quantitativeItems;
+          delete counters.quantitativeType;
+        }
+      }
+    };
+    finalizeBins(result.raw);
+    Object.values(result.attributes).forEach(finalizeBins);
+
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.histograms = result;
+    return result;
+  }
+
+  /*
+   These functions are useful for deriving additional selections
+   */
+  deriveSelection (selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
+    if (options.mode === this.mure.DERIVE_MODES.UNION) {
+      selectorList = selectorList.concat(this.selectorList);
+    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
+      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1)
+        .concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
+    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
+    return new Selection(this.mure, selectorList, options);
+  }
+  merge (otherSelection, options = {}) {
+    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
+    return this.deriveSelection(otherSelection.selectorList, options);
+  }
+  select (selectorList, options = {}) {
+    Object.assign(options, { selectSingle: true, parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  selectAll (selectorList, options = {}) {
+    Object.assign(options, { parentSelection: this });
+    return this.deriveSelection(selectorList, options);
+  }
+  async selectAllSetMembers (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$members']), options);
+  }
+  async selectAllContainingSets (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$tags']), options);
+  }
+  async selectAllEdges (options) {
+    return this.deriveSelection(await this.metaObjUnion(['$edges']), options);
+  }
+  async selectAllNodes (options = false) {
+    return this.deriveSelection(await this.metaObjUnion(['$nodes']), options);
   }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;

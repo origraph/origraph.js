@@ -24,6 +24,10 @@ import PivotToMembers from './Operations/Pivot/PivotToMembers.js';
 import PivotToNodes from './Operations/Pivot/PivotToNodes.js';
 import PivotToEdges from './Operations/Pivot/PivotToEdges.js';
 
+import ConvertContainerToNode from './Operations/Convert/ConvertContainerToNode.js';
+
+import ConnectNodesOnFunction from './Operations/Connect/ConnectNodesOnFunction.js';
+
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
     super();
@@ -100,23 +104,28 @@ class Mure extends Model {
       },
       'Filter': {},
       'Edit': {},
-      'Convert': {},
-      'Connect': {},
-      'Derive': {},
-      'Summarize': {}
+      'Convert': {
+        ConvertContainerToNode
+      },
+      'Connect': {
+        ConnectNodesOnFunction
+      },
+      'Derive': {}
     };
 
-    // With the operations defined and initialized, make them available as
+    // Unlike ITEM_TYPES, we actually want to instantiate all the operations
+    // with a reference to this. While we're at it, make them available as
     // functions on the Selection class
-    Object.entries(this.OPERATIONS).forEach(([opFamily, ops]) => {
+    Object.entries(this.OPERATIONS).forEach(([opFamilyName, ops]) => {
       // UpperCamelCase to lowerCamelCase
-      opFamily[0] = opFamily[0].toLowerCase();
-      Selection.prototype[opFamily] = {};
-      Object.entries(ops).forEach(([opName, operation]) => {
+      let opFamilyNameLower = opFamilyName.replace(/./, opFamilyName[0].toLowerCase());
+      Selection.prototype[opFamilyNameLower] = {};
+      Object.entries(ops).forEach(([opName, Operation]) => {
+        this.OPERATIONS[opFamilyName][opName] = new Operation(this);
         // UpperCamelCase to lowerCamelCase
-        opName[0] = opName[0].toLowerCase();
-        Selection.prototype[opFamily][opName] = function (inputOptions) {
-          return this.execute(operation, inputOptions);
+        let opNameLower = opName.replace(/./, opName[0].toLowerCase());
+        Selection.prototype[opFamilyNameLower][opNameLower] = function (inputOptions) {
+          return this.execute(this.OPERATIONS[opFamilyName][opName], inputOptions);
         };
       });
     });
@@ -225,7 +234,7 @@ class Mure extends Model {
   }
   async allDocItems () {
     return (await this.allDocs())
-      .map(doc => new this.ITEM_TYPES.DocumentItem(doc));
+      .map(doc => new this.ITEM_TYPES.DocumentItem({ mure: this, doc }));
   }
   async queryDocs (queryObj) {
     await this.dbStatus;
@@ -250,7 +259,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.ITEM_TYPES.DocumentItem.launchStandardization({}, this);
+      return this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -263,7 +272,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(docQuery, this);
+          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -350,7 +359,7 @@ class Mure extends Model {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization(doc, this);
+    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
     return this.putDoc(doc);
   }
   async deleteDoc (docQuery) {

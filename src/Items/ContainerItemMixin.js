@@ -4,7 +4,12 @@ export default (superclass) => class extends superclass {
       .reduce((agg, [label, value]) => {
         if (!this.mure.RESERVED_OBJ_KEYS[label]) {
           let ItemType = this.mure.inferType(value);
-          agg.push(new ItemType(value, this.path.concat([label]), this.doc));
+          agg.push(new ItemType({
+            mure: this.mure,
+            value,
+            path: this.path.concat([label]),
+            doc: this.doc
+          }));
         }
         return agg;
       }, []);
