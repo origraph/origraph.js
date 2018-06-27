@@ -27,9 +27,6 @@ npm install mure
 
 However, for the latter, be advised that some of the dependencies of this library result in webpack / rollup / whatever configuration hell. If you discover a configuration that actually works, we'd love to hear about it!
 
-# Usage
-See the [boilerplate app](https://github.com/mure-apps/app-boilerplate) for a basic example for how to use the library to create a mure editor
-
 Development
 ===========
 ## Setup:
