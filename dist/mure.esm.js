@@ -2214,7 +2214,7 @@ class Mure extends Model {
 }
 
 var name = "mure";
-var version = "0.3.4";
+var version = "0.4.0";
 var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
