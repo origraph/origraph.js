@@ -6,6 +6,17 @@ class BaseOperation {
     this.terminatesChain = false;
     this.acceptsInputOptions = true;
   }
+  get name () {
+    return /(.*)Operation/.exec(this.constructor.name)[1];
+  }
+  get lowerCamelCaseName () {
+    const temp = this.name;
+    return temp.replace(/./, temp[0].toLowerCase());
+  }
+  get humanReadableName () {
+    // CamelCase to Sentence Case
+    return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
   checkItemInputs (item, inputOptions) {
     return true;
   }
@@ -19,7 +30,7 @@ class BaseOperation {
   async executeOnItem (item, inputOptions) {
     throw new Error('unimplemented');
   }
-  async checkSelectionInputs (selection) {
+  async checkSelectionInputs (selection, inputOptions) {
     return true;
   }
   async inferSelectionInputs (selection) {

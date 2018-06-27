@@ -3,7 +3,7 @@ Mure documents are basically [PouchDB](https://pouchdb.com/) documents (arbitrar
 1. Mure has a special [reference syntax](#reference-syntax). When any string value begins with an `@` character, we recognize and attempt to parse it as a reference; this is a basic mechanism for objects and documents to contain references to each other.
 2. For simple reference interpretation and file reshaping, no arrays should exist in a document"s `contents`; instead, integer-keyed objects should be used (e.g. `["a","b"]` becomes `{"0":"a","1":"b"}`). As long as the keys remain consecutive integers starting at zero, these objects can be converted back to arrays on JSON export. For details, see [Importing and Exporting files](#importing-and-exporting-files).
 3. All documents and objects must have an `_id` property at their root that follows a specific [convention](#file-ids) similar to `Content-Type` headers; this makes PouchDB"s built-in `_id` index slightly more useful.
-4. The basic schema of all documents can be seen in `test/data/Untitled 1.json`; after upload, the contents of a file will be stored inside the `contents` object. The root level of each document is preserved for metadata (TODO: document the default `classes`, `groups`, `orphanNodes`, and `orphanEdges`).
+4. The basic schema of all documents can be seen in `test/data/Untitled 1.json`; after upload, the contents of a file will be stored inside the `contents` object. The root level of each document is preserved for metadata (TODO: document the default `classes` and `orphans`).
 5. Reserved keys throughout the document include: `_id`, `$tags`, `$members`, `$nodes`, and `$links` (TODO: document these)
 
 # Reference Syntax

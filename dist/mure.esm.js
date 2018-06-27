@@ -365,7 +365,7 @@ class Selection {
     if (this.pendingOperations.length === 0) {
       return true;
     } else {
-      const lastOp = this.pendingOperations[this.pendingOperations.length].operation;
+      const lastOp = this.pendingOperations[this.pendingOperations.length - 1].operation;
       return lastOp.terminatesChain === false;
     }
   }
@@ -425,7 +425,6 @@ one-off operations.`);
   /*
    These functions provide statistics / summaries of the selection:
    */
-
   async getAvailableOperations() {
     if (this._summaryCaches && this._summaryCaches.availableOps) {
       return this._summaryCaches.availableOps;
@@ -568,6 +567,120 @@ one-off operations.`);
     this._summaryCaches = this._summaryCaches || {};
     this._summaryCaches.histograms = result;
     return result;
+  }
+  async getFlatGraphSchema() {
+    const items = await this.items();
+    let result = {
+      nodeClasses: [],
+      nodeClassLookup: {},
+      edgeSets: [],
+      edgeSetLookup: {}
+    };
+
+    // First pass: collect and count which node classes exist, and create a
+    // temporary edge sublist for the second pass
+    const edges = {};
+    Object.entries(items).forEach(([uniqueSelector, item]) => {
+      if (item.value.$edges) {
+        item.classes.forEach(className => {
+          if (result.nodeClassLookup[className] === undefined) {
+            result.nodeClassLookup[className] = result.nodeClasses.length;
+            result.nodeClasses.push({
+              name: className,
+              count: 0
+            });
+          }
+          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+        });
+      } else if (item.value.$nodes) {
+        edges[uniqueSelector] = item;
+      }
+    });
+
+    // Second pass: find and count which distinct
+    // node class -> edge class -> node class
+    // sets exist
+    Object.values(edges).forEach(edgeItem => {
+      let temp = {
+        edgeClasses: Array.from(edgeItem.classes),
+        sourceClasses: [],
+        targetClasses: [],
+        undirectedClasses: [],
+        count: 0
+      };
+      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
+        let nodeItem = items[nodeId] || items[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        if (!nodeItem) {
+          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
+          return;
+        }
+        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
+        if (relativeNodeDirection === 'source') {
+          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+        } else if (relativeNodeDirection === 'target') {
+          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+        } else {
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+        }
+      });
+      const edgeKey = md5(JSON.stringify(temp));
+      if (result.edgeSetLookup[edgeKey] === undefined) {
+        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
+        result.edgeSets.push(temp);
+      }
+      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
+    });
+
+    return result;
+  }
+  async getIntersectedGraphSchema() {
+    // const items = await this.items();
+    throw new Error('unimplemented');
+  }
+  async getContainerSchema() {
+    // const items = await this.items();
+    throw new Error('unimplemented');
+  }
+  async allMetaObjIntersections(metaObjs) {
+    const items = await this.items();
+    let linkedIds = {};
+    items.forEach(item => {
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedId = this.mure.idToUniqueSelector(linkedId, item.doc._id);
+            linkedIds[linkedId] = linkedIds[linkedId] || {};
+            linkedIds[linkedId][item.uniqueSelector] = true;
+          });
+        }
+      });
+    });
+    let sets = [];
+    let setLookup = {};
+    Object.keys(linkedIds).forEach(linkedId => {
+      let itemIds = Object.keys(linkedIds[linkedId]).sort();
+      let setKey = itemIds.join(',');
+      if (setLookup[setKey] === undefined) {
+        setLookup[setKey] = sets.length;
+        sets.push({ itemIds, linkedIds: {} });
+      }
+      setLookup[setKey].linkedIds[linkedId] = true;
+    });
+    return sets;
+  }
+  async metaObjUnion(metaObjs) {
+    const items = await this.items();
+    let linkedIds = {};
+    Object.values(items).forEach(item => {
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedIds[this.mure.idToUniqueSelector(linkedId, item.doc._id)] = true;
+          });
+        }
+      });
+    });
+    return Object.keys(linkedIds);
   }
 
   /*
@@ -757,7 +870,12 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ItemType(ItemType.getBoilerplateValue(), path, this.doc);
+    let item = new ItemType({
+      mure: this.mure,
+      value: ItemType.getBoilerplateValue(),
+      path,
+      doc: this.doc
+    });
     this.addItem(item, label);
     return item;
   }
@@ -956,11 +1074,8 @@ DocumentItem.standardize = ({
   doc.filename = doc.filename || doc._id.split(';')[1];
   doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
-  doc.orphanEdges = doc.orphanEdges || {};
-  doc.orphanEdges._id = '@$.orphanEdges';
-
-  doc.orphanNodes = doc.orphanNodes || {};
-  doc.orphanNodes._id = '@$.orphanNodes';
+  doc.orphans = doc.orphans || {};
+  doc.orphans._id = '@$.orphans';
 
   doc.classes = doc.classes || {};
   doc.classes._id = '@$.classes';
@@ -1243,6 +1358,18 @@ class BaseOperation {
     this.terminatesChain = false;
     this.acceptsInputOptions = true;
   }
+  get name() {
+    return (/(.*)Operation/.exec(this.constructor.name)[1]
+    );
+  }
+  get lowerCamelCaseName() {
+    const temp = this.name;
+    return temp.replace(/./, temp[0].toLowerCase());
+  }
+  get humanReadableName() {
+    // CamelCase to Sentence Case
+    return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
   checkItemInputs(item, inputOptions) {
     return true;
   }
@@ -1256,7 +1383,7 @@ class BaseOperation {
   async executeOnItem(item, inputOptions) {
     throw new Error('unimplemented');
   }
-  async checkSelectionInputs(selection) {
+  async checkSelectionInputs(selection, inputOptions) {
     return true;
   }
   async inferSelectionInputs(selection) {
@@ -1268,6 +1395,47 @@ class BaseOperation {
     const items = await selection.items();
     const outputSpecPromises = Object.values(items).map(item => this.executeOnItem(item, inputOptions));
     return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
+  }
+}
+
+class ContextualOperation extends BaseOperation {
+  constructor(mure, subOperations) {
+    super(mure);
+    this.subOperations = {};
+    subOperations.forEach(OperationClass => {
+      this.subOperations[OperationClass.name] = new OperationClass(this.mure);
+    });
+  }
+  checkItemInputs(item, inputOptions) {
+    return inputOptions.context && this.subOperations[inputOptions.context];
+  }
+  inferItemInputs(item) {
+    const itemInputs = {};
+    Object.entries(this.subOperations).map(([subOpName, subOp]) => {
+      itemInputs[subOpName] = subOp.inferItemInputs(item);
+    });
+    return itemInputs;
+  }
+  async executeOnItem(item, inputOptions) {
+    throw new Error('unimplemented');
+  }
+  async checkSelectionInputs(selection, inputOptions) {
+    return inputOptions.context && this.subOperations[inputOptions.context];
+  }
+  async inferSelectionInputs(selection) {
+    const selectionInputs = {};
+    const subOpList = Object.entries(this.subOperations);
+    for (let i = 0; i < subOpList.length; i++) {
+      let [subOpName, subOp] = subOpList[i];
+      selectionInputs[subOpName] = await subOp.inferSelectionInputs(selection);
+    }
+    return selectionInputs;
+  }
+  async executeOnSelection(selection, inputOptions) {
+    if (!(await this.checkSelectionInputs(selection, inputOptions))) {
+      throw new Error(`Unknown operation context: ${inputOptions.context}`);
+    }
+    return this.subOperations[inputOptions.context].executeOnSelection(selection, inputOptions);
   }
 }
 
@@ -1394,6 +1562,12 @@ class PivotToEdges extends DirectedPivot {
   }
 }
 
+class PivotOperation extends ContextualOperation {
+  constructor(mure) {
+    super(mure, [PivotToContents, PivotToMembers, PivotToNodes, PivotToEdges]);
+  }
+}
+
 class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
   checkItemInputs(item) {
     return item instanceof this.mure.ITEM_TYPES.ContainerItem;
@@ -1417,10 +1591,13 @@ class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
   }
 }
 
-class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
-  checkItemInputs(item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.otherItem instanceof this.mure.ITEM_TYPES.NodeItem && inputOptions.saveEdgesIn instanceof this.mure.ITEM_TYPES.ContainerItem && typeof inputOptions.connectWhen === 'string';
+class ConvertOperation extends ContextualOperation {
+  constructor(mure) {
+    super(mure, [ConvertContainerToNode]);
   }
+}
+
+class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
   inferItemInputs(item) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
@@ -1430,7 +1607,7 @@ class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
     });
     inputs.addValueOption({
       name: 'connectWhen',
-      defaultValue: '(a, b) => { return a.label === b.label; }'
+      defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
     });
     inputs.addItemRequirement({
       name: 'otherItem',
@@ -1439,17 +1616,13 @@ class ConnectNodesOnFunction extends ChainTerminatingMixin(BaseOperation) {
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(this.mure, item.doc.$orphanEdges, [`{"_id":"${item.doc._id}"}`, '$orphanEdges'], item.doc)
+      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(this.mure, item.doc.orphans, [`{"_id":"${item.doc._id}"}`, 'orphans'], item.doc)
     });
     return inputs;
   }
-  async executeOnItem(item, inputOptions, matchFunc) {
-    if (!this.checkItemInputs(item, inputOptions)) {
-      throw new Error(`Item and options.otherItem must be NodeItems, and \
-options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
-    }
-    matchFunc = matchFunc || new Function('a', 'b', inputOptions.connectWhen); // eslint-disable-line no-new-func
-    if (matchFunc(item, inputOptions.otherItem)) {
+  async executeOnItem(item, inputOptions) {
+    const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
+    if (match(item, inputOptions.otherItem)) {
       const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
 
       return new OutputSpec({
@@ -1460,41 +1633,63 @@ options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
       return new OutputSpec();
     }
   }
-  extractNodeList(items) {
-    let saveEdgesIn;
-    let nodeList = Object.values(items).reduce((agg, item) => {
-      if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
-        if (saveEdgesIn === undefined) {
-          saveEdgesIn = item;
+  extractNodeLists(itemLists) {
+    let saveEdgesInDoc;
+    let nodeLists = itemLists.map(items => {
+      return Object.values(items).reduce((agg, item) => {
+        if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
+          if (saveEdgesInDoc === undefined) {
+            saveEdgesInDoc = item.doc;
+          }
         }
-      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-        return agg.concat([item]);
-      }
-      return agg;
-    }, []);
-    if (!saveEdgesIn) {
-      const mostFrequentDoc = singleMode(nodeList.map(item => item.doc));
-      if (mostFrequentDoc) {
-        saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
-          mure: this.mure,
-          value: mostFrequentDoc.$orphanEdges,
-          path: [`{"_id":"${mostFrequentDoc._id}"}`, '$orphanEdges'],
-          doc: mostFrequentDoc
-        });
-      }
-    }
-    return { nodeList, saveEdgesIn };
-  }
-  async inferSelectionInputs(selection) {
-    const inputs = new InputSpec();
-    inputs.addValueOption({
-      name: 'connectWhen',
-      defaultValue: '(a, b) => { return a.label === b.label; }'
+        if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+          return agg.concat([item]);
+        }
+        return agg;
+      }, []);
     });
-    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
+    if (!saveEdgesInDoc) {
+      saveEdgesInDoc = singleMode(nodeLists.reduce((agg, items) => {
+        return agg.concat(items.map(item => item.doc));
+      }, []));
+    }
+    let saveEdgesIn = null;
+    if (saveEdgesInDoc) {
+      saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+        mure: this.mure,
+        value: saveEdgesInDoc.orphans,
+        path: [`{"_id":"${saveEdgesInDoc._id}"}`, 'orphans'],
+        doc: saveEdgesInDoc
+      });
+    }
+    return { nodeLists, saveEdgesIn };
+  }
+}
+ConnectSubOp.DEFAULT_CONNECT_WHEN = (a, b) => {
+  return a.label === b.label;
+};
+
+class ConnectNodesOnFunction extends ConnectSubOp {
+  async inferSelectionInputs(selection) {
+    let { nodeLists, saveEdgesIn } = this.extractNodeLists([await selection.items()]);
+    let nodeList = nodeLists[0];
     if (nodeList.length === 0) {
       return null;
     }
+    const inputs = new InputSpec();
+    inputs.addToggleOption({
+      name: 'direction',
+      optionList: ['Undirected', 'Directed'],
+      defaultValue: 'Undirected'
+    });
+    inputs.addValueOption({
+      name: 'connectWhen',
+      defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
+    });
+    inputs.addValueOption({
+      name: 'targetSelection',
+      defaultValue: null
+    });
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
@@ -1503,18 +1698,56 @@ options.saveEdgesIn must be a ContainerItem in order to ConnectViaFunction`);
     return inputs;
   }
   async executeOnSelection(selection, inputOptions) {
-    let { nodeList, saveEdgesIn } = this.extractNodeList((await selection.items()));
-    const matchFunc = new Function('a', 'b', inputOptions.connectWhen || '(a, b) => { return a.label === b.label; }'); // eslint-disable-line no-new-func
+    let itemLists = [await selection.items()];
+    if (inputOptions.targetSelection) {
+      itemLists.push((await inputOptions.targetSelection.items()));
+    }
+    let { nodeLists, saveEdgesIn } = this.extractNodeLists(itemLists);
+    let sourceList = nodeLists[0];
+    let targetList = nodeLists[1] || nodeLists[0];
+
     const outputPromises = [];
-    for (let i = 0; i < nodeList.length; i++) {
-      for (let j = i; j < nodeList.length; j++) {
-        outputPromises.push(this.executeOnItem(nodeList[i], {
-          otherItem: nodeList[j],
-          saveEdgesIn
-        }, matchFunc));
+    for (let i = 0; i < sourceList.length; i++) {
+      for (let j = 0; j < targetList.length; j++) {
+        outputPromises.push(this.executeOnItem(sourceList[i], {
+          otherItem: targetList[j],
+          saveEdgesIn,
+          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN
+        }));
       }
     }
     return OutputSpec.glomp((await Promise.all(outputPromises)));
+  }
+}
+
+class ConnectOperation extends ContextualOperation {
+  constructor(mure) {
+    super(mure, [ConnectNodesOnFunction]);
+  }
+}
+
+class AssignClassOperation extends BaseOperation {
+  checkItemInputs(item, inputOptions) {
+    return item instanceof this.mure.ITEM_TYPES.TaggableItem;
+  }
+  inferItemInputs(item) {
+    if (!this.checkItemInputs(item)) {
+      return null;
+    } else {
+      const temp = new InputSpec();
+      temp.addValueOption({
+        name: 'className',
+        defaultValue: 'none'
+      });
+      return temp;
+    }
+  }
+  async executeOnItem(item, inputOptions) {
+    if (!this.checkItemInputs(item)) {
+      throw new Error(`Must be a TaggableItem to assign a class`);
+    }
+    item.addClass(inputOptions.className || 'none');
+    return new OutputSpec();
   }
 }
 
@@ -1585,39 +1818,18 @@ class Mure extends Model {
     };
 
     // All the supported operations
-    this.OPERATIONS = {
-      'Pivot': {
-        PivotToContents,
-        PivotToMembers,
-        PivotToNodes,
-        PivotToEdges
-      },
-      'Filter': {},
-      'Edit': {},
-      'Convert': {
-        ConvertContainerToNode
-      },
-      'Connect': {
-        ConnectNodesOnFunction
-      },
-      'Derive': {}
-    };
+    let operationClasses = [PivotOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
+    this.OPERATIONS = {};
 
     // Unlike ITEM_TYPES, we actually want to instantiate all the operations
-    // with a reference to this. While we're at it, make them available as
-    // functions on the Selection class
-    Object.entries(this.OPERATIONS).forEach(([opFamilyName, ops]) => {
-      // UpperCamelCase to lowerCamelCase
-      let opFamilyNameLower = opFamilyName.replace(/./, opFamilyName[0].toLowerCase());
-      Selection.prototype[opFamilyNameLower] = {};
-      Object.entries(ops).forEach(([opName, Operation]) => {
-        this.OPERATIONS[opFamilyName][opName] = new Operation(this);
-        // UpperCamelCase to lowerCamelCase
-        let opNameLower = opName.replace(/./, opName[0].toLowerCase());
-        Selection.prototype[opFamilyNameLower][opNameLower] = function (inputOptions) {
-          return this.execute(this.OPERATIONS[opFamilyName][opName], inputOptions);
-        };
-      });
+    // with a reference to this. While we're at it, monkey patch them onto
+    // the Selection class
+    operationClasses.forEach(Operation => {
+      const temp = new Operation(this);
+      this.OPERATIONS[temp.name] = temp;
+      Selection.prototype[temp.lowerCamelCaseName] = async function (inputOptions) {
+        return this.execute(temp, inputOptions);
+      };
     });
 
     // Create / load the local database of files
@@ -2000,7 +2212,7 @@ class Mure extends Model {
     }
     let tempSelection;
     try {
-      tempSelection = new Selection(this.mure, selector, { selectSingle });
+      tempSelection = new Selection(this, selector, { selectSingle });
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];

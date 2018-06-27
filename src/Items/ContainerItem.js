@@ -22,7 +22,12 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ItemType(ItemType.getBoilerplateValue(), path, this.doc);
+    let item = new ItemType({
+      mure: this.mure,
+      value: ItemType.getBoilerplateValue(),
+      path,
+      doc: this.doc
+    });
     this.addItem(item, label);
     return item;
   }

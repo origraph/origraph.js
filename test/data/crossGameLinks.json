@@ -3,11 +3,8 @@
   "filename": "Cross Game Links",
   "_id": "application/json;Cross Game Links",
   "charset": "UTF-8",
-  "orphanEdges": {
-    "_id": "@$.orphanEdges"
-  },
-  "orphanNodes": {
-    "_id": "@$.orphanNodes"
+  "orphans": {
+    "_id": "@$.orphans"
   },
   "classes": {
     "_id": "@$.classes",

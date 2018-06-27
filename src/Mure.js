@@ -19,14 +19,10 @@ import EdgeItem from './Items/EdgeItem.js';
 import NodeItem from './Items/NodeItem.js';
 import SupernodeItem from './Items/SupernodeItem.js';
 
-import PivotToContents from './Operations/Pivot/PivotToContents.js';
-import PivotToMembers from './Operations/Pivot/PivotToMembers.js';
-import PivotToNodes from './Operations/Pivot/PivotToNodes.js';
-import PivotToEdges from './Operations/Pivot/PivotToEdges.js';
-
-import ConvertContainerToNode from './Operations/Convert/ConvertContainerToNode.js';
-
-import ConnectNodesOnFunction from './Operations/Connect/ConnectNodesOnFunction.js';
+import PivotOperation from './Operations/Pivot/PivotOperation.js';
+import ConvertOperation from './Operations/Convert/ConvertOperation.js';
+import ConnectOperation from './Operations/Connect/ConnectOperation.js';
+import AssignClassOperation from './Operations/AssignClassOperation.js';
 
 class Mure extends Model {
   constructor (PouchDB, d3, d3n) {
@@ -95,39 +91,23 @@ class Mure extends Model {
     };
 
     // All the supported operations
-    this.OPERATIONS = {
-      'Pivot': {
-        PivotToContents,
-        PivotToMembers,
-        PivotToNodes,
-        PivotToEdges
-      },
-      'Filter': {},
-      'Edit': {},
-      'Convert': {
-        ConvertContainerToNode
-      },
-      'Connect': {
-        ConnectNodesOnFunction
-      },
-      'Derive': {}
-    };
+    let operationClasses = [
+      PivotOperation,
+      ConvertOperation,
+      ConnectOperation,
+      AssignClassOperation
+    ];
+    this.OPERATIONS = {};
 
     // Unlike ITEM_TYPES, we actually want to instantiate all the operations
-    // with a reference to this. While we're at it, make them available as
-    // functions on the Selection class
-    Object.entries(this.OPERATIONS).forEach(([opFamilyName, ops]) => {
-      // UpperCamelCase to lowerCamelCase
-      let opFamilyNameLower = opFamilyName.replace(/./, opFamilyName[0].toLowerCase());
-      Selection.prototype[opFamilyNameLower] = {};
-      Object.entries(ops).forEach(([opName, Operation]) => {
-        this.OPERATIONS[opFamilyName][opName] = new Operation(this);
-        // UpperCamelCase to lowerCamelCase
-        let opNameLower = opName.replace(/./, opName[0].toLowerCase());
-        Selection.prototype[opFamilyNameLower][opNameLower] = function (inputOptions) {
-          return this.execute(this.OPERATIONS[opFamilyName][opName], inputOptions);
-        };
-      });
+    // with a reference to this. While we're at it, monkey patch them onto
+    // the Selection class
+    operationClasses.forEach(Operation => {
+      const temp = new Operation(this);
+      this.OPERATIONS[temp.name] = temp;
+      Selection.prototype[temp.lowerCamelCaseName] = async function (inputOptions) {
+        return this.execute(temp, inputOptions);
+      };
     });
 
     // Create / load the local database of files
@@ -515,7 +495,7 @@ class Mure extends Model {
     }
     let tempSelection;
     try {
-      tempSelection = new Selection(this.mure, selector, { selectSingle });
+      tempSelection = new Selection(this, selector, { selectSingle });
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];

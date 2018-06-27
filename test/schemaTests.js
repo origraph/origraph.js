@@ -26,18 +26,16 @@ module.exports = [
 
         // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
-        let hands = doc.selectAll('@$.contents.hands[*]')
-          .convertToType(mure.ITEM_TYPES.NodeItem)
-          .addClass('player');
-        let tricks = doc.selectAll('@$.contents.tricks[*]')
-          .convertToType(mure.ITEM_TYPES.NodeItem)
-          .addClass('trick');
-        let cards = doc.selectAll('@$.contents.hands[*][*]')
-          .convertToType(mure.ITEM_TYPES.NodeItem)
-          .addClass('card');
-        await hands.save();
-        await tricks.save();
-        await cards.save();
+        let hands = doc.selectAll('@$.contents.hands[*]');
+        await hands.convert({ context: 'ConvertContainerToNode' });
+        await hands.assignClass({ className: 'player' });
+        let tricks = doc.selectAll('@$.contents.tricks[*]');
+        await tricks.convert({ context: 'ConvertContainerToNode' });
+        await tricks.assignClass({ className: 'trick' });
+        let cards = await doc.selectAll('@$.contents.hands[*][*]')
+          .chain(mure.OPERATIONS.Convert, { context: 'ConvertContainerToNode' })
+          .chain(mure.OPERATIONS.AssignClass, { className: 'card' })
+          .executeChain();
 
         let allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 
@@ -71,28 +69,27 @@ module.exports = [
         });
 
         // Add edges
-        tricks.connect(hands,
-          (trick, hand) => {
+        const wonByEdges = await tricks.connect({
+          context: 'ConnectNodesOnFunction',
+          targetSelection: hands,
+          connectWhen: (trick, hand) => {
             return trick.value.winner === hand.label;
-          },
-          {
-            directed: true,
-            className: 'Won By'
-          });
-        await tricks.save();
-        cards.connect(tricks,
-          (card, trick) => {
+          }
+        });
+        await wonByEdges.assignClass({ className: 'Won By' });
+        const playedEdges = await cards.connect({
+          context: 'ConnectNodesOnFunction',
+          targetSelection: tricks,
+          connectWhen: (card, trick) => {
             return Object.entries(trick.value)
               .filter(([player, index]) => {
                 return card.doc.contents.hands[player] !== undefined &&
                   card.doc.contents.hands[player][index] === card.value;
               }).length > 0;
           },
-          {
-            directed: true,
-            className: 'Played'
-          });
-        await cards.save();
+          directed: true
+        });
+        await playedEdges.assignClass({ className: 'Played' });
 
         allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 

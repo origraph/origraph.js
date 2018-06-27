@@ -3,11 +3,8 @@
   "filename": "Untitled 1",
   "_id": "application/json;Untitled 1",
   "charset": "UTF-8",
-  "orphanEdges": {
-    "_id": "@$.orphanEdges"
-  },
-  "orphanNodes": {
-    "_id": "@$.orphanNodes"
+  "orphans": {
+    "_id": "@$.orphans"
   },
   "classes": {
     "_id": "@$.classes",

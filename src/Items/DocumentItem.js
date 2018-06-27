@@ -139,11 +139,8 @@ DocumentItem.standardize = ({
   doc.filename = doc.filename || doc._id.split(';')[1];
   doc.charset = (doc.charset || 'UTF-8').toUpperCase();
 
-  doc.orphanEdges = doc.orphanEdges || {};
-  doc.orphanEdges._id = '@$.orphanEdges';
-
-  doc.orphanNodes = doc.orphanNodes || {};
-  doc.orphanNodes._id = '@$.orphanNodes';
+  doc.orphans = doc.orphans || {};
+  doc.orphans._id = '@$.orphans';
 
   doc.classes = doc.classes || {};
   doc.classes._id = '@$.classes';

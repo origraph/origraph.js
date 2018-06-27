@@ -228,7 +228,7 @@ class Selection {
     if (this.pendingOperations.length === 0) {
       return true;
     } else {
-      const lastOp = this.pendingOperations[this.pendingOperations.length].operation;
+      const lastOp = this.pendingOperations[this.pendingOperations.length - 1].operation;
       return lastOp.terminatesChain === false;
     }
   }
@@ -288,7 +288,6 @@ one-off operations.`);
   /*
    These functions provide statistics / summaries of the selection:
    */
-
   async getAvailableOperations () {
     if (this._summaryCaches && this._summaryCaches.availableOps) {
       return this._summaryCaches.availableOps;
@@ -439,6 +438,121 @@ one-off operations.`);
     this._summaryCaches = this._summaryCaches || {};
     this._summaryCaches.histograms = result;
     return result;
+  }
+  async getFlatGraphSchema () {
+    const items = await this.items();
+    let result = {
+      nodeClasses: [],
+      nodeClassLookup: {},
+      edgeSets: [],
+      edgeSetLookup: {}
+    };
+
+    // First pass: collect and count which node classes exist, and create a
+    // temporary edge sublist for the second pass
+    const edges = {};
+    Object.entries(items).forEach(([uniqueSelector, item]) => {
+      if (item.value.$edges) {
+        item.classes.forEach(className => {
+          if (result.nodeClassLookup[className] === undefined) {
+            result.nodeClassLookup[className] = result.nodeClasses.length;
+            result.nodeClasses.push({
+              name: className,
+              count: 0
+            });
+          }
+          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+        });
+      } else if (item.value.$nodes) {
+        edges[uniqueSelector] = item;
+      }
+    });
+
+    // Second pass: find and count which distinct
+    // node class -> edge class -> node class
+    // sets exist
+    Object.values(edges).forEach(edgeItem => {
+      let temp = {
+        edgeClasses: Array.from(edgeItem.classes),
+        sourceClasses: [],
+        targetClasses: [],
+        undirectedClasses: [],
+        count: 0
+      };
+      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
+        let nodeItem = items[nodeId] ||
+          items[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        if (!nodeItem) {
+          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
+          return;
+        }
+        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
+        if (relativeNodeDirection === 'source') {
+          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+        } else if (relativeNodeDirection === 'target') {
+          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+        } else {
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+        }
+      });
+      const edgeKey = md5(JSON.stringify(temp));
+      if (result.edgeSetLookup[edgeKey] === undefined) {
+        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
+        result.edgeSets.push(temp);
+      }
+      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
+    });
+
+    return result;
+  }
+  async getIntersectedGraphSchema () {
+    // const items = await this.items();
+    throw new Error('unimplemented');
+  }
+  async getContainerSchema () {
+    // const items = await this.items();
+    throw new Error('unimplemented');
+  }
+  async allMetaObjIntersections (metaObjs) {
+    const items = await this.items();
+    let linkedIds = {};
+    items.forEach(item => {
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedId = this.mure.idToUniqueSelector(linkedId, item.doc._id);
+            linkedIds[linkedId] = linkedIds[linkedId] || {};
+            linkedIds[linkedId][item.uniqueSelector] = true;
+          });
+        }
+      });
+    });
+    let sets = [];
+    let setLookup = {};
+    Object.keys(linkedIds).forEach(linkedId => {
+      let itemIds = Object.keys(linkedIds[linkedId]).sort();
+      let setKey = itemIds.join(',');
+      if (setLookup[setKey] === undefined) {
+        setLookup[setKey] = sets.length;
+        sets.push({ itemIds, linkedIds: {} });
+      }
+      setLookup[setKey].linkedIds[linkedId] = true;
+    });
+    return sets;
+  }
+  async metaObjUnion (metaObjs) {
+    const items = await this.items();
+    let linkedIds = {};
+    Object.values(items).forEach(item => {
+      metaObjs.forEach(metaObj => {
+        if (item.value[metaObj]) {
+          Object.keys(item.value[metaObj]).forEach(linkedId => {
+            linkedIds[this.mure.idToUniqueSelector(linkedId, item.doc._id)] = true;
+          });
+        }
+      });
+    });
+    return Object.keys(linkedIds);
   }
 
   /*

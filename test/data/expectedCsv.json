@@ -62,11 +62,8 @@
   "filename": "csvTest.csv",
   "mimeType": "text/csv",
   "charset": "UTF-8",
-  "orphanEdges": {
-    "_id": "@$.orphanEdges"
-  },
-  "orphanNodes": {
-    "_id": "@$.orphanNodes"
+  "orphans": {
+    "_id": "@$.orphans"
   },
   "classes": {
     "_id": "@$.classes",
