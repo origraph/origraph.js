@@ -27505,18 +27505,10 @@ one-off operations.`);
 	      return this._summaryCaches.availableOps;
 	    }
 	    let availableOps = {};
-	    let opList = Object.entries(this.mure.OPERATIONS).reduce((agg, [opFamilyName, opFamily]) => {
-	      return agg.concat(Object.entries(opFamily).map(([opName, op]) => {
-	        return { opFamilyName, opName, op };
-	      }));
-	    }, []);
-	    let inputSpecs = await Promise.all(opList.map(({ op }) => {
-	      return op.inferSelectionInputs(this);
-	    }));
+	    let opList = Object.values(this.mure.OPERATIONS);
+	    let inputSpecs = await Promise.all(opList.map(operation => operation.inferSelectionInputs(this)));
 	    inputSpecs.forEach((spec, i) => {
-	      let { opFamilyName, opName } = opList[i];
-	      availableOps[opFamilyName] = availableOps[opFamilyName] || {};
-	      availableOps[opFamilyName][opName] = spec;
+	      availableOps[opList[i].name] = spec;
 	    });
 	    this._summaryCaches = this._summaryCaches || {};
 	    this._summaryCaches.availableOps = availableOps;
