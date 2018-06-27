@@ -638,10 +638,6 @@ one-off operations.`);
     // const items = await this.items();
     throw new Error('unimplemented');
   }
-  async getContainerSchema() {
-    // const items = await this.items();
-    throw new Error('unimplemented');
-  }
   async allMetaObjIntersections(metaObjs) {
     const items = await this.items();
     let linkedIds = {};

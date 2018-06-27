@@ -99,6 +99,7 @@ module.exports = [
         });
 
         // Test schema summary functions
+        /*
         let allItems = hands.merge(cards).merge(tricks);
         allItems = await allItems.selectAllEdges({ mode: mure.DERIVE_MODES.UNION });
 
@@ -107,6 +108,7 @@ module.exports = [
           name: 'Flat graph schema test',
           result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)
         });
+        */
 
         resolve(tests);
       })();
