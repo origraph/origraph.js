@@ -45,7 +45,7 @@ class InputSpec {
   }
 }
 InputSpec.glomp = specList => {
-  if (specList.indexOf(null) !== -1) {
+  if (specList.length === 0 || specList.indexOf(null) !== -1) {
     return null;
   }
   let result = new InputSpec();

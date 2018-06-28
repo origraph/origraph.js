@@ -7,7 +7,8 @@ class BaseOperation {
     this.acceptsInputOptions = true;
   }
   get name () {
-    return /(.*)Operation/.exec(this.constructor.name)[1];
+    const temp = /(.*)Operation/.exec(this.constructor.name);
+    return temp ? temp[1] : this.constructor.name;
   }
   get lowerCamelCaseName () {
     const temp = this.name;

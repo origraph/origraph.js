@@ -27125,7 +27125,7 @@
 	  }
 	}
 	InputSpec.glomp = specList => {
-	  if (specList.indexOf(null) !== -1) {
+	  if (specList.length === 0 || specList.indexOf(null) !== -1) {
 	    return null;
 	  }
 	  let result = new InputSpec();
@@ -34184,8 +34184,8 @@ one-off operations.`);
 	    this.acceptsInputOptions = true;
 	  }
 	  get name() {
-	    return (/(.*)Operation/.exec(this.constructor.name)[1]
-	    );
+	    const temp = /(.*)Operation/.exec(this.constructor.name);
+	    return temp ? temp[1] : this.constructor.name;
 	  }
 	  get lowerCamelCaseName() {
 	    const temp = this.name;
