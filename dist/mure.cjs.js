@@ -51,7 +51,7 @@ class InputSpec {
   }
 }
 InputSpec.glomp = specList => {
-  if (specList.indexOf(null) !== -1) {
+  if (specList.length === 0 || specList.indexOf(null) !== -1) {
     return null;
   }
   let result = new InputSpec();
@@ -942,12 +942,12 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
       mure,
-      path: [docPathQuery],
+      path: [docPathQuery, '$'],
       value: doc,
       parent: null,
       doc: doc,
       label: doc['filename'],
-      uniqueSelector: '@' + docPathQuery,
+      uniqueSelector: '@' + docPathQuery + '$',
       classes: []
     });
     this._contentItem = new ContainerItem({
@@ -1348,8 +1348,8 @@ class BaseOperation {
     this.acceptsInputOptions = true;
   }
   get name() {
-    return (/(.*)Operation/.exec(this.constructor.name)[1]
-    );
+    const temp = /(.*)Operation/.exec(this.constructor.name);
+    return temp ? temp[1] : this.constructor.name;
   }
   get lowerCamelCaseName() {
     const temp = this.name;

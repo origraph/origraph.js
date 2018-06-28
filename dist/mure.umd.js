@@ -33778,12 +33778,12 @@ one-off operations.`);
 	    const docPathQuery = `{"_id":"${doc._id}"}`;
 	    super({
 	      mure,
-	      path: [docPathQuery],
+	      path: [docPathQuery, '$'],
 	      value: doc,
 	      parent: null,
 	      doc: doc,
 	      label: doc['filename'],
-	      uniqueSelector: '@' + docPathQuery,
+	      uniqueSelector: '@' + docPathQuery + '$',
 	      classes: []
 	    });
 	    this._contentItem = new ContainerItem({
