@@ -34,7 +34,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
       const newEdge = item.linkTo(inputOptions.otherItem,
-        inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
+        inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
 
       return new OutputSpec({
         newSelectors: [ newEdge.uniqueSelector ],

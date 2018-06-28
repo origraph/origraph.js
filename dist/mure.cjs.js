@@ -573,19 +573,18 @@ one-off operations.`);
     // First pass: collect and count which node classes exist, and create a
     // temporary edge sublist for the second pass
     const edges = {};
+    const nodeClassLists = {};
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item.value.$edges) {
-        item.classes.forEach(className => {
+      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        nodeClassLists[uniqueSelector] = item.getClasses();
+        nodeClassLists[uniqueSelector].forEach(className => {
           if (result.nodeClassLookup[className] === undefined) {
             result.nodeClassLookup[className] = result.nodeClasses.length;
-            result.nodeClasses.push({
-              name: className,
-              count: 0
-            });
+            result.nodeClasses.push({ className, count: 0 });
           }
           result.nodeClasses[result.nodeClassLookup[className]].count += 1;
         });
-      } else if (item.value.$nodes) {
+      } else if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
         edges[uniqueSelector] = item;
       }
     });
@@ -595,25 +594,25 @@ one-off operations.`);
     // sets exist
     Object.values(edges).forEach(edgeItem => {
       let temp = {
-        edgeClasses: Array.from(edgeItem.classes),
+        edgeClasses: Array.from(edgeItem.getClasses()),
         sourceClasses: [],
         targetClasses: [],
         undirectedClasses: [],
         count: 0
       };
       Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeItem = items[nodeId] || items[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
-        if (!nodeItem) {
+        let nodeClassList = nodeClassLists[nodeId] || nodeClassLists[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        if (!nodeClassList) {
           this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
           return;
         }
         // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
         if (relativeNodeDirection === 'source') {
-          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+          temp.sourceClasses = temp.sourceClasses.concat(nodeClassList);
         } else if (relativeNodeDirection === 'target') {
-          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+          temp.targetClasses = temp.targetClasses.concat(nodeClassList);
         } else {
-          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeClassList);
         }
       });
       const edgeKey = md5(JSON.stringify(temp));
@@ -657,24 +656,11 @@ one-off operations.`);
     });
     return sets;
   }
-  async metaObjUnion(metaObjs) {
-    const items = await this.items();
-    let linkedIds = {};
-    Object.values(items).forEach(item => {
-      metaObjs.forEach(metaObj => {
-        if (item.value[metaObj]) {
-          Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[this.mure.idToUniqueSelector(linkedId, item.doc._id)] = true;
-          });
-        }
-      });
-    });
-    return Object.keys(linkedIds);
-  }
 
   /*
-   These functions are useful for deriving additional selections
-   */
+   These functions are useful for deriving additional selections based
+   on selectors (when there's no direct need to access items)
+  */
   deriveSelection(selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
     if (options.mode === this.mure.DERIVE_MODES.UNION) {
       selectorList = selectorList.concat(this.selectorList);
@@ -695,18 +681,6 @@ one-off operations.`);
     Object.assign(options, { parentSelection: this });
     return this.deriveSelection(selectorList, options);
   }
-  async selectAllSetMembers(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$members'])), options);
-  }
-  async selectAllContainingSets(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$tags'])), options);
-  }
-  async selectAllEdges(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$edges'])), options);
-  }
-  async selectAllNodes(options = false) {
-    return this.deriveSelection((await this.metaObjUnion(['$nodes'])), options);
-  }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
@@ -720,7 +694,7 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
 };
 
 class BaseItem {
-  constructor({ mure, path, value, parent, doc, label, uniqueSelector, classes }) {
+  constructor({ mure, path, value, parent, doc, label, uniqueSelector }) {
     this.mure = mure;
     this.path = path;
     this._value = value;
@@ -728,7 +702,6 @@ class BaseItem {
     this.doc = doc;
     this.label = label;
     this.uniqueSelector = uniqueSelector;
-    this.classes = classes;
   }
   get type() {
     return (/(.*)Item/.exec(this.constructor.name)[1]
@@ -776,8 +749,7 @@ class RootItem extends BaseItem {
       parent: null,
       doc: null,
       label: null,
-      uniqueSelector: '@',
-      classes: []
+      uniqueSelector: '@'
     });
     docList.some(doc => {
       this.value[doc._id] = doc;
@@ -809,7 +781,6 @@ class TypedItem extends BaseItem {
       parent,
       doc,
       label: path[path.length - 1],
-      classes: [],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
     if (typeof value !== this.constructor.JSTYPE) {
@@ -947,8 +918,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       parent: null,
       doc: doc,
       label: doc['filename'],
-      uniqueSelector: '@' + docPathQuery + '$',
-      classes: []
+      uniqueSelector: '@' + docPathQuery + '$'
     });
     this._contentItem = new ContainerItem({
       mure: this.mure,
@@ -1173,7 +1143,7 @@ class TaggableItem extends ContainerItem {
       return [];
     }
     return Object.keys(this.value.$tags).reduce((agg, setId) => {
-      const temp = this.extractClassInfoFromId(setId);
+      const temp = this.mure.extractClassInfoFromId(setId);
       if (temp) {
         agg.push(temp.className);
       }
@@ -1612,7 +1582,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
   async executeOnItem(item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
+      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
 
       return new OutputSpec({
         newSelectors: [newEdge.uniqueSelector],
@@ -1701,7 +1671,8 @@ class ConnectNodesOnFunction extends ConnectSubOp {
         outputPromises.push(this.executeOnItem(sourceList[i], {
           otherItem: targetList[j],
           saveEdgesIn,
-          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN
+          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
+          direction: inputOptions.direction || 'Undirected'
         }));
       }
     }

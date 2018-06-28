@@ -1,5 +1,5 @@
 class BaseItem {
-  constructor ({ mure, path, value, parent, doc, label, uniqueSelector, classes }) {
+  constructor ({ mure, path, value, parent, doc, label, uniqueSelector }) {
     this.mure = mure;
     this.path = path;
     this._value = value;
@@ -7,7 +7,6 @@ class BaseItem {
     this.doc = doc;
     this.label = label;
     this.uniqueSelector = uniqueSelector;
-    this.classes = classes;
   }
   get type () {
     return /(.*)Item/.exec(this.constructor.name)[1];

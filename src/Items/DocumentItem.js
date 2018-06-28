@@ -23,8 +23,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       parent: null,
       doc: doc,
       label: doc['filename'],
-      uniqueSelector: '@' + docPathQuery + '$',
-      classes: []
+      uniqueSelector: '@' + docPathQuery + '$'
     });
     this._contentItem = new ContainerItem({
       mure: this.mure,

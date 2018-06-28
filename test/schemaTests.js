@@ -72,7 +72,8 @@ module.exports = [
           targetSelection: hands,
           connectWhen: (trick, hand) => {
             return trick.value.winner === hand.label;
-          }
+          },
+          direction: 'Directed'
         });
         await wonByEdges.assignClass({ className: 'Won By' });
         const playedEdges = await cards.connect({
@@ -85,7 +86,7 @@ module.exports = [
                   card.doc.contents.hands[player][index] === card.value;
               }).length > 0;
           },
-          directed: true
+          direction: 'Directed'
         });
         await playedEdges.assignClass({ className: 'Played' });
 
@@ -97,16 +98,17 @@ module.exports = [
         });
 
         // Test schema summary functions
-        /*
-        let allItems = hands.merge(cards).merge(tricks);
-        allItems = await allItems.selectAllEdges({ mode: mure.DERIVE_MODES.UNION });
+        let allItems = hands
+          .merge(cards)
+          .merge(tricks)
+          .merge(wonByEdges)
+          .merge(playedEdges);
 
         let summary = await allItems.getFlatGraphSchema();
         tests.push({
           name: 'Flat graph schema test',
           result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)
         });
-        */
 
         resolve(tests);
       })();

@@ -9,8 +9,7 @@ class RootItem extends BaseItem {
       parent: null,
       doc: null,
       label: null,
-      uniqueSelector: '@',
-      classes: []
+      uniqueSelector: '@'
     });
     docList.some(doc => {
       this.value[doc._id] = doc;

@@ -21,7 +21,6 @@ class TypedItem extends BaseItem {
       parent,
       doc,
       label: path[path.length - 1],
-      classes: [],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
     if (typeof value !== this.constructor.JSTYPE) { // eslint-disable-line valid-typeof

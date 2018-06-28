@@ -244,15 +244,15 @@
   "flatGraphSchema": {
     "nodeClasses": [
       {
-        "name": "trick",
+        "className": "trick",
         "count": 12
       },
       {
-        "name": "card",
+        "className": "card",
         "count": 48
       },
       {
-        "name": "player",
+        "className": "player",
         "count": 4
       }
     ],
@@ -262,19 +262,6 @@
       "player": 2
     },
     "edgeSets": [
-      {
-        "edgeClasses": [
-          "Won By"
-        ],
-        "sourceClasses": [
-          "trick"
-        ],
-        "targetClasses": [
-          "player"
-        ],
-        "undirectedClasses": [],
-        "count": 12
-      },
       {
         "edgeClasses": [
           "Played"
@@ -287,11 +274,24 @@
         ],
         "undirectedClasses": [],
         "count": 48
+      },
+      {
+        "edgeClasses": [
+          "Won By"
+        ],
+        "sourceClasses": [
+          "trick"
+        ],
+        "targetClasses": [
+          "player"
+        ],
+        "undirectedClasses": [],
+        "count": 12
       }
     ],
     "edgeSetLookup": {
-      "3ed4d08d8e0cc44ce1a07279136fa687": 0,
-      "d2ee9724a9faefa5ccf0f64ce27ebd69": 1
+      "d2ee9724a9faefa5ccf0f64ce27ebd69": 0,
+      "3ed4d08d8e0cc44ce1a07279136fa687": 1
     }
   }
 }

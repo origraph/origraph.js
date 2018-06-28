@@ -45,7 +45,8 @@ class ConnectNodesOnFunction extends ConnectSubOp {
           sourceList[i], {
             otherItem: targetList[j],
             saveEdgesIn,
-            connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN
+            connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
+            direction: inputOptions.direction || 'Undirected'
           }
         ));
       }

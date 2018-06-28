@@ -30,7 +30,7 @@ class TaggableItem extends ContainerItem {
       return [];
     }
     return Object.keys(this.value.$tags).reduce((agg, setId) => {
-      const temp = this.extractClassInfoFromId(setId);
+      const temp = this.mure.extractClassInfoFromId(setId);
       if (temp) {
         agg.push(temp.className);
       }
