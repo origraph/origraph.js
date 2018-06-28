@@ -2048,7 +2048,11 @@ class Mure extends Model {
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
     doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
-    return this.putDoc(doc);
+    if (!(await this.putDoc(doc)).ok) {
+      return null;
+    } else {
+      return this.select(`@{"_id":"${doc._id}"}`);
+    }
   }
   async deleteDoc(docQuery) {
     let doc = await this.getDoc(docQuery);

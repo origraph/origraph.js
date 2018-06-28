@@ -33,14 +33,12 @@ module.exports = [
         let tests = [];
 
         let uploadMessages = await Promise.all(uploadPromises);
-        let allUploaded = uploadMessages.reduce((agg, m) => agg && m.ok, true);
+        let allUploaded = uploadMessages.reduce((agg, m) => agg && m, true);
 
         tests.push({
           name: 'Upload files for selector testing',
           result: {
-            passed: allUploaded,
-            details: allUploaded
-              ? undefined : 'Messages:\n' + JSON.stringify(uploadMessages, null, 2)
+            passed: allUploaded
           }
         });
 

@@ -36,17 +36,15 @@ module.exports = [
       const data = JSON.stringify(doc);
       (async () => {
         let tests = [];
-        let uploadMessage = await mure.uploadString('blackJack_round1.json', 'application/json', 'UTF-8', data);
+        let uploadSelection = await mure.uploadString('blackJack_round1.json', 'application/json', 'UTF-8', data);
 
         // Make sure the document has been loaded and has a _rev property
         let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
         let _revTestResult = {
-          passed: uploadMessage && dbDoc._rev
+          passed: uploadSelection && dbDoc._rev
         };
         if (!_revTestResult.passed) {
-          _revTestResult.details = 'Upload message:\n' +
-            JSON.stringify(uploadMessage, null, 2) + '\n\n' +
-            'State after upload:' + '\n' +
+          _revTestResult.details = 'State after upload:' + '\n' +
             JSON.stringify(dbDoc, null, 2);
         }
         tests.push({
@@ -101,18 +99,16 @@ module.exports = [
       const doc = require('./data/blackJack_round2');
       const data = JSON.stringify(doc);
       (async () => {
-        let uploadMessage = await mure.uploadString('blackJack_round2.json', 'application/json', 'UTF-8', data);
+        let uploadSelection = await mure.uploadString('blackJack_round2.json', 'application/json', 'UTF-8', data);
         let tests = [];
 
         // Make sure the document has been loaded
         let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round2.json' });
         let _revTestResult = {
-          passed: uploadMessage && dbDoc._rev
+          passed: uploadSelection && dbDoc._rev
         };
         if (!_revTestResult.passed) {
-          _revTestResult.details = 'Upload message:\n' +
-            JSON.stringify(uploadMessage, null, 2) + '\n\n' +
-            'State after upload:' + '\n' +
+          _revTestResult.details = 'State after upload:' + '\n' +
             JSON.stringify(dbDoc, null, 2);
         }
         tests.push({
@@ -155,17 +151,15 @@ module.exports = [
       const data = JSON.stringify(doc);
       (async () => {
         let tests = [];
-        let uploadMessage = await mure.uploadString(null, 'application/json', null, data);
+        let uploadSelection = await mure.uploadString(null, 'application/json', null, data);
 
         // Make sure the document has been loaded and has a _rev property
         let dbDoc = await mure.getDoc({ 'filename': 'Cross Game Links' });
         let _revTestResult = {
-          passed: uploadMessage && dbDoc._rev
+          passed: uploadSelection && dbDoc._rev
         };
         if (!_revTestResult.passed) {
-          _revTestResult.details = 'Upload message:\n' +
-            JSON.stringify(uploadMessage, null, 2) + '\n\n' +
-            'State after upload:' + '\n' +
+          _revTestResult.details = 'State after upload:' + '\n' +
             JSON.stringify(dbDoc, null, 2);
         }
         tests.push({
@@ -203,17 +197,15 @@ module.exports = [
         if (err) throw err;
         (async () => {
           let tests = [];
-          let uploadMessage = await mure.uploadString('csvTest.csv', 'text/csv', 'UTF-8', data);
+          let uploadSelection = await mure.uploadString('csvTest.csv', 'text/csv', 'UTF-8', data);
 
           // Make sure the document has been loaded and has a _rev property
           let dbDoc = await mure.getDoc({ 'filename': 'csvTest.csv' });
           let _revTestResult = {
-            passed: uploadMessage && dbDoc._rev
+            passed: uploadSelection && dbDoc._rev
           };
           if (!_revTestResult.passed) {
-            _revTestResult.details = 'Upload message:\n' +
-              JSON.stringify(uploadMessage, null, 2) + '\n\n' +
-              'State after upload:' + '\n' +
+            _revTestResult.details = 'State after upload:' + '\n' +
               JSON.stringify(dbDoc, null, 2);
           }
           tests.push({

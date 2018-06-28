@@ -18,9 +18,7 @@ module.exports = [
         tests.push({
           name: 'Upload file for schema testing',
           result: {
-            passed: uploadMessage.ok,
-            details: uploadMessage.ok
-              ? undefined : 'Message:\n' + JSON.stringify(uploadMessage, null, 2)
+            passed: !!uploadMessage
           }
         });
 
