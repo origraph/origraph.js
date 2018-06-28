@@ -2052,7 +2052,7 @@ class Mure extends uki.Model {
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
-      return this.select(`@{"_id":"${doc._id}"}`);
+      return this.select(`@{"_id":"${doc._id}"}$`);
     }
   }
   async deleteDoc(docQuery) {
@@ -2064,7 +2064,7 @@ class Mure extends uki.Model {
     });
   }
   selectDoc(docId) {
-    return this.select('@{"_id":"' + docId + '"}');
+    return this.select('@{"_id":"' + docId + '"}$');
   }
   select(selectorList) {
     return new Selection(this, selectorList, { selectSingle: true });
