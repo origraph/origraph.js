@@ -8,6 +8,10 @@ import PouchDB from 'pouchdb-browser';
 import PouchFind from 'pouchdb-find';
 import PouchAuthentication from 'pouchdb-authentication';
 
+const glompObjs = objList => {
+  return objList.reduce((agg, obj) => Object.assign(agg, obj), {});
+};
+
 const glompLists = listList => {
   return listList.reduce((agg, list) => {
     list.forEach(value => {
@@ -31,86 +35,6 @@ const singleMode = list => {
   return list.sort((a, b) => {
     return list.filter(v => testEquality(v, a)).length - list.filter(v => testEquality(v, b)).length;
   }).pop();
-};
-
-class InputSpec {
-  constructor() {
-    this.valueOptions = {};
-    this.toggleOptions = {};
-    this.itemRequirements = {};
-  }
-  addValueOption({ name, defaultValue }) {
-    this.valueOptions[name] = defaultValue;
-  }
-  addToggleOption({ name, optionList, defaultValue }) {
-    this.toggleOptions[name] = { optionList, defaultValue };
-  }
-  addItemRequirement({ name, ItemType, defaultValue }) {
-    this.itemRequirements[name] = { ItemType, defaultValue };
-  }
-}
-InputSpec.glomp = specList => {
-  if (specList.length === 0 || specList.indexOf(null) !== -1) {
-    return null;
-  }
-  let result = new InputSpec();
-
-  let valueOptions = {};
-  let toggleOptions = {};
-  let itemRequirements = {};
-
-  specList.forEach(spec => {
-    // For valueOptions, find the most common defaultValues
-    Object.entries(spec.valueOptions).forEach(([name, defaultValue]) => {
-      if (!valueOptions[name]) {
-        valueOptions[name] = [defaultValue];
-      } else {
-        valueOptions[name].push(defaultValue);
-      }
-    });
-    // For toggleOptions, glomp all optionLists, and find the most common defaultValue
-    Object.entries(spec.toggleOptions).forEach(([name, { optionList, defaultValue }]) => {
-      if (!toggleOptions[name]) {
-        toggleOptions[name] = { name, optionList, defaultValues: [defaultValue] };
-      } else {
-        toggleOptions[name].optionList = glompLists([optionList, toggleOptions[name].optionList]);
-        toggleOptions[name].defaultValues.push(defaultValue);
-      }
-    });
-    // For itemRequirements, ensure ItemTypes are consistent, and find the most common default values
-    Object.entries(spec.itemRequirements).forEach(([name, { ItemType, defaultValue }]) => {
-      if (!itemRequirements[name]) {
-        itemRequirements[name] = { name, ItemType, defaultValues: [defaultValue] };
-      } else {
-        if (ItemType !== itemRequirements[name].ItemType) {
-          throw new Error(`Inconsistent ItemType requirements`);
-        }
-        itemRequirements[name].defaultValues.push(defaultValue);
-      }
-    });
-  });
-  Object.entries(valueOptions).forEach(([name, defaultValues]) => {
-    result.addValueOption({
-      name,
-      defaultValue: singleMode(defaultValues)
-    });
-  });
-  Object.entries(toggleOptions).forEach(([name, { optionList, defaultValues }]) => {
-    result.addToggleOption({
-      name,
-      optionList,
-      defaultValue: singleMode(defaultValues)
-    });
-  });
-  Object.entries(itemRequirements).forEach(([name, { ItemType, defaultValues }]) => {
-    result.addOption({
-      name,
-      ItemType,
-      defaultValue: singleMode(defaultValues)
-    });
-  });
-
-  return result;
 };
 
 class OutputSpec {
@@ -561,6 +485,10 @@ one-off operations.`);
     return result;
   }
   async getFlatGraphSchema() {
+    if (this._summaryCaches && this._summaryCaches.flatGraphSchema) {
+      return this._summaryCaches.flatGraphSchema;
+    }
+
     const items = await this.items();
     let result = {
       nodeClasses: [],
@@ -572,19 +500,18 @@ one-off operations.`);
     // First pass: collect and count which node classes exist, and create a
     // temporary edge sublist for the second pass
     const edges = {};
+    const nodeClassLists = {};
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item.value.$edges) {
-        item.classes.forEach(className => {
+      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        nodeClassLists[uniqueSelector] = item.getClasses();
+        nodeClassLists[uniqueSelector].forEach(className => {
           if (result.nodeClassLookup[className] === undefined) {
             result.nodeClassLookup[className] = result.nodeClasses.length;
-            result.nodeClasses.push({
-              name: className,
-              count: 0
-            });
+            result.nodeClasses.push({ className, count: 0 });
           }
           result.nodeClasses[result.nodeClassLookup[className]].count += 1;
         });
-      } else if (item.value.$nodes) {
+      } else if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
         edges[uniqueSelector] = item;
       }
     });
@@ -594,25 +521,25 @@ one-off operations.`);
     // sets exist
     Object.values(edges).forEach(edgeItem => {
       let temp = {
-        edgeClasses: Array.from(edgeItem.classes),
+        edgeClasses: Array.from(edgeItem.getClasses()),
         sourceClasses: [],
         targetClasses: [],
         undirectedClasses: [],
         count: 0
       };
       Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeItem = items[nodeId] || items[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
-        if (!nodeItem) {
+        let nodeClassList = nodeClassLists[nodeId] || nodeClassLists[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
+        if (!nodeClassList) {
           this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
           return;
         }
         // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
         if (relativeNodeDirection === 'source') {
-          temp.sourceClasses = temp.sourceClasses.concat(nodeItem.classes);
+          temp.sourceClasses = temp.sourceClasses.concat(nodeClassList);
         } else if (relativeNodeDirection === 'target') {
-          temp.targetClasses = temp.targetClasses.concat(nodeItem.classes);
+          temp.targetClasses = temp.targetClasses.concat(nodeClassList);
         } else {
-          temp.undirectedClasses = temp.undirectedClasses.concat(nodeItem.classes);
+          temp.undirectedClasses = temp.undirectedClasses.concat(nodeClassList);
         }
       });
       const edgeKey = md5(JSON.stringify(temp));
@@ -623,6 +550,8 @@ one-off operations.`);
       result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
     });
 
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.flatGraphSchema = result;
     return result;
   }
   async getIntersectedGraphSchema() {
@@ -656,24 +585,11 @@ one-off operations.`);
     });
     return sets;
   }
-  async metaObjUnion(metaObjs) {
-    const items = await this.items();
-    let linkedIds = {};
-    Object.values(items).forEach(item => {
-      metaObjs.forEach(metaObj => {
-        if (item.value[metaObj]) {
-          Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedIds[this.mure.idToUniqueSelector(linkedId, item.doc._id)] = true;
-          });
-        }
-      });
-    });
-    return Object.keys(linkedIds);
-  }
 
   /*
-   These functions are useful for deriving additional selections
-   */
+   These functions are useful for deriving additional selections based
+   on selectors (when there's no direct need to access items)
+  */
   deriveSelection(selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
     if (options.mode === this.mure.DERIVE_MODES.UNION) {
       selectorList = selectorList.concat(this.selectorList);
@@ -694,18 +610,6 @@ one-off operations.`);
     Object.assign(options, { parentSelection: this });
     return this.deriveSelection(selectorList, options);
   }
-  async selectAllSetMembers(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$members'])), options);
-  }
-  async selectAllContainingSets(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$tags'])), options);
-  }
-  async selectAllEdges(options) {
-    return this.deriveSelection((await this.metaObjUnion(['$edges'])), options);
-  }
-  async selectAllNodes(options = false) {
-    return this.deriveSelection((await this.metaObjUnion(['$nodes'])), options);
-  }
 }
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
@@ -719,7 +623,7 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
 };
 
 class BaseItem {
-  constructor({ mure, path, value, parent, doc, label, uniqueSelector, classes }) {
+  constructor({ mure, path, value, parent, doc, label, uniqueSelector }) {
     this.mure = mure;
     this.path = path;
     this._value = value;
@@ -727,7 +631,6 @@ class BaseItem {
     this.doc = doc;
     this.label = label;
     this.uniqueSelector = uniqueSelector;
-    this.classes = classes;
   }
   get type() {
     return (/(.*)Item/.exec(this.constructor.name)[1]
@@ -775,8 +678,7 @@ class RootItem extends BaseItem {
       parent: null,
       doc: null,
       label: null,
-      uniqueSelector: '@',
-      classes: []
+      uniqueSelector: '@'
     });
     docList.some(doc => {
       this.value[doc._id] = doc;
@@ -808,7 +710,6 @@ class TypedItem extends BaseItem {
       parent,
       doc,
       label: path[path.length - 1],
-      classes: [],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
     if (typeof value !== this.constructor.JSTYPE) {
@@ -946,8 +847,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       parent: null,
       doc: doc,
       label: doc['filename'],
-      uniqueSelector: '@' + docPathQuery + '$',
-      classes: []
+      uniqueSelector: '@' + docPathQuery + '$'
     });
     this._contentItem = new ContainerItem({
       mure: this.mure,
@@ -1172,7 +1072,7 @@ class TaggableItem extends ContainerItem {
       return [];
     }
     return Object.keys(this.value.$tags).reduce((agg, setId) => {
-      const temp = this.extractClassInfoFromId(setId);
+      const temp = this.mure.extractClassInfoFromId(setId);
       if (temp) {
         agg.push(temp.className);
       }
@@ -1338,6 +1238,88 @@ SupernodeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
   // ... and the SetItem standardization
   value = SetItem.standardize({ value });
   return value;
+};
+
+class InputOption {
+  constructor({ name, defaultValue }) {
+    this.name = name;
+    this.defaultValue = defaultValue;
+  }
+}
+
+class ValueInputOption extends InputOption {
+  constructor({ name, defaultValue, suggestions = [] }) {
+    super({ name, defaultValue });
+    this.suggestions = suggestions;
+  }
+}
+ValueInputOption.glomp = optionList => {
+  return new ValueInputOption({
+    name: singleMode(optionList.map(option => option.name)),
+    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
+    suggestions: glompLists(optionList.map(option => option.suggestions))
+  });
+};
+
+class ToggleInputOption extends InputOption {
+  constructor({ name, defaultValue, choices }) {
+    super({ name, defaultValue });
+    this.choices = choices;
+  }
+}
+ToggleInputOption.glomp = optionList => {
+  return new ToggleInputOption({
+    name: singleMode(optionList.map(option => option.name)),
+    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
+    choices: glompLists(optionList.map(option => option.choices))
+  });
+};
+
+class ItemRequirement extends InputOption {
+  constructor({ name, defaultValue, ItemType, eligibleItems = {} }) {
+    super({ name, defaultValue });
+    this.ItemType = ItemType;
+    this.eligibleItems = eligibleItems;
+  }
+}
+ItemRequirement.glomp = optionList => {
+  return new ItemRequirement({
+    name: singleMode(optionList.map(option => option.name)),
+    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
+    ItemType: singleMode(optionList.map(option => option.ItemType)),
+    eligibleItems: glompObjs(optionList.map(option => option.eligibleItems))
+  });
+};
+
+class InputSpec {
+  constructor() {
+    this.options = {};
+  }
+  addValueOption(optionDetails) {
+    this.options[optionDetails.name] = new ValueInputOption(optionDetails);
+  }
+  addToggleOption(optionDetails) {
+    this.options[optionDetails.name] = new ToggleInputOption(optionDetails);
+  }
+  addItemRequirement(optionDetails) {
+    this.options[optionDetails.name] = new ItemRequirement(optionDetails);
+  }
+}
+InputSpec.glomp = specList => {
+  if (specList.length === 0 || specList.indexOf(null) !== -1) {
+    return null;
+  }
+  let result = new InputSpec();
+
+  specList.reduce((agg, spec) => {
+    return agg.concat(Object.keys(spec.options));
+  }, []).forEach(optionName => {
+    const glompFunc = specList.some(spec => spec.options[optionName]).constructor.glomp;
+    const glompedOption = glompFunc(specList.map(spec => spec.options[optionName]));
+    result.options[optionName] = glompedOption;
+  });
+
+  return result;
 };
 
 class BaseOperation {
@@ -1611,7 +1593,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
   async executeOnItem(item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.directed === 'Directed');
+      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
 
       return new OutputSpec({
         newSelectors: [newEdge.uniqueSelector],
@@ -1700,7 +1682,8 @@ class ConnectNodesOnFunction extends ConnectSubOp {
         outputPromises.push(this.executeOnItem(sourceList[i], {
           otherItem: targetList[j],
           saveEdgesIn,
-          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN
+          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
+          direction: inputOptions.direction || 'Undirected'
         }));
       }
     }
@@ -2051,7 +2034,7 @@ class Mure extends Model {
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
-      return this.select(`@{"_id":"${doc._id}"}`);
+      return this.select(`@{"_id":"${doc._id}"}$`);
     }
   }
   async deleteDoc(docQuery) {
@@ -2063,7 +2046,7 @@ class Mure extends Model {
     });
   }
   selectDoc(docId) {
-    return this.select('@{"_id":"' + docId + '"}');
+    return this.select('@{"_id":"' + docId + '"}$');
   }
   select(selectorList) {
     return new Selection(this, selectorList, { selectSingle: true });

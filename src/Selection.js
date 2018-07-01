@@ -1,7 +1,7 @@
 import jsonPath from 'jsonpath';
 import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
-import { OutputSpec } from './Operations/common.js';
+import OutputSpec from './Operations/Common/OutputSpec.js';
 
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
@@ -432,6 +432,10 @@ one-off operations.`);
     return result;
   }
   async getFlatGraphSchema () {
+    if (this._summaryCaches && this._summaryCaches.flatGraphSchema) {
+      return this._summaryCaches.flatGraphSchema;
+    }
+
     const items = await this.items();
     let result = {
       nodeClasses: [],
@@ -494,6 +498,8 @@ one-off operations.`);
       result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
     });
 
+    this._summaryCaches = this._summaryCaches || {};
+    this._summaryCaches.flatGraphSchema = result;
     return result;
   }
   async getIntersectedGraphSchema () {

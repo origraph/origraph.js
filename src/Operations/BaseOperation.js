@@ -1,4 +1,5 @@
-import { InputSpec, OutputSpec } from './common.js';
+import InputSpec from './Common/InputSpec.js';
+import OutputSpec from './Common/OutputSpec.js';
 
 class BaseOperation {
   constructor (mure) {

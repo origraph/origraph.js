@@ -1,4 +1,5 @@
-import { OutputSpec, glompLists } from '../common.js';
+import { glompLists } from '../Common/utils.js';
+import OutputSpec from '../Common/OutputSpec.js';
 import DirectedPivot from './DirectedPivot.js';
 
 class PivotToEdges extends DirectedPivot {

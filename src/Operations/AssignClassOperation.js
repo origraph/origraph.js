@@ -1,4 +1,5 @@
-import { InputSpec, OutputSpec } from './common.js';
+import InputSpec from './Common/InputSpec.js';
+import OutputSpec from './Common/OutputSpec.js';
 import BaseOperation from './BaseOperation.js';
 
 class AssignClassOperation extends BaseOperation {
@@ -12,7 +13,9 @@ class AssignClassOperation extends BaseOperation {
       const temp = new InputSpec();
       temp.addValueOption({
         name: 'className',
-        defaultValue: 'none'
+        defaultValue: 'none',
+        suggestions: Object.keys(item.doc.classes || {})
+          .filter(c => !this.mure.RESERVED_OBJ_KEYS[c])
       });
       return temp;
     }

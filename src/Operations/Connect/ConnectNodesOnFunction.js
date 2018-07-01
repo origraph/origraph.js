@@ -1,4 +1,5 @@
-import { InputSpec, OutputSpec } from '../common.js';
+import InputSpec from '../Common/InputSpec.js';
+import OutputSpec from '../Common/OutputSpec.js';
 import ConnectSubOp from './ConnectSubOp.js';
 
 class ConnectNodesOnFunction extends ConnectSubOp {
@@ -11,21 +12,26 @@ class ConnectNodesOnFunction extends ConnectSubOp {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Undirected', 'Directed'],
+      choices: ['Undirected', 'Directed'],
       defaultValue: 'Undirected'
     });
     inputs.addValueOption({
       name: 'connectWhen',
       defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
     });
-    inputs.addValueOption({
+    inputs.addMiscOption({
       name: 'targetSelection',
       defaultValue: null
     });
+    const eligibleItems = {};
+    if (saveEdgesIn) {
+      eligibleItems[saveEdgesIn.uniqueSelector] = saveEdgesIn;
+    }
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: saveEdgesIn
+      defaultValue: saveEdgesIn,
+      eligibleItems
     });
     return inputs;
   }

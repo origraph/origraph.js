@@ -1,4 +1,4 @@
-import { InputSpec } from '../common.js';
+import InputSpec from '../Common/InputSpec.js';
 import BaseOperation from '../BaseOperation.js';
 import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
 
@@ -14,7 +14,7 @@ class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
+      choices: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
       defaultValue: 'Ignore Edge Direction'
     });
     return inputs;

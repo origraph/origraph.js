@@ -1,4 +1,6 @@
-import { InputSpec, OutputSpec, glompLists, singleMode } from '../common.js';
+import InputSpec from '../Common/InputSpec.js';
+import OutputSpec from '../Common/OutputSpec.js';
+import { glompLists, singleMode } from '../Common/utils.js';
 import BaseOperation from '../BaseOperation.js';
 import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
 
@@ -7,7 +9,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Undirected', 'Directed'],
+      choices: ['Undirected', 'Directed'],
       defaultValue: 'Undirected'
     });
     inputs.addValueOption({
@@ -18,15 +20,19 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       name: 'otherItem',
       ItemType: this.mure.ITEM_TYPES.NodeItem
     });
+    const orphanContainer = new this.mure.ITEM_TYPES.ContainerItem({
+      mure: this.mure,
+      value: item.doc.orphans,
+      path: [`{"_id":"${item.doc._id}"}`, 'orphans'],
+      doc: item.doc
+    });
+    const eligibleItems = {};
+    eligibleItems[orphanContainer.uniqueSelector] = orphanContainer;
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(
-        this.mure,
-        item.doc.orphans,
-        [`{"_id":"${item.doc._id}"}`, 'orphans'],
-        item.doc
-      )
+      defaultValue: orphanContainer,
+      eligibleItems
     });
     return inputs;
   }

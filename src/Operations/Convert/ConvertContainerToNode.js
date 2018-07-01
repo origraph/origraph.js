@@ -1,4 +1,4 @@
-import { OutputSpec } from '../common.js';
+import OutputSpec from '../Common/OutputSpec.js';
 import BaseOperation from '../BaseOperation.js';
 import ParameterlessMixin from '../ParameterlessMixin.js';
 
