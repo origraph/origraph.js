@@ -34574,7 +34574,9 @@ PivotToContents`);
 	      throw new Error(`Must be a TaggableItem to assign a class`);
 	    }
 	    item.addClass(inputOptions.className || 'none');
-	    return new OutputSpec();
+	    return new OutputSpec({
+	      pollutedDocs: [item.doc]
+	    });
 	  }
 	}
 
