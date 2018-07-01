@@ -8,41 +8,36 @@ class NodeItem extends TaggableItem {
       throw new TypeError(`NodeItem requires an $edges object`);
     }
   }
-  linkTo (otherNode, container, directed) {
+  linkTo (otherNode, container, direction = 'undirected') {
     let newEdge = container.createNewItem({}, undefined, EdgeItem);
 
-    if (this.doc === container.doc) {
-      newEdge.value.$nodes[this.value._id] = directed ? 'source' : true;
-      this.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[this.uniqueSelector] = directed ? 'source' : true;
-      this.value.$edges[this.mure.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
+    const helper = (node, direction) => {
+      node.value.$edges[newEdge.uniqueSelector] = true;
+      let nodeId = node.uniqueSelector;
+      newEdge.value.$nodes[nodeId] = newEdge.value.$nodes[nodeId] || {};
+      newEdge.value.$nodes[nodeId][direction] = newEdge.value.$nodes[nodeId][direction] || 0;
+      newEdge.value.$nodes[nodeId][direction] += 1;
+    };
 
-    if (otherNode.doc === container.doc) {
-      newEdge.value.$nodes[otherNode.value._id] = directed ? 'target' : true;
-      otherNode.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[otherNode.uniqueSelector] = directed ? 'target' : true;
-      otherNode.value.$edges[this.mure.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
+    helper(this, direction);
+    helper(otherNode, EdgeItem.oppositeDirection(direction));
     return newEdge;
   }
-  async edgeSelectors (forward = null) {
-    if (forward === null) {
+  async edgeSelectors (direction = null) {
+    if (direction === null) {
       return Object.keys(this.value.$edges);
     } else {
-      return (await this.edgeItems(forward)).map(item => item.uniqueSelector);
+      return (await this.edgeItems(direction)).map(item => item.uniqueSelector);
     }
   }
-  async edgeItems (forward = null) {
+  async edgeItems (direction = null) {
     return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items()
       .filter(item => {
-        return forward === null || // Not limited by direction; grab all edges
-          // Forward traversal: only grab the edges where we are a source node
-          (forward === true && item.$nodes[this.uniqueSelector] === 'source') ||
-          // Backward traversal: only grab edges where we are a target node
-          (forward === false && item.$nodes[this.uniqueSelector] === 'target');
+        // null indicates that we allow all edges. If direction isn't null,
+        // only include edges where we are the OPPOSITE direction (we are
+        // at the beginning of the traversal)
+        return direction === null ||
+          item.$nodes[this.uniqueSelector][EdgeItem.oppositeDirection(direction)];
       });
   }
   async edgeItemCount (forward = null) {

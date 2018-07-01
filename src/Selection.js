@@ -438,64 +438,58 @@ one-off operations.`);
 
     const items = await this.items();
     let result = {
-      nodeClasses: [],
-      nodeClassLookup: {},
-      edgeSets: [],
-      edgeSetLookup: {}
+      nodeClasses: {},
+      edgeClasses: {},
+      missingNodes: false,
+      missingEdges: false
     };
 
-    // First pass: collect and count which node classes exist, and create a
-    // temporary edge sublist for the second pass
-    const edges = {};
-    const nodeClassLists = {};
+    // First pass: identify items by class, and generate pseudo-items that
+    // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-        nodeClassLists[uniqueSelector] = item.getClasses();
-        nodeClassLists[uniqueSelector].forEach(className => {
-          if (result.nodeClassLookup[className] === undefined) {
-            result.nodeClassLookup[className] = result.nodeClasses.length;
-            result.nodeClasses.push({ className, count: 0 });
-          }
-          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+      const classList = item.getClasses();
+      if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
+        // This is an edge; create / add to a pseudo-item for each class
+        classList.forEach(edgeClassName => {
+          let pseudoEdge = result.edgeClasses[edgeClassName] =
+            result.edgeClasses[edgeClassName] || { $nodes: {} };
+          // Add our direction counts for each of the node's classes to the pseudo-item
+          Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
+            let nodeItem = items[nodeSelector];
+            if (!nodeItem) {
+              // This edge refers to a node outside the selection
+              result.missingNodes = true;
+            } else {
+              nodeItem.getClasses().forEach(nodeClassName => {
+                Object.entries(directions).forEach(([direction, count]) => {
+                  pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
+                  pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
+                  pseudoEdge.$nodes[nodeClassName][direction] += count;
+                });
+              });
+            }
+          });
         });
-      } else if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
-        edges[uniqueSelector] = item;
+      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        // This is a node; create / add to a pseudo-item for each class
+        classList.forEach(nodeClassName => {
+          let pseudoNode = result.nodeClasses[nodeClassName] =
+            result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
+          pseudoNode.count += 1;
+          // Ensure that the edge class is referenced (directions' counts are kept on the edges)
+          Object.keys(item.value.$edges).forEach(edgeSelector => {
+            let edgeItem = items[edgeSelector];
+            if (!edgeItem) {
+              // This node refers to an edge outside the selection
+              result.missingEdges = true;
+            } else {
+              edgeItem.getClasses().forEach(edgeClassName => {
+                pseudoNode.$edges[edgeClassName] = true;
+              });
+            }
+          });
+        });
       }
-    });
-
-    // Second pass: find and count which distinct
-    // node class -> edge class -> node class
-    // sets exist
-    Object.values(edges).forEach(edgeItem => {
-      let temp = {
-        edgeClasses: Array.from(edgeItem.getClasses()),
-        sourceClasses: [],
-        targetClasses: [],
-        undirectedClasses: [],
-        count: 0
-      };
-      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeClassList = nodeClassLists[nodeId] ||
-          nodeClassLists[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
-        if (!nodeClassList) {
-          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
-          return;
-        }
-        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
-        if (relativeNodeDirection === 'source') {
-          temp.sourceClasses = temp.sourceClasses.concat(nodeClassList);
-        } else if (relativeNodeDirection === 'target') {
-          temp.targetClasses = temp.targetClasses.concat(nodeClassList);
-        } else {
-          temp.undirectedClasses = temp.undirectedClasses.concat(nodeClassList);
-        }
-      });
-      const edgeKey = md5(JSON.stringify(temp));
-      if (result.edgeSetLookup[edgeKey] === undefined) {
-        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
-        result.edgeSets.push(temp);
-      }
-      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
     });
 
     this._summaryCaches = this._summaryCaches || {};

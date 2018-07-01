@@ -67,13 +67,13 @@ module.exports = [
         });
 
         // Add edges
-        const wonByEdges = await tricks.connect({
+        const wonByEdges = await hands.connect({
           context: 'ConnectNodesOnFunction',
-          targetSelection: hands,
-          connectWhen: (trick, hand) => {
+          targetSelection: tricks,
+          connectWhen: (hand, trick) => {
             return trick.value.winner === hand.label;
           },
-          direction: 'Directed'
+          direction: 'target'
         });
         await wonByEdges.assignClass({ className: 'Won By' });
         const playedEdges = await cards.connect({
@@ -86,7 +86,7 @@ module.exports = [
                   card.doc.contents.hands[player][index] === card.value;
               }).length > 0;
           },
-          direction: 'Directed'
+          direction: 'source'
         });
         await playedEdges.assignClass({ className: 'Played' });
 

@@ -12,8 +12,8 @@ class ConnectNodesOnFunction extends ConnectSubOp {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      choices: ['Undirected', 'Directed'],
-      defaultValue: 'Undirected'
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'target'
     });
     inputs.addValueOption({
       name: 'connectWhen',
@@ -52,7 +52,7 @@ class ConnectNodesOnFunction extends ConnectSubOp {
             otherItem: targetList[j],
             saveEdgesIn,
             connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
-            direction: inputOptions.direction || 'Undirected'
+            direction: inputOptions.direction || 'target'
           }
         ));
       }

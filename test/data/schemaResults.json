@@ -242,56 +242,50 @@
     }
   },
   "flatGraphSchema": {
-    "nodeClasses": [
-      {
-        "className": "trick",
-        "count": 12
+    "nodeClasses": {
+      "trick": {
+        "count": 12,
+        "$edges": {
+          "Won By": true,
+          "Played": true
+        }
       },
-      {
-        "className": "card",
-        "count": 48
+      "card": {
+        "count": 48,
+        "$edges": {
+          "Played": true
+        }
       },
-      {
-        "className": "player",
-        "count": 4
+      "player": {
+        "count": 4,
+        "$edges": {
+          "Won By": true
+        }
       }
-    ],
-    "nodeClassLookup": {
-      "trick": 0,
-      "card": 1,
-      "player": 2
     },
-    "edgeSets": [
-      {
-        "edgeClasses": [
-          "Played"
-        ],
-        "sourceClasses": [
-          "card"
-        ],
-        "targetClasses": [
-          "trick"
-        ],
-        "undirectedClasses": [],
-        "count": 48
+    "edgeClasses": {
+      "Played": {
+        "$nodes": {
+          "card": {
+            "source": 48
+          },
+          "trick": {
+            "target": 48
+          }
+        }
       },
-      {
-        "edgeClasses": [
-          "Won By"
-        ],
-        "sourceClasses": [
-          "trick"
-        ],
-        "targetClasses": [
-          "player"
-        ],
-        "undirectedClasses": [],
-        "count": 12
+      "Won By": {
+        "$nodes": {
+          "player": {
+            "target": 12
+          },
+          "trick": {
+            "source": 12
+          }
+        }
       }
-    ],
-    "edgeSetLookup": {
-      "d2ee9724a9faefa5ccf0f64ce27ebd69": 0,
-      "3ed4d08d8e0cc44ce1a07279136fa687": 1
-    }
+    },
+    "missingNodes": false,
+    "missingEdges": false
   }
 }

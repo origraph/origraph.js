@@ -492,63 +492,56 @@ one-off operations.`);
 
     const items = await this.items();
     let result = {
-      nodeClasses: [],
-      nodeClassLookup: {},
-      edgeSets: [],
-      edgeSetLookup: {}
+      nodeClasses: {},
+      edgeClasses: {},
+      missingNodes: false,
+      missingEdges: false
     };
 
-    // First pass: collect and count which node classes exist, and create a
-    // temporary edge sublist for the second pass
-    const edges = {};
-    const nodeClassLists = {};
+    // First pass: identify items by class, and generate pseudo-items that
+    // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-        nodeClassLists[uniqueSelector] = item.getClasses();
-        nodeClassLists[uniqueSelector].forEach(className => {
-          if (result.nodeClassLookup[className] === undefined) {
-            result.nodeClassLookup[className] = result.nodeClasses.length;
-            result.nodeClasses.push({ className, count: 0 });
-          }
-          result.nodeClasses[result.nodeClassLookup[className]].count += 1;
+      const classList = item.getClasses();
+      if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
+        // This is an edge; create / add to a pseudo-item for each class
+        classList.forEach(edgeClassName => {
+          let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
+          // Add our direction counts for each of the node's classes to the pseudo-item
+          Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
+            let nodeItem = items[nodeSelector];
+            if (!nodeItem) {
+              // This edge refers to a node outside the selection
+              result.missingNodes = true;
+            } else {
+              nodeItem.getClasses().forEach(nodeClassName => {
+                Object.entries(directions).forEach(([direction, count]) => {
+                  pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
+                  pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
+                  pseudoEdge.$nodes[nodeClassName][direction] += count;
+                });
+              });
+            }
+          });
         });
-      } else if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
-        edges[uniqueSelector] = item;
+      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        // This is a node; create / add to a pseudo-item for each class
+        classList.forEach(nodeClassName => {
+          let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
+          pseudoNode.count += 1;
+          // Ensure that the edge class is referenced (directions' counts are kept on the edges)
+          Object.keys(item.value.$edges).forEach(edgeSelector => {
+            let edgeItem = items[edgeSelector];
+            if (!edgeItem) {
+              // This node refers to an edge outside the selection
+              result.missingEdges = true;
+            } else {
+              edgeItem.getClasses().forEach(edgeClassName => {
+                pseudoNode.$edges[edgeClassName] = true;
+              });
+            }
+          });
+        });
       }
-    });
-
-    // Second pass: find and count which distinct
-    // node class -> edge class -> node class
-    // sets exist
-    Object.values(edges).forEach(edgeItem => {
-      let temp = {
-        edgeClasses: Array.from(edgeItem.getClasses()),
-        sourceClasses: [],
-        targetClasses: [],
-        undirectedClasses: [],
-        count: 0
-      };
-      Object.entries(edgeItem.value.$nodes).forEach(([nodeId, relativeNodeDirection]) => {
-        let nodeClassList = nodeClassLists[nodeId] || nodeClassLists[this.mure.idToUniqueSelector(nodeId, edgeItem.doc._id)];
-        if (!nodeClassList) {
-          this.mure.warn('Edge refers to Node that is outside the selection; skipping...');
-          return;
-        }
-        // todo: in the intersected schema, use nodeItem.classes.join(',') instead of concat
-        if (relativeNodeDirection === 'source') {
-          temp.sourceClasses = temp.sourceClasses.concat(nodeClassList);
-        } else if (relativeNodeDirection === 'target') {
-          temp.targetClasses = temp.targetClasses.concat(nodeClassList);
-        } else {
-          temp.undirectedClasses = temp.undirectedClasses.concat(nodeClassList);
-        }
-      });
-      const edgeKey = md5(JSON.stringify(temp));
-      if (result.edgeSetLookup[edgeKey] === undefined) {
-        result.edgeSetLookup[edgeKey] = result.edgeSets.length;
-        result.edgeSets.push(temp);
-      }
-      result.edgeSets[result.edgeSetLookup[edgeKey]].count += 1;
     });
 
     this._summaryCaches = this._summaryCaches || {};
@@ -1144,14 +1137,11 @@ class EdgeItem extends TaggableItem {
       throw new TypeError(`EdgeItem requires a $nodes object`);
     }
   }
-  async nodeSelectors(forward = null) {
-    return Object.entries(this.value.$nodes).filter(([selector, direction]) => {
-      return forward === null || // Not limited by direction; grab all nodes
-      // Forward traversal: grab all nodes that we point to
-      forward === true && direction === 'target' ||
-      // Backward traversal: grab all nodes that we point from
-      forward === false && direction === 'source';
-    }).map(([selector, direction]) => selector);
+  async nodeSelectors(direction = null) {
+    return Object.entries(this.value.$nodes).filter(([selector, directions]) => {
+      // null indicates that we allow all movement
+      return direction === null || directions[direction];
+    }).map(([selector, directions]) => selector);
   }
   async nodeItems(forward = null) {
     return this.mure.selectAll((await this.nodeSelectors(forward))).items();
@@ -1160,6 +1150,9 @@ class EdgeItem extends TaggableItem {
     return (await this.nodeSelectors(forward)).length;
   }
 }
+EdgeItem.oppositeDirection = direction => {
+  return direction === 'source' ? 'target' : direction === 'target' ? 'source' : 'undirected';
+};
 EdgeItem.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
@@ -1170,6 +1163,20 @@ EdgeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
   value.$nodes = value.$nodes || {};
   return value;
 };
+EdgeItem.glompValue = edgeList => {
+  let temp = TaggableItem.glomp(edgeList);
+  temp.value.$nodes = {};
+  edgeList.forEach(edgeItem => {
+    Object.entries(edgeItem.value.$nodes).forEach(([selector, directions]) => {
+      temp.$nodes[selector] = temp.value.$nodes[selector] || {};
+      Object.keys(directions).forEach(direction => {
+        temp.value.$nodes[selector][direction] = temp.value.$nodes[selector][direction] || 0;
+        temp.value.$nodes[selector][direction] += directions[direction];
+      });
+    });
+  });
+  return temp;
+};
 
 class NodeItem extends TaggableItem {
   constructor({ mure, value, path, doc }) {
@@ -1178,40 +1185,34 @@ class NodeItem extends TaggableItem {
       throw new TypeError(`NodeItem requires an $edges object`);
     }
   }
-  linkTo(otherNode, container, directed) {
+  linkTo(otherNode, container, direction = 'undirected') {
     let newEdge = container.createNewItem({}, undefined, EdgeItem);
 
-    if (this.doc === container.doc) {
-      newEdge.value.$nodes[this.value._id] = directed ? 'source' : true;
-      this.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[this.uniqueSelector] = directed ? 'source' : true;
-      this.value.$edges[this.mure.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
+    const helper = (node, direction) => {
+      node.value.$edges[newEdge.uniqueSelector] = true;
+      let nodeId = node.uniqueSelector;
+      newEdge.value.$nodes[nodeId] = newEdge.value.$nodes[nodeId] || {};
+      newEdge.value.$nodes[nodeId][direction] = newEdge.value.$nodes[nodeId][direction] || 0;
+      newEdge.value.$nodes[nodeId][direction] += 1;
+    };
 
-    if (otherNode.doc === container.doc) {
-      newEdge.value.$nodes[otherNode.value._id] = directed ? 'target' : true;
-      otherNode.value.$edges[newEdge.value._id] = true;
-    } else {
-      newEdge.value.$nodes[otherNode.uniqueSelector] = directed ? 'target' : true;
-      otherNode.value.$edges[this.mure.idToUniqueSelector(newEdge.value._id, container.doc._id)] = true;
-    }
+    helper(this, direction);
+    helper(otherNode, EdgeItem.oppositeDirection(direction));
     return newEdge;
   }
-  async edgeSelectors(forward = null) {
-    if (forward === null) {
+  async edgeSelectors(direction = null) {
+    if (direction === null) {
       return Object.keys(this.value.$edges);
     } else {
-      return (await this.edgeItems(forward)).map(item => item.uniqueSelector);
+      return (await this.edgeItems(direction)).map(item => item.uniqueSelector);
     }
   }
-  async edgeItems(forward = null) {
+  async edgeItems(direction = null) {
     return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items().filter(item => {
-      return forward === null || // Not limited by direction; grab all edges
-      // Forward traversal: only grab the edges where we are a source node
-      forward === true && item.$nodes[this.uniqueSelector] === 'source' ||
-      // Backward traversal: only grab edges where we are a target node
-      forward === false && item.$nodes[this.uniqueSelector] === 'target';
+      // null indicates that we allow all edges. If direction isn't null,
+      // only include edges where we are the OPPOSITE direction (we are
+      // at the beginning of the traversal)
+      return direction === null || item.$nodes[this.uniqueSelector][EdgeItem.oppositeDirection(direction)];
     });
   }
   async edgeItemCount(forward = null) {
@@ -1305,6 +1306,9 @@ class InputSpec {
   addItemRequirement(optionDetails) {
     this.options[optionDetails.name] = new ItemRequirement(optionDetails);
   }
+  addMiscOption(optionDetails) {
+    this.options[optionDetails.name] = new InputOption(optionDetails);
+  }
 }
 InputSpec.glomp = specList => {
   if (specList.length === 0 || specList.indexOf(null) !== -1) {
@@ -1315,7 +1319,8 @@ InputSpec.glomp = specList => {
   specList.reduce((agg, spec) => {
     return agg.concat(Object.keys(spec.options));
   }, []).forEach(optionName => {
-    const glompFunc = specList.some(spec => spec.options[optionName]).constructor.glomp;
+    const inputSpecWOption = specList.find(spec => spec.options[optionName]);
+    const glompFunc = inputSpecWOption.options[optionName].constructor.glomp;
     const glompedOption = glompFunc(specList.map(spec => spec.options[optionName]));
     result.options[optionName] = glompedOption;
   });
@@ -1464,7 +1469,7 @@ class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
+      choices: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
       defaultValue: 'Ignore Edge Direction'
     });
     return inputs;
@@ -1573,8 +1578,8 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Undirected', 'Directed'],
-      defaultValue: 'Undirected'
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'undirected'
     });
     inputs.addValueOption({
       name: 'connectWhen',
@@ -1584,17 +1589,26 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       name: 'otherItem',
       ItemType: this.mure.ITEM_TYPES.NodeItem
     });
+    const orphanContainer = new this.mure.ITEM_TYPES.ContainerItem({
+      mure: this.mure,
+      value: item.doc.orphans,
+      path: [`{"_id":"${item.doc._id}"}`, 'orphans'],
+      doc: item.doc
+    });
+    const eligibleItems = {};
+    eligibleItems[orphanContainer.uniqueSelector] = orphanContainer;
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: new this.mure.ITEM_TYPES.ContainerItem(this.mure, item.doc.orphans, [`{"_id":"${item.doc._id}"}`, 'orphans'], item.doc)
+      defaultValue: orphanContainer,
+      eligibleItems
     });
     return inputs;
   }
   async executeOnItem(item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
+      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction);
 
       return new OutputSpec({
         newSelectors: [newEdge.uniqueSelector],
@@ -1650,21 +1664,26 @@ class ConnectNodesOnFunction extends ConnectSubOp {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      optionList: ['Undirected', 'Directed'],
-      defaultValue: 'Undirected'
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'target'
     });
     inputs.addValueOption({
       name: 'connectWhen',
       defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
     });
-    inputs.addValueOption({
+    inputs.addMiscOption({
       name: 'targetSelection',
       defaultValue: null
     });
+    const eligibleItems = {};
+    if (saveEdgesIn) {
+      eligibleItems[saveEdgesIn.uniqueSelector] = saveEdgesIn;
+    }
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
       ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: saveEdgesIn
+      defaultValue: saveEdgesIn,
+      eligibleItems
     });
     return inputs;
   }
@@ -1684,7 +1703,7 @@ class ConnectNodesOnFunction extends ConnectSubOp {
           otherItem: targetList[j],
           saveEdgesIn,
           connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
-          direction: inputOptions.direction || 'Undirected'
+          direction: inputOptions.direction || 'target'
         }));
       }
     }
@@ -1709,7 +1728,8 @@ class AssignClassOperation extends BaseOperation {
       const temp = new InputSpec();
       temp.addValueOption({
         name: 'className',
-        defaultValue: 'none'
+        defaultValue: 'none',
+        suggestions: Object.keys(item.doc.classes || {}).filter(c => !this.mure.RESERVED_OBJ_KEYS[c])
       });
       return temp;
     }
@@ -1719,7 +1739,9 @@ class AssignClassOperation extends BaseOperation {
       throw new Error(`Must be a TaggableItem to assign a class`);
     }
     item.addClass(inputOptions.className || 'none');
-    return new OutputSpec();
+    return new OutputSpec({
+      pollutedDocs: [item.doc]
+    });
   }
 }
 

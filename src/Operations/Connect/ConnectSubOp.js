@@ -9,8 +9,8 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
-      choices: ['Undirected', 'Directed'],
-      defaultValue: 'Undirected'
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'undirected'
     });
     inputs.addValueOption({
       name: 'connectWhen',
@@ -40,7 +40,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
       const newEdge = item.linkTo(inputOptions.otherItem,
-        inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
+        inputOptions.saveEdgesIn, inputOptions.direction);
 
       return new OutputSpec({
         newSelectors: [ newEdge.uniqueSelector ],
