@@ -449,7 +449,11 @@ one-off operations.`);
     Object.entries(items).forEach(([uniqueSelector, item]) => {
       if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
         // This is an edge; create / add to a pseudo-item for each class
-        item.getClasses().forEach(edgeClassName => {
+        let classList = item.getClasses();
+        if (classList.length === 0) {
+          classList.push('(no class)');
+        }
+        classList.forEach(edgeClassName => {
           let pseudoEdge = result.edgeClasses[edgeClassName] =
             result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
@@ -471,7 +475,11 @@ one-off operations.`);
         });
       } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
         // This is a node; create / add to a pseudo-item for each class
-        item.getClasses().forEach(nodeClassName => {
+        let classList = item.getClasses();
+        if (classList.length === 0) {
+          classList.push('(no class)');
+        }
+        classList.forEach(nodeClassName => {
           let pseudoNode = result.nodeClasses[nodeClassName] =
             result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
           pseudoNode.count += 1;
