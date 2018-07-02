@@ -66,11 +66,7 @@
     "_id": "@$.orphans"
   },
   "classes": {
-    "_id": "@$.classes",
-    "none": {
-      "_id": "@$.classes.none",
-      "$members": {}
-    }
+    "_id": "@$.classes"
   },
   "_id": "text/csv;csvTest.csv"
 }

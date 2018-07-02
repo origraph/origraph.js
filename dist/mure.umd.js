@@ -27575,13 +27575,12 @@ one-off operations.`);
 	    // First pass: identify items by class, and generate pseudo-items that
 	    // point to classes instead of selectors
 	    Object.entries(items).forEach(([uniqueSelector, item]) => {
-	      const classList = item.getClasses();
 	      if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
 	        // This is an edge; create / add to a pseudo-item for each class
-	        classList.forEach(edgeClassName => {
+	        item.getClasses().forEach(edgeClassName => {
 	          let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
 	          // Add our direction counts for each of the node's classes to the pseudo-item
-	          Object.entries(item.$nodes).forEach(([nodeSelector, directions]) => {
+	          Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
 	            let nodeItem = items[nodeSelector];
 	            if (!nodeItem) {
 	              // This edge refers to a node outside the selection
@@ -27589,6 +27588,7 @@ one-off operations.`);
 	            } else {
 	              nodeItem.getClasses().forEach(nodeClassName => {
 	                Object.entries(directions).forEach(([direction, count]) => {
+	                  pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
 	                  pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
 	                  pseudoEdge.$nodes[nodeClassName][direction] += count;
 	                });
@@ -27598,17 +27598,18 @@ one-off operations.`);
 	        });
 	      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
 	        // This is a node; create / add to a pseudo-item for each class
-	        classList.forEach(nodeClassName => {
-	          let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { $edges: {} };
-	          // Ensure that the edge class is referenced (directions and counts are kept on the edges)
-	          Object.keys(item.$edges).forEach(edgeSelector => {
+	        item.getClasses().forEach(nodeClassName => {
+	          let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
+	          pseudoNode.count += 1;
+	          // Ensure that the edge class is referenced (directions' counts are kept on the edges)
+	          Object.keys(item.value.$edges).forEach(edgeSelector => {
 	            let edgeItem = items[edgeSelector];
 	            if (!edgeItem) {
 	              // This node refers to an edge outside the selection
 	              result.missingEdges = true;
 	            } else {
 	              edgeItem.getClasses().forEach(edgeClassName => {
-	                pseudoNode[edgeClassName] = true;
+	                pseudoNode.$edges[edgeClassName] = true;
 	              });
 	            }
 	          });
@@ -33796,9 +33797,6 @@ one-off operations.`);
 	  doc.classes = doc.classes || {};
 	  doc.classes._id = '@$.classes';
 
-	  let noneId = '@$.classes.none';
-	  doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
-
 	  doc.contents = doc.contents || {};
 	  // In case doc.contents is an array, prep it for ContainerItem.standardize
 	  doc.contents = ContainerItem.convertArray(doc.contents);
@@ -34442,7 +34440,7 @@ PivotToContents`);
 	  async executeOnItem(item, inputOptions) {
 	    const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
 	    if (match(item, inputOptions.otherItem)) {
-	      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
+	      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction);
 
 	      return new OutputSpec({
 	        newSelectors: [newEdge.uniqueSelector],
@@ -34499,7 +34497,7 @@ PivotToContents`);
 	    inputs.addToggleOption({
 	      name: 'direction',
 	      choices: ['undirected', 'source', 'target'],
-	      defaultValue: 'undirected'
+	      defaultValue: 'target'
 	    });
 	    inputs.addValueOption({
 	      name: 'connectWhen',
@@ -34537,7 +34535,7 @@ PivotToContents`);
 	          otherItem: targetList[j],
 	          saveEdgesIn,
 	          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
-	          direction: inputOptions.direction || 'undirected'
+	          direction: inputOptions.direction || 'target'
 	        }));
 	      }
 	    }

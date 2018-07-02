@@ -1,10 +1,6 @@
 {
   "allClasses1": {
     "_id": "@$.classes",
-    "none": {
-      "_id": "@$.classes.none",
-      "$members": {}
-    },
     "player": {
       "_id": "@$.classes.player",
       "$members": {
@@ -87,10 +83,6 @@
   },
   "allClasses2": {
     "_id": "@$.classes",
-    "none": {
-      "_id": "@$.classes.none",
-      "$members": {}
-    },
     "player": {
       "_id": "@$.classes.player",
       "$members": {

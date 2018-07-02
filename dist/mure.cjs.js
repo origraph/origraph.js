@@ -501,10 +501,9 @@ one-off operations.`);
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      const classList = item.getClasses();
       if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
         // This is an edge; create / add to a pseudo-item for each class
-        classList.forEach(edgeClassName => {
+        item.getClasses().forEach(edgeClassName => {
           let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
           Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
@@ -525,7 +524,7 @@ one-off operations.`);
         });
       } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
         // This is a node; create / add to a pseudo-item for each class
-        classList.forEach(nodeClassName => {
+        item.getClasses().forEach(nodeClassName => {
           let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
           pseudoNode.count += 1;
           // Ensure that the edge class is referenced (directions' counts are kept on the edges)
@@ -961,9 +960,6 @@ DocumentItem.standardize = ({
 
   doc.classes = doc.classes || {};
   doc.classes._id = '@$.classes';
-
-  let noneId = '@$.classes.none';
-  doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
   doc.contents = doc.contents || {};
   // In case doc.contents is an array, prep it for ContainerItem.standardize

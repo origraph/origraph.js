@@ -144,9 +144,6 @@ DocumentItem.standardize = ({
   doc.classes = doc.classes || {};
   doc.classes._id = '@$.classes';
 
-  let noneId = '@$.classes.none';
-  doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
-
   doc.contents = doc.contents || {};
   // In case doc.contents is an array, prep it for ContainerItem.standardize
   doc.contents = ContainerItem.convertArray(doc.contents);
