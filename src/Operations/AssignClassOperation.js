@@ -1,6 +1,6 @@
 import InputSpec from './Common/InputSpec.js';
 import OutputSpec from './Common/OutputSpec.js';
-import BaseOperation from './BaseOperation.js';
+import BaseOperation from './Common/BaseOperation.js';
 
 class AssignClassOperation extends BaseOperation {
   checkItemInputs (item, inputOptions) {

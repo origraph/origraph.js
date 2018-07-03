@@ -1,7 +1,7 @@
 import OutputSpec from '../Common/OutputSpec.js';
-import BaseOperation from '../BaseOperation.js';
-import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
-import ParameterlessMixin from '../ParameterlessMixin.js';
+import BaseOperation from '../Common/BaseOperation.js';
+import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
+import ParameterlessMixin from '../Common/ParameterlessMixin.js';
 
 class PivotToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
   checkItemInputs (item) {

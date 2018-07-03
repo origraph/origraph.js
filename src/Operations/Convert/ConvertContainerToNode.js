@@ -1,6 +1,6 @@
 import OutputSpec from '../Common/OutputSpec.js';
-import BaseOperation from '../BaseOperation.js';
-import ParameterlessMixin from '../ParameterlessMixin.js';
+import BaseOperation from '../Common/BaseOperation.js';
+import ParameterlessMixin from '../Common/ParameterlessMixin.js';
 
 class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
   checkItemInputs (item) {

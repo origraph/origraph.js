@@ -1,4 +1,4 @@
-import ContextualOperation from '../ContextualOperation.js';
+import ContextualOperation from '../Common/ContextualOperation.js';
 import ConvertContainerToNode from './ConvertContainerToNode.js';
 
 class ConvertOperation extends ContextualOperation {

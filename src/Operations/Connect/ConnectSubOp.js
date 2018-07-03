@@ -1,8 +1,8 @@
 import InputSpec from '../Common/InputSpec.js';
 import OutputSpec from '../Common/OutputSpec.js';
 import { glompLists, singleMode } from '../Common/utils.js';
-import BaseOperation from '../BaseOperation.js';
-import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
+import BaseOperation from '../Common/BaseOperation.js';
+import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
 class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
   inferItemInputs (item) {

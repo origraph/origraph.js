@@ -1,6 +1,6 @@
 import InputSpec from '../Common/InputSpec.js';
-import BaseOperation from '../BaseOperation.js';
-import ChainTerminatingMixin from '../ChainTerminatingMixin.js';
+import BaseOperation from '../Common/BaseOperation.js';
+import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
 class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
   checkItemInputs (item, inputOptions) {

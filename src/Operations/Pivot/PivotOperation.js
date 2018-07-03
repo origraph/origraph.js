@@ -1,4 +1,4 @@
-import ContextualOperation from '../ContextualOperation.js';
+import ContextualOperation from '../Common/ContextualOperation.js';
 import PivotToContents from './PivotToContents.js';
 import PivotToMembers from './PivotToMembers.js';
 import PivotToNodes from './PivotToNodes.js';

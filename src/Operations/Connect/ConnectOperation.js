@@ -1,4 +1,4 @@
-import ContextualOperation from '../ContextualOperation.js';
+import ContextualOperation from '../Common/ContextualOperation.js';
 import ConnectNodesOnFunction from './ConnectNodesOnFunction.js';
 
 class ConnectOperation extends ContextualOperation {

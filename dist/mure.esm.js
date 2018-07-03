@@ -110,6 +110,8 @@ class Selection {
     this.selectSingle = selectSingle;
 
     this.pendingOperations = [];
+
+    Selection.ALL.push(this);
   }
   get hash() {
     if (!this._hash) {
@@ -349,19 +351,17 @@ one-off operations.`);
   /*
    These functions provide statistics / summaries of the selection:
    */
-  async getAvailableOperations() {
-    if (this._summaryCaches && this._summaryCaches.availableOps) {
-      return this._summaryCaches.availableOps;
+  async inferInputs(operation) {
+    if (this._summaryCaches && this._summaryCaches.opInputs && this._summaryCaches.opInputs[operation.name]) {
+      return this._summaryCaches.opInputs[operation.name];
     }
-    let availableOps = {};
-    let opList = Object.values(this.mure.OPERATIONS);
-    let inputSpecs = await Promise.all(opList.map(operation => operation.inferSelectionInputs(this)));
-    inputSpecs.forEach((spec, i) => {
-      availableOps[opList[i].name] = spec;
-    });
+
+    const inputSpec = await operation.inferSelectionInputs(this);
+
     this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.availableOps = availableOps;
-    return availableOps;
+    this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
+    this._summaryCaches.opInputs[operation.name] = inputSpec;
+    return inputSpec;
   }
   async histograms(numBins = 10) {
     if (this._summaryCaches && this._summaryCaches.histograms) {
@@ -500,13 +500,16 @@ one-off operations.`);
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      const classList = item.getClasses();
       if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
         // This is an edge; create / add to a pseudo-item for each class
+        let classList = item.getClasses();
+        if (classList.length === 0) {
+          classList.push('(no class)');
+        }
         classList.forEach(edgeClassName => {
           let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
-          Object.entries(item.$nodes).forEach(([nodeSelector, directions]) => {
+          Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
             let nodeItem = items[nodeSelector];
             if (!nodeItem) {
               // This edge refers to a node outside the selection
@@ -514,6 +517,7 @@ one-off operations.`);
             } else {
               nodeItem.getClasses().forEach(nodeClassName => {
                 Object.entries(directions).forEach(([direction, count]) => {
+                  pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
                   pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
                   pseudoEdge.$nodes[nodeClassName][direction] += count;
                 });
@@ -523,17 +527,22 @@ one-off operations.`);
         });
       } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
         // This is a node; create / add to a pseudo-item for each class
+        let classList = item.getClasses();
+        if (classList.length === 0) {
+          classList.push('(no class)');
+        }
         classList.forEach(nodeClassName => {
-          let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { $edges: {} };
-          // Ensure that the edge class is referenced (directions and counts are kept on the edges)
-          Object.keys(item.$edges).forEach(edgeSelector => {
+          let pseudoNode = result.nodeClasses[nodeClassName] = result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
+          pseudoNode.count += 1;
+          // Ensure that the edge class is referenced (directions' counts are kept on the edges)
+          Object.keys(item.value.$edges).forEach(edgeSelector => {
             let edgeItem = items[edgeSelector];
             if (!edgeItem) {
               // This node refers to an edge outside the selection
               result.missingEdges = true;
             } else {
               edgeItem.getClasses().forEach(edgeClassName => {
-                pseudoNode[edgeClassName] = true;
+                pseudoNode.$edges[edgeClassName] = true;
               });
             }
           });
@@ -602,6 +611,10 @@ one-off operations.`);
     return this.deriveSelection(selectorList, options);
   }
 }
+// TODO: this way of dealing with cache invalidation causes a memory leak, as
+// old selections are going to pile up in CACHED_DOCS and ALL after they've lost
+// all other references, preventing their garbage collection. Unfortunately
+// things like WeakMap aren't enumerable...
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
 Selection.INVALIDATE_DOC_CACHE = docId => {
@@ -611,6 +624,12 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     });
     delete Selection.CACHED_DOCS[docId];
   }
+};
+Selection.ALL = [];
+Selection.INVALIDATE_ALL_CACHES = () => {
+  Selection.ALL.forEach(selection => {
+    selection.invalidateCache();
+  });
 };
 
 class BaseItem {
@@ -958,9 +977,6 @@ DocumentItem.standardize = ({
 
   doc.classes = doc.classes || {};
   doc.classes._id = '@$.classes';
-
-  let noneId = '@$.classes.none';
-  doc.classes.none = doc.classes.none || { _id: noneId, $members: {} };
 
   doc.contents = doc.contents || {};
   // In case doc.contents is an array, prep it for ContainerItem.standardize
@@ -1605,7 +1621,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
   async executeOnItem(item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
     if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction === 'Directed');
+      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction);
 
       return new OutputSpec({
         newSelectors: [newEdge.uniqueSelector],
@@ -1662,7 +1678,7 @@ class ConnectNodesOnFunction extends ConnectSubOp {
     inputs.addToggleOption({
       name: 'direction',
       choices: ['undirected', 'source', 'target'],
-      defaultValue: 'undirected'
+      defaultValue: 'target'
     });
     inputs.addValueOption({
       name: 'connectWhen',
@@ -1700,7 +1716,7 @@ class ConnectNodesOnFunction extends ConnectSubOp {
           otherItem: targetList[j],
           saveEdgesIn,
           connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
-          direction: inputOptions.direction || 'undirected'
+          direction: inputOptions.direction || 'target'
         }));
       }
     }
@@ -1895,6 +1911,16 @@ class Mure extends Model {
             // A regular document changed; invalidate all selection caches
             // corresponding to this document
             Selection.INVALIDATE_DOC_CACHE(change.id);
+            if (change.doc._rev.search(/^1-/) !== -1) {
+              // TODO: this is a hack to see if it's a newly-added doc (we want
+              // to invalidate all selection caches, because we have no way to
+              // know if they'd select this new document or not). This won't
+              // work once we start dealing with replication, if a file gets
+              // added remotely. See "How can I distinguish between added and
+              // modified documents" in the PouchDB documentation:
+              // https://pouchdb.com/guides/changes.html
+              Selection.INVALIDATE_ALL_CACHES();
+            }
             this.trigger('docChange', change.doc);
           } else if (change.id === '$linkedUserSelection') {
             // The linked user selection changed
