@@ -51,6 +51,8 @@ class Selection {
     this.selectSingle = selectSingle;
 
     this.pendingOperations = [];
+
+    Selection.ALL.push(this);
   }
   get hash () {
     if (!this._hash) {
@@ -288,20 +290,18 @@ one-off operations.`);
   /*
    These functions provide statistics / summaries of the selection:
    */
-  async getAvailableOperations () {
-    if (this._summaryCaches && this._summaryCaches.availableOps) {
-      return this._summaryCaches.availableOps;
+  async inferInputs (operation) {
+    if (this._summaryCaches && this._summaryCaches.opInputs &&
+        this._summaryCaches.opInputs[operation.name]) {
+      return this._summaryCaches.opInputs[operation.name];
     }
-    let availableOps = {};
-    let opList = Object.values(this.mure.OPERATIONS);
-    let inputSpecs = await Promise.all(opList
-      .map(operation => operation.inferSelectionInputs(this)));
-    inputSpecs.forEach((spec, i) => {
-      availableOps[opList[i].name] = spec;
-    });
+
+    const inputSpec = await operation.inferSelectionInputs(this);
+
     this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.availableOps = availableOps;
-    return availableOps;
+    this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
+    this._summaryCaches.opInputs[operation.name] = inputSpec;
+    return inputSpec;
   }
   async histograms (numBins = 10) {
     if (this._summaryCaches && this._summaryCaches.histograms) {
@@ -561,6 +561,10 @@ one-off operations.`);
     return this.deriveSelection(selectorList, options);
   }
 }
+// TODO: this way of dealing with cache invalidation causes a memory leak, as
+// old selections are going to pile up in CACHED_DOCS and ALL after they've lost
+// all other references, preventing their garbage collection. Unfortunately
+// things like WeakMap aren't enumerable...
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
 Selection.INVALIDATE_DOC_CACHE = docId => {
@@ -570,5 +574,11 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     });
     delete Selection.CACHED_DOCS[docId];
   }
+};
+Selection.ALL = [];
+Selection.INVALIDATE_ALL_CACHES = () => {
+  Selection.ALL.forEach(selection => {
+    selection.invalidateCache();
+  });
 };
 export default Selection;

@@ -184,6 +184,16 @@ class Mure extends Model {
             // A regular document changed; invalidate all selection caches
             // corresponding to this document
             Selection.INVALIDATE_DOC_CACHE(change.id);
+            if (change.doc._rev.search(/^1-/) !== -1) {
+              // TODO: this is a hack to see if it's a newly-added doc (we want
+              // to invalidate all selection caches, because we have no way to
+              // know if they'd select this new document or not). This won't
+              // work once we start dealing with replication, if a file gets
+              // added remotely. See "How can I distinguish between added and
+              // modified documents" in the PouchDB documentation:
+              // https://pouchdb.com/guides/changes.html
+              Selection.INVALIDATE_ALL_CACHES();
+            }
             this.trigger('docChange', change.doc);
           } else if (change.id === '$linkedUserSelection') {
             // The linked user selection changed
