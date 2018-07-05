@@ -9,10 +9,6 @@ var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var D3Node = _interopDefault(require('d3-node'));
 
-const glompObjs = objList => {
-  return objList.reduce((agg, obj) => Object.assign(agg, obj), {});
-};
-
 const glompLists = listList => {
   return listList.reduce((agg, list) => {
     list.forEach(value => {
@@ -106,6 +102,8 @@ class Selection {
       }
       return agg;
     }, []);
+
+    // TODO: optimize and sort this.selectors for better hash equivalence
 
     this.mure = mure;
     this.selectSingle = selectSingle;
@@ -1292,18 +1290,18 @@ ToggleInputOption.glomp = optionList => {
 };
 
 class ItemRequirement extends InputOption {
-  constructor({ name, defaultValue, ItemType, eligibleItems = {} }) {
+  constructor({ name, defaultValue, itemTypes, suggestions = [] }) {
     super({ name, defaultValue });
-    this.ItemType = ItemType;
-    this.eligibleItems = eligibleItems;
+    this.itemTypes = itemTypes;
+    this.suggestions = suggestions;
   }
 }
 ItemRequirement.glomp = optionList => {
   return new ItemRequirement({
     name: singleMode(optionList.map(option => option.name)),
     defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    ItemType: singleMode(optionList.map(option => option.ItemType)),
-    eligibleItems: glompObjs(optionList.map(option => option.eligibleItems))
+    itemTypes: glompLists(optionList.map(option => option.itemTypes)),
+    suggestions: glompLists(optionList.map(option => option.suggestions))
   });
 };
 
@@ -1601,21 +1599,11 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     });
     inputs.addItemRequirement({
       name: 'otherItem',
-      ItemType: this.mure.ITEM_TYPES.NodeItem
+      itemTypes: [this.mure.ITEM_TYPES.NodeItem]
     });
-    const orphanContainer = new this.mure.ITEM_TYPES.ContainerItem({
-      mure: this.mure,
-      value: item.doc.orphans,
-      path: [`{"_id":"${item.doc._id}"}`, 'orphans'],
-      doc: item.doc
-    });
-    const eligibleItems = {};
-    eligibleItems[orphanContainer.uniqueSelector] = orphanContainer;
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
-      ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: orphanContainer,
-      eligibleItems
+      itemTypes: [this.mure.ITEM_TYPES.ContainerItem]
     });
     return inputs;
   }
@@ -1632,36 +1620,27 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       return new OutputSpec();
     }
   }
-  extractNodeLists(itemLists) {
-    let saveEdgesInDoc;
-    let nodeLists = itemLists.map(items => {
-      return Object.values(items).reduce((agg, item) => {
-        if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
-          if (saveEdgesInDoc === undefined) {
-            saveEdgesInDoc = item.doc;
-          }
-        }
-        if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-          return agg.concat([item]);
-        }
-        return agg;
-      }, []);
+  async pollSelection(selection, callback = () => {}) {
+    const items = await selection.items();
+    let containers = [];
+    const docs = {};
+    Object.values(items).forEach(item => {
+      if (item.constructor.name === 'ContainerItem') {
+        containers.push(item);
+      }
+      docs[item.doc._id] = item.doc;
+
+      callback(item);
     });
-    if (!saveEdgesInDoc) {
-      saveEdgesInDoc = singleMode(nodeLists.reduce((agg, items) => {
-        return agg.concat(items.map(item => item.doc));
-      }, []));
-    }
-    let saveEdgesIn = null;
-    if (saveEdgesInDoc) {
-      saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+    containers = containers.concat(Object.values(docs).map(doc => {
+      return new this.mure.ITEM_TYPES.ContainerItem({
         mure: this.mure,
-        value: saveEdgesInDoc.orphans,
-        path: [`{"_id":"${saveEdgesInDoc._id}"}`, 'orphans'],
-        doc: saveEdgesInDoc
+        value: doc.orphans,
+        path: [`{"_id":"${doc._id}"}`, 'orphans'],
+        doc: doc
       });
-    }
-    return { nodeLists, saveEdgesIn };
+    }));
+    return containers;
   }
 }
 ConnectSubOp.DEFAULT_CONNECT_WHEN = (a, b) => {
@@ -1670,11 +1649,8 @@ ConnectSubOp.DEFAULT_CONNECT_WHEN = (a, b) => {
 
 class ConnectNodesOnFunction extends ConnectSubOp {
   async inferSelectionInputs(selection) {
-    let { nodeLists, saveEdgesIn } = this.extractNodeLists([await selection.items()]);
-    let nodeList = nodeLists[0];
-    if (nodeList.length === 0) {
-      return null;
-    }
+    const containers = await this.pollSelection(selection);
+
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
@@ -1687,36 +1663,127 @@ class ConnectNodesOnFunction extends ConnectSubOp {
     });
     inputs.addMiscOption({
       name: 'targetSelection',
-      defaultValue: null
+      defaultValue: selection
     });
-    const eligibleItems = {};
-    if (saveEdgesIn) {
-      eligibleItems[saveEdgesIn.uniqueSelector] = saveEdgesIn;
-    }
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
-      ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: saveEdgesIn,
-      eligibleItems
+      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      defaultValue: containers[0],
+      suggestions: containers
     });
     return inputs;
   }
+  async extractNodes(selection) {
+    const nodeList = [];
+    const containers = await this.pollSelection(selection, item => {
+      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+        nodeList.push(item);
+      }
+    });
+    return { nodeList, containers };
+  }
   async executeOnSelection(selection, inputOptions) {
-    let itemLists = [await selection.items()];
-    if (inputOptions.targetSelection) {
-      itemLists.push((await inputOptions.targetSelection.items()));
+    let [source, target] = await Promise.all([this.extractNodes(selection), inputOptions.targetSelection ? this.extractNodes(inputOptions.targetSelection) : {}]);
+    let sourceList = source.nodeList;
+    let containers = source.containers;
+    let targetList;
+    if (target) {
+      targetList = target.nodeList;
+      containers = glompLists([containers, target.containers]);
+    } else {
+      targetList = sourceList;
     }
-    let { nodeLists, saveEdgesIn } = this.extractNodeLists(itemLists);
-    let sourceList = nodeLists[0];
-    let targetList = nodeLists[1] || nodeLists[0];
 
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
         outputPromises.push(this.executeOnItem(sourceList[i], {
           otherItem: targetList[j],
-          saveEdgesIn,
+          saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
           connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
+          direction: inputOptions.direction || 'target'
+        }));
+      }
+    }
+    return OutputSpec.glomp((await Promise.all(outputPromises)));
+  }
+}
+
+class ConnectSetsOnAttribute extends ConnectSubOp {
+  async inferSelectionInputs(selection) {
+    let setA = null;
+    let setB = null;
+    let containers = await this.pollSelection(selection, item => {
+      if (item.value && item.value.$members) {
+        if (!setA) {
+          setA = item;
+        } else if (!setB) {
+          setB = item;
+        }
+      }
+    });
+    if (!setA) {
+      return null;
+    }
+    let setSuggestions = [setA];
+    if (setB) {
+      setSuggestions.push(setB);
+    }
+
+    const inputs = new InputSpec();
+    inputs.addToggleOption({
+      name: 'direction',
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'target'
+    });
+    inputs.addItemRequirement({
+      name: 'sourceSet',
+      defaultValue: setA,
+      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      suggestions: setSuggestions
+    });
+    inputs.addValueOption({
+      name: 'sourceAttribute',
+      defaultValue: null // indicates that the label should be used
+    });
+    inputs.addItemRequirement({
+      name: 'targetSet',
+      defaultValue: setB,
+      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      suggestions: setSuggestions
+    });
+    inputs.addValueOption({
+      name: 'targetAttribute',
+      defaultValue: null // indicates that the label should be used
+    });
+    inputs.addItemRequirement({
+      name: 'saveEdgesIn',
+      defaultValue: containers[0],
+      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      suggestions: containers
+    });
+    return inputs;
+  }
+  async executeOnSelection(selection, inputOptions) {
+    let [sourceList, targetList, containers] = await Promise.all([inputOptions.sourceSet.memberItems(), inputOptions.targetSet ? inputOptions.targetSet.memberItems() : null, this.pollSelection(selection)]);
+    sourceList = Object.values(sourceList).filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+    if (targetList) {
+      targetList = Object.values(targetList).filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+    } else {
+      targetList = sourceList;
+    }
+
+    const outputPromises = [];
+    for (let i = 0; i < sourceList.length; i++) {
+      for (let j = 0; j < targetList.length; j++) {
+        outputPromises.push(this.executeOnItem(sourceList[i], {
+          otherItem: targetList[j],
+          saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
+          connectWhen: (source, target) => {
+            const sourceVal = inputOptions.sourceAttribute ? source.value[inputOptions.sourceAttribute] : source.label;
+            const targetVal = inputOptions.targetAttribute ? target.value[inputOptions.targetAttribute] : target.label;
+            return sourceVal === targetVal;
+          },
           direction: inputOptions.direction || 'target'
         }));
       }
@@ -1727,7 +1794,7 @@ class ConnectNodesOnFunction extends ConnectSubOp {
 
 class ConnectOperation extends ContextualOperation {
   constructor(mure) {
-    super(mure, [ConnectNodesOnFunction]);
+    super(mure, [ConnectNodesOnFunction, ConnectSetsOnAttribute]);
   }
 }
 
@@ -1764,6 +1831,7 @@ class Mure extends uki.Model {
     super();
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
+    this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
     if (d3n) {
       // to run tests, we also need access to the d3-node wrapper (we don't

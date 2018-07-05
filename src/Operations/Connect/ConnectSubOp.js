@@ -1,6 +1,6 @@
 import InputSpec from '../Common/InputSpec.js';
 import OutputSpec from '../Common/OutputSpec.js';
-import { glompLists, singleMode } from '../Common/utils.js';
+import { glompLists } from '../Common/utils.js';
 import BaseOperation from '../Common/BaseOperation.js';
 import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
@@ -18,21 +18,11 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     });
     inputs.addItemRequirement({
       name: 'otherItem',
-      ItemType: this.mure.ITEM_TYPES.NodeItem
+      itemTypes: [this.mure.ITEM_TYPES.NodeItem]
     });
-    const orphanContainer = new this.mure.ITEM_TYPES.ContainerItem({
-      mure: this.mure,
-      value: item.doc.orphans,
-      path: [`{"_id":"${item.doc._id}"}`, 'orphans'],
-      doc: item.doc
-    });
-    const eligibleItems = {};
-    eligibleItems[orphanContainer.uniqueSelector] = orphanContainer;
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
-      ItemType: this.mure.ITEM_TYPES.ContainerItem,
-      defaultValue: orphanContainer,
-      eligibleItems
+      itemTypes: [this.mure.ITEM_TYPES.ContainerItem]
     });
     return inputs;
   }
@@ -52,36 +42,27 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       return new OutputSpec();
     }
   }
-  extractNodeLists (itemLists) {
-    let saveEdgesInDoc;
-    let nodeLists = itemLists.map(items => {
-      return Object.values(items).reduce((agg, item) => {
-        if (item instanceof this.mure.ITEM_TYPES.ContainerItem) {
-          if (saveEdgesInDoc === undefined) {
-            saveEdgesInDoc = item.doc;
-          }
-        }
-        if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-          return agg.concat([ item ]);
-        }
-        return agg;
-      }, []);
+  async pollSelection (selection, callback = () => {}) {
+    const items = await selection.items();
+    let containers = [];
+    const docs = {};
+    Object.values(items).forEach(item => {
+      if (item.constructor.name === 'ContainerItem') {
+        containers.push(item);
+      }
+      docs[item.doc._id] = item.doc;
+
+      callback(item);
     });
-    if (!saveEdgesInDoc) {
-      saveEdgesInDoc = singleMode(nodeLists.reduce((agg, items) => {
-        return agg.concat(items.map(item => item.doc));
-      }, []));
-    }
-    let saveEdgesIn = null;
-    if (saveEdgesInDoc) {
-      saveEdgesIn = new this.mure.ITEM_TYPES.ContainerItem({
+    containers = containers.concat(Object.values(docs).map(doc => {
+      return new this.mure.ITEM_TYPES.ContainerItem({
         mure: this.mure,
-        value: saveEdgesInDoc.orphans,
-        path: [`{"_id":"${saveEdgesInDoc._id}"}`, 'orphans'],
-        doc: saveEdgesInDoc
+        value: doc.orphans,
+        path: [`{"_id":"${doc._id}"}`, 'orphans'],
+        doc: doc
       });
-    }
-    return { nodeLists, saveEdgesIn };
+    }));
+    return containers;
   }
 }
 ConnectSubOp.DEFAULT_CONNECT_WHEN = (a, b) => { return a.label === b.label; };

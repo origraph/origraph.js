@@ -47,6 +47,8 @@ class Selection {
       return agg;
     }, []);
 
+    // TODO: optimize and sort this.selectors for better hash equivalence
+
     this.mure = mure;
     this.selectSingle = selectSingle;
 

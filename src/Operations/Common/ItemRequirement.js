@@ -1,19 +1,19 @@
-import { singleMode, glompObjs } from './utils.js';
+import { singleMode, glompLists } from './utils.js';
 import InputOption from './InputOption.js';
 
 class ItemRequirement extends InputOption {
-  constructor ({ name, defaultValue, ItemType, eligibleItems = {} }) {
+  constructor ({ name, defaultValue, itemTypes, suggestions = [] }) {
     super({ name, defaultValue });
-    this.ItemType = ItemType;
-    this.eligibleItems = eligibleItems;
+    this.itemTypes = itemTypes;
+    this.suggestions = suggestions;
   }
 }
 ItemRequirement.glomp = optionList => {
   return new ItemRequirement({
     name: singleMode(optionList.map(option => option.name)),
     defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    ItemType: singleMode(optionList.map(option => option.ItemType)),
-    eligibleItems: glompObjs(optionList.map(option => option.eligibleItems))
+    itemTypes: glompLists(optionList.map(option => option.itemTypes)),
+    suggestions: glompLists(optionList.map(option => option.suggestions))
   });
 };
 

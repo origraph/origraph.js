@@ -29,6 +29,7 @@ class Mure extends Model {
     super();
     this.PouchDB = PouchDB; // could be pouchdb-node or pouchdb-browser
     this.d3 = d3; // for Node.js, this will be from d3-node, not the regular one
+    this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
     if (d3n) {
       // to run tests, we also need access to the d3-node wrapper (we don't
