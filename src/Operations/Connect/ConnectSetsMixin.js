@@ -1,8 +1,6 @@
-import InputSpec from '../Common/InputSpec.js';
 import OutputSpec from '../Common/OutputSpec.js';
-import ConnectSubOp from './ConnectSubOp.js';
 
-class ConnectSetsOnAttribute extends ConnectSubOp {
+export default (superclass) => class extends superclass {
   async inferSelectionInputs (selection) {
     let setA = null;
     let setB = null;
@@ -23,7 +21,7 @@ class ConnectSetsOnAttribute extends ConnectSubOp {
       setSuggestions.push(setB);
     }
 
-    const inputs = new InputSpec();
+    const inputs = await super.inferSelectionInputs(selection);
     inputs.addToggleOption({
       name: 'direction',
       choices: ['undirected', 'source', 'target'],
@@ -35,19 +33,11 @@ class ConnectSetsOnAttribute extends ConnectSubOp {
       itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
       suggestions: setSuggestions
     });
-    inputs.addValueOption({
-      name: 'sourceAttribute',
-      defaultValue: null // indicates that the label should be used
-    });
     inputs.addItemRequirement({
       name: 'targetSet',
       defaultValue: setB,
       itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
       suggestions: setSuggestions
-    });
-    inputs.addValueOption({
-      name: 'targetAttribute',
-      defaultValue: null // indicates that the label should be used
     });
     inputs.addItemRequirement({
       name: 'saveEdgesIn',
@@ -93,6 +83,4 @@ class ConnectSetsOnAttribute extends ConnectSubOp {
     }
     return OutputSpec.glomp(await Promise.all(outputPromises));
   }
-}
-
-export default ConnectSetsOnAttribute;
+};
