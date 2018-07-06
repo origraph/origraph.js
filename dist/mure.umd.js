@@ -34228,6 +34228,7 @@ one-off operations.`);
 	    this.subOperations = {};
 	    subOperations.forEach(OperationClass => {
 	      this.subOperations[OperationClass.name] = new OperationClass(this.mure);
+	      this.subOperations[OperationClass.name].parentOperation = this;
 	    });
 	  }
 	  checkItemInputs(item, inputOptions) {

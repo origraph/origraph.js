@@ -6,6 +6,7 @@ class ContextualOperation extends BaseOperation {
     this.subOperations = {};
     subOperations.forEach(OperationClass => {
       this.subOperations[OperationClass.name] = new OperationClass(this.mure);
+      this.subOperations[OperationClass.name].parentOperation = this;
     });
   }
   checkItemInputs (item, inputOptions) {
