@@ -305,7 +305,7 @@ one-off operations.`);
     this._summaryCaches.opInputs[operation.name] = inputSpec;
     return inputSpec;
   }
-  async histograms (numBins = 10) {
+  async histograms (numBins = 20) {
     if (this._summaryCaches && this._summaryCaches.histograms) {
       return this._summaryCaches.histograms;
     }

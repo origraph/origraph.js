@@ -34,7 +34,7 @@ export default (superclass) => class extends superclass {
   async getSelectionExecutionLists (selection, inputOptions) {
     let [source, target] = await Promise.all([
       this.extractNodes(selection),
-      inputOptions.targetSelection ? this.extractNodes(inputOptions.targetSelection) : {}
+      inputOptions.targetSelection && this.extractNodes(inputOptions.targetSelection)
     ]);
     let sourceList = source.nodeList;
     let containers = source.containers;

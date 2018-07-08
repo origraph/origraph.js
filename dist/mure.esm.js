@@ -361,7 +361,7 @@ one-off operations.`);
     this._summaryCaches.opInputs[operation.name] = inputSpec;
     return inputSpec;
   }
-  async histograms(numBins = 10) {
+  async histograms(numBins = 20) {
     if (this._summaryCaches && this._summaryCaches.histograms) {
       return this._summaryCaches.histograms;
     }
@@ -1617,7 +1617,7 @@ var ConnectNodesMixin = (superclass => class extends superclass {
     return { nodeList, containers };
   }
   async getSelectionExecutionLists(selection, inputOptions) {
-    let [source, target] = await Promise.all([this.extractNodes(selection), inputOptions.targetSelection ? this.extractNodes(inputOptions.targetSelection) : {}]);
+    let [source, target] = await Promise.all([this.extractNodes(selection), inputOptions.targetSelection && this.extractNodes(inputOptions.targetSelection)]);
     let sourceList = source.nodeList;
     let containers = source.containers;
     let targetList;
