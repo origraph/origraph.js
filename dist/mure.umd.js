@@ -33833,6 +33833,35 @@ one-off operations.`);
 	  }
 	}
 
+	class InvalidItem extends BaseItem {
+	  constructor({ mure, value, path, doc }) {
+	    let parent;
+	    if (path.length < 2) {
+	      parent = null;
+	    } else if (path.length === 2) {
+	      parent = doc;
+	    } else {
+	      let temp = jsonpath.stringify(path.slice(1, path.length - 1));
+	      parent = jsonpath.value(doc, temp);
+	    }
+	    const docPathQuery = path[0] || '';
+	    const uniqueJsonPath = jsonpath.stringify(path.slice(1));
+	    super({
+	      mure,
+	      path,
+	      value,
+	      parent,
+	      doc,
+	      label: path[path.length - 1],
+	      uniqueSelector: '@' + docPathQuery + uniqueJsonPath
+	    });
+	  }
+	  stringValue() {
+	    return 'Invalid: ' + String(this.value);
+	  }
+	}
+	InvalidItem.JSTYPE = 'object';
+
 	class NullItem extends PrimitiveItem {}
 	NullItem.JSTYPE = 'null';
 	NullItem.getBoilerplateValue = () => null;
@@ -34732,6 +34761,7 @@ PivotToContents`);
 	      RootItem,
 	      DocumentItem,
 	      PrimitiveItem,
+	      InvalidItem,
 	      NullItem,
 	      BooleanItem,
 	      NumberItem,
@@ -35146,7 +35176,7 @@ PivotToContents`);
 	      // Okay, it's just a string
 	      return this.ITEM_TYPES.StringItem;
 	    } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-	      throw new Error('invalid value: ' + value);
+	      return this.ITEM_TYPES.InvalidItem;
 	    } else if (value === null) {
 	      return this.ITEM_TYPES.NullItem;
 	    } else if (value instanceof Date || value.$isDate === true) {

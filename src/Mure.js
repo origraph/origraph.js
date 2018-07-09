@@ -6,6 +6,7 @@ import Selection from './Selection.js';
 import RootItem from './Items/RootItem.js';
 import DocumentItem from './Items/DocumentItem.js';
 import PrimitiveItem from './Items/PrimitiveItem.js';
+import InvalidItem from './Items/InvalidItem.js';
 import NullItem from './Items/NullItem.js';
 import BooleanItem from './Items/BooleanItem.js';
 import NumberItem from './Items/NumberItem.js';
@@ -50,6 +51,7 @@ class Mure extends Model {
       RootItem,
       DocumentItem,
       PrimitiveItem,
+      InvalidItem,
       NullItem,
       BooleanItem,
       NumberItem,
@@ -474,7 +476,7 @@ class Mure extends Model {
       // Okay, it's just a string
       return this.ITEM_TYPES.StringItem;
     } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-      throw new Error('invalid value: ' + value);
+      return this.ITEM_TYPES.InvalidItem;
     } else if (value === null) {
       return this.ITEM_TYPES.NullItem;
     } else if (value instanceof Date || value.$isDate === true) {
