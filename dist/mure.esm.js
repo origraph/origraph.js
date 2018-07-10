@@ -19,20 +19,6 @@ const glompLists = listList => {
   }, []);
 };
 
-const testEquality = (a, b) => {
-  if (a.equals && b.equals) {
-    return a.equals(b);
-  } else {
-    return a === b;
-  }
-};
-
-const singleMode = list => {
-  return list.sort((a, b) => {
-    return list.filter(v => testEquality(v, a)).length - list.filter(v => testEquality(v, b)).length;
-  }).pop();
-};
-
 class OutputSpec {
   constructor({ newSelectors = null, pollutedDocs = [] } = {}) {
     this.newSelectors = newSelectors;
@@ -1296,10 +1282,11 @@ class ValueInputOption extends InputOption {
   }
 }
 ValueInputOption.glomp = optionList => {
+  const suggestions = glompLists(optionList.map(option => option.suggestions));
   return new ValueInputOption({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    suggestions: glompLists(optionList.map(option => option.suggestions))
+    name: optionList.some(option => option.name),
+    defaultValue: suggestions[0],
+    suggestions
   });
 };
 
@@ -1310,10 +1297,11 @@ class ToggleInputOption extends InputOption {
   }
 }
 ToggleInputOption.glomp = optionList => {
+  const choices = glompLists(optionList.map(option => option.choices));
   return new ToggleInputOption({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    choices: glompLists(optionList.map(option => option.choices))
+    name: optionList.some(option => option.name),
+    defaultValue: choices[0],
+    choices
   });
 };
 
@@ -1325,11 +1313,12 @@ class ItemRequirement extends InputOption {
   }
 }
 ItemRequirement.glomp = optionList => {
+  const suggestions = glompLists(optionList.map(option => option.suggestions));
   return new ItemRequirement({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
+    name: optionList.some(option => option.name),
+    defaultValue: suggestions[0],
     itemTypes: glompLists(optionList.map(option => option.itemTypes)),
-    suggestions: glompLists(optionList.map(option => option.suggestions))
+    suggestions
   });
 };
 
@@ -1859,10 +1848,10 @@ var ConnectOnAttributeMixin = (superclass => class extends superclass {
   }
 });
 
-class ConnectNodesOnFunction extends ConnectOnFunctionMixin(ConnectNodesMixin(ConnectSubOp)) {}
-class ConnectNodesOnAttribute extends ConnectOnAttributeMixin(ConnectNodesMixin(ConnectSubOp)) {}
-class ConnectSetsOnFunction extends ConnectOnFunctionMixin(ConnectSetsMixin(ConnectSubOp)) {}
-class ConnectSetsOnAttribute extends ConnectOnAttributeMixin(ConnectSetsMixin(ConnectSubOp)) {}
+class ConnectNodesOnFunction extends ConnectNodesMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+class ConnectNodesOnAttribute extends ConnectNodesMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
+class ConnectSetsOnFunction extends ConnectSetsMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+class ConnectSetsOnAttribute extends ConnectSetsMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
 
 class ConnectOperation extends ContextualOperation {
   constructor(mure) {

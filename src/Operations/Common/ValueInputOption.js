@@ -1,4 +1,4 @@
-import { singleMode, glompLists } from './utils.js';
+import { glompLists } from './utils.js';
 import InputOption from './InputOption.js';
 
 class ValueInputOption extends InputOption {
@@ -8,10 +8,11 @@ class ValueInputOption extends InputOption {
   }
 }
 ValueInputOption.glomp = optionList => {
+  const suggestions = glompLists(optionList.map(option => option.suggestions));
   return new ValueInputOption({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    suggestions: glompLists(optionList.map(option => option.suggestions))
+    name: optionList.some(option => option.name),
+    defaultValue: suggestions[0],
+    suggestions
   });
 };
 

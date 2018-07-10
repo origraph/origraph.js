@@ -1,4 +1,4 @@
-import { singleMode, glompLists } from './utils.js';
+import { glompLists } from './utils.js';
 import InputOption from './InputOption.js';
 
 class ItemRequirement extends InputOption {
@@ -9,11 +9,12 @@ class ItemRequirement extends InputOption {
   }
 }
 ItemRequirement.glomp = optionList => {
+  const suggestions = glompLists(optionList.map(option => option.suggestions));
   return new ItemRequirement({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
+    name: optionList.some(option => option.name),
+    defaultValue: suggestions[0],
     itemTypes: glompLists(optionList.map(option => option.itemTypes)),
-    suggestions: glompLists(optionList.map(option => option.suggestions))
+    suggestions
   });
 };
 

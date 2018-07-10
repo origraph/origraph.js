@@ -5,10 +5,10 @@ import ConnectOnFunctionMixin from './ConnectOnFunctionMixin.js';
 import ConnectOnAttributeMixin from './ConnectOnAttributeMixin.js';
 import ConnectSubOp from './ConnectSubOp.js';
 
-class ConnectNodesOnFunction extends ConnectOnFunctionMixin(ConnectNodesMixin(ConnectSubOp)) {}
-class ConnectNodesOnAttribute extends ConnectOnAttributeMixin(ConnectNodesMixin(ConnectSubOp)) {}
-class ConnectSetsOnFunction extends ConnectOnFunctionMixin(ConnectSetsMixin(ConnectSubOp)) {}
-class ConnectSetsOnAttribute extends ConnectOnAttributeMixin(ConnectSetsMixin(ConnectSubOp)) {}
+class ConnectNodesOnFunction extends ConnectNodesMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+class ConnectNodesOnAttribute extends ConnectNodesMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
+class ConnectSetsOnFunction extends ConnectSetsMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+class ConnectSetsOnAttribute extends ConnectSetsMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
 
 class ConnectOperation extends ContextualOperation {
   constructor (mure) {

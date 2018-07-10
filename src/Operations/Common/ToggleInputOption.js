@@ -1,4 +1,4 @@
-import { singleMode, glompLists } from './utils.js';
+import { glompLists } from './utils.js';
 import InputOption from './InputOption.js';
 
 class ToggleInputOption extends InputOption {
@@ -8,10 +8,11 @@ class ToggleInputOption extends InputOption {
   }
 }
 ToggleInputOption.glomp = optionList => {
+  const choices = glompLists(optionList.map(option => option.choices));
   return new ToggleInputOption({
-    name: singleMode(optionList.map(option => option.name)),
-    defaultValue: singleMode(optionList.map(option => option.defaultValue)),
-    choices: glompLists(optionList.map(option => option.choices))
+    name: optionList.some(option => option.name),
+    defaultValue: choices[0],
+    choices
   });
 };
 

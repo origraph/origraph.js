@@ -21,11 +21,4 @@ const testEquality = (a, b) => {
   }
 };
 
-const singleMode = list => {
-  return list.sort((a, b) => {
-    return list.filter(v => testEquality(v, a)).length -
-      list.filter(v => testEquality(v, b)).length;
-  }).pop();
-};
-
-export { glompObjs, glompLists, testEquality, singleMode };
+export { glompObjs, glompLists, testEquality };
