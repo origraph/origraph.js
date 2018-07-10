@@ -3,7 +3,7 @@ import BaseOperation from '../Common/BaseOperation.js';
 import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 import ParameterlessMixin from '../Common/ParameterlessMixin.js';
 
-class NavigateToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+class NavigateToMembersOperation extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
   checkConstructInputs (item) {
     return item instanceof this.mure.CONSTRUCTS.SetConstruct;
   }
@@ -17,4 +17,4 @@ class NavigateToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOpe
   }
 }
 
-export default NavigateToMembers;
+export default NavigateToMembersOperation;

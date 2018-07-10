@@ -1,16 +1,16 @@
 import ContextualOperation from '../Common/ContextualOperation.js';
-import NavigateToContents from './NavigateToContents.js';
-import NavigateToMembers from './NavigateToMembers.js';
-import NavigateToNodes from './NavigateToNodes.js';
-import NavigateToEdges from './NavigateToEdges.js';
+import NavigateToContentsOperation from './NavigateToContentsOperation.js';
+import NavigateToMembersOperation from './NavigateToMembersOperation.js';
+import NavigateToNodesOperation from './NavigateToNodesOperation.js';
+import NavigateToEdgesOperation from './NavigateToEdgesOperation.js';
 
 class NavigateOperation extends ContextualOperation {
   constructor (mure) {
     super(mure, [
-      NavigateToContents,
-      NavigateToMembers,
-      NavigateToNodes,
-      NavigateToEdges
+      NavigateToContentsOperation,
+      NavigateToMembersOperation,
+      NavigateToNodesOperation,
+      NavigateToEdgesOperation
     ]);
   }
 }

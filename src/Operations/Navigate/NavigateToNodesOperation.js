@@ -1,8 +1,8 @@
 import { glompLists } from '../Common/utils.js';
 import OutputSpec from '../Common/OutputSpec.js';
-import DirectedNavigate from './DirectedNavigate.js';
+import DirectedNavigation from './DirectedNavigation.js';
 
-class NavigateToNodes extends DirectedNavigate {
+class NavigateToNodesOperation extends DirectedNavigation {
   async executeOnConstruct (item, inputOptions) {
     if (!this.checkInputs(item, inputOptions)) {
       throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToNodes`);
@@ -24,4 +24,4 @@ class NavigateToNodes extends DirectedNavigate {
   }
 }
 
-export default NavigateToNodes;
+export default NavigateToNodesOperation;

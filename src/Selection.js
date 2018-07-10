@@ -239,7 +239,7 @@ class Selection {
   chain (operation, inputOptions) {
     if (!this.chainable) {
       throw new Error(`A terminating operation (\
-${this.pendingOperations[this.pendingOperations.length].operation.humanReadableName}\
+${this.pendingOperations[this.pendingOperations.length].operation.humanReadableType}\
 ) has already been chained; please await executeChain() or cancelChain() before \
 chaining additional operations.`);
     }
@@ -294,15 +294,15 @@ one-off operations.`);
    */
   async inferInputs (operation) {
     if (this._summaryCaches && this._summaryCaches.opInputs &&
-        this._summaryCaches.opInputs[operation.name]) {
-      return this._summaryCaches.opInputs[operation.name];
+        this._summaryCaches.opInputs[operation.type]) {
+      return this._summaryCaches.opInputs[operation.type];
     }
 
     const inputSpec = await operation.inferSelectionInputs(this);
 
     this._summaryCaches = this._summaryCaches || {};
     this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
-    this._summaryCaches.opInputs[operation.name] = inputSpec;
+    this._summaryCaches.opInputs[operation.type] = inputSpec;
     return inputSpec;
   }
   async histograms (numBins = 20) {

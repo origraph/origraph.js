@@ -47,7 +47,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     let containers = [];
     const docs = {};
     Object.values(items).forEach(item => {
-      if (item.constructor.name === 'ItemConstruct') {
+      if (item.type === 'ItemConstruct') {
         containers.push(item);
       }
       docs[item.doc._id] = item.doc;

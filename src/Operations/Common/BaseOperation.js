@@ -1,23 +1,13 @@
+import Introspectable from '../../Common/Introspectable.js';
 import InputSpec from './InputSpec.js';
 import OutputSpec from './OutputSpec.js';
 
-class BaseOperation {
+class BaseOperation extends Introspectable {
   constructor (mure) {
+    super();
     this.mure = mure;
     this.terminatesChain = false;
     this.acceptsInputOptions = true;
-  }
-  get name () {
-    const temp = /(.*)Operation/.exec(this.constructor.name);
-    return temp ? temp[1] : this.constructor.name;
-  }
-  get lowerCamelCaseName () {
-    const temp = this.name;
-    return temp.replace(/./, temp[0].toLowerCase());
-  }
-  get humanReadableName () {
-    // CamelCase to Sentence Case
-    return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
   checkConstructInputs (item, inputOptions) {
     return true;
@@ -46,5 +36,10 @@ class BaseOperation {
     return OutputSpec.glomp(await Promise.all(outputSpecPromises));
   }
 }
+Object.defineProperty(BaseOperation, 'type', {
+  get () {
+    return /(.*)Operation/.exec(this.name)[1];
+  }
+});
 
 export default BaseOperation;

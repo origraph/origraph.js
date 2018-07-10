@@ -2,7 +2,7 @@ import OutputSpec from '../Common/OutputSpec.js';
 import BaseOperation from '../Common/BaseOperation.js';
 import ParameterlessMixin from '../Common/ParameterlessMixin.js';
 
-class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
+class ConvertContainerToNodeOperation extends ParameterlessMixin(BaseOperation) {
   checkConstructInputs (item) {
     return item instanceof this.mure.CONSTRUCTS.ItemConstruct;
   }
@@ -25,4 +25,4 @@ class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
   }
 }
 
-export default ConvertContainerToNode;
+export default ConvertContainerToNodeOperation;

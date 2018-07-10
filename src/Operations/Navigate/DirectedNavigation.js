@@ -2,7 +2,7 @@ import InputSpec from '../Common/InputSpec.js';
 import BaseOperation from '../Common/BaseOperation.js';
 import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
-class DirectedNavigate extends ChainTerminatingMixin(BaseOperation) {
+class DirectedNavigation extends ChainTerminatingMixin(BaseOperation) {
   checkConstructInputs (item, inputOptions) {
     return item instanceof this.mure.CONSTRUCTS.EdgeConstruct ||
       item instanceof this.mure.CONSTRUCTS.NodeConstruct;
@@ -38,4 +38,4 @@ class DirectedNavigate extends ChainTerminatingMixin(BaseOperation) {
   }
 }
 
-export default DirectedNavigate;
+export default DirectedNavigation;

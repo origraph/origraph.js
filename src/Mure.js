@@ -107,8 +107,8 @@ class Mure extends Model {
     // the Selection class
     operationClasses.forEach(Operation => {
       const temp = new Operation(this);
-      this.OPERATIONS[temp.name] = temp;
-      Selection.prototype[temp.lowerCamelCaseName] = async function (inputOptions) {
+      this.OPERATIONS[temp.type] = temp;
+      Selection.prototype[temp.lowerCamelCaseType] = async function (inputOptions) {
         return this.execute(temp, inputOptions);
       };
     });

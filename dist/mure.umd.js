@@ -27357,7 +27357,7 @@
 	  chain(operation, inputOptions) {
 	    if (!this.chainable) {
 	      throw new Error(`A terminating operation (\
-${this.pendingOperations[this.pendingOperations.length].operation.humanReadableName}\
+${this.pendingOperations[this.pendingOperations.length].operation.humanReadableType}\
 ) has already been chained; please await executeChain() or cancelChain() before \
 chaining additional operations.`);
 	    }
@@ -27411,15 +27411,15 @@ one-off operations.`);
 	   These functions provide statistics / summaries of the selection:
 	   */
 	  async inferInputs(operation) {
-	    if (this._summaryCaches && this._summaryCaches.opInputs && this._summaryCaches.opInputs[operation.name]) {
-	      return this._summaryCaches.opInputs[operation.name];
+	    if (this._summaryCaches && this._summaryCaches.opInputs && this._summaryCaches.opInputs[operation.type]) {
+	      return this._summaryCaches.opInputs[operation.type];
 	    }
 
 	    const inputSpec = await operation.inferSelectionInputs(this);
 
 	    this._summaryCaches = this._summaryCaches || {};
 	    this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
-	    this._summaryCaches.opInputs[operation.name] = inputSpec;
+	    this._summaryCaches.opInputs[operation.type] = inputSpec;
 	    return inputSpec;
 	  }
 	  async histograms(numBins = 20) {
@@ -27691,8 +27691,40 @@ one-off operations.`);
 	  });
 	};
 
-	class BaseConstruct {
+	class Introspectable {
+	  get type() {
+	    return this.constructor.type;
+	  }
+	  get lowerCamelCaseType() {
+	    return this.constructor.lowerCamelCaseType;
+	  }
+	  get humanReadableType() {
+	    return this.constructor.humanReadableType;
+	  }
+	}
+	Object.defineProperty(Introspectable, 'type', {
+	  // This can / should be overridden by subclasses
+	  configurable: true,
+	  get() {
+	    return this.type;
+	  }
+	});
+	Object.defineProperty(Introspectable, 'lowerCamelCaseType', {
+	  get() {
+	    const temp = this.type;
+	    return temp.replace(/./, temp[0].toLocaleLowerCase());
+	  }
+	});
+	Object.defineProperty(Introspectable, 'humanReadableType', {
+	  get() {
+	    // CamelCase to Sentence Case
+	    return this.type.replace(/([a-z])([A-Z])/g, '$1 $2');
+	  }
+	});
+
+	class BaseConstruct extends Introspectable {
 	  constructor({ mure, path, value, parent, doc, label, uniqueSelector }) {
+	    super();
 	    this.mure = mure;
 	    this.path = path;
 	    this._value = value;
@@ -27700,10 +27732,6 @@ one-off operations.`);
 	    this.doc = doc;
 	    this.label = label;
 	    this.uniqueSelector = uniqueSelector;
-	  }
-	  get type() {
-	    return (/(.*)Construct/.exec(this.constructor.name)[1]
-	    );
 	  }
 	  get value() {
 	    return this._value;
@@ -27726,10 +27754,12 @@ one-off operations.`);
 	    return this.uniqueSelector === other.uniqueSelector;
 	  }
 	}
-	BaseConstruct.getHumanReadableType = function () {
-	  return (/(.*)Construct/.exec(this.name)[1]
-	  );
-	};
+	Object.defineProperty(BaseConstruct, 'type', {
+	  get() {
+	    return (/(.*)Construct/.exec(this.name)[1]
+	    );
+	  }
+	});
 	BaseConstruct.getBoilerplateValue = () => {
 	  throw new Error('unimplemented');
 	};
@@ -34194,23 +34224,12 @@ one-off operations.`);
 	  return result;
 	};
 
-	class BaseOperation {
+	class BaseOperation extends Introspectable {
 	  constructor(mure) {
+	    super();
 	    this.mure = mure;
 	    this.terminatesChain = false;
 	    this.acceptsInputOptions = true;
-	  }
-	  get name() {
-	    const temp = /(.*)Operation/.exec(this.constructor.name);
-	    return temp ? temp[1] : this.constructor.name;
-	  }
-	  get lowerCamelCaseName() {
-	    const temp = this.name;
-	    return temp.replace(/./, temp[0].toLowerCase());
-	  }
-	  get humanReadableName() {
-	    // CamelCase to Sentence Case
-	    return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
 	  }
 	  checkConstructInputs(item, inputOptions) {
 	    return true;
@@ -34239,14 +34258,20 @@ one-off operations.`);
 	    return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
 	  }
 	}
+	Object.defineProperty(BaseOperation, 'type', {
+	  get() {
+	    return (/(.*)Operation/.exec(this.name)[1]
+	    );
+	  }
+	});
 
 	class ContextualOperation extends BaseOperation {
 	  constructor(mure, subOperations) {
 	    super(mure);
 	    this.subOperations = {};
 	    subOperations.forEach(OperationClass => {
-	      this.subOperations[OperationClass.name] = new OperationClass(this.mure);
-	      this.subOperations[OperationClass.name].parentOperation = this;
+	      this.subOperations[OperationClass.type] = new OperationClass(this.mure);
+	      this.subOperations[OperationClass.type].parentOperation = this;
 	    });
 	  }
 	  checkConstructInputs(item, inputOptions) {
@@ -34296,7 +34321,7 @@ one-off operations.`);
 	  }
 	});
 
-	class NavigateToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+	class NavigateToContentsOperation extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
 	  checkConstructInputs(item) {
 	    return item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
 	  }
@@ -34311,7 +34336,7 @@ NavigateToContents`);
 	  }
 	}
 
-	class NavigateToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+	class NavigateToMembersOperation extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
 	  checkConstructInputs(item) {
 	    return item instanceof this.mure.CONSTRUCTS.SetConstruct;
 	  }
@@ -34325,7 +34350,7 @@ NavigateToContents`);
 	  }
 	}
 
-	class DirectedNavigate extends ChainTerminatingMixin(BaseOperation) {
+	class DirectedNavigation extends ChainTerminatingMixin(BaseOperation) {
 	  checkConstructInputs(item, inputOptions) {
 	    return item instanceof this.mure.CONSTRUCTS.EdgeConstruct || item instanceof this.mure.CONSTRUCTS.NodeConstruct;
 	  }
@@ -34361,7 +34386,7 @@ NavigateToContents`);
 	  }
 	}
 
-	class NavigateToNodes extends DirectedNavigate {
+	class NavigateToNodesOperation extends DirectedNavigation {
 	  async executeOnConstruct(item, inputOptions) {
 	    if (!this.checkInputs(item, inputOptions)) {
 	      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToNodes`);
@@ -34383,7 +34408,7 @@ NavigateToContents`);
 	  }
 	}
 
-	class NavigateToEdges extends DirectedNavigate {
+	class NavigateToEdgesOperation extends DirectedNavigation {
 	  async executeOnConstruct(item, inputOptions) {
 	    if (!this.checkInputs(item, inputOptions)) {
 	      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToEdges`);
@@ -34407,11 +34432,11 @@ NavigateToContents`);
 
 	class NavigateOperation extends ContextualOperation {
 	  constructor(mure) {
-	    super(mure, [NavigateToContents, NavigateToMembers, NavigateToNodes, NavigateToEdges]);
+	    super(mure, [NavigateToContentsOperation, NavigateToMembersOperation, NavigateToNodesOperation, NavigateToEdgesOperation]);
 	  }
 	}
 
-	class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
+	class ConvertContainerToNodeOperation extends ParameterlessMixin(BaseOperation) {
 	  checkConstructInputs(item) {
 	    return item instanceof this.mure.CONSTRUCTS.ItemConstruct;
 	  }
@@ -34436,7 +34461,7 @@ NavigateToContents`);
 
 	class ConvertOperation extends ContextualOperation {
 	  constructor(mure) {
-	    super(mure, [ConvertContainerToNode]);
+	    super(mure, [ConvertContainerToNodeOperation]);
 	  }
 	}
 
@@ -34602,7 +34627,7 @@ NavigateToContents`);
 	    let containers = [];
 	    const docs = {};
 	    Object.values(items).forEach(item => {
-	      if (item.constructor.name === 'ItemConstruct') {
+	      if (item.type === 'ItemConstruct') {
 	        containers.push(item);
 	      }
 	      docs[item.doc._id] = item.doc;
@@ -34685,14 +34710,14 @@ NavigateToContents`);
 	  }
 	});
 
-	class ConnectNodesOnFunction extends ConnectNodesMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
-	class ConnectNodesOnAttribute extends ConnectNodesMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
-	class ConnectSetsOnFunction extends ConnectSetsMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
-	class ConnectSetsOnAttribute extends ConnectSetsMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
+	class ConnectNodesOnFunctionOperation extends ConnectNodesMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+	class ConnectNodesOnAttributeOperation extends ConnectNodesMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
+	class ConnectSetsOnFunctionOperation extends ConnectSetsMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
+	class ConnectSetsOnAttributeOperation extends ConnectSetsMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
 
 	class ConnectOperation extends ContextualOperation {
 	  constructor(mure) {
-	    super(mure, [ConnectNodesOnFunction, ConnectNodesOnAttribute, ConnectSetsOnFunction, ConnectSetsOnAttribute]);
+	    super(mure, [ConnectNodesOnFunctionOperation, ConnectNodesOnAttributeOperation, ConnectSetsOnFunctionOperation, ConnectSetsOnAttributeOperation]);
 	  }
 	}
 
@@ -34801,8 +34826,8 @@ NavigateToContents`);
 	    // the Selection class
 	    operationClasses.forEach(Operation => {
 	      const temp = new Operation(this);
-	      this.OPERATIONS[temp.name] = temp;
-	      Selection.prototype[temp.lowerCamelCaseName] = async function (inputOptions) {
+	      this.OPERATIONS[temp.type] = temp;
+	      Selection.prototype[temp.lowerCamelCaseType] = async function (inputOptions) {
 	        return this.execute(temp, inputOptions);
 	      };
 	    });

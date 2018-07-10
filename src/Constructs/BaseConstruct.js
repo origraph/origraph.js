@@ -1,5 +1,8 @@
-class BaseConstruct {
+import Introspectable from '../Common/Introspectable.js';
+
+class BaseConstruct extends Introspectable {
   constructor ({ mure, path, value, parent, doc, label, uniqueSelector }) {
+    super();
     this.mure = mure;
     this.path = path;
     this._value = value;
@@ -7,9 +10,6 @@ class BaseConstruct {
     this.doc = doc;
     this.label = label;
     this.uniqueSelector = uniqueSelector;
-  }
-  get type () {
-    return /(.*)Construct/.exec(this.constructor.name)[1];
   }
   get value () { return this._value; }
   set value (newValue) {
@@ -30,9 +30,11 @@ class BaseConstruct {
     return this.uniqueSelector === other.uniqueSelector;
   }
 }
-BaseConstruct.getHumanReadableType = function () {
-  return /(.*)Construct/.exec(this.name)[1];
-};
+Object.defineProperty(BaseConstruct, 'type', {
+  get () {
+    return /(.*)Construct/.exec(this.name)[1];
+  }
+});
 BaseConstruct.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
