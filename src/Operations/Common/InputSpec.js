@@ -1,7 +1,7 @@
 import InputOption from './InputOption.js';
 import ValueInputOption from './ValueInputOption.js';
 import ToggleInputOption from './ToggleInputOption.js';
-import ItemRequirement from './ItemRequirement.js';
+import ConstructRequirement from './ConstructRequirement.js';
 
 class InputSpec {
   constructor () {
@@ -13,8 +13,8 @@ class InputSpec {
   addToggleOption (optionDetails) {
     this.options[optionDetails.name] = new ToggleInputOption(optionDetails);
   }
-  addItemRequirement (optionDetails) {
-    this.options[optionDetails.name] = new ItemRequirement(optionDetails);
+  addConstructRequirement (optionDetails) {
+    this.options[optionDetails.name] = new ConstructRequirement(optionDetails);
   }
   addMiscOption (optionDetails) {
     this.options[optionDetails.name] = new InputOption(optionDetails);

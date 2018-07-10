@@ -21,9 +21,9 @@ export default (superclass) => class extends superclass {
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnItem(
+        outputPromises.push(this.executeOnConstruct(
           sourceList[i], {
-            otherItem: targetList[j],
+            otherConstruct: targetList[j],
             saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
             connectWhen: (source, target) => {
               const sourceVal = inputOptions.sourceAttribute

@@ -1,19 +1,19 @@
-import PrimitiveItem from './PrimitiveItem.js';
+import PrimitiveConstruct from './PrimitiveConstruct.js';
 
-class DateItem extends PrimitiveItem {
+class DateConstruct extends PrimitiveConstruct {
   constructor ({ mure, value, path, doc }) {
-    super({ mure, value: DateItem.standardize(value), path, doc });
+    super({ mure, value: DateConstruct.standardize(value), path, doc });
   }
   get value () { return new Date(this._value.str); }
   set value (newValue) {
-    super.value = DateItem.standardize(newValue);
+    super.value = DateConstruct.standardize(newValue);
   }
   stringValue () {
     return String(this.value);
   }
 }
-DateItem.getBoilerplateValue = () => new Date();
-DateItem.standardize = ({ value }) => {
+DateConstruct.getBoilerplateValue = () => new Date();
+DateConstruct.standardize = ({ value }) => {
   if (typeof value === 'string') {
     value = new Date(value);
   }
@@ -29,4 +29,4 @@ DateItem.standardize = ({ value }) => {
   return value;
 };
 
-export default DateItem;
+export default DateConstruct;

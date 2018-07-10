@@ -1,15 +1,15 @@
-import TaggableItem from './TaggableItem.js';
-import EdgeItem from './EdgeItem.js';
+import TaggableConstruct from './TaggableConstruct.js';
+import EdgeConstruct from './EdgeConstruct.js';
 
-class NodeItem extends TaggableItem {
+class NodeConstruct extends TaggableConstruct {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$edges) {
-      throw new TypeError(`NodeItem requires an $edges object`);
+      throw new TypeError(`NodeConstruct requires an $edges object`);
     }
   }
   linkTo (otherNode, container, direction = 'undirected') {
-    let newEdge = container.createNewItem({}, undefined, EdgeItem);
+    let newEdge = container.createNewConstruct({}, undefined, EdgeConstruct);
 
     const helper = (node, direction) => {
       node.value.$edges[newEdge.uniqueSelector] = true;
@@ -20,39 +20,39 @@ class NodeItem extends TaggableItem {
     };
 
     helper(this, direction);
-    helper(otherNode, EdgeItem.oppositeDirection(direction));
+    helper(otherNode, EdgeConstruct.oppositeDirection(direction));
     return newEdge;
   }
   async edgeSelectors (direction = null) {
     if (direction === null) {
       return Object.keys(this.value.$edges);
     } else {
-      return (await this.edgeItems(direction)).map(item => item.uniqueSelector);
+      return (await this.edgeConstructs(direction)).map(item => item.uniqueSelector);
     }
   }
-  async edgeItems (direction = null) {
+  async edgeConstructs (direction = null) {
     return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items()
       .filter(item => {
         // null indicates that we allow all edges. If direction isn't null,
         // only include edges where we are the OPPOSITE direction (we are
         // at the beginning of the traversal)
         return direction === null ||
-          item.$nodes[this.uniqueSelector][EdgeItem.oppositeDirection(direction)];
+          item.$nodes[this.uniqueSelector][EdgeConstruct.oppositeDirection(direction)];
       });
   }
-  async edgeItemCount (forward = null) {
+  async edgeConstructCount (forward = null) {
     return (await this.edgeSelectors(forward)).length;
   }
 }
-NodeItem.getBoilerplateValue = () => {
+NodeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $edges: {} };
 };
-NodeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular TaggableItem standardization
-  value = TaggableItem.standardize({ mure, value, path, doc, aggressive });
+NodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular TaggableConstruct standardization
+  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of an $edges object
   value.$edges = value.$edges || {};
   return value;
 };
 
-export default NodeItem;
+export default NodeConstruct;

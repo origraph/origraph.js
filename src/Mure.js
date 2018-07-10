@@ -3,24 +3,24 @@ import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
 
-import RootItem from './Items/RootItem.js';
-import DocumentItem from './Items/DocumentItem.js';
-import PrimitiveItem from './Items/PrimitiveItem.js';
-import InvalidItem from './Items/InvalidItem.js';
-import NullItem from './Items/NullItem.js';
-import BooleanItem from './Items/BooleanItem.js';
-import NumberItem from './Items/NumberItem.js';
-import StringItem from './Items/StringItem.js';
-import DateItem from './Items/DateItem.js';
-import ReferenceItem from './Items/ReferenceItem.js';
-import ContainerItem from './Items/ContainerItem.js';
-import TaggableItem from './Items/TaggableItem.js';
-import SetItem from './Items/SetItem.js';
-import EdgeItem from './Items/EdgeItem.js';
-import NodeItem from './Items/NodeItem.js';
-import SupernodeItem from './Items/SupernodeItem.js';
+import RootConstruct from './Constructs/RootConstruct.js';
+import DocumentConstruct from './Constructs/DocumentConstruct.js';
+import PrimitiveConstruct from './Constructs/PrimitiveConstruct.js';
+import InvalidConstruct from './Constructs/InvalidConstruct.js';
+import NullConstruct from './Constructs/NullConstruct.js';
+import BooleanConstruct from './Constructs/BooleanConstruct.js';
+import NumberConstruct from './Constructs/NumberConstruct.js';
+import StringConstruct from './Constructs/StringConstruct.js';
+import DateConstruct from './Constructs/DateConstruct.js';
+import ReferenceConstruct from './Constructs/ReferenceConstruct.js';
+import ItemConstruct from './Constructs/ItemConstruct.js';
+import TaggableConstruct from './Constructs/TaggableConstruct.js';
+import SetConstruct from './Constructs/SetConstruct.js';
+import EdgeConstruct from './Constructs/EdgeConstruct.js';
+import NodeConstruct from './Constructs/NodeConstruct.js';
+import SupernodeConstruct from './Constructs/SupernodeConstruct.js';
 
-import PivotOperation from './Operations/Pivot/PivotOperation.js';
+import NavigateOperation from './Operations/Navigate/NavigateOperation.js';
 import ConvertOperation from './Operations/Convert/ConvertOperation.js';
 import ConnectOperation from './Operations/Connect/ConnectOperation.js';
 import AssignClassOperation from './Operations/AssignClassOperation.js';
@@ -47,23 +47,23 @@ class Mure extends Model {
     this.d3.namespaces.mure = this.NSString;
 
     // Our custom type definitions
-    this.ITEM_TYPES = {
-      RootItem,
-      DocumentItem,
-      PrimitiveItem,
-      InvalidItem,
-      NullItem,
-      BooleanItem,
-      NumberItem,
-      StringItem,
-      DateItem,
-      ReferenceItem,
-      ContainerItem,
-      TaggableItem,
-      SetItem,
-      EdgeItem,
-      NodeItem,
-      SupernodeItem
+    this.CONSTRUCTS = {
+      RootConstruct,
+      DocumentConstruct,
+      PrimitiveConstruct,
+      InvalidConstruct,
+      NullConstruct,
+      BooleanConstruct,
+      NumberConstruct,
+      StringConstruct,
+      DateConstruct,
+      ReferenceConstruct,
+      ItemConstruct,
+      TaggableConstruct,
+      SetConstruct,
+      EdgeConstruct,
+      NodeConstruct,
+      SupernodeConstruct
     };
 
     // Special keys that should be skipped in various operations
@@ -86,23 +86,23 @@ class Mure extends Model {
       XOR: 'XOR'
     };
 
-    // Auto-mappings from native javascript types to Items
+    // Auto-mappings from native javascript types to Constructs
     this.JSTYPES = {
-      'null': NullItem,
-      'boolean': BooleanItem,
-      'number': NumberItem
+      'null': NullConstruct,
+      'boolean': BooleanConstruct,
+      'number': NumberConstruct
     };
 
     // All the supported operations
     let operationClasses = [
-      PivotOperation,
+      NavigateOperation,
       ConvertOperation,
       ConnectOperation,
       AssignClassOperation
     ];
     this.OPERATIONS = {};
 
-    // Unlike ITEM_TYPES, we actually want to instantiate all the operations
+    // Unlike CONSTRUCTS, we actually want to instantiate all the operations
     // with a reference to this. While we're at it, monkey patch them onto
     // the Selection class
     operationClasses.forEach(Operation => {
@@ -155,7 +155,7 @@ class Mure extends Model {
     this.dbStatus = new Promise((resolve, reject) => {
       (async () => {
         let status = { synced: false };
-        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
+        let couchDbUrl = this.window.localStorage.getConstruct('couchDbUrl');
         if (couchDbUrl) {
           let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
           status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})
@@ -225,9 +225,9 @@ class Mure extends Model {
     let results = await this.db.allDocs(options);
     return results.rows.map(row => row.doc);
   }
-  async allDocItems () {
+  async allDocConstructs () {
     return (await this.allDocs())
-      .map(doc => new this.ITEM_TYPES.DocumentItem({ mure: this, doc }));
+      .map(doc => new this.CONSTRUCTS.DocumentConstruct({ mure: this, doc }));
   }
   async queryDocs (queryObj) {
     await this.dbStatus;
@@ -252,7 +252,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: {}, mure: this });
+      return this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -265,7 +265,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: docQuery, mure: this });
+          doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -309,7 +309,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = this.ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
+        let contents = this.CONSTRUCTS.DocumentConstruct.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -345,14 +345,14 @@ class Mure extends Model {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     const extension = extensionOverride || mime.extension(mimeType) || 'txt';
-    let doc = await this.ITEM_TYPES.DocumentItem.parse(string, extension);
+    let doc = await this.CONSTRUCTS.DocumentConstruct.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
+    doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc, mure: this });
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
@@ -440,7 +440,7 @@ class Mure extends Model {
         // Attempt to parse as a reference
         try {
           new Selection(null, value); // eslint-disable-line no-new
-          return this.ITEM_TYPES.ReferenceItem;
+          return this.CONSTRUCTS.ReferenceConstruct;
         } catch (err) {
           if (!err.INVALID_SELECTOR) {
             throw err;
@@ -451,7 +451,7 @@ class Mure extends Model {
       if (aggressive) {
         // Aggressively attempt to identify something more specific than string
         if (!isNaN(Number(value))) {
-          return this.ITEM_TYPES.NumberItem;
+          return this.CONSTRUCTS.NumberConstruct;
         /*
          For now, we don't attempt to identify dates, even in aggressive mode,
          because things like new Date('Player 1') will successfully parse as a
@@ -461,40 +461,40 @@ class Mure extends Model {
          maybe we'll add this back...
         */
         // } else if (!isNaN(new Date(value))) {
-        //  return ITEM_TYPES.DateItem;
+        //  return CONSTRUCTS.DateConstruct;
         } else {
           const temp = value.toLowerCase();
           if (temp === 'true') {
-            return this.ITEM_TYPES.BooleanItem;
+            return this.CONSTRUCTS.BooleanConstruct;
           } else if (temp === 'false') {
-            return this.ITEM_TYPES.BooleanItem;
+            return this.CONSTRUCTS.BooleanConstruct;
           } else if (temp === 'null') {
-            return this.ITEM_TYPES.NullItem;
+            return this.CONSTRUCTS.NullConstruct;
           }
         }
       }
       // Okay, it's just a string
-      return this.ITEM_TYPES.StringItem;
+      return this.CONSTRUCTS.StringConstruct;
     } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-      return this.ITEM_TYPES.InvalidItem;
+      return this.CONSTRUCTS.InvalidConstruct;
     } else if (value === null) {
-      return this.ITEM_TYPES.NullItem;
+      return this.CONSTRUCTS.NullConstruct;
     } else if (value instanceof Date || value.$isDate === true) {
-      return this.ITEM_TYPES.DateItem;
+      return this.CONSTRUCTS.DateConstruct;
     } else if (value.$nodes) {
-      return this.ITEM_TYPES.EdgeItem;
+      return this.CONSTRUCTS.EdgeConstruct;
     } else if (value.$edges) {
       if (value.$members) {
-        return this.ITEM_TYPES.SupernodeItem;
+        return this.CONSTRUCTS.SupernodeConstruct;
       } else {
-        return this.ITEM_TYPES.NodeItem;
+        return this.CONSTRUCTS.NodeConstruct;
       }
     } else if (value.$members) {
-      return this.ITEM_TYPES.SetItem;
+      return this.CONSTRUCTS.SetConstruct;
     } else if (value.$tags) {
-      return this.ITEM_TYPES.TaggableItem;
+      return this.CONSTRUCTS.TaggableConstruct;
     } else {
-      return this.ITEM_TYPES.ContainerItem;
+      return this.CONSTRUCTS.ItemConstruct;
     }
   }
   async followRelativeLink (selector, doc, selectSingle = false) {

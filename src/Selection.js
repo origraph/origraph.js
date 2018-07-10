@@ -70,11 +70,11 @@ class Selection {
     });
   }
   get isCached () {
-    return !!this._cachedItems;
+    return !!this._cachedConstructs;
   }
   invalidateCache () {
     delete this._cachedDocLists;
-    delete this._cachedItems;
+    delete this._cachedConstructs;
     delete this._summaryCaches;
   }
   async docLists () {
@@ -84,7 +84,7 @@ class Selection {
     this._cachedDocLists = await Promise.all(this.selectors
       .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
     // We want all selections to operate from exactly the same document object,
-    // so it's easy / straightforward for Items to just mutate their own value
+    // so it's easy / straightforward for Constructs to just mutate their own value
     // references, and have those changes automatically appear in documents
     // when they're saved... so we actually want to *swap out* matching documents
     // for their cached versions
@@ -116,8 +116,8 @@ class Selection {
     return this._cachedDocLists;
   }
   async items (docLists) {
-    if (this._cachedItems) {
-      return this._cachedItems;
+    if (this._cachedConstructs) {
+      return this._cachedConstructs;
     }
 
     // Note: we should only pass in docLists in rare situations (such as the
@@ -128,13 +128,13 @@ class Selection {
 
     return queueAsync(async () => {
       // Collect the results of objQuery
-      this._cachedItems = {};
-      let addedItem = false;
+      this._cachedConstructs = {};
+      let addedConstruct = false;
 
-      const addItem = item => {
-        addedItem = true;
-        if (!this._cachedItems[item.uniqueSelector]) {
-          this._cachedItems[item.uniqueSelector] = item;
+      const addConstruct = item => {
+        addedConstruct = true;
+        if (!this._cachedConstructs[item.uniqueSelector]) {
+          this._cachedConstructs[item.uniqueSelector] = item;
         }
       };
 
@@ -146,7 +146,7 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(new this.mure.ITEM_TYPES.RootItem({
+            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
               docList,
               selectSingle: this.selectSingle
@@ -156,14 +156,14 @@ class Selection {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(new this.mure.ITEM_TYPES.DocumentItem({
+              addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                 mure: this.mure,
                 doc
               }));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(new this.mure.ITEM_TYPES.RootItem({
+            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
               docList,
               selectSingle: this.selectSingle
@@ -173,9 +173,9 @@ class Selection {
           // Okay, we need to evaluate the jsonPath
           for (let docIndex = 0; docIndex < docList.length; docIndex++) {
             let doc = docList[docIndex];
-            let matchingItems = jsonPath.nodes(doc, selector.objQuery);
-            for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
-              let { path, value } = matchingItems[itemIndex];
+            let matchingConstructs = jsonPath.nodes(doc, selector.objQuery);
+            for (let itemIndex = 0; itemIndex < matchingConstructs.length; itemIndex++) {
+              let { path, value } = matchingConstructs[itemIndex];
               let localPath = path;
               if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
                 // Don't create items under reserved keys
@@ -183,7 +183,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.RootItem({
+                  addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
                     mure: this.mure,
                     docList,
                     selectSingle: this.selectSingle
@@ -192,7 +192,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.DocumentItem({
+                  addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                     mure: this.mure,
                     doc
                   }));
@@ -206,10 +206,10 @@ class Selection {
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
                   Object.values(await this.mure.followRelativeLink(value, doc, this.selectSingle))
-                    .forEach(addItem);
+                    .forEach(addConstruct);
                 } else {
-                  const ItemType = this.mure.inferType(value);
-                  addItem(new ItemType({
+                  const ConstructType = this.mure.inferType(value);
+                  addConstruct(new ConstructType({
                     mure: this.mure,
                     value,
                     path: [`{"_id":"${doc._id}"}`].concat(localPath),
@@ -217,15 +217,15 @@ class Selection {
                   }));
                 }
               }
-              if (this.selectSingle && addedItem) { break; }
+              if (this.selectSingle && addedConstruct) { break; }
             }
-            if (this.selectSingle && addedItem) { break; }
+            if (this.selectSingle && addedConstruct) { break; }
           }
         }
 
-        if (this.selectSingle && addedItem) { break; }
+        if (this.selectSingle && addedConstruct) { break; }
       }
-      return this._cachedItems;
+      return this._cachedConstructs;
     });
   }
   get chainable () {
@@ -248,8 +248,8 @@ chaining additional operations.`);
   }
   async executeChain () {
     // Evaluate all the pending operations that we've accrued; as each function
-    // manipulates Items' .value property, those changes will automatically be
-    // reflected in the document (as every .value is a pointer, or BaseItem's
+    // manipulates Constructs' .value property, those changes will automatically be
+    // reflected in the document (as every .value is a pointer, or BaseConstruct's
     // .value setter ensures that primitives are propagated)
     let outputSpec = new OutputSpec();
     for (let f = 0; f < this.pendingOperations.length; f++) {
@@ -335,25 +335,25 @@ one-off operations.`);
       if (counters.quantitativeBins !== null) {
         if (counters.quantitativeBins.length === 0) {
           // Init the counters with some temporary placeholders
-          counters.quantitativeItems = [];
+          counters.quantitativeConstructs = [];
           counters.quantitativeType = item.type;
-          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+          if (item instanceof this.mure.CONSTRUCTS.NumberConstruct) {
             counters.quantitativeScale = this.mure.d3.scaleLinear()
               .domain([item.value, item.value]);
-          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+          } else if (item instanceof this.mure.CONSTRUCTS.DateConstruct) {
             counters.quantitativeScale = this.mure.d3.scaleTime()
               .domain([item.value, item.value]);
           } else {
             // The first value is non-quantitative; this likely isn't a quantitative attribute
             counters.quantitativeBins = null;
-            delete counters.quantitativeItems;
+            delete counters.quantitativeConstructs;
             delete counters.quantitativeType;
             delete counters.quantitativeScale;
           }
         } else if (counters.quantitativeType !== item.type) {
           // Encountered an item of a different type; this likely isn't a quantitative attribute
           counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -373,24 +373,24 @@ one-off operations.`);
     for (let i = 0; i < itemList.length; i++) {
       const item = itemList[i];
       result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+      if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
         countPrimitive(result.raw, item);
       } else {
-        if (item.contentItems) {
-          (await item.contentItems()).forEach(childItem => {
-            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+        if (item.contentConstructs) {
+          (await item.contentConstructs()).forEach(childConstruct => {
+            const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
               quantitativeBins: []
             };
-            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
-            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
-              countPrimitive(counters, childItem);
+            counters.typeBins[childConstruct.type] = (counters.typeBins[childConstruct.type] || 0) + 1;
+            if (childConstruct instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
+              countPrimitive(counters, childConstruct);
             }
           });
         }
         // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to contentItems?)
+        // (and a set's members' attributes, similar to contentConstructs?)
       }
     }
 
@@ -404,10 +404,10 @@ one-off operations.`);
         counters.categoricalBins = null;
       }
       if (counters.quantitativeBins) {
-        if (!counters.quantitativeItems ||
-             counters.quantitativeItems.length === 0) {
+        if (!counters.quantitativeConstructs ||
+             counters.quantitativeConstructs.length === 0) {
           counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -419,9 +419,9 @@ one-off operations.`);
             .domain(counters.quantitativeScale.domain())
             .thresholds(counters.quantitativeScale.ticks(numBins))
             .value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeConstructs);
           // Clean up some of the temporary placeholders
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
         }
       }
@@ -449,7 +449,7 @@ one-off operations.`);
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
+      if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
         // This is an edge; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -460,12 +460,12 @@ one-off operations.`);
             result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
           Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
-            let nodeItem = items[nodeSelector];
-            if (!nodeItem) {
+            let nodeConstruct = items[nodeSelector];
+            if (!nodeConstruct) {
               // This edge refers to a node outside the selection
               result.missingNodes = true;
             } else {
-              nodeItem.getClasses().forEach(nodeClassName => {
+              nodeConstruct.getClasses().forEach(nodeClassName => {
                 Object.entries(directions).forEach(([direction, count]) => {
                   pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
                   pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
@@ -475,7 +475,7 @@ one-off operations.`);
             }
           });
         });
-      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+      } else if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
         // This is a node; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -487,12 +487,12 @@ one-off operations.`);
           pseudoNode.count += 1;
           // Ensure that the edge class is referenced (directions' counts are kept on the edges)
           Object.keys(item.value.$edges).forEach(edgeSelector => {
-            let edgeItem = items[edgeSelector];
-            if (!edgeItem) {
+            let edgeConstruct = items[edgeSelector];
+            if (!edgeConstruct) {
               // This node refers to an edge outside the selection
               result.missingEdges = true;
             } else {
-              edgeItem.getClasses().forEach(edgeClassName => {
+              edgeConstruct.getClasses().forEach(edgeClassName => {
                 pseudoNode.$edges[edgeClassName] = true;
               });
             }

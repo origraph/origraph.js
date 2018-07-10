@@ -42,15 +42,15 @@ module.exports = [
           result: logging.testObjectEquality(schemaResults.allClasses1, allClasses)
         });
 
-        let handItems = await hands.items();
-        let trickItems = await tricks.items();
-        let cardItems = await cards.items();
+        let handConstructs = await hands.items();
+        let trickConstructs = await tricks.items();
+        let cardConstructs = await cards.items();
 
-        const handsAreNodes = Object.values(handItems)
+        const handsAreNodes = Object.values(handConstructs)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const tricksAreNodes = Object.values(trickItems)
+        const tricksAreNodes = Object.values(trickConstructs)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const cardsAreNodes = Object.values(cardItems)
+        const cardsAreNodes = Object.values(cardConstructs)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
         const allNodes = handsAreNodes && tricksAreNodes && cardsAreNodes;
 
@@ -98,13 +98,13 @@ module.exports = [
         });
 
         // Test schema summary functions
-        let allItems = hands
+        let allConstructs = hands
           .merge(cards)
           .merge(tricks)
           .merge(wonByEdges)
           .merge(playedEdges);
 
-        let summary = await allItems.getFlatGraphSchema();
+        let summary = await allConstructs.getFlatGraphSchema();
         tests.push({
           name: 'Flat graph schema test',
           result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)

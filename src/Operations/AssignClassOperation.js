@@ -3,11 +3,11 @@ import OutputSpec from './Common/OutputSpec.js';
 import BaseOperation from './Common/BaseOperation.js';
 
 class AssignClassOperation extends BaseOperation {
-  checkItemInputs (item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.TaggableItem;
+  checkConstructInputs (item, inputOptions) {
+    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
   }
-  inferItemInputs (item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs (item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     } else {
       const temp = new InputSpec();
@@ -20,9 +20,9 @@ class AssignClassOperation extends BaseOperation {
       return temp;
     }
   }
-  async executeOnItem (item, inputOptions) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Must be a TaggableItem to assign a class`);
+  async executeOnConstruct (item, inputOptions) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Must be a TaggableConstruct to assign a class`);
     }
     item.addClass(inputOptions.className || 'none');
     return new OutputSpec({

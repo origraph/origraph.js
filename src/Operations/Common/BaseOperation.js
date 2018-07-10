@@ -19,17 +19,17 @@ class BaseOperation {
     // CamelCase to Sentence Case
     return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
-  checkItemInputs (item, inputOptions) {
+  checkConstructInputs (item, inputOptions) {
     return true;
   }
-  inferItemInputs (item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs (item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     } else {
       return new InputSpec();
     }
   }
-  async executeOnItem (item, inputOptions) {
+  async executeOnConstruct (item, inputOptions) {
     throw new Error('unimplemented');
   }
   async checkSelectionInputs (selection, inputOptions) {
@@ -37,12 +37,12 @@ class BaseOperation {
   }
   async inferSelectionInputs (selection) {
     const items = await selection.items();
-    const inputSpecPromises = Object.values(items).map(item => this.inferItemInputs(item));
+    const inputSpecPromises = Object.values(items).map(item => this.inferConstructInputs(item));
     return InputSpec.glomp(await Promise.all(inputSpecPromises));
   }
   async executeOnSelection (selection, inputOptions) {
     const items = await selection.items();
-    const outputSpecPromises = Object.values(items).map(item => this.executeOnItem(item, inputOptions));
+    const outputSpecPromises = Object.values(items).map(item => this.executeOnConstruct(item, inputOptions));
     return OutputSpec.glomp(await Promise.all(outputSpecPromises));
   }
 }

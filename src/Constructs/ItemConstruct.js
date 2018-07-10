@@ -1,8 +1,8 @@
 import jsonPath from 'jsonpath';
-import TypedItem from './TypedItem.js';
-import ContainerItemMixin from './ContainerItemMixin.js';
+import TypedConstruct from './TypedConstruct.js';
+import ItemConstructMixin from './ItemConstructMixin.js';
 
-class ContainerItem extends ContainerItemMixin(TypedItem) {
+class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value)
@@ -15,26 +15,26 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
         }
       }, 0) + 1;
   }
-  createNewItem (value, label, ItemType) {
-    ItemType = ItemType || this.mure.inferType(value);
+  createNewConstruct (value, label, ConstructType) {
+    ConstructType = ConstructType || this.mure.inferType(value);
     if (label === undefined) {
       label = String(this.nextLabel);
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ItemType({
+    let item = new ConstructType({
       mure: this.mure,
-      value: ItemType.getBoilerplateValue(),
+      value: ConstructType.getBoilerplateValue(),
       path,
       doc: this.doc
     });
-    this.addItem(item, label);
+    this.addConstruct(item, label);
     return item;
   }
-  addItem (item, label) {
-    if (item instanceof ContainerItem) {
+  addConstruct (item, label) {
+    if (item instanceof ItemConstruct) {
       if (item.value._id) {
-        throw new Error('Item has already been assigned an _id');
+        throw new Error('Construct has already been assigned an _id');
       }
       if (label === undefined) {
         label = this.nextLabel;
@@ -45,17 +45,17 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
     this.value[label] = item.value;
   }
   async contentSelectors () {
-    return (await this.contentItems()).map(item => item.uniqueSelector);
+    return (await this.contentConstructs()).map(item => item.uniqueSelector);
   }
-  async contentItems () {
+  async contentConstructs () {
     return this.getValueContents();
   }
-  async contentItemCount () {
+  async contentConstructCount () {
     return this.getValueContentCount();
   }
 }
-ContainerItem.getBoilerplateValue = () => { return {}; };
-ContainerItem.convertArray = value => {
+ItemConstruct.getBoilerplateValue = () => { return {}; };
+ItemConstruct.convertArray = value => {
   if (value instanceof Array) {
     let temp = {};
     value.forEach((element, index) => {
@@ -66,7 +66,7 @@ ContainerItem.convertArray = value => {
   }
   return value;
 };
-ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
+ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   // Assign the object's id if a path is supplied
   if (path) {
     value._id = '@' + jsonPath.stringify(path.slice(1));
@@ -78,11 +78,11 @@ ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
-        nestedValue = ContainerItem.convertArray(nestedValue);
+        nestedValue = ItemConstruct.convertArray(nestedValue);
         // What kind of value are we dealing with?
-        let ItemType = mure.inferType(nestedValue, aggressive);
+        let ConstructType = mure.inferType(nestedValue, aggressive);
         // Apply that class's standardization function
-        value[key] = ItemType.standardize({
+        value[key] = ConstructType.standardize({
           mure,
           value: nestedValue,
           path: temp,
@@ -95,4 +95,4 @@ ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default ContainerItem;
+export default ItemConstruct;

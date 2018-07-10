@@ -1,6 +1,6 @@
-import BaseItem from './BaseItem.js';
+import BaseConstruct from './BaseConstruct.js';
 
-class RootItem extends BaseItem {
+class RootConstruct extends BaseConstruct {
   constructor ({ mure, docList, selectSingle }) {
     super({
       mure,
@@ -20,4 +20,4 @@ class RootItem extends BaseItem {
     throw new Error(`Can't remove the root item`);
   }
 }
-export default RootItem;
+export default RootConstruct;

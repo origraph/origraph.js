@@ -1,16 +1,16 @@
 import { glompLists } from './utils.js';
 import InputOption from './InputOption.js';
 
-class ItemRequirement extends InputOption {
+class ConstructRequirement extends InputOption {
   constructor ({ name, defaultValue, itemTypes, suggestions = [] }) {
     super({ name, defaultValue });
     this.itemTypes = itemTypes;
     this.suggestions = suggestions;
   }
 }
-ItemRequirement.glomp = optionList => {
+ConstructRequirement.glomp = optionList => {
   const suggestions = glompLists(optionList.map(option => option.suggestions));
-  return new ItemRequirement({
+  return new ConstructRequirement({
     name: optionList.some(option => option.name),
     defaultValue: suggestions[0],
     itemTypes: glompLists(optionList.map(option => option.itemTypes)),
@@ -18,4 +18,4 @@ ItemRequirement.glomp = optionList => {
   });
 };
 
-export default ItemRequirement;
+export default ConstructRequirement;

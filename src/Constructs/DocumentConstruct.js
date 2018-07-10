@@ -1,8 +1,8 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
-import BaseItem from './BaseItem.js';
-import ContainerItem from './ContainerItem.js';
-import ContainerItemMixin from './ContainerItemMixin.js';
+import BaseConstruct from './BaseConstruct.js';
+import ItemConstruct from './ItemConstruct.js';
+import ItemConstructMixin from './ItemConstructMixin.js';
 
 // extensions that we want datalib to handle
 const DATALIB_FORMATS = [
@@ -13,7 +13,7 @@ const DATALIB_FORMATS = [
   'treejson'
 ];
 
-class DocumentItem extends ContainerItemMixin(BaseItem) {
+class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
   constructor ({ mure, doc }) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -25,7 +25,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       label: doc['filename'],
       uniqueSelector: '@' + docPathQuery + '$'
     });
-    this._contentItem = new ContainerItem({
+    this._contentConstruct = new ItemConstruct({
       mure: this.mure,
       value: this.value.contents,
       path: this.path.concat(['contents']),
@@ -39,25 +39,25 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
   async contentSelectors () {
-    return this._contentItem.contentSelectors();
+    return this._contentConstruct.contentSelectors();
   }
-  async contentItems () {
-    return this._contentItem.contentItems();
+  async contentConstructs () {
+    return this._contentConstruct.contentConstructs();
   }
-  async contentItemCount () {
-    return this._contentItem.contentItemCount();
+  async contentConstructCount () {
+    return this._contentConstruct.contentConstructCount();
   }
-  async metaItemSelectors () {
-    return (await this.metaItems()).map(item => item.uniqueSelector);
+  async metaConstructSelectors () {
+    return (await this.metaConstructs()).map(item => item.uniqueSelector);
   }
-  async metaItems () {
+  async metaConstructs () {
     return this.getValueContents();
   }
-  async metaItemCount () {
+  async metaConstructCount () {
     return this.getValueContentCount();
   }
 }
-DocumentItem.isValidId = (docId) => {
+DocumentConstruct.isValidId = (docId) => {
   if (docId[0].toLowerCase() !== docId[0]) {
     return false;
   }
@@ -67,7 +67,7 @@ DocumentItem.isValidId = (docId) => {
   }
   return !!mime.extension(parts[0]);
 };
-DocumentItem.parse = async (text, extension) => {
+DocumentConstruct.parse = async (text, extension) => {
   let contents;
   if (DATALIB_FORMATS.indexOf(extension) !== -1) {
     contents = datalib.read(text, { type: extension });
@@ -81,25 +81,25 @@ DocumentItem.parse = async (text, extension) => {
   }
   return contents;
 };
-DocumentItem.launchStandardization = async ({ mure, doc }) => {
+DocumentConstruct.launchStandardization = async ({ mure, doc }) => {
   let existingUntitleds = await mure.db.allDocs({
     startkey: doc.mimeType + ';Untitled ',
     endkey: doc.mimeType + ';Untitled \uffff'
   });
-  return DocumentItem.standardize({
+  return DocumentConstruct.standardize({
     mure,
     doc,
     existingUntitleds,
     aggressive: true
   });
 };
-DocumentItem.standardize = ({
+DocumentConstruct.standardize = ({
   mure,
   doc,
   existingUntitleds = { rows: [] },
   aggressive
 }) => {
-  if (!doc._id || !DocumentItem.isValidId(doc._id)) {
+  if (!doc._id || !DocumentConstruct.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
@@ -145,9 +145,9 @@ DocumentItem.standardize = ({
   doc.classes._id = '@$.classes';
 
   doc.contents = doc.contents || {};
-  // In case doc.contents is an array, prep it for ContainerItem.standardize
-  doc.contents = ContainerItem.convertArray(doc.contents);
-  doc.contents = ContainerItem.standardize({
+  // In case doc.contents is an array, prep it for ItemConstruct.standardize
+  doc.contents = ItemConstruct.convertArray(doc.contents);
+  doc.contents = ItemConstruct.standardize({
     mure,
     value: doc.contents,
     path: [`{"_id":"${doc._id}"}`, '$', 'contents'],
@@ -158,4 +158,4 @@ DocumentItem.standardize = ({
   return doc;
 };
 
-export default DocumentItem;
+export default DocumentConstruct;

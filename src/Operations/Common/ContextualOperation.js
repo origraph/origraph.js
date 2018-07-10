@@ -9,17 +9,17 @@ class ContextualOperation extends BaseOperation {
       this.subOperations[OperationClass.name].parentOperation = this;
     });
   }
-  checkItemInputs (item, inputOptions) {
+  checkConstructInputs (item, inputOptions) {
     return inputOptions.context && this.subOperations[inputOptions.context];
   }
-  inferItemInputs (item) {
+  inferConstructInputs (item) {
     const itemInputs = {};
     Object.entries(this.subOperations).map(([subOpName, subOp]) => {
-      itemInputs[subOpName] = subOp.inferItemInputs(item);
+      itemInputs[subOpName] = subOp.inferConstructInputs(item);
     });
     return itemInputs;
   }
-  async executeOnItem (item, inputOptions) {
+  async executeOnConstruct (item, inputOptions) {
     throw new Error('unimplemented');
   }
   async checkSelectionInputs (selection, inputOptions) {

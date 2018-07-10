@@ -14,9 +14,9 @@ export default (superclass) => class extends superclass {
       name: 'targetSelection',
       defaultValue: selection
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
       defaultValue: containers[0],
       suggestions: containers
     });
@@ -25,7 +25,7 @@ export default (superclass) => class extends superclass {
   async extractNodes (selection) {
     const nodeList = [];
     const containers = await this.pollSelection(selection, item => {
-      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+      if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
         nodeList.push(item);
       }
     });

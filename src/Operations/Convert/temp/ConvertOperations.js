@@ -2,10 +2,10 @@ import { InputSpec, OutputSpec } from './common.js';
 import BaseOperation from './BaseOperation.js';
 
 class ConvertOperation extends BaseOperation {
-  inferItemInputs (item) {
+  inferConstructInputs (item) {
 
   }
-  executeOnItem (item, inputOptions) {
+  executeOnConstruct (item, inputOptions) {
 
   }
 }
@@ -13,90 +13,90 @@ class ConvertOperation extends BaseOperation {
 export default ConvertOperation;
 
 /*
-Conversion code stripped out of Items:
+Conversion code stripped out of Constructs:
 
-*** BaseItem
+*** BaseConstruct
 
-canConvertTo (ItemType) {
-  return ItemType === this.constructor;
+canConvertTo (ConstructType) {
+  return ConstructType === this.constructor;
 }
-convertTo (ItemType) {
-  if (ItemType === this.constructor) {
+convertTo (ConstructType) {
+  if (ConstructType === this.constructor) {
     return this;
   } else {
-    throw new Error(`Conversion from ${this.constructor.name} to ${ItemType.name} not yet implemented.`);
+    throw new Error(`Conversion from ${this.constructor.name} to ${ConstructType.name} not yet implemented.`);
   }
 }
 
-*** Generic BaseItem behavior
+*** Generic BaseConstruct behavior
 
-canConvertTo (ItemType) {
-  return BaseItem.prototype.canConvertTo.call(this, ItemType);
+canConvertTo (ConstructType) {
+  return BaseConstruct.prototype.canConvertTo.call(this, ConstructType);
 }
-convertTo (ItemType) {
-  return BaseItem.prototype.convertTo.call(this, ItemType);
+convertTo (ConstructType) {
+  return BaseConstruct.prototype.convertTo.call(this, ConstructType);
 }
 
-*** ContainerItem
+*** ItemConstruct
 
-canConvertTo (ItemType) {
-  return ItemType === NodeItem ||
-    super.canConvertTo(ItemType);
+canConvertTo (ConstructType) {
+  return ConstructType === NodeConstruct ||
+    super.canConvertTo(ConstructType);
 }
-convertTo (ItemType) {
-  if (ItemType === NodeItem) {
+convertTo (ConstructType) {
+  if (ConstructType === NodeConstruct) {
     this.value.$edges = {};
     this.value.$tags = {};
-    return new NodeItem(this.value, this.path, this.doc);
+    return new NodeConstruct(this.value, this.path, this.doc);
   } else {
-    return super.convertTo(ItemType);
+    return super.convertTo(ConstructType);
   }
 }
 
-*** DateItem
+*** DateConstruct
 
-canConvertTo (ItemType) {
-  return ItemType === NumberItem ||
-    ItemType === StringItem ||
-    super.canConvertTo(ItemType);
+canConvertTo (ConstructType) {
+  return ConstructType === NumberConstruct ||
+    ConstructType === StringConstruct ||
+    super.canConvertTo(ConstructType);
 }
-convertTo (ItemType) {
-  if (ItemType === NumberItem) {
+convertTo (ConstructType) {
+  if (ConstructType === NumberConstruct) {
     this.parent[this.label] = this._value = Number(this.value);
-    return new NumberItem(this._value, this.path, this.doc);
-  } else if (ItemType === StringItem) {
+    return new NumberConstruct(this._value, this.path, this.doc);
+  } else if (ConstructType === StringConstruct) {
     this.parent[this.label] = this._value = String(this.value);
-    return new StringItem(this._value, this.path, this.doc);
+    return new StringConstruct(this._value, this.path, this.doc);
   } else {
-    return super.convertTo(ItemType);
+    return super.convertTo(ConstructType);
   }
 }
 
-*** PrimitiveItem
+*** PrimitiveConstruct
 
-canConvertTo (ItemType) {
-  return ItemType === BooleanItem ||
-    ItemType === NumberItem ||
-    ItemType === StringItem ||
-    ItemType === DateItem ||
-    super.canConvertTo(ItemType);
+canConvertTo (ConstructType) {
+  return ConstructType === BooleanConstruct ||
+    ConstructType === NumberConstruct ||
+    ConstructType === StringConstruct ||
+    ConstructType === DateConstruct ||
+    super.canConvertTo(ConstructType);
 }
-convertTo (ItemType) {
-  if (ItemType === BooleanItem) {
+convertTo (ConstructType) {
+  if (ConstructType === BooleanConstruct) {
     this.value = !!this.value;
-  } else if (ItemType === NumberItem) {
+  } else if (ConstructType === NumberConstruct) {
     this.value = Number(this.value);
-  } else if (ItemType === StringItem) {
+  } else if (ConstructType === StringConstruct) {
     this.value = String(this.value);
-  } else if (ItemType === DateItem) {
+  } else if (ConstructType === DateConstruct) {
     this.value = {
       $isDate: true,
       str: new Date(this.value).toString()
     };
   } else {
-    return super.convertTo(ItemType);
+    return super.convertTo(ConstructType);
   }
-  return new ItemType({
+  return new ConstructType({
     mure: this.mure,
     value: this.value,
     path: this.path,

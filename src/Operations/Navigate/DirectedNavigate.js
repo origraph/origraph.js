@@ -2,13 +2,13 @@ import InputSpec from '../Common/InputSpec.js';
 import BaseOperation from '../Common/BaseOperation.js';
 import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
-class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
-  checkItemInputs (item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.EdgeItem ||
-      item instanceof this.mure.ITEM_TYPES.NodeItem;
+class DirectedNavigate extends ChainTerminatingMixin(BaseOperation) {
+  checkConstructInputs (item, inputOptions) {
+    return item instanceof this.mure.CONSTRUCTS.EdgeConstruct ||
+      item instanceof this.mure.CONSTRUCTS.NodeConstruct;
   }
-  inferItemInputs (item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs (item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     }
     const inputs = new InputSpec();
@@ -38,4 +38,4 @@ class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
   }
 }
 
-export default DirectedPivot;
+export default DirectedNavigate;

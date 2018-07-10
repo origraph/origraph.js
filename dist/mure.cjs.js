@@ -110,11 +110,11 @@ class Selection {
     });
   }
   get isCached() {
-    return !!this._cachedItems;
+    return !!this._cachedConstructs;
   }
   invalidateCache() {
     delete this._cachedDocLists;
-    delete this._cachedItems;
+    delete this._cachedConstructs;
     delete this._summaryCaches;
   }
   async docLists() {
@@ -123,7 +123,7 @@ class Selection {
     }
     this._cachedDocLists = await Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
     // We want all selections to operate from exactly the same document object,
-    // so it's easy / straightforward for Items to just mutate their own value
+    // so it's easy / straightforward for Constructs to just mutate their own value
     // references, and have those changes automatically appear in documents
     // when they're saved... so we actually want to *swap out* matching documents
     // for their cached versions
@@ -155,8 +155,8 @@ class Selection {
     return this._cachedDocLists;
   }
   async items(docLists) {
-    if (this._cachedItems) {
-      return this._cachedItems;
+    if (this._cachedConstructs) {
+      return this._cachedConstructs;
     }
 
     // Note: we should only pass in docLists in rare situations (such as the
@@ -167,13 +167,13 @@ class Selection {
 
     return uki.queueAsync(async () => {
       // Collect the results of objQuery
-      this._cachedItems = {};
-      let addedItem = false;
+      this._cachedConstructs = {};
+      let addedConstruct = false;
 
-      const addItem = item => {
-        addedItem = true;
-        if (!this._cachedItems[item.uniqueSelector]) {
-          this._cachedItems[item.uniqueSelector] = item;
+      const addConstruct = item => {
+        addedConstruct = true;
+        if (!this._cachedConstructs[item.uniqueSelector]) {
+          this._cachedConstructs[item.uniqueSelector] = item;
         }
       };
 
@@ -185,7 +185,7 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addItem(new this.mure.ITEM_TYPES.RootItem({
+            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
               docList,
               selectSingle: this.selectSingle
@@ -195,14 +195,14 @@ class Selection {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.some(doc => {
-              addItem(new this.mure.ITEM_TYPES.DocumentItem({
+              addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                 mure: this.mure,
                 doc
               }));
               return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
-            addItem(new this.mure.ITEM_TYPES.RootItem({
+            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
               docList,
               selectSingle: this.selectSingle
@@ -212,9 +212,9 @@ class Selection {
           // Okay, we need to evaluate the jsonPath
           for (let docIndex = 0; docIndex < docList.length; docIndex++) {
             let doc = docList[docIndex];
-            let matchingItems = jsonPath.nodes(doc, selector.objQuery);
-            for (let itemIndex = 0; itemIndex < matchingItems.length; itemIndex++) {
-              let { path, value } = matchingItems[itemIndex];
+            let matchingConstructs = jsonPath.nodes(doc, selector.objQuery);
+            for (let itemIndex = 0; itemIndex < matchingConstructs.length; itemIndex++) {
+              let { path, value } = matchingConstructs[itemIndex];
               let localPath = path;
               if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
                 // Don't create items under reserved keys
@@ -222,7 +222,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.RootItem({
+                  addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
                     mure: this.mure,
                     docList,
                     selectSingle: this.selectSingle
@@ -231,7 +231,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addItem(new this.mure.ITEM_TYPES.DocumentItem({
+                  addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                     mure: this.mure,
                     doc
                   }));
@@ -244,10 +244,10 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values((await this.mure.followRelativeLink(value, doc, this.selectSingle))).forEach(addItem);
+                  Object.values((await this.mure.followRelativeLink(value, doc, this.selectSingle))).forEach(addConstruct);
                 } else {
-                  const ItemType = this.mure.inferType(value);
-                  addItem(new ItemType({
+                  const ConstructType = this.mure.inferType(value);
+                  addConstruct(new ConstructType({
                     mure: this.mure,
                     value,
                     path: [`{"_id":"${doc._id}"}`].concat(localPath),
@@ -255,21 +255,21 @@ class Selection {
                   }));
                 }
               }
-              if (this.selectSingle && addedItem) {
+              if (this.selectSingle && addedConstruct) {
                 break;
               }
             }
-            if (this.selectSingle && addedItem) {
+            if (this.selectSingle && addedConstruct) {
               break;
             }
           }
         }
 
-        if (this.selectSingle && addedItem) {
+        if (this.selectSingle && addedConstruct) {
           break;
         }
       }
-      return this._cachedItems;
+      return this._cachedConstructs;
     });
   }
   get chainable() {
@@ -292,8 +292,8 @@ chaining additional operations.`);
   }
   async executeChain() {
     // Evaluate all the pending operations that we've accrued; as each function
-    // manipulates Items' .value property, those changes will automatically be
-    // reflected in the document (as every .value is a pointer, or BaseItem's
+    // manipulates Constructs' .value property, those changes will automatically be
+    // reflected in the document (as every .value is a pointer, or BaseConstruct's
     // .value setter ensures that primitives are propagated)
     let outputSpec = new OutputSpec();
     for (let f = 0; f < this.pendingOperations.length; f++) {
@@ -378,23 +378,23 @@ one-off operations.`);
       if (counters.quantitativeBins !== null) {
         if (counters.quantitativeBins.length === 0) {
           // Init the counters with some temporary placeholders
-          counters.quantitativeItems = [];
+          counters.quantitativeConstructs = [];
           counters.quantitativeType = item.type;
-          if (item instanceof this.mure.ITEM_TYPES.NumberItem) {
+          if (item instanceof this.mure.CONSTRUCTS.NumberConstruct) {
             counters.quantitativeScale = this.mure.d3.scaleLinear().domain([item.value, item.value]);
-          } else if (item instanceof this.mure.ITEM_TYPES.DateItem) {
+          } else if (item instanceof this.mure.CONSTRUCTS.DateConstruct) {
             counters.quantitativeScale = this.mure.d3.scaleTime().domain([item.value, item.value]);
           } else {
             // The first value is non-quantitative; this likely isn't a quantitative attribute
             counters.quantitativeBins = null;
-            delete counters.quantitativeItems;
+            delete counters.quantitativeConstructs;
             delete counters.quantitativeType;
             delete counters.quantitativeScale;
           }
         } else if (counters.quantitativeType !== item.type) {
           // Encountered an item of a different type; this likely isn't a quantitative attribute
           counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -414,24 +414,24 @@ one-off operations.`);
     for (let i = 0; i < itemList.length; i++) {
       const item = itemList[i];
       result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
+      if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
         countPrimitive(result.raw, item);
       } else {
-        if (item.contentItems) {
-          (await item.contentItems()).forEach(childItem => {
-            const counters = result.attributes[childItem.label] = result.attributes[childItem.label] || {
+        if (item.contentConstructs) {
+          (await item.contentConstructs()).forEach(childConstruct => {
+            const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
               quantitativeBins: []
             };
-            counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
-            if (childItem instanceof this.mure.ITEM_TYPES.PrimitiveItem) {
-              countPrimitive(counters, childItem);
+            counters.typeBins[childConstruct.type] = (counters.typeBins[childConstruct.type] || 0) + 1;
+            if (childConstruct instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
+              countPrimitive(counters, childConstruct);
             }
           });
         }
         // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to contentItems?)
+        // (and a set's members' attributes, similar to contentConstructs?)
       }
     }
 
@@ -444,9 +444,9 @@ one-off operations.`);
         counters.categoricalBins = null;
       }
       if (counters.quantitativeBins) {
-        if (!counters.quantitativeItems || counters.quantitativeItems.length === 0) {
+        if (!counters.quantitativeConstructs || counters.quantitativeConstructs.length === 0) {
           counters.quantitativeBins = null;
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -455,9 +455,9 @@ one-off operations.`);
           counters.quantitativeScale.nice();
           // Histogram generator
           const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeItems);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeConstructs);
           // Clean up some of the temporary placeholders
-          delete counters.quantitativeItems;
+          delete counters.quantitativeConstructs;
           delete counters.quantitativeType;
         }
       }
@@ -485,7 +485,7 @@ one-off operations.`);
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
+      if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
         // This is an edge; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -495,12 +495,12 @@ one-off operations.`);
           let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
           Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
-            let nodeItem = items[nodeSelector];
-            if (!nodeItem) {
+            let nodeConstruct = items[nodeSelector];
+            if (!nodeConstruct) {
               // This edge refers to a node outside the selection
               result.missingNodes = true;
             } else {
-              nodeItem.getClasses().forEach(nodeClassName => {
+              nodeConstruct.getClasses().forEach(nodeClassName => {
                 Object.entries(directions).forEach(([direction, count]) => {
                   pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
                   pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
@@ -510,7 +510,7 @@ one-off operations.`);
             }
           });
         });
-      } else if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+      } else if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
         // This is a node; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -521,12 +521,12 @@ one-off operations.`);
           pseudoNode.count += 1;
           // Ensure that the edge class is referenced (directions' counts are kept on the edges)
           Object.keys(item.value.$edges).forEach(edgeSelector => {
-            let edgeItem = items[edgeSelector];
-            if (!edgeItem) {
+            let edgeConstruct = items[edgeSelector];
+            if (!edgeConstruct) {
               // This node refers to an edge outside the selection
               result.missingEdges = true;
             } else {
-              edgeItem.getClasses().forEach(edgeClassName => {
+              edgeConstruct.getClasses().forEach(edgeClassName => {
                 pseudoNode.$edges[edgeClassName] = true;
               });
             }
@@ -617,7 +617,7 @@ Selection.INVALIDATE_ALL_CACHES = () => {
   });
 };
 
-class BaseItem {
+class BaseConstruct {
   constructor({ mure, path, value, parent, doc, label, uniqueSelector }) {
     this.mure = mure;
     this.path = path;
@@ -628,7 +628,7 @@ class BaseItem {
     this.uniqueSelector = uniqueSelector;
   }
   get type() {
-    return (/(.*)Item/.exec(this.constructor.name)[1]
+    return (/(.*)Construct/.exec(this.constructor.name)[1]
     );
   }
   get value() {
@@ -637,7 +637,7 @@ class BaseItem {
   set value(newValue) {
     if (this.parent) {
       // In the event that this is a primitive boolean, number, string, etc,
-      // setting the value on the Item wrapper object *won't* naturally update
+      // setting the value on the Construct wrapper object *won't* naturally update
       // it in its containing document...
       this.parent[this.label] = newValue;
     }
@@ -652,19 +652,19 @@ class BaseItem {
     return this.uniqueSelector === other.uniqueSelector;
   }
 }
-BaseItem.getHumanReadableType = function () {
-  return (/(.*)Item/.exec(this.name)[1]
+BaseConstruct.getHumanReadableType = function () {
+  return (/(.*)Construct/.exec(this.name)[1]
   );
 };
-BaseItem.getBoilerplateValue = () => {
+BaseConstruct.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
-BaseItem.standardize = ({ value }) => {
+BaseConstruct.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
 
-class RootItem extends BaseItem {
+class RootConstruct extends BaseConstruct {
   constructor({ mure, docList, selectSingle }) {
     super({
       mure,
@@ -685,11 +685,11 @@ class RootItem extends BaseItem {
   }
 }
 
-class TypedItem extends BaseItem {
+class TypedConstruct extends BaseConstruct {
   constructor({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
-      throw new Error(`Can't create a non-Root or non-Doc Item with a path length less than 2`);
+      throw new Error(`Can't create a non-Root or non-Doc Construct with a path length less than 2`);
     } else if (path.length === 2) {
       parent = doc;
     } else {
@@ -713,14 +713,14 @@ class TypedItem extends BaseItem {
     }
   }
 }
-TypedItem.JSTYPE = 'object';
+TypedConstruct.JSTYPE = 'object';
 
-var ContainerItemMixin = (superclass => class extends superclass {
+var ItemConstructMixin = (superclass => class extends superclass {
   async getValueContents() {
     return Object.entries(this.value).reduce((agg, [label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
-        let ItemType = this.mure.inferType(value);
-        agg.push(new ItemType({
+        let ConstructType = this.mure.inferType(value);
+        agg.push(new ConstructType({
           mure: this.mure,
           value,
           path: this.path.concat([label]),
@@ -735,7 +735,7 @@ var ContainerItemMixin = (superclass => class extends superclass {
   }
 });
 
-class ContainerItem extends ContainerItemMixin(TypedItem) {
+class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value).reduce((max, key) => {
@@ -747,26 +747,26 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
       }
     }, 0) + 1;
   }
-  createNewItem(value, label, ItemType) {
-    ItemType = ItemType || this.mure.inferType(value);
+  createNewConstruct(value, label, ConstructType) {
+    ConstructType = ConstructType || this.mure.inferType(value);
     if (label === undefined) {
       label = String(this.nextLabel);
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ItemType({
+    let item = new ConstructType({
       mure: this.mure,
-      value: ItemType.getBoilerplateValue(),
+      value: ConstructType.getBoilerplateValue(),
       path,
       doc: this.doc
     });
-    this.addItem(item, label);
+    this.addConstruct(item, label);
     return item;
   }
-  addItem(item, label) {
-    if (item instanceof ContainerItem) {
+  addConstruct(item, label) {
+    if (item instanceof ItemConstruct) {
       if (item.value._id) {
-        throw new Error('Item has already been assigned an _id');
+        throw new Error('Construct has already been assigned an _id');
       }
       if (label === undefined) {
         label = this.nextLabel;
@@ -777,19 +777,19 @@ class ContainerItem extends ContainerItemMixin(TypedItem) {
     this.value[label] = item.value;
   }
   async contentSelectors() {
-    return (await this.contentItems()).map(item => item.uniqueSelector);
+    return (await this.contentConstructs()).map(item => item.uniqueSelector);
   }
-  async contentItems() {
+  async contentConstructs() {
     return this.getValueContents();
   }
-  async contentItemCount() {
+  async contentConstructCount() {
     return this.getValueContentCount();
   }
 }
-ContainerItem.getBoilerplateValue = () => {
+ItemConstruct.getBoilerplateValue = () => {
   return {};
 };
-ContainerItem.convertArray = value => {
+ItemConstruct.convertArray = value => {
   if (value instanceof Array) {
     let temp = {};
     value.forEach((element, index) => {
@@ -800,7 +800,7 @@ ContainerItem.convertArray = value => {
   }
   return value;
 };
-ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
+ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   // Assign the object's id if a path is supplied
   if (path) {
     value._id = '@' + jsonPath.stringify(path.slice(1));
@@ -812,11 +812,11 @@ ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
-        nestedValue = ContainerItem.convertArray(nestedValue);
+        nestedValue = ItemConstruct.convertArray(nestedValue);
         // What kind of value are we dealing with?
-        let ItemType = mure.inferType(nestedValue, aggressive);
+        let ConstructType = mure.inferType(nestedValue, aggressive);
         // Apply that class's standardization function
-        value[key] = ItemType.standardize({
+        value[key] = ConstructType.standardize({
           mure,
           value: nestedValue,
           path: temp,
@@ -832,7 +832,7 @@ ContainerItem.standardize = ({ mure, value, path, doc, aggressive }) => {
 // extensions that we want datalib to handle
 const DATALIB_FORMATS = ['json', 'csv', 'tsv', 'topojson', 'treejson'];
 
-class DocumentItem extends ContainerItemMixin(BaseItem) {
+class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
   constructor({ mure, doc }) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -844,7 +844,7 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
       label: doc['filename'],
       uniqueSelector: '@' + docPathQuery + '$'
     });
-    this._contentItem = new ContainerItem({
+    this._contentConstruct = new ItemConstruct({
       mure: this.mure,
       value: this.value.contents,
       path: this.path.concat(['contents']),
@@ -858,25 +858,25 @@ class DocumentItem extends ContainerItemMixin(BaseItem) {
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
   async contentSelectors() {
-    return this._contentItem.contentSelectors();
+    return this._contentConstruct.contentSelectors();
   }
-  async contentItems() {
-    return this._contentItem.contentItems();
+  async contentConstructs() {
+    return this._contentConstruct.contentConstructs();
   }
-  async contentItemCount() {
-    return this._contentItem.contentItemCount();
+  async contentConstructCount() {
+    return this._contentConstruct.contentConstructCount();
   }
-  async metaItemSelectors() {
-    return (await this.metaItems()).map(item => item.uniqueSelector);
+  async metaConstructSelectors() {
+    return (await this.metaConstructs()).map(item => item.uniqueSelector);
   }
-  async metaItems() {
+  async metaConstructs() {
     return this.getValueContents();
   }
-  async metaItemCount() {
+  async metaConstructCount() {
     return this.getValueContentCount();
   }
 }
-DocumentItem.isValidId = docId => {
+DocumentConstruct.isValidId = docId => {
   if (docId[0].toLowerCase() !== docId[0]) {
     return false;
   }
@@ -886,7 +886,7 @@ DocumentItem.isValidId = docId => {
   }
   return !!mime.extension(parts[0]);
 };
-DocumentItem.parse = async (text, extension) => {
+DocumentConstruct.parse = async (text, extension) => {
   let contents;
   if (DATALIB_FORMATS.indexOf(extension) !== -1) {
     contents = datalib.read(text, { type: extension });
@@ -900,25 +900,25 @@ DocumentItem.parse = async (text, extension) => {
   }
   return contents;
 };
-DocumentItem.launchStandardization = async ({ mure, doc }) => {
+DocumentConstruct.launchStandardization = async ({ mure, doc }) => {
   let existingUntitleds = await mure.db.allDocs({
     startkey: doc.mimeType + ';Untitled ',
     endkey: doc.mimeType + ';Untitled \uffff'
   });
-  return DocumentItem.standardize({
+  return DocumentConstruct.standardize({
     mure,
     doc,
     existingUntitleds,
     aggressive: true
   });
 };
-DocumentItem.standardize = ({
+DocumentConstruct.standardize = ({
   mure,
   doc,
   existingUntitleds = { rows: [] },
   aggressive
 }) => {
-  if (!doc._id || !DocumentItem.isValidId(doc._id)) {
+  if (!doc._id || !DocumentConstruct.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
@@ -964,9 +964,9 @@ DocumentItem.standardize = ({
   doc.classes._id = '@$.classes';
 
   doc.contents = doc.contents || {};
-  // In case doc.contents is an array, prep it for ContainerItem.standardize
-  doc.contents = ContainerItem.convertArray(doc.contents);
-  doc.contents = ContainerItem.standardize({
+  // In case doc.contents is an array, prep it for ItemConstruct.standardize
+  doc.contents = ItemConstruct.convertArray(doc.contents);
+  doc.contents = ItemConstruct.standardize({
     mure,
     value: doc.contents,
     path: [`{"_id":"${doc._id}"}`, '$', 'contents'],
@@ -977,13 +977,13 @@ DocumentItem.standardize = ({
   return doc;
 };
 
-class PrimitiveItem extends TypedItem {
+class PrimitiveConstruct extends TypedConstruct {
   stringValue() {
     return String(this.value);
   }
 }
 
-class InvalidItem extends BaseItem {
+class InvalidConstruct extends BaseConstruct {
   constructor({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
@@ -1010,44 +1010,44 @@ class InvalidItem extends BaseItem {
     return 'Invalid: ' + String(this.value);
   }
 }
-InvalidItem.JSTYPE = 'object';
+InvalidConstruct.JSTYPE = 'object';
 
-class NullItem extends PrimitiveItem {}
-NullItem.JSTYPE = 'null';
-NullItem.getBoilerplateValue = () => null;
-NullItem.standardize = () => null;
+class NullConstruct extends PrimitiveConstruct {}
+NullConstruct.JSTYPE = 'null';
+NullConstruct.getBoilerplateValue = () => null;
+NullConstruct.standardize = () => null;
 
-class BooleanItem extends PrimitiveItem {}
-BooleanItem.JSTYPE = 'boolean';
-BooleanItem.getBoilerplateValue = () => false;
-BooleanItem.standardize = ({ value }) => !!value;
+class BooleanConstruct extends PrimitiveConstruct {}
+BooleanConstruct.JSTYPE = 'boolean';
+BooleanConstruct.getBoilerplateValue = () => false;
+BooleanConstruct.standardize = ({ value }) => !!value;
 
-class NumberItem extends PrimitiveItem {}
-NumberItem.JSTYPE = 'number';
-NumberItem.getBoilerplateValue = () => 0;
-NumberItem.standardize = ({ value }) => Number(value);
+class NumberConstruct extends PrimitiveConstruct {}
+NumberConstruct.JSTYPE = 'number';
+NumberConstruct.getBoilerplateValue = () => 0;
+NumberConstruct.standardize = ({ value }) => Number(value);
 
-class StringItem extends PrimitiveItem {}
-StringItem.JSTYPE = 'string';
-StringItem.getBoilerplateValue = () => '';
-StringItem.standardize = ({ value }) => String(value);
+class StringConstruct extends PrimitiveConstruct {}
+StringConstruct.JSTYPE = 'string';
+StringConstruct.getBoilerplateValue = () => '';
+StringConstruct.standardize = ({ value }) => String(value);
 
-class DateItem extends PrimitiveItem {
+class DateConstruct extends PrimitiveConstruct {
   constructor({ mure, value, path, doc }) {
-    super({ mure, value: DateItem.standardize(value), path, doc });
+    super({ mure, value: DateConstruct.standardize(value), path, doc });
   }
   get value() {
     return new Date(this._value.str);
   }
   set value(newValue) {
-    super.value = DateItem.standardize(newValue);
+    super.value = DateConstruct.standardize(newValue);
   }
   stringValue() {
     return String(this.value);
   }
 }
-DateItem.getBoilerplateValue = () => new Date();
-DateItem.standardize = ({ value }) => {
+DateConstruct.getBoilerplateValue = () => new Date();
+DateConstruct.standardize = ({ value }) => {
   if (typeof value === 'string') {
     value = new Date(value);
   }
@@ -1063,19 +1063,19 @@ DateItem.standardize = ({ value }) => {
   return value;
 };
 
-class ReferenceItem extends StringItem {}
-ReferenceItem.getBoilerplateValue = () => '@$';
+class ReferenceConstruct extends StringConstruct {}
+ReferenceConstruct.getBoilerplateValue = () => '@$';
 
-class TaggableItem extends ContainerItem {
+class TaggableConstruct extends ItemConstruct {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$tags) {
-      throw new TypeError(`TaggableItem requires a $tags object`);
+      throw new TypeError(`TaggableConstruct requires a $tags object`);
     }
   }
   addToSetObj(setObj, setFileId) {
     // Convenience function for tagging an item without having to wrap the set
-    // object as a SetItem
+    // object as a SetConstruct
     const itemTag = this.doc._id === setFileId ? this.value._id : this.mure.idToUniqueSelector(this.value._id, this.doc._id);
     const setTag = this.doc._id === setFileId ? setObj._id : this.mure.idToUniqueSelector(setObj._id, setFileId);
     setObj.$members[itemTag] = true;
@@ -1101,12 +1101,12 @@ class TaggableItem extends ContainerItem {
     }, []).sort();
   }
 }
-TaggableItem.getBoilerplateValue = () => {
+TaggableConstruct.getBoilerplateValue = () => {
   return { $tags: {} };
 };
-TaggableItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ContainerItem standardization
-  value = ContainerItem.standardize({ mure, value, path, doc, aggressive });
+TaggableConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular ItemConstruct standardization
+  value = ItemConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $tags object
   value.$tags = value.$tags || {};
   // Move any existing class definitions to this document
@@ -1125,14 +1125,14 @@ TaggableItem.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-var SetItemMixin = (superclass => class extends superclass {
+var SetConstructMixin = (superclass => class extends superclass {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$members) {
-      throw new TypeError(`SetItem requires a $members object`);
+      throw new TypeError(`SetConstruct requires a $members object`);
     }
   }
-  addItem(item) {
+  addConstruct(item) {
     const itemTag = item.value._id;
     const setTag = this.value._id;
     this.value.$members[itemTag] = true;
@@ -1140,28 +1140,28 @@ var SetItemMixin = (superclass => class extends superclass {
   }
 });
 
-class SetItem extends SetItemMixin(TypedItem) {
+class SetConstruct extends SetConstructMixin(TypedConstruct) {
   memberSelectors() {
     return Object.keys(this.value.$members);
   }
-  async memberItems() {
+  async memberConstructs() {
     return this.mure.selectAll(this.memberSelectors()).items();
   }
 }
-SetItem.getBoilerplateValue = () => {
+SetConstruct.getBoilerplateValue = () => {
   return { $members: {} };
 };
-SetItem.standardize = ({ value }) => {
+SetConstruct.standardize = ({ value }) => {
   // Ensure the existence of a $members object
   value.$members = value.$members || {};
   return value;
 };
 
-class EdgeItem extends TaggableItem {
+class EdgeConstruct extends TaggableConstruct {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$nodes) {
-      throw new TypeError(`EdgeItem requires a $nodes object`);
+      throw new TypeError(`EdgeConstruct requires a $nodes object`);
     }
   }
   async nodeSelectors(direction = null) {
@@ -1170,31 +1170,31 @@ class EdgeItem extends TaggableItem {
       return direction === null || directions[direction];
     }).map(([selector, directions]) => selector);
   }
-  async nodeItems(forward = null) {
+  async nodeConstructs(forward = null) {
     return this.mure.selectAll((await this.nodeSelectors(forward))).items();
   }
-  async nodeItemCount(forward = null) {
+  async nodeConstructCount(forward = null) {
     return (await this.nodeSelectors(forward)).length;
   }
 }
-EdgeItem.oppositeDirection = direction => {
+EdgeConstruct.oppositeDirection = direction => {
   return direction === 'source' ? 'target' : direction === 'target' ? 'source' : 'undirected';
 };
-EdgeItem.getBoilerplateValue = () => {
+EdgeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
-EdgeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular TaggableItem standardization
-  value = TaggableItem.standardize({ mure, value, path, doc, aggressive });
+EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular TaggableConstruct standardization
+  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $nodes object
   value.$nodes = value.$nodes || {};
   return value;
 };
-EdgeItem.glompValue = edgeList => {
-  let temp = TaggableItem.glomp(edgeList);
+EdgeConstruct.glompValue = edgeList => {
+  let temp = TaggableConstruct.glomp(edgeList);
   temp.value.$nodes = {};
-  edgeList.forEach(edgeItem => {
-    Object.entries(edgeItem.value.$nodes).forEach(([selector, directions]) => {
+  edgeList.forEach(edgeConstruct => {
+    Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {
       temp.$nodes[selector] = temp.value.$nodes[selector] || {};
       Object.keys(directions).forEach(direction => {
         temp.value.$nodes[selector][direction] = temp.value.$nodes[selector][direction] || 0;
@@ -1205,15 +1205,15 @@ EdgeItem.glompValue = edgeList => {
   return temp;
 };
 
-class NodeItem extends TaggableItem {
+class NodeConstruct extends TaggableConstruct {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$edges) {
-      throw new TypeError(`NodeItem requires an $edges object`);
+      throw new TypeError(`NodeConstruct requires an $edges object`);
     }
   }
   linkTo(otherNode, container, direction = 'undirected') {
-    let newEdge = container.createNewItem({}, undefined, EdgeItem);
+    let newEdge = container.createNewConstruct({}, undefined, EdgeConstruct);
 
     const helper = (node, direction) => {
       node.value.$edges[newEdge.uniqueSelector] = true;
@@ -1224,48 +1224,48 @@ class NodeItem extends TaggableItem {
     };
 
     helper(this, direction);
-    helper(otherNode, EdgeItem.oppositeDirection(direction));
+    helper(otherNode, EdgeConstruct.oppositeDirection(direction));
     return newEdge;
   }
   async edgeSelectors(direction = null) {
     if (direction === null) {
       return Object.keys(this.value.$edges);
     } else {
-      return (await this.edgeItems(direction)).map(item => item.uniqueSelector);
+      return (await this.edgeConstructs(direction)).map(item => item.uniqueSelector);
     }
   }
-  async edgeItems(direction = null) {
+  async edgeConstructs(direction = null) {
     return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items().filter(item => {
       // null indicates that we allow all edges. If direction isn't null,
       // only include edges where we are the OPPOSITE direction (we are
       // at the beginning of the traversal)
-      return direction === null || item.$nodes[this.uniqueSelector][EdgeItem.oppositeDirection(direction)];
+      return direction === null || item.$nodes[this.uniqueSelector][EdgeConstruct.oppositeDirection(direction)];
     });
   }
-  async edgeItemCount(forward = null) {
+  async edgeConstructCount(forward = null) {
     return (await this.edgeSelectors(forward)).length;
   }
 }
-NodeItem.getBoilerplateValue = () => {
+NodeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $edges: {} };
 };
-NodeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular TaggableItem standardization
-  value = TaggableItem.standardize({ mure, value, path, doc, aggressive });
+NodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular TaggableConstruct standardization
+  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of an $edges object
   value.$edges = value.$edges || {};
   return value;
 };
 
-class SupernodeItem extends SetItemMixin(NodeItem) {}
-SupernodeItem.getBoilerplateValue = () => {
+class SupernodeConstruct extends SetConstructMixin(NodeConstruct) {}
+SupernodeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $members: {}, $edges: {} };
 };
-SupernodeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular NodeItem standardization
-  value = NodeItem.standardize({ mure, value, path, doc, aggressive });
-  // ... and the SetItem standardization
-  value = SetItem.standardize({ value });
+SupernodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular NodeConstruct standardization
+  value = NodeConstruct.standardize({ mure, value, path, doc, aggressive });
+  // ... and the SetConstruct standardization
+  value = SetConstruct.standardize({ value });
   return value;
 };
 
@@ -1306,16 +1306,16 @@ ToggleInputOption.glomp = optionList => {
   });
 };
 
-class ItemRequirement extends InputOption {
+class ConstructRequirement extends InputOption {
   constructor({ name, defaultValue, itemTypes, suggestions = [] }) {
     super({ name, defaultValue });
     this.itemTypes = itemTypes;
     this.suggestions = suggestions;
   }
 }
-ItemRequirement.glomp = optionList => {
+ConstructRequirement.glomp = optionList => {
   const suggestions = glompLists(optionList.map(option => option.suggestions));
-  return new ItemRequirement({
+  return new ConstructRequirement({
     name: optionList.some(option => option.name),
     defaultValue: suggestions[0],
     itemTypes: glompLists(optionList.map(option => option.itemTypes)),
@@ -1333,8 +1333,8 @@ class InputSpec {
   addToggleOption(optionDetails) {
     this.options[optionDetails.name] = new ToggleInputOption(optionDetails);
   }
-  addItemRequirement(optionDetails) {
-    this.options[optionDetails.name] = new ItemRequirement(optionDetails);
+  addConstructRequirement(optionDetails) {
+    this.options[optionDetails.name] = new ConstructRequirement(optionDetails);
   }
   addMiscOption(optionDetails) {
     this.options[optionDetails.name] = new InputOption(optionDetails);
@@ -1376,17 +1376,17 @@ class BaseOperation {
     // CamelCase to Sentence Case
     return this.name.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
-  checkItemInputs(item, inputOptions) {
+  checkConstructInputs(item, inputOptions) {
     return true;
   }
-  inferItemInputs(item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs(item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     } else {
       return new InputSpec();
     }
   }
-  async executeOnItem(item, inputOptions) {
+  async executeOnConstruct(item, inputOptions) {
     throw new Error('unimplemented');
   }
   async checkSelectionInputs(selection, inputOptions) {
@@ -1394,12 +1394,12 @@ class BaseOperation {
   }
   async inferSelectionInputs(selection) {
     const items = await selection.items();
-    const inputSpecPromises = Object.values(items).map(item => this.inferItemInputs(item));
+    const inputSpecPromises = Object.values(items).map(item => this.inferConstructInputs(item));
     return InputSpec.glomp((await Promise.all(inputSpecPromises)));
   }
   async executeOnSelection(selection, inputOptions) {
     const items = await selection.items();
-    const outputSpecPromises = Object.values(items).map(item => this.executeOnItem(item, inputOptions));
+    const outputSpecPromises = Object.values(items).map(item => this.executeOnConstruct(item, inputOptions));
     return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
   }
 }
@@ -1413,17 +1413,17 @@ class ContextualOperation extends BaseOperation {
       this.subOperations[OperationClass.name].parentOperation = this;
     });
   }
-  checkItemInputs(item, inputOptions) {
+  checkConstructInputs(item, inputOptions) {
     return inputOptions.context && this.subOperations[inputOptions.context];
   }
-  inferItemInputs(item) {
+  inferConstructInputs(item) {
     const itemInputs = {};
     Object.entries(this.subOperations).map(([subOpName, subOp]) => {
-      itemInputs[subOpName] = subOp.inferItemInputs(item);
+      itemInputs[subOpName] = subOp.inferConstructInputs(item);
     });
     return itemInputs;
   }
-  async executeOnItem(item, inputOptions) {
+  async executeOnConstruct(item, inputOptions) {
     throw new Error('unimplemented');
   }
   async checkSelectionInputs(selection, inputOptions) {
@@ -1460,28 +1460,28 @@ var ParameterlessMixin = (superclass => class extends superclass {
   }
 });
 
-class PivotToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
-  checkItemInputs(item) {
-    return item instanceof this.mure.ITEM_TYPES.ContainerItem || item instanceof this.mure.ITEM_TYPES.DocumentItem;
+class NavigateToContents extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+  checkConstructInputs(item) {
+    return item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
   }
-  async executeOnItem(item) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Must be a ContainerItem or a DocumentItem to \
-PivotToContents`);
+  async executeOnConstruct(item) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Must be a ItemConstruct or a DocumentConstruct to \
+NavigateToContents`);
     }
     return new OutputSpec({
-      newSelectors: (await item.contentItems()).map(childItem => childItem.uniqueSelector)
+      newSelectors: (await item.contentConstructs()).map(childConstruct => childConstruct.uniqueSelector)
     });
   }
 }
 
-class PivotToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
-  checkItemInputs(item) {
-    return item instanceof this.mure.ITEM_TYPES.SetItem;
+class NavigateToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
+  checkConstructInputs(item) {
+    return item instanceof this.mure.CONSTRUCTS.SetConstruct;
   }
-  async executeOnItem(item) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Must be a SetItem to PivotToMembers`);
+  async executeOnConstruct(item) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Must be a SetConstruct to NavigateToMembers`);
     }
     return new OutputSpec({
       newSelectors: await item.memberSelectors()
@@ -1489,12 +1489,12 @@ class PivotToMembers extends ParameterlessMixin(ChainTerminatingMixin(BaseOperat
   }
 }
 
-class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
-  checkItemInputs(item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.EdgeItem || item instanceof this.mure.ITEM_TYPES.NodeItem;
+class DirectedNavigate extends ChainTerminatingMixin(BaseOperation) {
+  checkConstructInputs(item, inputOptions) {
+    return item instanceof this.mure.CONSTRUCTS.EdgeConstruct || item instanceof this.mure.CONSTRUCTS.NodeConstruct;
   }
-  inferItemInputs(item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs(item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     }
     const inputs = new InputSpec();
@@ -1525,21 +1525,21 @@ class DirectedPivot extends ChainTerminatingMixin(BaseOperation) {
   }
 }
 
-class PivotToNodes extends DirectedPivot {
-  async executeOnItem(item, inputOptions) {
+class NavigateToNodes extends DirectedNavigate {
+  async executeOnConstruct(item, inputOptions) {
     if (!this.checkInputs(item, inputOptions)) {
-      throw new Error(`Must be an EdgeItem or NodeItem to PivotToNodes`);
+      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToNodes`);
     }
     let forward = this._forward === undefined ? this.getForward(inputOptions) : this._forward;
 
-    if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+    if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
       return new OutputSpec({
         newSelectors: await item.edgeSelectors(forward)
       });
     } else {
-      // if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
-      let temp = await item.nodeItems(forward);
-      temp = temp.map(edgeItem => edgeItem.edgeSelectors(forward));
+      // if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+      let temp = await item.nodeConstructs(forward);
+      temp = temp.map(edgeConstruct => edgeConstruct.edgeSelectors(forward));
       return new OutputSpec({
         newSelectors: glompLists((await Promise.all(temp)))
       });
@@ -1547,21 +1547,21 @@ class PivotToNodes extends DirectedPivot {
   }
 }
 
-class PivotToEdges extends DirectedPivot {
-  async executeOnItem(item, inputOptions) {
+class NavigateToEdges extends DirectedNavigate {
+  async executeOnConstruct(item, inputOptions) {
     if (!this.checkInputs(item, inputOptions)) {
-      throw new Error(`Must be an EdgeItem or NodeItem to PivotToEdges`);
+      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToEdges`);
     }
     let forward = this._forward === undefined ? this.getForward(inputOptions) : this._forward;
 
-    if (item instanceof this.mure.ITEM_TYPES.EdgeItem) {
+    if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
       return new OutputSpec({
         newSelectors: await item.nodeSelectors(forward)
       });
     } else {
-      // if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
-      let temp = await item.edgeItems(forward);
-      temp = temp.map(edgeItem => edgeItem.nodeSelectors(forward));
+      // if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+      let temp = await item.edgeConstructs(forward);
+      temp = temp.map(edgeConstruct => edgeConstruct.nodeSelectors(forward));
       return new OutputSpec({
         newSelectors: glompLists((await Promise.all(temp)))
       });
@@ -1569,19 +1569,19 @@ class PivotToEdges extends DirectedPivot {
   }
 }
 
-class PivotOperation extends ContextualOperation {
+class NavigateOperation extends ContextualOperation {
   constructor(mure) {
-    super(mure, [PivotToContents, PivotToMembers, PivotToNodes, PivotToEdges]);
+    super(mure, [NavigateToContents, NavigateToMembers, NavigateToNodes, NavigateToEdges]);
   }
 }
 
 class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
-  checkItemInputs(item) {
-    return item instanceof this.mure.ITEM_TYPES.ContainerItem;
+  checkConstructInputs(item) {
+    return item instanceof this.mure.CONSTRUCTS.ItemConstruct;
   }
-  async executeOnItem(item) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Item must be a ContainerItem`);
+  async executeOnConstruct(item) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Construct must be a ItemConstruct`);
     }
     item.value.$tags = item.value.$tags || {};
     item.value.$edges = item.value.$edges || {};
@@ -1593,7 +1593,7 @@ class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
     const temp = await super.executeOnSelection(selection);
     // Invalidate the selection's cache of items so they're properly wrapped
     // for the next chained operation
-    delete selection._cachedItems;
+    delete selection._cachedConstructs;
     return temp;
   }
 }
@@ -1618,9 +1618,9 @@ var ConnectNodesMixin = (superclass => class extends superclass {
       name: 'targetSelection',
       defaultValue: selection
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
       defaultValue: containers[0],
       suggestions: containers
     });
@@ -1629,7 +1629,7 @@ var ConnectNodesMixin = (superclass => class extends superclass {
   async extractNodes(selection) {
     const nodeList = [];
     const containers = await this.pollSelection(selection, item => {
-      if (item instanceof this.mure.ITEM_TYPES.NodeItem) {
+      if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
         nodeList.push(item);
       }
     });
@@ -1678,31 +1678,31 @@ var ConnectSetsMixin = (superclass => class extends superclass {
       choices: ['undirected', 'source', 'target'],
       defaultValue: 'target'
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'sourceSet',
       defaultValue: setA,
-      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
       suggestions: setSuggestions
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'targetSet',
       defaultValue: setB,
-      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
       suggestions: setSuggestions
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
       defaultValue: containers[0],
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
       suggestions: containers
     });
     return inputs;
   }
   async executeOnSelection(selection, inputOptions) {
-    let [sourceList, targetList, containers] = await Promise.all([inputOptions.sourceSet.memberItems(), inputOptions.targetSet ? inputOptions.targetSet.memberItems() : null, this.pollSelection(selection)]);
-    sourceList = Object.values(sourceList).filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+    let [sourceList, targetList, containers] = await Promise.all([inputOptions.sourceSet.memberConstructs(), inputOptions.targetSet ? inputOptions.targetSet.memberConstructs() : null, this.pollSelection(selection)]);
+    sourceList = Object.values(sourceList).filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
     if (targetList) {
-      targetList = Object.values(targetList).filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+      targetList = Object.values(targetList).filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
     } else {
       targetList = sourceList;
     }
@@ -1710,8 +1710,8 @@ var ConnectSetsMixin = (superclass => class extends superclass {
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnItem(sourceList[i], {
-          otherItem: targetList[j],
+        outputPromises.push(this.executeOnConstruct(sourceList[i], {
+          otherConstruct: targetList[j],
           saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
           connectWhen: (source, target) => {
             const sourceVal = inputOptions.sourceAttribute ? source.value[inputOptions.sourceAttribute] : source.label;
@@ -1727,7 +1727,7 @@ var ConnectSetsMixin = (superclass => class extends superclass {
 });
 
 class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
-  inferItemInputs(item) {
+  inferConstructInputs(item) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
@@ -1738,24 +1738,24 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       name: 'connectWhen',
       defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
     });
-    inputs.addItemRequirement({
-      name: 'otherItem',
-      itemTypes: [this.mure.ITEM_TYPES.NodeItem]
+    inputs.addConstructRequirement({
+      name: 'otherConstruct',
+      itemTypes: [this.mure.CONSTRUCTS.NodeConstruct]
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem]
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     });
     return inputs;
   }
-  async executeOnItem(item, inputOptions) {
+  async executeOnConstruct(item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
-    if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem, inputOptions.saveEdgesIn, inputOptions.direction);
+    if (match(item, inputOptions.otherConstruct)) {
+      const newEdge = item.linkTo(inputOptions.otherConstruct, inputOptions.saveEdgesIn, inputOptions.direction);
 
       return new OutputSpec({
         newSelectors: [newEdge.uniqueSelector],
-        pollutedDocs: glompLists([[item.doc, inputOptions.otherItem.doc, newEdge.doc]])
+        pollutedDocs: glompLists([[item.doc, inputOptions.otherConstruct.doc, newEdge.doc]])
       });
     } else {
       return new OutputSpec();
@@ -1766,7 +1766,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     let containers = [];
     const docs = {};
     Object.values(items).forEach(item => {
-      if (item.constructor.name === 'ContainerItem') {
+      if (item.constructor.name === 'ItemConstruct') {
         containers.push(item);
       }
       docs[item.doc._id] = item.doc;
@@ -1774,7 +1774,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       callback(item);
     });
     containers = containers.concat(Object.values(docs).map(doc => {
-      return new this.mure.ITEM_TYPES.ContainerItem({
+      return new this.mure.CONSTRUCTS.ItemConstruct({
         mure: this.mure,
         value: doc.orphans,
         path: [`{"_id":"${doc._id}"}`, 'orphans'],
@@ -1802,8 +1802,8 @@ var ConnectOnFunctionMixin = (superclass => class extends superclass {
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnItem(sourceList[i], {
-          otherItem: targetList[j],
+        outputPromises.push(this.executeOnConstruct(sourceList[i], {
+          otherConstruct: targetList[j],
           saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
           connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
           direction: inputOptions.direction || 'target'
@@ -1833,8 +1833,8 @@ var ConnectOnAttributeMixin = (superclass => class extends superclass {
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnItem(sourceList[i], {
-          otherItem: targetList[j],
+        outputPromises.push(this.executeOnConstruct(sourceList[i], {
+          otherConstruct: targetList[j],
           saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
           connectWhen: (source, target) => {
             const sourceVal = inputOptions.sourceAttribute ? source.value[inputOptions.sourceAttribute] : source.label;
@@ -1861,11 +1861,11 @@ class ConnectOperation extends ContextualOperation {
 }
 
 class AssignClassOperation extends BaseOperation {
-  checkItemInputs(item, inputOptions) {
-    return item instanceof this.mure.ITEM_TYPES.TaggableItem;
+  checkConstructInputs(item, inputOptions) {
+    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
   }
-  inferItemInputs(item) {
-    if (!this.checkItemInputs(item)) {
+  inferConstructInputs(item) {
+    if (!this.checkConstructInputs(item)) {
       return null;
     } else {
       const temp = new InputSpec();
@@ -1877,9 +1877,9 @@ class AssignClassOperation extends BaseOperation {
       return temp;
     }
   }
-  async executeOnItem(item, inputOptions) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Must be a TaggableItem to assign a class`);
+  async executeOnConstruct(item, inputOptions) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Must be a TaggableConstruct to assign a class`);
     }
     item.addClass(inputOptions.className || 'none');
     return new OutputSpec({
@@ -1910,23 +1910,23 @@ class Mure extends uki.Model {
     this.d3.namespaces.mure = this.NSString;
 
     // Our custom type definitions
-    this.ITEM_TYPES = {
-      RootItem,
-      DocumentItem,
-      PrimitiveItem,
-      InvalidItem,
-      NullItem,
-      BooleanItem,
-      NumberItem,
-      StringItem,
-      DateItem,
-      ReferenceItem,
-      ContainerItem,
-      TaggableItem,
-      SetItem,
-      EdgeItem,
-      NodeItem,
-      SupernodeItem
+    this.CONSTRUCTS = {
+      RootConstruct,
+      DocumentConstruct,
+      PrimitiveConstruct,
+      InvalidConstruct,
+      NullConstruct,
+      BooleanConstruct,
+      NumberConstruct,
+      StringConstruct,
+      DateConstruct,
+      ReferenceConstruct,
+      ItemConstruct,
+      TaggableConstruct,
+      SetConstruct,
+      EdgeConstruct,
+      NodeConstruct,
+      SupernodeConstruct
     };
 
     // Special keys that should be skipped in various operations
@@ -1949,18 +1949,18 @@ class Mure extends uki.Model {
       XOR: 'XOR'
     };
 
-    // Auto-mappings from native javascript types to Items
+    // Auto-mappings from native javascript types to Constructs
     this.JSTYPES = {
-      'null': NullItem,
-      'boolean': BooleanItem,
-      'number': NumberItem
+      'null': NullConstruct,
+      'boolean': BooleanConstruct,
+      'number': NumberConstruct
     };
 
     // All the supported operations
-    let operationClasses = [PivotOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
+    let operationClasses = [NavigateOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
     this.OPERATIONS = {};
 
-    // Unlike ITEM_TYPES, we actually want to instantiate all the operations
+    // Unlike CONSTRUCTS, we actually want to instantiate all the operations
     // with a reference to this. While we're at it, monkey patch them onto
     // the Selection class
     operationClasses.forEach(Operation => {
@@ -2013,7 +2013,7 @@ class Mure extends uki.Model {
     this.dbStatus = new Promise((resolve, reject) => {
       (async () => {
         let status = { synced: false };
-        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
+        let couchDbUrl = this.window.localStorage.getConstruct('couchDbUrl');
         if (couchDbUrl) {
           let couchDb = new this.PouchDB(couchDbUrl, { skip_setup: true });
           status.synced = !!(await this.db.sync(couchDb, { live: true, retry: true }).catch(err => {
@@ -2081,8 +2081,8 @@ class Mure extends uki.Model {
     let results = await this.db.allDocs(options);
     return results.rows.map(row => row.doc);
   }
-  async allDocItems() {
-    return (await this.allDocs()).map(doc => new this.ITEM_TYPES.DocumentItem({ mure: this, doc }));
+  async allDocConstructs() {
+    return (await this.allDocs()).map(doc => new this.CONSTRUCTS.DocumentConstruct({ mure: this, doc }));
   }
   async queryDocs(queryObj) {
     await this.dbStatus;
@@ -2109,7 +2109,7 @@ class Mure extends uki.Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: {}, mure: this });
+      return this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -2122,7 +2122,7 @@ class Mure extends uki.Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc: docQuery, mure: this });
+          doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -2165,7 +2165,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = this.ITEM_TYPES.DocumentItem.formatDoc(doc, { mimeType });
+      let contents = this.CONSTRUCTS.DocumentConstruct.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -2201,14 +2201,14 @@ class Mure extends uki.Model {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     const extension = extensionOverride || mime.extension(mimeType) || 'txt';
-    let doc = await this.ITEM_TYPES.DocumentItem.parse(string, extension);
+    let doc = await this.CONSTRUCTS.DocumentConstruct.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.ITEM_TYPES.DocumentItem.launchStandardization({ doc, mure: this });
+    doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc, mure: this });
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
@@ -2293,7 +2293,7 @@ class Mure extends uki.Model {
         // Attempt to parse as a reference
         try {
           new Selection(null, value); // eslint-disable-line no-new
-          return this.ITEM_TYPES.ReferenceItem;
+          return this.CONSTRUCTS.ReferenceConstruct;
         } catch (err) {
           if (!err.INVALID_SELECTOR) {
             throw err;
@@ -2304,7 +2304,7 @@ class Mure extends uki.Model {
       if (aggressive) {
         // Aggressively attempt to identify something more specific than string
         if (!isNaN(Number(value))) {
-          return this.ITEM_TYPES.NumberItem;
+          return this.CONSTRUCTS.NumberConstruct;
           /*
            For now, we don't attempt to identify dates, even in aggressive mode,
            because things like new Date('Player 1') will successfully parse as a
@@ -2314,40 +2314,40 @@ class Mure extends uki.Model {
            maybe we'll add this back...
           */
           // } else if (!isNaN(new Date(value))) {
-          //  return ITEM_TYPES.DateItem;
+          //  return CONSTRUCTS.DateConstruct;
         } else {
           const temp = value.toLowerCase();
           if (temp === 'true') {
-            return this.ITEM_TYPES.BooleanItem;
+            return this.CONSTRUCTS.BooleanConstruct;
           } else if (temp === 'false') {
-            return this.ITEM_TYPES.BooleanItem;
+            return this.CONSTRUCTS.BooleanConstruct;
           } else if (temp === 'null') {
-            return this.ITEM_TYPES.NullItem;
+            return this.CONSTRUCTS.NullConstruct;
           }
         }
       }
       // Okay, it's just a string
-      return this.ITEM_TYPES.StringItem;
+      return this.CONSTRUCTS.StringConstruct;
     } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-      return this.ITEM_TYPES.InvalidItem;
+      return this.CONSTRUCTS.InvalidConstruct;
     } else if (value === null) {
-      return this.ITEM_TYPES.NullItem;
+      return this.CONSTRUCTS.NullConstruct;
     } else if (value instanceof Date || value.$isDate === true) {
-      return this.ITEM_TYPES.DateItem;
+      return this.CONSTRUCTS.DateConstruct;
     } else if (value.$nodes) {
-      return this.ITEM_TYPES.EdgeItem;
+      return this.CONSTRUCTS.EdgeConstruct;
     } else if (value.$edges) {
       if (value.$members) {
-        return this.ITEM_TYPES.SupernodeItem;
+        return this.CONSTRUCTS.SupernodeConstruct;
       } else {
-        return this.ITEM_TYPES.NodeItem;
+        return this.CONSTRUCTS.NodeConstruct;
       }
     } else if (value.$members) {
-      return this.ITEM_TYPES.SetItem;
+      return this.CONSTRUCTS.SetConstruct;
     } else if (value.$tags) {
-      return this.ITEM_TYPES.TaggableItem;
+      return this.CONSTRUCTS.TaggableConstruct;
     } else {
-      return this.ITEM_TYPES.ContainerItem;
+      return this.CONSTRUCTS.ItemConstruct;
     }
   }
   async followRelativeLink(selector, doc, selectSingle = false) {
@@ -2458,7 +2458,7 @@ var pkg = {
 
 let d3n = new D3Node();
 // Attach a few extra shims for testing
-d3n.window.localStorage = { getItem: () => null };
+d3n.window.localStorage = { getConstruct: () => null };
 
 let PouchDB = require('pouchdb-node').plugin(require('pouchdb-find')).plugin(require('pouchdb-authentication'));
 

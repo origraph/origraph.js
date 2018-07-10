@@ -3,12 +3,12 @@ import BaseOperation from '../Common/BaseOperation.js';
 import ParameterlessMixin from '../Common/ParameterlessMixin.js';
 
 class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
-  checkItemInputs (item) {
-    return item instanceof this.mure.ITEM_TYPES.ContainerItem;
+  checkConstructInputs (item) {
+    return item instanceof this.mure.CONSTRUCTS.ItemConstruct;
   }
-  async executeOnItem (item) {
-    if (!this.checkItemInputs(item)) {
-      throw new Error(`Item must be a ContainerItem`);
+  async executeOnConstruct (item) {
+    if (!this.checkConstructInputs(item)) {
+      throw new Error(`Construct must be a ItemConstruct`);
     }
     item.value.$tags = item.value.$tags || {};
     item.value.$edges = item.value.$edges || {};
@@ -20,7 +20,7 @@ class ConvertContainerToNode extends ParameterlessMixin(BaseOperation) {
     const temp = await super.executeOnSelection(selection);
     // Invalidate the selection's cache of items so they're properly wrapped
     // for the next chained operation
-    delete selection._cachedItems;
+    delete selection._cachedConstructs;
     return temp;
   }
 }

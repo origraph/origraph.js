@@ -27,37 +27,37 @@ export default (superclass) => class extends superclass {
       choices: ['undirected', 'source', 'target'],
       defaultValue: 'target'
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'sourceSet',
       defaultValue: setA,
-      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
       suggestions: setSuggestions
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'targetSet',
       defaultValue: setB,
-      itemTypes: [this.mure.ITEM_TYPES.SetItem, this.mure.ITEM_TYPES.SupernodeItem],
+      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
       suggestions: setSuggestions
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
       defaultValue: containers[0],
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem],
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
       suggestions: containers
     });
     return inputs;
   }
   async executeOnSelection (selection, inputOptions) {
     let [sourceList, targetList, containers] = await Promise.all([
-      inputOptions.sourceSet.memberItems(),
-      inputOptions.targetSet ? inputOptions.targetSet.memberItems() : null,
+      inputOptions.sourceSet.memberConstructs(),
+      inputOptions.targetSet ? inputOptions.targetSet.memberConstructs() : null,
       this.pollSelection(selection)
     ]);
     sourceList = Object.values(sourceList)
-      .filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+      .filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
     if (targetList) {
       targetList = Object.values(targetList)
-        .filter(item => item instanceof this.mure.ITEM_TYPES.NodeItem);
+        .filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
     } else {
       targetList = sourceList;
     }
@@ -65,9 +65,9 @@ export default (superclass) => class extends superclass {
     const outputPromises = [];
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnItem(
+        outputPromises.push(this.executeOnConstruct(
           sourceList[i], {
-            otherItem: targetList[j],
+            otherConstruct: targetList[j],
             saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
             connectWhen: (source, target) => {
               const sourceVal = inputOptions.sourceAttribute

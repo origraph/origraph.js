@@ -1,4 +1,4 @@
-class BaseItem {
+class BaseConstruct {
   constructor ({ mure, path, value, parent, doc, label, uniqueSelector }) {
     this.mure = mure;
     this.path = path;
@@ -9,13 +9,13 @@ class BaseItem {
     this.uniqueSelector = uniqueSelector;
   }
   get type () {
-    return /(.*)Item/.exec(this.constructor.name)[1];
+    return /(.*)Construct/.exec(this.constructor.name)[1];
   }
   get value () { return this._value; }
   set value (newValue) {
     if (this.parent) {
       // In the event that this is a primitive boolean, number, string, etc,
-      // setting the value on the Item wrapper object *won't* naturally update
+      // setting the value on the Construct wrapper object *won't* naturally update
       // it in its containing document...
       this.parent[this.label] = newValue;
     }
@@ -30,15 +30,15 @@ class BaseItem {
     return this.uniqueSelector === other.uniqueSelector;
   }
 }
-BaseItem.getHumanReadableType = function () {
-  return /(.*)Item/.exec(this.name)[1];
+BaseConstruct.getHumanReadableType = function () {
+  return /(.*)Construct/.exec(this.name)[1];
 };
-BaseItem.getBoilerplateValue = () => {
+BaseConstruct.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
-BaseItem.standardize = ({ value }) => {
+BaseConstruct.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
 
-export default BaseItem;
+export default BaseConstruct;

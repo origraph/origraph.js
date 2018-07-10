@@ -3,8 +3,8 @@ export default (superclass) => class extends superclass {
     return Object.entries(this.value)
       .reduce((agg, [label, value]) => {
         if (!this.mure.RESERVED_OBJ_KEYS[label]) {
-          let ItemType = this.mure.inferType(value);
-          agg.push(new ItemType({
+          let ConstructType = this.mure.inferType(value);
+          agg.push(new ConstructType({
             mure: this.mure,
             value,
             path: this.path.concat([label]),

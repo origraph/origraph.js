@@ -5,7 +5,7 @@ import BaseOperation from '../Common/BaseOperation.js';
 import ChainTerminatingMixin from '../Common/ChainTerminatingMixin.js';
 
 class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
-  inferItemInputs (item) {
+  inferConstructInputs (item) {
     const inputs = new InputSpec();
     inputs.addToggleOption({
       name: 'direction',
@@ -16,26 +16,26 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       name: 'connectWhen',
       defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
     });
-    inputs.addItemRequirement({
-      name: 'otherItem',
-      itemTypes: [this.mure.ITEM_TYPES.NodeItem]
+    inputs.addConstructRequirement({
+      name: 'otherConstruct',
+      itemTypes: [this.mure.CONSTRUCTS.NodeConstruct]
     });
-    inputs.addItemRequirement({
+    inputs.addConstructRequirement({
       name: 'saveEdgesIn',
-      itemTypes: [this.mure.ITEM_TYPES.ContainerItem]
+      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     });
     return inputs;
   }
-  async executeOnItem (item, inputOptions) {
+  async executeOnConstruct (item, inputOptions) {
     const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
-    if (match(item, inputOptions.otherItem)) {
-      const newEdge = item.linkTo(inputOptions.otherItem,
+    if (match(item, inputOptions.otherConstruct)) {
+      const newEdge = item.linkTo(inputOptions.otherConstruct,
         inputOptions.saveEdgesIn, inputOptions.direction);
 
       return new OutputSpec({
         newSelectors: [ newEdge.uniqueSelector ],
         pollutedDocs: glompLists([
-          [item.doc, inputOptions.otherItem.doc, newEdge.doc]
+          [item.doc, inputOptions.otherConstruct.doc, newEdge.doc]
         ])
       });
     } else {
@@ -47,7 +47,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
     let containers = [];
     const docs = {};
     Object.values(items).forEach(item => {
-      if (item.constructor.name === 'ContainerItem') {
+      if (item.constructor.name === 'ItemConstruct') {
         containers.push(item);
       }
       docs[item.doc._id] = item.doc;
@@ -55,7 +55,7 @@ class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
       callback(item);
     });
     containers = containers.concat(Object.values(docs).map(doc => {
-      return new this.mure.ITEM_TYPES.ContainerItem({
+      return new this.mure.CONSTRUCTS.ItemConstruct({
         mure: this.mure,
         value: doc.orphans,
         path: [`{"_id":"${doc._id}"}`, 'orphans'],

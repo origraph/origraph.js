@@ -1,10 +1,10 @@
-import TaggableItem from './TaggableItem.js';
+import TaggableConstruct from './TaggableConstruct.js';
 
-class EdgeItem extends TaggableItem {
+class EdgeConstruct extends TaggableConstruct {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$nodes) {
-      throw new TypeError(`EdgeItem requires a $nodes object`);
+      throw new TypeError(`EdgeConstruct requires a $nodes object`);
     }
   }
   async nodeSelectors (direction = null) {
@@ -14,33 +14,33 @@ class EdgeItem extends TaggableItem {
         return direction === null || directions[direction];
       }).map(([selector, directions]) => selector);
   }
-  async nodeItems (forward = null) {
+  async nodeConstructs (forward = null) {
     return this.mure.selectAll((await this.nodeSelectors(forward))).items();
   }
-  async nodeItemCount (forward = null) {
+  async nodeConstructCount (forward = null) {
     return (await this.nodeSelectors(forward)).length;
   }
 }
-EdgeItem.oppositeDirection = direction => {
+EdgeConstruct.oppositeDirection = direction => {
   return direction === 'source' ? 'target'
     : direction === 'target' ? 'source'
       : 'undirected';
 };
-EdgeItem.getBoilerplateValue = () => {
+EdgeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
-EdgeItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular TaggableItem standardization
-  value = TaggableItem.standardize({ mure, value, path, doc, aggressive });
+EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular TaggableConstruct standardization
+  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $nodes object
   value.$nodes = value.$nodes || {};
   return value;
 };
-EdgeItem.glompValue = edgeList => {
-  let temp = TaggableItem.glomp(edgeList);
+EdgeConstruct.glompValue = edgeList => {
+  let temp = TaggableConstruct.glomp(edgeList);
   temp.value.$nodes = {};
-  edgeList.forEach(edgeItem => {
-    Object.entries(edgeItem.value.$nodes).forEach(([selector, directions]) => {
+  edgeList.forEach(edgeConstruct => {
+    Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {
       temp.$nodes[selector] = temp.value.$nodes[selector] || {};
       Object.keys(directions).forEach(direction => {
         temp.value.$nodes[selector][direction] = temp.value.$nodes[selector][direction] || 0;
@@ -51,4 +51,4 @@ EdgeItem.glompValue = edgeList => {
   return temp;
 };
 
-export default EdgeItem;
+export default EdgeConstruct;

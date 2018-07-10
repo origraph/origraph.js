@@ -1,16 +1,16 @@
 import jsonPath from 'jsonpath';
-import ContainerItem from './ContainerItem.js';
+import ItemConstruct from './ItemConstruct.js';
 
-class TaggableItem extends ContainerItem {
+class TaggableConstruct extends ItemConstruct {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$tags) {
-      throw new TypeError(`TaggableItem requires a $tags object`);
+      throw new TypeError(`TaggableConstruct requires a $tags object`);
     }
   }
   addToSetObj (setObj, setFileId) {
     // Convenience function for tagging an item without having to wrap the set
-    // object as a SetItem
+    // object as a SetConstruct
     const itemTag = this.doc._id === setFileId
       ? this.value._id : this.mure.idToUniqueSelector(this.value._id, this.doc._id);
     const setTag = this.doc._id === setFileId
@@ -38,12 +38,12 @@ class TaggableItem extends ContainerItem {
     }, []).sort();
   }
 }
-TaggableItem.getBoilerplateValue = () => {
+TaggableConstruct.getBoilerplateValue = () => {
   return { $tags: {} };
 };
-TaggableItem.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ContainerItem standardization
-  value = ContainerItem.standardize({ mure, value, path, doc, aggressive });
+TaggableConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular ItemConstruct standardization
+  value = ItemConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $tags object
   value.$tags = value.$tags || {};
   // Move any existing class definitions to this document
@@ -62,4 +62,4 @@ TaggableItem.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default TaggableItem;
+export default TaggableConstruct;
