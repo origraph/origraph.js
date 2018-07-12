@@ -23,11 +23,23 @@ class TypedConstruct extends BaseConstruct {
       label: path[path.length - 1],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
-    if (typeof value !== this.constructor.JSTYPE) { // eslint-disable-line valid-typeof
+    if (this.constructor.isBadValue(value)) {
       throw new TypeError(`typeof ${value} is ${typeof value}, which does not match required ${this.constructor.JSTYPE}`);
     }
   }
+  get parentConstruct () {
+    const ParentType = this.mure.inferType(this.parent);
+    return new ParentType({
+      mure: this.mure,
+      value: this.parent,
+      path: this.path.slice(0, this.path.length - 1),
+      doc: this.doc
+    });
+  }
 }
 TypedConstruct.JSTYPE = 'object';
+TypedConstruct.isBadValue = value => {
+  return typeof value !== TypedConstruct.JSTYPE; // eslint-disable-line valid-typeof
+};
 
 export default TypedConstruct;

@@ -9,42 +9,6 @@ var mime = _interopDefault(require('mime-types'));
 var datalib = _interopDefault(require('datalib'));
 var D3Node = _interopDefault(require('d3-node'));
 
-const glompLists = listList => {
-  return listList.reduce((agg, list) => {
-    list.forEach(value => {
-      if (agg.indexOf(value) === -1) {
-        agg.push(value);
-      }
-    });
-    return agg;
-  }, []);
-};
-
-class OutputSpec {
-  constructor({ newSelectors = null, pollutedDocs = [] } = {}) {
-    this.newSelectors = newSelectors;
-    this.pollutedDocs = pollutedDocs;
-  }
-}
-OutputSpec.glomp = specList => {
-  const newSelectors = specList.reduce((agg, spec) => {
-    if (agg === null) {
-      return spec.newSelectors;
-    } else if (spec.newSelectors === null) {
-      return agg;
-    } else {
-      return glompLists([agg, spec.newSelectors]);
-    }
-  }, null);
-  const pollutedDocs = specList.reduce((agg, spec) => {
-    return glompLists([agg, spec.pollutedDocs]);
-  }, []);
-  return new OutputSpec({
-    newSelectors,
-    pollutedDocs
-  });
-};
-
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection {
@@ -93,8 +57,6 @@ class Selection {
 
     this.mure = mure;
     this.selectSingle = selectSingle;
-
-    this.pendingOperations = [];
 
     Selection.ALL.push(this);
   }
@@ -272,65 +234,47 @@ class Selection {
       return this._cachedConstructs;
     });
   }
-  get chainable() {
-    if (this.pendingOperations.length === 0) {
-      return true;
-    } else {
-      const lastOp = this.pendingOperations[this.pendingOperations.length - 1].operation;
-      return lastOp.terminatesChain === false;
-    }
-  }
-  chain(operation, inputOptions) {
-    if (!this.chainable) {
-      throw new Error(`A terminating operation (\
-${this.pendingOperations[this.pendingOperations.length].operation.humanReadableType}\
-) has already been chained; please await executeChain() or cancelChain() before \
-chaining additional operations.`);
-    }
-    this.pendingOperations.push({ operation, inputOptions });
-    return this;
-  }
-  async executeChain() {
-    // Evaluate all the pending operations that we've accrued; as each function
-    // manipulates Constructs' .value property, those changes will automatically be
-    // reflected in the document (as every .value is a pointer, or BaseConstruct's
-    // .value setter ensures that primitives are propagated)
-    let outputSpec = new OutputSpec();
-    for (let f = 0; f < this.pendingOperations.length; f++) {
-      let { operation, inputOptions } = this.pendingOperations[f];
-      outputSpec = await operation.executeOnSelection(this, inputOptions);
-    }
-    this.pendingOperations = [];
+  async execute(operation, inputOptions) {
+    let outputSpec = await operation.executeOnSelection(this, inputOptions);
 
     // Any selection that has cached any of the documents that we altered
     // needs to have its cache invalidated
-    outputSpec.pollutedDocs.forEach(doc => {
+    const pollutedDocs = Object.values(outputSpec.pollutedDocs);
+    pollutedDocs.forEach(doc => {
       Selection.INVALIDATE_DOC_CACHE(doc._id);
     });
-    // We need to save all the documents that the operations have altered
-    await this.mure.putDocs(outputSpec.pollutedDocs);
 
+    // Write any warnings, and, depending on the user's settings, skip or save
+    // the results
+    if (Object.keys(outputSpec.warnings).length > 0) {
+      let warningString;
+      if (outputSpec.skipErrors === 'Stop') {
+        warningString = `${operation.humanReadableType} operation failed.\n`;
+      } else {
+        warningString = `${operation.humanReadableType} operation finished with warnings:\n`;
+        // Save even though there were warnings
+        await this.mure.putDocs(pollutedDocs);
+      }
+      warningString += Object.entries(outputSpec.warnings).map(([warning, count]) => {
+        if (count > 1) {
+          return `${warning} (x${count})`;
+        } else {
+          return `${warning}`;
+        }
+      });
+      this.mure.warn(warningString);
+    } else {
+      // Save the results
+      await this.mure.putDocs(pollutedDocs);
+    }
+
+    // Finally, return this selection, or a new selection, depending on the
+    // operation
     if (outputSpec.newSelectors !== null) {
       return new Selection(this.mure, outputSpec.newSelectors);
     } else {
       return this;
     }
-  }
-  get chainPending() {
-    return this.pendingOperations.length > 0;
-  }
-  cancelChain() {
-    this.pendingOperations = [];
-    return this;
-  }
-  async execute(operation, inputOptions) {
-    if (this.chainPending) {
-      throw new Error(`The selection currently has a pending chain of \
-operations; please await executeChain() or cancelChain() before executing \
-one-off operations.`);
-    }
-    this.pendingOperations.push({ operation, inputOptions });
-    return this.executeChain();
   }
 
   /*
@@ -693,6 +637,7 @@ BaseConstruct.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
+BaseConstruct.isBadValue = value => false;
 
 class RootConstruct extends BaseConstruct {
   constructor({ mure, docList, selectSingle }) {
@@ -737,31 +682,48 @@ class TypedConstruct extends BaseConstruct {
       label: path[path.length - 1],
       uniqueSelector: '@' + docPathQuery + uniqueJsonPath
     });
-    if (typeof value !== this.constructor.JSTYPE) {
-      // eslint-disable-line valid-typeof
+    if (this.constructor.isBadValue(value)) {
       throw new TypeError(`typeof ${value} is ${typeof value}, which does not match required ${this.constructor.JSTYPE}`);
     }
   }
+  get parentConstruct() {
+    const ParentType = this.mure.inferType(this.parent);
+    return new ParentType({
+      mure: this.mure,
+      value: this.parent,
+      path: this.path.slice(0, this.path.length - 1),
+      doc: this.doc
+    });
+  }
 }
 TypedConstruct.JSTYPE = 'object';
+TypedConstruct.isBadValue = value => {
+  return typeof value !== TypedConstruct.JSTYPE; // eslint-disable-line valid-typeof
+};
 
 var ItemConstructMixin = (superclass => class extends superclass {
-  async getValueContents() {
-    return Object.entries(this.value).reduce((agg, [label, value]) => {
+  async getValue(attribute, target = this._contentConstruct || this) {
+    return target.value[attribute];
+  }
+  async getAttributes(target = this._contentConstruct || this) {
+    return Object.keys(target.value);
+  }
+  async getContents(target = this._contentConstruct || this) {
+    return Object.entries(target.value).reduce((agg, [label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
         let ConstructType = this.mure.inferType(value);
         agg.push(new ConstructType({
           mure: this.mure,
           value,
-          path: this.path.concat([label]),
-          doc: this.doc
+          path: target.path.concat([label]),
+          doc: target.doc
         }));
       }
       return agg;
     }, []);
   }
-  async getValueContentCount() {
-    return Object.keys(this.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
+  async getContentCount(target = this._contentConstruct || this) {
+    return Object.keys(target.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
   }
 });
 
@@ -886,24 +848,6 @@ class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
     // There's probably some funkiness in the timing of save() I still need to
     // think through...
     throw new Error(`Deleting files via Selections not yet implemented`);
-  }
-  async contentSelectors() {
-    return this._contentConstruct.contentSelectors();
-  }
-  async contentConstructs() {
-    return this._contentConstruct.contentConstructs();
-  }
-  async contentConstructCount() {
-    return this._contentConstruct.contentConstructCount();
-  }
-  async metaConstructSelectors() {
-    return (await this.metaConstructs()).map(item => item.uniqueSelector);
-  }
-  async metaConstructs() {
-    return this.getValueContents();
-  }
-  async metaConstructCount() {
-    return this.getValueContentCount();
   }
 }
 DocumentConstruct.isValidId = docId => {
@@ -1041,6 +985,7 @@ class InvalidConstruct extends BaseConstruct {
   }
 }
 InvalidConstruct.JSTYPE = 'object';
+InvalidConstruct.isBadValue = value => true;
 
 class NullConstruct extends PrimitiveConstruct {}
 NullConstruct.JSTYPE = 'null';
@@ -1056,11 +1001,18 @@ class NumberConstruct extends PrimitiveConstruct {}
 NumberConstruct.JSTYPE = 'number';
 NumberConstruct.getBoilerplateValue = () => 0;
 NumberConstruct.standardize = ({ value }) => Number(value);
+NumberConstruct.isBadValue = isNaN;
 
 class StringConstruct extends PrimitiveConstruct {}
 StringConstruct.JSTYPE = 'string';
 StringConstruct.getBoilerplateValue = () => '';
-StringConstruct.standardize = ({ value }) => String(value);
+StringConstruct.standardize = ({ value }) => {
+  if (isNaN(value) || value === undefined) {
+    return String(value);
+  } else {
+    JSON.stringify(value);
+  }
+};
 
 class DateConstruct extends PrimitiveConstruct {
   constructor({ mure, value, path, doc }) {
@@ -1092,6 +1044,7 @@ DateConstruct.standardize = ({ value }) => {
   }
   return value;
 };
+DateConstruct.isBadValue = value => value.toString() !== 'Invalid Date';
 
 class ReferenceConstruct extends StringConstruct {}
 ReferenceConstruct.getBoilerplateValue = () => '@$';
@@ -1299,126 +1252,182 @@ SupernodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-class InputOption {
-  constructor({ name, defaultValue }) {
-    this.name = name;
-    this.defaultValue = defaultValue;
-  }
-}
-
-class ValueInputOption extends InputOption {
-  constructor({ name, defaultValue, suggestions = [] }) {
-    super({ name, defaultValue });
-    this.suggestions = suggestions;
-  }
-}
-ValueInputOption.glomp = optionList => {
-  const suggestions = glompLists(optionList.map(option => option.suggestions));
-  return new ValueInputOption({
-    name: optionList.some(option => option.name),
-    defaultValue: suggestions[0],
-    suggestions
-  });
-};
-
-class ToggleInputOption extends InputOption {
-  constructor({ name, defaultValue, choices }) {
-    super({ name, defaultValue });
-    this.choices = choices;
-  }
-}
-ToggleInputOption.glomp = optionList => {
-  const choices = glompLists(optionList.map(option => option.choices));
-  return new ToggleInputOption({
-    name: optionList.some(option => option.name),
-    defaultValue: choices[0],
-    choices
-  });
-};
-
-class ConstructRequirement extends InputOption {
-  constructor({ name, defaultValue, itemTypes, suggestions = [] }) {
-    super({ name, defaultValue });
-    this.itemTypes = itemTypes;
-    this.suggestions = suggestions;
-  }
-}
-ConstructRequirement.glomp = optionList => {
-  const suggestions = glompLists(optionList.map(option => option.suggestions));
-  return new ConstructRequirement({
-    name: optionList.some(option => option.name),
-    defaultValue: suggestions[0],
-    itemTypes: glompLists(optionList.map(option => option.itemTypes)),
-    suggestions
-  });
-};
-
 class InputSpec {
   constructor() {
     this.options = {};
   }
-  addValueOption(optionDetails) {
-    this.options[optionDetails.name] = new ValueInputOption(optionDetails);
+  addOption(option) {
+    this.options[option.name] = option;
   }
-  addToggleOption(optionDetails) {
-    this.options[optionDetails.name] = new ToggleInputOption(optionDetails);
+  getDefaultInputOptions() {
+    let inputOptions = {};
+
+    let defaultExists = Object.entries(this.options).every(([opName, option]) => {
+      let value;
+      if (option.specs) {
+        value = option.getNestedDefaultValues(inputOptions);
+      } else {
+        value = option.defaultValue;
+      }
+      if (value !== null) {
+        inputOptions[opName] = value;
+        return true;
+      } else {
+        return false;
+      }
+    });
+
+    if (!defaultExists) {
+      return null;
+    } else {
+      return inputOptions;
+    }
   }
-  addConstructRequirement(optionDetails) {
-    this.options[optionDetails.name] = new ConstructRequirement(optionDetails);
+  async populateChoicesFromItem(item) {
+    return Promise.all(Object.values(this.options).map(option => {
+      if (option.specs) {
+        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromItem(item)));
+      } else if (option.populateChoicesFromItem) {
+        return option.populateChoicesFromItem(item);
+      }
+    }));
   }
-  addMiscOption(optionDetails) {
-    this.options[optionDetails.name] = new InputOption(optionDetails);
+  async populateChoicesFromSelection(item) {
+    return Promise.all(Object.values(this.options).map(option => {
+      if (option.specs) {
+        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromSelection(item)));
+      } else if (option.populateChoicesFromSelection) {
+        return option.populateChoicesFromSelection(item);
+      }
+    }));
   }
 }
-InputSpec.glomp = specList => {
-  if (specList.length === 0 || specList.indexOf(null) !== -1) {
-    return null;
+
+class InputOption extends Introspectable {
+  constructor({ parameterName, defaultValue = null, choices = [], openEnded = false }) {
+    super();
+    this.parameterName = parameterName;
+    this._defaultValue = defaultValue;
+    this.choices = choices;
+    this.openEnded = openEnded;
   }
-  let result = new InputSpec();
+  get humanReadableParameterName() {
+    return this.parameterName.replace(/./, this.parameterName[0].toLocaleUpperCase()).replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
+  get defaultValue() {
+    if (this._defaultValue !== null) {
+      return this._defaultValue;
+    } else if (this.choices.length > 0) {
+      return this.choices[0];
+    } else {
+      return null;
+    }
+  }
+  set defaultValue(value) {
+    this._defaultValue = value;
+  }
+}
+Object.defineProperty(InputOption, 'type', {
+  get() {
+    return (/(.*)Option/.exec(this.name)[1]
+    );
+  }
+});
 
-  specList.reduce((agg, spec) => {
-    return agg.concat(Object.keys(spec.options));
-  }, []).forEach(optionName => {
-    const inputSpecWOption = specList.find(spec => spec.options[optionName]);
-    const glompFunc = inputSpecWOption.options[optionName].constructor.glomp;
-    const glompedOption = glompFunc(specList.map(spec => spec.options[optionName]));
-    result.options[optionName] = glompedOption;
+class OutputSpec {
+  constructor({ newSelectors = null, pollutedDocs = {}, warnings = {} } = {}) {
+    this.newSelectors = newSelectors;
+    this.pollutedDocs = pollutedDocs;
+    this.warnings = warnings;
+  }
+  addSelectors(selectors) {
+    this.newSelectors = (this.newSelectors || []).concat(selectors);
+  }
+  flagPollutedDoc(doc) {
+    this.pollutedDocs[doc._id] = doc;
+  }
+  warn(warning) {
+    this.warnings[warning] = this.warning[warning] || 0;
+    this.warnings[warning] += 1;
+  }
+}
+OutputSpec.glomp = specList => {
+  let newSelectors = {};
+  let pollutedDocs = {};
+  let warnings = {};
+  specList.forEach(spec => {
+    if (spec.newSelectors) {
+      spec.newSelectors.forEach(selector => {
+        newSelectors[selector] = true;
+      });
+    }
+    Object.values(spec.pollutedDocs).forEach(doc => {
+      pollutedDocs[doc._id] = doc;
+    });
+    Object.entries(([warning, count]) => {
+      warnings[warning] = warnings[warning] || 0;
+      warnings[warning] += count;
+    });
   });
-
-  return result;
+  newSelectors = Object.keys(newSelectors);
+  return new OutputSpec({
+    newSelectors: newSelectors.length > 0 ? newSelectors : null,
+    pollutedDocs,
+    warnings
+  });
 };
 
 class BaseOperation extends Introspectable {
   constructor(mure) {
     super();
     this.mure = mure;
-    this.terminatesChain = false;
-    this.acceptsInputOptions = true;
   }
-  checkConstructInputs(item, inputOptions) {
-    return true;
+  getInputSpec() {
+    const result = new InputSpec();
+    result.addOption(new InputOption({
+      parameterName: 'skipErrors',
+      options: ['Ignore', 'Stop'],
+      defaultValue: 'Ignore'
+    }));
+    return result;
   }
-  inferConstructInputs(item) {
-    if (!this.checkConstructInputs(item)) {
-      return null;
-    } else {
-      return new InputSpec();
-    }
+  async canExecuteOnInstance(item, inputOptions) {
+    return inputOptions.skipErrors !== 'Stop';
   }
-  async executeOnConstruct(item, inputOptions) {
+  async executeOnInstance(item, inputOptions) {
     throw new Error('unimplemented');
   }
-  async checkSelectionInputs(selection, inputOptions) {
-    return true;
+  getItemsInUse(inputOptions) {
+    const itemsInUse = {};
+    Object.values(inputOptions).forEach(argument => {
+      if (argument && argument.uniqueSelector) {
+        itemsInUse[argument.uniqueSelector] = true;
+      }
+    });
+    return itemsInUse;
   }
-  async inferSelectionInputs(selection) {
+  async canExecuteOnSelection(selection, inputOptions) {
+    const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
-    const inputSpecPromises = Object.values(items).map(item => this.inferConstructInputs(item));
-    return InputSpec.glomp((await Promise.all(inputSpecPromises)));
+    const canExecuteInstances = await Promise.all(Object.values(items).map(item => {
+      return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item);
+    }));
+    if (inputOptions.skipErrors === 'Stop') {
+      return canExecuteInstances.every(canExecute => canExecute);
+    } else {
+      return canExecuteInstances.some(canExecute => canExecute);
+    }
   }
   async executeOnSelection(selection, inputOptions) {
+    const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
-    const outputSpecPromises = Object.values(items).map(item => this.executeOnConstruct(item, inputOptions));
+    const outputSpecPromises = Object.values(items).map(item => {
+      if (itemsInUse[item.uniqueSelector]) {
+        return new OutputSpec(); // Ignore items that are inputOptions
+      } else {
+        return this.executeOnInstance(item, inputOptions);
+      }
+    });
     return OutputSpec.glomp((await Promise.all(outputSpecPromises)));
   }
 }
@@ -1429,487 +1438,520 @@ Object.defineProperty(BaseOperation, 'type', {
   }
 });
 
-class ContextualOperation extends BaseOperation {
-  constructor(mure, subOperations) {
-    super(mure);
-    this.subOperations = {};
-    subOperations.forEach(OperationClass => {
-      this.subOperations[OperationClass.type] = new OperationClass(this.mure);
-      this.subOperations[OperationClass.type].parentOperation = this;
+class ContextualOption extends InputOption {
+  constructor({ parameterName, defaultValue, choices = [] }) {
+    if (choices.length < 2) {
+      throw new Error('Contextual options must specify at least two choices a priori');
+    }
+    super({ parameterName, defaultValue, choices, openEnded: false });
+    this.specs = {};
+    choices.forEach(choice => {
+      this.specs[choice] = new InputSpec();
     });
   }
-  checkConstructInputs(item, inputOptions) {
-    return inputOptions.context && this.subOperations[inputOptions.context];
-  }
-  inferConstructInputs(item) {
-    const itemInputs = {};
-    Object.entries(this.subOperations).map(([subOpName, subOp]) => {
-      itemInputs[subOpName] = subOp.inferConstructInputs(item);
-    });
-    return itemInputs;
-  }
-  async executeOnConstruct(item, inputOptions) {
-    throw new Error('unimplemented');
-  }
-  async checkSelectionInputs(selection, inputOptions) {
-    return inputOptions.context && this.subOperations[inputOptions.context];
-  }
-  async inferSelectionInputs(selection) {
-    const selectionInputs = {};
-    const subOpList = Object.entries(this.subOperations);
-    for (let i = 0; i < subOpList.length; i++) {
-      let [subOpName, subOp] = subOpList[i];
-      selectionInputs[subOpName] = await subOp.inferSelectionInputs(selection);
+  getNestedDefaultValues(inputOptions) {
+    let choice = this.defaultValue;
+    let nestedDefaults = this.specs[choice].getDefaultInputOptions();
+    if (nestedDefaults === null) {
+      choice = this.choices.some(choice => {
+        nestedDefaults = this.specs[choice].getDefaultInputOptions();
+        return nestedDefaults && choice;
+      });
     }
-    return selectionInputs;
-  }
-  async executeOnSelection(selection, inputOptions) {
-    if (!(await this.checkSelectionInputs(selection, inputOptions))) {
-      throw new Error(`Unknown operation context: ${inputOptions.context}`);
-    }
-    return this.subOperations[inputOptions.context].executeOnSelection(selection, inputOptions);
-  }
-}
-
-var ChainTerminatingMixin = (superclass => class extends superclass {
-  constructor(mure) {
-    super(mure);
-    this.terminatesChain = true;
-  }
-});
-
-var ParameterlessMixin = (superclass => class extends superclass {
-  constructor(mure) {
-    super(mure);
-    this.acceptsInputOptions = false;
-  }
-});
-
-class NavigateToContentsOperation extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
-  checkConstructInputs(item) {
-    return item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
-  }
-  async executeOnConstruct(item) {
-    if (!this.checkConstructInputs(item)) {
-      throw new Error(`Must be a ItemConstruct or a DocumentConstruct to \
-NavigateToContents`);
-    }
-    return new OutputSpec({
-      newSelectors: (await item.contentConstructs()).map(childConstruct => childConstruct.uniqueSelector)
-    });
-  }
-}
-
-class NavigateToMembersOperation extends ParameterlessMixin(ChainTerminatingMixin(BaseOperation)) {
-  checkConstructInputs(item) {
-    return item instanceof this.mure.CONSTRUCTS.SetConstruct;
-  }
-  async executeOnConstruct(item) {
-    if (!this.checkConstructInputs(item)) {
-      throw new Error(`Must be a SetConstruct to NavigateToMembers`);
-    }
-    return new OutputSpec({
-      newSelectors: await item.memberSelectors()
-    });
-  }
-}
-
-class DirectedNavigation extends ChainTerminatingMixin(BaseOperation) {
-  checkConstructInputs(item, inputOptions) {
-    return item instanceof this.mure.CONSTRUCTS.EdgeConstruct || item instanceof this.mure.CONSTRUCTS.NodeConstruct;
-  }
-  inferConstructInputs(item) {
-    if (!this.checkConstructInputs(item)) {
+    if (nestedDefaults) {
+      Object.assign(inputOptions, nestedDefaults);
+      return choice;
+    } else {
       return null;
     }
-    const inputs = new InputSpec();
-    inputs.addToggleOption({
-      name: 'direction',
-      choices: ['Ignore Edge Direction', 'Follow Edge Direction', 'Follow Reversed Direction'],
-      defaultValue: 'Ignore Edge Direction'
-    });
-    return inputs;
   }
-  getForward(inputOptions) {
-    if (!inputOptions.direction) {
-      return null;
-    } else if (inputOptions.direction === 'Follow Edge Direction') {
+}
+
+class SelectOperation extends BaseOperation {
+  getInputSpec() {
+    const result = super.getInputSpec();
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members'],
+      defaultValue: 'Children'
+    });
+    result.addOption(context);
+
+    const direction = new InputOption({
+      parameterName: 'direction',
+      choices: ['Ignore', 'Forward', 'Backward'],
+      defaultValue: 'Ignore'
+    });
+    context.specs['Nodes'].addOption(direction);
+    context.specs['Edges'].addOption(direction);
+  }
+  async canExecuteOnInstance(item, inputOptions) {
+    if (await super.canExecuteOnInstance(item, inputOptions)) {
       return true;
-    } else if (inputOptions.direction === 'Follow Reversed Direction') {
-      return false;
-    } else {
-      // if (inputOptions.direction === 'Ignore Edge Direction')
-      return null;
+    }
+    if (inputOptions.context === 'Children') {
+      return item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
+    } else if (inputOptions.context === 'Parents') {
+      return !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct);
+    } else if (inputOptions.context === 'Nodes') {
+      return item instanceof this.mure.CONSTRUCTS.NodeConstruct || item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+    } else if (inputOptions.context === 'Edges') {
+      return item instanceof this.mure.CONSTRUCTS.NodeConstruct || item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+    } else if (inputOptions.context === 'Members') {
+      return item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct;
     }
   }
-  async executeOnSelection(selection, inputOptions) {
-    this._forward = this.getForward(inputOptions);
-    const temp = await super.executeOnSelection(selection, inputOptions);
-    delete this._forward;
-    return temp;
+  async executeOnInstance(item, inputOptions) {
+    const output = new OutputSpec();
+    const direction = inputOptions.direction || 'Ignore';
+    const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
+    if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
+      output.addSelectors((await item.contentConstructs()).map(childConstruct => childConstruct.uniqueSelector));
+    } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
+      output.addSelectors([item.parentConstruct.uniqueSelector]);
+    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+      output.addSelectors((await item.nodeSelectors(forward)));
+    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+      output.addSelectors((await Promise.all((await item.edgeConstructs(forward)).map(edge => edge.nodeSelectors(forward)))));
+    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+      output.addSelectors((await item.edgeSelectors(forward)));
+    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+      output.addSelectors((await Promise.all((await item.nodeConstructs(forward)).map(node => node.edgeSelectors(forward)))));
+    } else if (inputOptions.context === 'Members' && (item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
+      output.addSelectors((await item.memberConstructs()));
+    } else {
+      output.warn(`Can't select ${inputOptions.context} from ${item.type}`);
+    }
+    return output;
   }
 }
 
-class NavigateToNodesOperation extends DirectedNavigation {
-  async executeOnConstruct(item, inputOptions) {
-    if (!this.checkInputs(item, inputOptions)) {
-      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToNodes`);
-    }
-    let forward = this._forward === undefined ? this.getForward(inputOptions) : this._forward;
-
-    if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
-      return new OutputSpec({
-        newSelectors: await item.edgeSelectors(forward)
-      });
+class BaseConversion extends Introspectable {
+  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+    super();
+    this.mure = mure;
+    this.TargetType = TargetType;
+    this.standardTypes = {};
+    standardTypes.forEach(Type => {
+      this.standardTypes[Type.type] = Type;
+    });
+    this.specialTypes = {};
+    specialTypes.forEach(Type => {
+      this.specialTypes[Type.type] = Type;
+    });
+    this.standardTypes = [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct];
+    this.specialTypes = [];
+  }
+  canExecuteOnInstance(item, inputOptions) {
+    return this.standardTypes[item.type] || this.specialTypes[item.type];
+  }
+  convertItem(item, inputOptions, outputSpec) {
+    if (this.standardTypes[item.type]) {
+      this.standardConversion(item, inputOptions, outputSpec);
+    } else if (this.specialTypes[item.type]) {
+      this.specialConversion(item, inputOptions, outputSpec);
     } else {
-      // if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
-      let temp = await item.nodeConstructs(forward);
-      temp = temp.map(edgeConstruct => edgeConstruct.edgeSelectors(forward));
-      return new OutputSpec({
-        newSelectors: glompLists((await Promise.all(temp)))
-      });
+      outputSpec.warn(`Conversion from ${item.type} to ${this.TargetType.type} is not supported`);
     }
+  }
+  addOptionsToSpec(inputSpec) {}
+  standardConversion(item, inputOptions, outputSpec) {
+    // Because of BaseConstruct's setter, this will actually apply to the
+    // item's document as well as to the item wrapper
+    item.value = this.TargetType.standardize(item.value);
+    if (this.TargetType.isBadValue(item.value)) {
+      outputSpec.warn(`Converted ${item.type} to ${item.value}`);
+    }
+  }
+  specialConversion(item, inputOptions, outputSpec) {
+    throw new Error('unimiplemented');
+  }
+}
+Object.defineProperty(BaseConversion, 'type', {
+  get() {
+    return (/(.*)Conversion/.exec(this.name)[1]
+    );
+  }
+});
+
+class NullConversion extends BaseConversion {
+  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+    super({
+      mure,
+      TargetType: mure.CONSTRUCTS.NullConstruct,
+      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+      specialTypes: []
+    });
   }
 }
 
-class NavigateToEdgesOperation extends DirectedNavigation {
-  async executeOnConstruct(item, inputOptions) {
-    if (!this.checkInputs(item, inputOptions)) {
-      throw new Error(`Must be an EdgeConstruct or NodeConstruct to NavigateToEdges`);
-    }
-    let forward = this._forward === undefined ? this.getForward(inputOptions) : this._forward;
-
-    if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
-      return new OutputSpec({
-        newSelectors: await item.nodeSelectors(forward)
-      });
-    } else {
-      // if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
-      let temp = await item.edgeConstructs(forward);
-      temp = temp.map(edgeConstruct => edgeConstruct.nodeSelectors(forward));
-      return new OutputSpec({
-        newSelectors: glompLists((await Promise.all(temp)))
-      });
-    }
+class BooleanConversion extends BaseConversion {
+  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+    super({
+      mure,
+      TargetType: mure.CONSTRUCTS.NullConstruct,
+      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+      specialTypes: [mure.CONSTRUCTS.StringConstruct]
+    });
+  }
+  specialConversion(item, inputOptions, outputSpec) {
+    // TODO: smarter conversion from strings than javascript's default
+    item.value = !!item.value;
   }
 }
 
-class NavigateOperation extends ContextualOperation {
+class NodeConversion extends BaseConversion {
+  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+    super({
+      mure,
+      TargetType: mure.CONSTRUCTS.NullConstruct,
+      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+      specialTypes: []
+    });
+  }
+}
+
+class ConvertOperation extends BaseOperation {
   constructor(mure) {
-    super(mure, [NavigateToContentsOperation, NavigateToMembersOperation, NavigateToNodesOperation, NavigateToEdgesOperation]);
-  }
-}
+    super(mure);
 
-class ConvertContainerToNodeOperation extends ParameterlessMixin(BaseOperation) {
-  checkConstructInputs(item) {
-    return item instanceof this.mure.CONSTRUCTS.ItemConstruct;
+    const conversionList = [BooleanConversion, NullConversion, NodeConversion];
+    this.CONVERSIONS = {};
+    conversionList.forEach(conversion => {
+      this.CONVERSIONS[conversion.type] = conversion;
+    });
   }
-  async executeOnConstruct(item) {
-    if (!this.checkConstructInputs(item)) {
-      throw new Error(`Construct must be a ItemConstruct`);
+  getInputSpec() {
+    const result = new InputSpec();
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: Object.keys(this.CONVERSIONS),
+      defaultValue: 'String'
+    });
+    result.addOption(context);
+
+    context.choices.forEach(choice => {
+      this.CONVERSIONS[choice].addOptionsToSpec(context.spec[choice]);
+    });
+  }
+  async canExecuteOnInstance(item, inputOptions) {
+    if (await super.canExecuteOnInstance(item, inputOptions)) {
+      return true;
     }
-    item.value.$tags = item.value.$tags || {};
-    item.value.$edges = item.value.$edges || {};
-    return new OutputSpec({
-      pollutedDocs: [item.doc]
-    });
+    const conversion = this.CONVERSIONS[inputOptions.context];
+    return conversion && conversion.canExecuteOnInstance(item, inputOptions);
   }
-  async executeOnSelection(selection) {
-    const temp = await super.executeOnSelection(selection);
-    // Invalidate the selection's cache of items so they're properly wrapped
-    // for the next chained operation
-    delete selection._cachedConstructs;
-    return temp;
-  }
-}
-
-class ConvertOperation extends ContextualOperation {
-  constructor(mure) {
-    super(mure, [ConvertContainerToNodeOperation]);
+  async executeOnInstance(item, inputOptions) {
+    const output = new OutputSpec();
+    const conversion = this.CONVERSIONS[inputOptions.context];
+    if (!conversion) {
+      output.warn(`Unknown context for conversion: ${inputOptions.context}`);
+    } else {
+      conversion.convertItem(item, inputOptions, output);
+      output.flagPollutedDoc(item.doc);
+    }
+    return output;
   }
 }
 
-var ConnectNodesMixin = (superclass => class extends superclass {
-  async inferSelectionInputs(selection) {
-    const containers = await this.pollSelection(selection);
-
-    const inputs = await super.inferSelectionInputs(selection);
-    inputs.addToggleOption({
-      name: 'direction',
-      choices: ['undirected', 'source', 'target'],
-      defaultValue: 'target'
+class ConstructOption extends InputOption {
+  constructor({
+    parameterName,
+    defaultValue,
+    choices,
+    validTypes = [],
+    suggestOrphans = false
+  }) {
+    super({
+      parameterName,
+      defaultValue,
+      choices,
+      openEnded: false
     });
-    inputs.addMiscOption({
-      name: 'targetSelection',
-      defaultValue: selection
-    });
-    inputs.addConstructRequirement({
-      name: 'saveEdgesIn',
-      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
-      defaultValue: containers[0],
-      suggestions: containers
-    });
-    return inputs;
+    this.validTypes = validTypes;
+    this.suggestOrphans = suggestOrphans;
   }
-  async extractNodes(selection) {
-    const nodeList = [];
-    const containers = await this.pollSelection(selection, item => {
-      if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
-        nodeList.push(item);
+  async populateChoicesFromSelection(selection) {
+    const itemLookup = {};
+    const orphanLookup = {};
+    const items = await selection.items();
+    Object.values(items).forEach(item => {
+      if (this.validTypes.indexOf(item.constructor) !== -1) {
+        itemLookup[item.uniqueSelector] = item;
+      }
+      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
+        orphanLookup[item.doc._id] = new ItemConstruct({
+          mure: this.mure,
+          value: item.doc.orphans,
+          path: [item.path[0], 'orphans'],
+          doc: item.doc
+        });
       }
     });
-    return { nodeList, containers };
+    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
   }
-  async getSelectionExecutionLists(selection, inputOptions) {
-    let [source, target] = await Promise.all([this.extractNodes(selection), inputOptions.targetSelection && this.extractNodes(inputOptions.targetSelection)]);
-    let sourceList = source.nodeList;
-    let containers = source.containers;
-    let targetList;
-    if (target) {
-      targetList = target.nodeList;
-      containers = glompLists([containers, target.containers]);
-    } else {
-      targetList = sourceList;
+}
+
+class AttributeOption extends InputOption {
+  async populateChoicesFromItem(item) {
+    // null indicates that the item's label should be used
+    return item.getAttributes ? item.getAttributes().unshift(null) : [null];
+  }
+  async populateChoicesFromSelection(selection) {
+    let attributes = {};
+    (await Promise.all(Object.values((await selection.items())).map(item => {
+      return item.getAttributes ? item.getAttributes() : [];
+    }))).forEach(attrList => {
+      attrList.forEach(attr => {
+        attributes[attr] = true;
+      });
+    });
+    this.choices = Object.keys(attributes).unshift(null); // null indicates that the item's label should be used
+  }
+}
+
+const DEFAULT_CONNECT_WHEN = 'return source.label === target.label;';
+
+class ConnectOperation extends BaseOperation {
+  getInputSpec() {
+    const result = super.getInputSpec();
+
+    // Do we connect nodes in the current selection, or to the nodes inside some
+    // set-like construct?
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: ['Within Selection', 'Bipartite'],
+      defaultValue: 'Within Selection'
+    });
+    result.addOption(context);
+
+    // For bipartite connection, we need to specify a target document, item, or
+    // set (class or group) to connect nodes to
+    context.specs['Bipartite'].addOption(new ConstructOption({
+      parameterName: 'target',
+      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct]
+    }));
+    // The bipartite approach also allows us to specify edge direction
+    context.specs['Bipartite'].addOption(new InputOption({
+      parameterName: 'directed',
+      choices: ['Undirected', 'Directed'],
+      defaultValue: 'Undirected'
+    }));
+
+    // Either context can be executed by matching attributes or evaluating
+    // a function
+    const mode = new ContextualOption({
+      parameterName: 'mode',
+      choices: ['Attribute', 'Function'],
+      defaultValue: 'Attribute'
+    });
+    result.addOption(mode);
+
+    // Attribute mode needs source and target attribute suggestions
+    mode.specs['Attribute'].addOption(new AttributeOption({
+      parameterName: 'sourceAttribute',
+      defaultValue: null // null indicates that the label should be used
+    }));
+    mode.specs['Attribute'].addOption(new AttributeOption({
+      parameterName: 'targetAttribute',
+      defaultValue: null // null indicates that the label should be used
+    }));
+
+    // Function mode needs the function
+    mode.specs['Function'].addOption(new InputOption({
+      parameterName: 'connectWhen',
+      defaultValue: DEFAULT_CONNECT_WHEN,
+      openEnded: true
+    }));
+
+    // Final option added to all context / modes: where to store the created
+    // edges?
+    result.addOption(new ConstructOption({
+      parameterName: 'saveEdgesIn',
+      validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
+    }));
+  }
+  async canExecuteOnInstance(item, inputOptions) {
+    return false;
+  }
+  async executeOnInstance(item, inputOptions) {
+    throw new Error(`Running the Connect operation on an instance level is not yet supported.`);
+  }
+  async canExecuteOnSelection(selection, inputOptions) {
+    if (inputOptions.skipErrors !== 'Stop') {
+      return true;
     }
-
-    return { sourceList, targetList, containers };
-  }
-});
-
-var ConnectSetsMixin = (superclass => class extends superclass {
-  async inferSelectionInputs(selection) {
-    let setA = null;
-    let setB = null;
-    let containers = await this.pollSelection(selection, item => {
-      if (item.value && item.value.$members) {
-        if (!setA) {
-          setA = item;
-        } else if (!setB) {
-          setB = item;
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {
+      return false;
+    }
+    if (inputOptions.context === 'Bipartite') {
+      if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct)) {
+        return false;
+      }
+    }
+    if (inputOptions.mode === 'Function') {
+      try {
+        Function('source', 'target', // eslint-disable-line no-new-func
+        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          return false;
+        } else {
+          throw err;
         }
       }
-    });
-    if (!setA) {
-      return null;
     }
-    let setSuggestions = [setA];
-    if (setB) {
-      setSuggestions.push(setB);
-    }
-
-    const inputs = await super.inferSelectionInputs(selection);
-    inputs.addToggleOption({
-      name: 'direction',
-      choices: ['undirected', 'source', 'target'],
-      defaultValue: 'target'
-    });
-    inputs.addConstructRequirement({
-      name: 'sourceSet',
-      defaultValue: setA,
-      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
-      suggestions: setSuggestions
-    });
-    inputs.addConstructRequirement({
-      name: 'targetSet',
-      defaultValue: setB,
-      itemTypes: [this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct],
-      suggestions: setSuggestions
-    });
-    inputs.addConstructRequirement({
-      name: 'saveEdgesIn',
-      defaultValue: containers[0],
-      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct],
-      suggestions: containers
-    });
-    return inputs;
+    return true;
   }
   async executeOnSelection(selection, inputOptions) {
-    let [sourceList, targetList, containers] = await Promise.all([inputOptions.sourceSet.memberConstructs(), inputOptions.targetSet ? inputOptions.targetSet.memberConstructs() : null, this.pollSelection(selection)]);
-    sourceList = Object.values(sourceList).filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
-    if (targetList) {
-      targetList = Object.values(targetList).filter(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
-    } else {
-      targetList = sourceList;
+    const output = new OutputSpec();
+
+    // Make sure we have a place to save the edges
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {
+      output.warn(`saveEdgesIn is not an Item`);
+      return output;
     }
 
-    const outputPromises = [];
-    for (let i = 0; i < sourceList.length; i++) {
-      for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnConstruct(sourceList[i], {
-          otherConstruct: targetList[j],
-          saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
-          connectWhen: (source, target) => {
-            const sourceVal = inputOptions.sourceAttribute ? source.value[inputOptions.sourceAttribute] : source.label;
-            const targetVal = inputOptions.targetAttribute ? target.value[inputOptions.targetAttribute] : target.label;
-            return sourceVal === targetVal;
-          },
-          direction: inputOptions.direction || 'target'
-        }));
+    // Figure out the criteria for matching nodes
+    let connectWhen;
+    if (inputOptions.mode === 'Function') {
+      try {
+        connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
+        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          output.warn(`connectWhen SyntaxError: ${err.message}`);
+          return output;
+        } else {
+          throw err;
+        }
       }
-    }
-    return OutputSpec.glomp((await Promise.all(outputPromises)));
-  }
-});
-
-class ConnectSubOp extends ChainTerminatingMixin(BaseOperation) {
-  inferConstructInputs(item) {
-    const inputs = new InputSpec();
-    inputs.addToggleOption({
-      name: 'direction',
-      choices: ['undirected', 'source', 'target'],
-      defaultValue: 'undirected'
-    });
-    inputs.addValueOption({
-      name: 'connectWhen',
-      defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
-    });
-    inputs.addConstructRequirement({
-      name: 'otherConstruct',
-      itemTypes: [this.mure.CONSTRUCTS.NodeConstruct]
-    });
-    inputs.addConstructRequirement({
-      name: 'saveEdgesIn',
-      itemTypes: [this.mure.CONSTRUCTS.ItemConstruct]
-    });
-    return inputs;
-  }
-  async executeOnConstruct(item, inputOptions) {
-    const match = inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN;
-    if (match(item, inputOptions.otherConstruct)) {
-      const newEdge = item.linkTo(inputOptions.otherConstruct, inputOptions.saveEdgesIn, inputOptions.direction);
-
-      return new OutputSpec({
-        newSelectors: [newEdge.uniqueSelector],
-        pollutedDocs: glompLists([[item.doc, inputOptions.otherConstruct.doc, newEdge.doc]])
-      });
     } else {
-      return new OutputSpec();
+      // if (inputOptions.mode === 'Attribute')
+      const getSourceValue = inputOptions.sourceAttribute === null ? source => source.label : source => source.value[inputOptions.sourceAttribute];
+      const getTargetValue = inputOptions.targetAttribute === null ? target => target.label : target => target.value[inputOptions.targetAttribute];
+      connectWhen = (source, target) => getSourceValue(source) === getTargetValue(target);
     }
-  }
-  async pollSelection(selection, callback = () => {}) {
+
     const items = await selection.items();
-    let containers = [];
-    const docs = {};
-    Object.values(items).forEach(item => {
-      if (item.type === 'ItemConstruct') {
-        containers.push(item);
-      }
-      docs[item.doc._id] = item.doc;
 
-      callback(item);
-    });
-    containers = containers.concat(Object.values(docs).map(doc => {
-      return new this.mure.CONSTRUCTS.ItemConstruct({
-        mure: this.mure,
-        value: doc.orphans,
-        path: [`{"_id":"${doc._id}"}`, 'orphans'],
-        doc: doc
+    if (inputOptions.context === 'Bipartite') {
+      // What role are the source nodes playing ('undirected' vs 'source')?
+      const direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
+
+      // Figure out what nodes we're connecting to...
+      let targetList;
+      if (inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+        targetList = await inputOptions.target.getContents();
+      } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
+        targetList = await inputOptions.target.getMembers();
+      } else {
+        output.warn(`Target is not a valid Document, Item, or Set`);
+        return output;
+      }
+      targetList = targetList.filter(target => target instanceof this.mure.CONSTRUCTS.NodeConstruct);
+      if (targetList.length === 0) {
+        output.warn(`Target does not contain any Nodes`);
+        return output;
+      }
+
+      // Create the edges!
+      Object.values(items).forEach(source => {
+        targetList.forEach(target => {
+          if (connectWhen(source, target)) {
+            const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
+            output.addSelectors([newEdge.uniqueSelector]);
+            output.flagPollutedDoc(source.doc);
+            output.flagPollutedDoc(target.doc);
+            output.flagPollutedDoc(newEdge.doc);
+          }
+        });
       });
-    }));
-    return containers;
+    } else {
+      // if (context === 'Within Selection') {
+      // We're only creating edges within the selection; we don't have to worry
+      // about direction or the other set of nodes, but we do need to iterate in
+      // a way that guarantees that we don't duplicate edges
+      const sourceList = Object.values(items);
+      for (let i = 0; i < sourceList.length; i++) {
+        for (let j = i + 1; j < sourceList.length; j++) {
+          if (connectWhen(sourceList[i], sourceList[j])) {
+            const newEdge = sourceList[i].linkTo(sourceList[j], inputOptions.saveEdgesIn);
+            output.addSelectors([newEdge.uniqueSelector]);
+            output.flagPollutedDoc(sourceList[i].doc);
+            output.flagPollutedDoc(sourceList[j].doc);
+            output.flagPollutedDoc(newEdge.doc);
+          }
+        }
+      }
+    }
+    return output;
   }
 }
-ConnectSubOp.DEFAULT_CONNECT_WHEN = (a, b) => {
-  return a.label === b.label;
-};
 
-var ConnectOnFunctionMixin = (superclass => class extends superclass {
-  async inferSelectionInputs(selection) {
-    const inputs = new InputSpec();
-    inputs.addValueOption({
-      name: 'connectWhen',
-      defaultValue: ConnectSubOp.DEFAULT_CONNECT_WHEN
+class ClassOption extends InputOption {
+  async populateChoicesFromItem(item) {
+    return item.getClasses ? item.getClasses() : [];
+  }
+  async populateChoicesFromSelection(selection) {
+    let classes = {};
+    (await Promise.all(Object.values((await selection.items())).map(item => {
+      return item.getClasses ? item.getClasses() : [];
+    }))).forEach(attrList => {
+      attrList.forEach(className => {
+        classes[className] = true;
+      });
     });
-    return inputs;
-  }
-  async executeOnSelection(selection, inputOptions) {
-    const { sourceList, targetList, containers } = await this.getSelectionExecutionLists(selection, inputOptions);
-    const outputPromises = [];
-    for (let i = 0; i < sourceList.length; i++) {
-      for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnConstruct(sourceList[i], {
-          otherConstruct: targetList[j],
-          saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
-          connectWhen: inputOptions.connectWhen || ConnectSubOp.DEFAULT_CONNECT_WHEN,
-          direction: inputOptions.direction || 'target'
-        }));
-      }
-    }
-    return OutputSpec.glomp((await Promise.all(outputPromises)));
-  }
-});
-
-var ConnectOnAttributeMixin = (superclass => class extends superclass {
-  async inferSelectionInputs(selection) {
-    const inputs = new InputSpec();
-    inputs.addValueOption({
-      name: 'sourceAttribute',
-      defaultValue: null // indicates that the label should be used
-    });
-    inputs.addValueOption({
-      name: 'targetAttribute',
-      defaultValue: null // indicates that the label should be used
-    });
-    return inputs;
-  }
-  async executeOnSelection(selection, inputOptions) {
-    const { sourceList, targetList, containers } = await this.getSelectionExecutionLists(selection, inputOptions);
-
-    const outputPromises = [];
-    for (let i = 0; i < sourceList.length; i++) {
-      for (let j = 0; j < targetList.length; j++) {
-        outputPromises.push(this.executeOnConstruct(sourceList[i], {
-          otherConstruct: targetList[j],
-          saveEdgesIn: inputOptions.saveEdgesIn || containers[0],
-          connectWhen: (source, target) => {
-            const sourceVal = inputOptions.sourceAttribute ? source.value[inputOptions.sourceAttribute] : source.label;
-            const targetVal = inputOptions.targetAttribute ? target.value[inputOptions.targetAttribute] : target.label;
-            return sourceVal === targetVal;
-          },
-          direction: inputOptions.direction || 'target'
-        }));
-      }
-    }
-    return OutputSpec.glomp((await Promise.all(outputPromises)));
-  }
-});
-
-class ConnectNodesOnFunctionOperation extends ConnectNodesMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
-class ConnectNodesOnAttributeOperation extends ConnectNodesMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
-class ConnectSetsOnFunctionOperation extends ConnectSetsMixin(ConnectOnFunctionMixin(ConnectSubOp)) {}
-class ConnectSetsOnAttributeOperation extends ConnectSetsMixin(ConnectOnAttributeMixin(ConnectSubOp)) {}
-
-class ConnectOperation extends ContextualOperation {
-  constructor(mure) {
-    super(mure, [ConnectNodesOnFunctionOperation, ConnectNodesOnAttributeOperation, ConnectSetsOnFunctionOperation, ConnectSetsOnAttributeOperation]);
+    this.choices = Object.keys(classes);
   }
 }
 
 class AssignClassOperation extends BaseOperation {
-  checkConstructInputs(item, inputOptions) {
-    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
-  }
-  inferConstructInputs(item) {
-    if (!this.checkConstructInputs(item)) {
-      return null;
-    } else {
-      const temp = new InputSpec();
-      temp.addValueOption({
-        name: 'className',
-        defaultValue: 'none',
-        suggestions: Object.keys(item.doc.classes || {}).filter(c => !this.mure.RESERVED_OBJ_KEYS[c])
-      });
-      return temp;
-    }
-  }
-  async executeOnConstruct(item, inputOptions) {
-    if (!this.checkConstructInputs(item)) {
-      throw new Error(`Must be a TaggableConstruct to assign a class`);
-    }
-    item.addClass(inputOptions.className || 'none');
-    return new OutputSpec({
-      pollutedDocs: [item.doc]
+  getInputSpec() {
+    const result = super.getInputSpec();
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: ['String', 'Attribute'],
+      defaultValue: 'String'
     });
+    result.addOption(context);
+    context.specs['String'].addOption(new ClassOption({
+      parameterName: 'className',
+      openEnded: true
+    }));
+    context.specs['Attribute'].addOption(new AttributeOption({
+      parameterName: 'attribute'
+    }));
+  }
+  async canExecuteOnInstance(item, inputOptions) {
+    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.TaggableItem;
+  }
+  async executeOnInstance(item, inputOptions) {
+    const output = new OutputSpec();
+    let className = inputOptions.className;
+    if (!inputOptions.className) {
+      if (!inputOptions.attribute) {
+        output.warn(`No className or attribute option supplied`);
+        return output;
+      }
+      if (item.getValue) {
+        className = item.getValue(inputOptions.attribute);
+      } else {
+        output.warn(`Can't get attributes from ${item.type} instance`);
+        return output;
+      }
+      if (!className) {
+        output.warn(`${item.type} instance missing attribute ${inputOptions.attribute}`);
+        return output;
+      }
+    }
+    if (!item.addClass) {
+      output.warn(`Can't assign class to non-taggable ${item.type}`);
+    } else {
+      item.addClass(className);
+      output.flagPollutedDoc(item.doc);
+    }
+    return output;
   }
 }
 
@@ -1982,7 +2024,7 @@ class Mure extends uki.Model {
     };
 
     // All the supported operations
-    let operationClasses = [NavigateOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
+    let operationClasses = [SelectOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
     this.OPERATIONS = {};
 
     // Unlike CONSTRUCTS, we actually want to instantiate all the operations
@@ -2038,7 +2080,7 @@ class Mure extends uki.Model {
     this.dbStatus = new Promise((resolve, reject) => {
       (async () => {
         let status = { synced: false };
-        let couchDbUrl = this.window.localStorage.getConstruct('couchDbUrl');
+        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
         if (couchDbUrl) {
           let couchDb = new this.PouchDB(couchDbUrl, { skip_setup: true });
           status.synced = !!(await this.db.sync(couchDb, { live: true, retry: true }).catch(err => {

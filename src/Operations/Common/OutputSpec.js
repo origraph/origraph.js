@@ -1,27 +1,43 @@
-import { glompLists } from './utils.js';
-
 class OutputSpec {
-  constructor ({ newSelectors = null, pollutedDocs = [] } = {}) {
+  constructor ({ newSelectors = null, pollutedDocs = {}, warnings = {} } = {}) {
     this.newSelectors = newSelectors;
     this.pollutedDocs = pollutedDocs;
+    this.warnings = warnings;
+  }
+  addSelectors (selectors) {
+    this.newSelectors = (this.newSelectors || []).concat(selectors);
+  }
+  flagPollutedDoc (doc) {
+    this.pollutedDocs[doc._id] = doc;
+  }
+  warn (warning) {
+    this.warnings[warning] = this.warning[warning] || 0;
+    this.warnings[warning] += 1;
   }
 }
 OutputSpec.glomp = specList => {
-  const newSelectors = specList.reduce((agg, spec) => {
-    if (agg === null) {
-      return spec.newSelectors;
-    } else if (spec.newSelectors === null) {
-      return agg;
-    } else {
-      return glompLists([agg, spec.newSelectors]);
+  let newSelectors = {};
+  let pollutedDocs = {};
+  let warnings = {};
+  specList.forEach(spec => {
+    if (spec.newSelectors) {
+      spec.newSelectors.forEach(selector => {
+        newSelectors[selector] = true;
+      });
     }
-  }, null);
-  const pollutedDocs = specList.reduce((agg, spec) => {
-    return glompLists([agg, spec.pollutedDocs]);
-  }, []);
+    Object.values(spec.pollutedDocs).forEach(doc => {
+      pollutedDocs[doc._id] = doc;
+    });
+    Object.entries(([warning, count]) => {
+      warnings[warning] = warnings[warning] || 0;
+      warnings[warning] += count;
+    });
+  });
+  newSelectors = Object.keys(newSelectors);
   return new OutputSpec({
-    newSelectors,
-    pollutedDocs
+    newSelectors: newSelectors.length > 0 ? newSelectors : null,
+    pollutedDocs,
+    warnings
   });
 };
 

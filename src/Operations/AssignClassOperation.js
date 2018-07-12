@@ -1,33 +1,56 @@
-import InputSpec from './Common/InputSpec.js';
-import OutputSpec from './Common/OutputSpec.js';
 import BaseOperation from './Common/BaseOperation.js';
+import OutputSpec from './Common/OutputSpec.js';
+import ContextualOption from './Common/ContextualOption.js';
+import AttributeOption from './Common/AttributeOption.js';
+import ClassOption from './Common/ClassOption.js';
 
 class AssignClassOperation extends BaseOperation {
-  checkConstructInputs (item, inputOptions) {
-    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
-  }
-  inferConstructInputs (item) {
-    if (!this.checkConstructInputs(item)) {
-      return null;
-    } else {
-      const temp = new InputSpec();
-      temp.addValueOption({
-        name: 'className',
-        defaultValue: 'none',
-        suggestions: Object.keys(item.doc.classes || {})
-          .filter(c => !this.mure.RESERVED_OBJ_KEYS[c])
-      });
-      return temp;
-    }
-  }
-  async executeOnConstruct (item, inputOptions) {
-    if (!this.checkConstructInputs(item)) {
-      throw new Error(`Must be a TaggableConstruct to assign a class`);
-    }
-    item.addClass(inputOptions.className || 'none');
-    return new OutputSpec({
-      pollutedDocs: [item.doc]
+  getInputSpec () {
+    const result = super.getInputSpec();
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: ['String', 'Attribute'],
+      defaultValue: 'String'
     });
+    result.addOption(context);
+    context.specs['String'].addOption(new ClassOption({
+      parameterName: 'className',
+      openEnded: true
+    }));
+    context.specs['Attribute'].addOption(new AttributeOption({
+      parameterName: 'attribute'
+    }));
+  }
+  async canExecuteOnInstance (item, inputOptions) {
+    return (await super.canExecuteOnInstance(item, inputOptions)) ||
+      item instanceof this.mure.CONSTRUCTS.TaggableItem;
+  }
+  async executeOnInstance (item, inputOptions) {
+    const output = new OutputSpec();
+    let className = inputOptions.className;
+    if (!inputOptions.className) {
+      if (!inputOptions.attribute) {
+        output.warn(`No className or attribute option supplied`);
+        return output;
+      }
+      if (item.getValue) {
+        className = item.getValue(inputOptions.attribute);
+      } else {
+        output.warn(`Can't get attributes from ${item.type} instance`);
+        return output;
+      }
+      if (!className) {
+        output.warn(`${item.type} instance missing attribute ${inputOptions.attribute}`);
+        return output;
+      }
+    }
+    if (!item.addClass) {
+      output.warn(`Can't assign class to non-taggable ${item.type}`);
+    } else {
+      item.addClass(className);
+      output.flagPollutedDoc(item.doc);
+    }
+    return output;
   }
 }
 

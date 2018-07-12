@@ -1,38 +1,60 @@
 import Introspectable from '../../Common/Introspectable.js';
 import InputSpec from './InputSpec.js';
+import InputOption from './InputOption.js';
 import OutputSpec from './OutputSpec.js';
 
 class BaseOperation extends Introspectable {
   constructor (mure) {
     super();
     this.mure = mure;
-    this.terminatesChain = false;
-    this.acceptsInputOptions = true;
   }
-  checkConstructInputs (item, inputOptions) {
-    return true;
+  getInputSpec () {
+    const result = new InputSpec();
+    result.addOption(new InputOption({
+      parameterName: 'skipErrors',
+      options: ['Ignore', 'Stop'],
+      defaultValue: 'Ignore'
+    }));
+    return result;
   }
-  inferConstructInputs (item) {
-    if (!this.checkConstructInputs(item)) {
-      return null;
-    } else {
-      return new InputSpec();
-    }
+  async canExecuteOnInstance (item, inputOptions) {
+    return inputOptions.skipErrors !== 'Stop';
   }
-  async executeOnConstruct (item, inputOptions) {
+  async executeOnInstance (item, inputOptions) {
     throw new Error('unimplemented');
   }
-  async checkSelectionInputs (selection, inputOptions) {
-    return true;
+  getItemsInUse (inputOptions) {
+    const itemsInUse = {};
+    Object.values(inputOptions).forEach(argument => {
+      if (argument && argument.uniqueSelector) {
+        itemsInUse[argument.uniqueSelector] = true;
+      }
+    });
+    return itemsInUse;
   }
-  async inferSelectionInputs (selection) {
+  async canExecuteOnSelection (selection, inputOptions) {
+    const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
-    const inputSpecPromises = Object.values(items).map(item => this.inferConstructInputs(item));
-    return InputSpec.glomp(await Promise.all(inputSpecPromises));
+    const canExecuteInstances = (await Promise.all(Object.values(items)
+      .map(item => {
+        return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item);
+      })));
+    if (inputOptions.skipErrors === 'Stop') {
+      return canExecuteInstances.every(canExecute => canExecute);
+    } else {
+      return canExecuteInstances.some(canExecute => canExecute);
+    }
   }
   async executeOnSelection (selection, inputOptions) {
+    const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
-    const outputSpecPromises = Object.values(items).map(item => this.executeOnConstruct(item, inputOptions));
+    const outputSpecPromises = Object.values(items).map(item => {
+      if (itemsInUse[item.uniqueSelector]) {
+        return new OutputSpec(); // Ignore items that are inputOptions
+      } else {
+        return this.executeOnInstance(item, inputOptions);
+      }
+    });
     return OutputSpec.glomp(await Promise.all(outputSpecPromises));
   }
 }

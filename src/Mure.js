@@ -20,9 +20,9 @@ import EdgeConstruct from './Constructs/EdgeConstruct.js';
 import NodeConstruct from './Constructs/NodeConstruct.js';
 import SupernodeConstruct from './Constructs/SupernodeConstruct.js';
 
-import NavigateOperation from './Operations/Navigate/NavigateOperation.js';
-import ConvertOperation from './Operations/Convert/ConvertOperation.js';
-import ConnectOperation from './Operations/Connect/ConnectOperation.js';
+import SelectOperation from './Operations/SelectOperation.js';
+import ConvertOperation from './Operations/ConvertOperation.js';
+import ConnectOperation from './Operations/ConnectOperation.js';
 import AssignClassOperation from './Operations/AssignClassOperation.js';
 
 class Mure extends Model {
@@ -95,7 +95,7 @@ class Mure extends Model {
 
     // All the supported operations
     let operationClasses = [
-      NavigateOperation,
+      SelectOperation,
       ConvertOperation,
       ConnectOperation,
       AssignClassOperation
@@ -155,7 +155,7 @@ class Mure extends Model {
     this.dbStatus = new Promise((resolve, reject) => {
       (async () => {
         let status = { synced: false };
-        let couchDbUrl = this.window.localStorage.getConstruct('couchDbUrl');
+        let couchDbUrl = this.window.localStorage.getItem('couchDbUrl');
         if (couchDbUrl) {
           let couchDb = new this.PouchDB(couchDbUrl, {skip_setup: true});
           status.synced = !!(await this.db.sync(couchDb, {live: true, retry: true})

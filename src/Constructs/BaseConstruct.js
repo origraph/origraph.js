@@ -42,5 +42,6 @@ BaseConstruct.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
+BaseConstruct.isBadValue = value => false;
 
 export default BaseConstruct;

@@ -1,7 +1,6 @@
 import jsonPath from 'jsonpath';
 import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
-import OutputSpec from './Operations/Common/OutputSpec.js';
 
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
@@ -51,8 +50,6 @@ class Selection {
 
     this.mure = mure;
     this.selectSingle = selectSingle;
-
-    this.pendingOperations = [];
 
     Selection.ALL.push(this);
   }
@@ -228,65 +225,47 @@ class Selection {
       return this._cachedConstructs;
     });
   }
-  get chainable () {
-    if (this.pendingOperations.length === 0) {
-      return true;
-    } else {
-      const lastOp = this.pendingOperations[this.pendingOperations.length - 1].operation;
-      return lastOp.terminatesChain === false;
-    }
-  }
-  chain (operation, inputOptions) {
-    if (!this.chainable) {
-      throw new Error(`A terminating operation (\
-${this.pendingOperations[this.pendingOperations.length].operation.humanReadableType}\
-) has already been chained; please await executeChain() or cancelChain() before \
-chaining additional operations.`);
-    }
-    this.pendingOperations.push({ operation, inputOptions });
-    return this;
-  }
-  async executeChain () {
-    // Evaluate all the pending operations that we've accrued; as each function
-    // manipulates Constructs' .value property, those changes will automatically be
-    // reflected in the document (as every .value is a pointer, or BaseConstruct's
-    // .value setter ensures that primitives are propagated)
-    let outputSpec = new OutputSpec();
-    for (let f = 0; f < this.pendingOperations.length; f++) {
-      let { operation, inputOptions } = this.pendingOperations[f];
-      outputSpec = await operation.executeOnSelection(this, inputOptions);
-    }
-    this.pendingOperations = [];
+  async execute (operation, inputOptions) {
+    let outputSpec = await operation.executeOnSelection(this, inputOptions);
 
     // Any selection that has cached any of the documents that we altered
     // needs to have its cache invalidated
-    outputSpec.pollutedDocs.forEach(doc => {
+    const pollutedDocs = Object.values(outputSpec.pollutedDocs);
+    pollutedDocs.forEach(doc => {
       Selection.INVALIDATE_DOC_CACHE(doc._id);
     });
-    // We need to save all the documents that the operations have altered
-    await this.mure.putDocs(outputSpec.pollutedDocs);
 
+    // Write any warnings, and, depending on the user's settings, skip or save
+    // the results
+    if (Object.keys(outputSpec.warnings).length > 0) {
+      let warningString;
+      if (outputSpec.skipErrors === 'Stop') {
+        warningString = `${operation.humanReadableType} operation failed.\n`;
+      } else {
+        warningString = `${operation.humanReadableType} operation finished with warnings:\n`;
+        // Save even though there were warnings
+        await this.mure.putDocs(pollutedDocs);
+      }
+      warningString += Object.entries(outputSpec.warnings).map(([warning, count]) => {
+        if (count > 1) {
+          return `${warning} (x${count})`;
+        } else {
+          return `${warning}`;
+        }
+      });
+      this.mure.warn(warningString);
+    } else {
+      // Save the results
+      await this.mure.putDocs(pollutedDocs);
+    }
+
+    // Finally, return this selection, or a new selection, depending on the
+    // operation
     if (outputSpec.newSelectors !== null) {
       return new Selection(this.mure, outputSpec.newSelectors);
     } else {
       return this;
     }
-  }
-  get chainPending () {
-    return this.pendingOperations.length > 0;
-  }
-  cancelChain () {
-    this.pendingOperations = [];
-    return this;
-  }
-  async execute (operation, inputOptions) {
-    if (this.chainPending) {
-      throw new Error(`The selection currently has a pending chain of \
-operations; please await executeChain() or cancelChain() before executing \
-one-off operations.`);
-    }
-    this.pendingOperations.push({ operation, inputOptions });
-    return this.executeChain();
   }
 
   /*

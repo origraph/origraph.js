@@ -38,24 +38,6 @@ class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
     // think through...
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
-  async contentSelectors () {
-    return this._contentConstruct.contentSelectors();
-  }
-  async contentConstructs () {
-    return this._contentConstruct.contentConstructs();
-  }
-  async contentConstructCount () {
-    return this._contentConstruct.contentConstructCount();
-  }
-  async metaConstructSelectors () {
-    return (await this.metaConstructs()).map(item => item.uniqueSelector);
-  }
-  async metaConstructs () {
-    return this.getValueContents();
-  }
-  async metaConstructCount () {
-    return this.getValueContentCount();
-  }
 }
 DocumentConstruct.isValidId = (docId) => {
   if (docId[0].toLowerCase() !== docId[0]) {

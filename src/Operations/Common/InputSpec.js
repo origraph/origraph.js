@@ -1,41 +1,54 @@
-import InputOption from './InputOption.js';
-import ValueInputOption from './ValueInputOption.js';
-import ToggleInputOption from './ToggleInputOption.js';
-import ConstructRequirement from './ConstructRequirement.js';
-
 class InputSpec {
   constructor () {
     this.options = {};
   }
-  addValueOption (optionDetails) {
-    this.options[optionDetails.name] = new ValueInputOption(optionDetails);
+  addOption (option) {
+    this.options[option.name] = option;
   }
-  addToggleOption (optionDetails) {
-    this.options[optionDetails.name] = new ToggleInputOption(optionDetails);
+  getDefaultInputOptions () {
+    let inputOptions = {};
+
+    let defaultExists = Object.entries(this.options).every(([opName, option]) => {
+      let value;
+      if (option.specs) {
+        value = option.getNestedDefaultValues(inputOptions);
+      } else {
+        value = option.defaultValue;
+      }
+      if (value !== null) {
+        inputOptions[opName] = value;
+        return true;
+      } else {
+        return false;
+      }
+    });
+
+    if (!defaultExists) {
+      return null;
+    } else {
+      return inputOptions;
+    }
   }
-  addConstructRequirement (optionDetails) {
-    this.options[optionDetails.name] = new ConstructRequirement(optionDetails);
+  async populateChoicesFromItem (item) {
+    return Promise.all(Object.values(this.options).map(option => {
+      if (option.specs) {
+        return Promise.all(Object.values(option.specs)
+          .map(spec => spec.populateChoicesFromItem(item)));
+      } else if (option.populateChoicesFromItem) {
+        return option.populateChoicesFromItem(item);
+      }
+    }));
   }
-  addMiscOption (optionDetails) {
-    this.options[optionDetails.name] = new InputOption(optionDetails);
+  async populateChoicesFromSelection (item) {
+    return Promise.all(Object.values(this.options).map(option => {
+      if (option.specs) {
+        return Promise.all(Object.values(option.specs)
+          .map(spec => spec.populateChoicesFromSelection(item)));
+      } else if (option.populateChoicesFromSelection) {
+        return option.populateChoicesFromSelection(item);
+      }
+    }));
   }
 }
-InputSpec.glomp = specList => {
-  if (specList.length === 0 || specList.indexOf(null) !== -1) {
-    return null;
-  }
-  let result = new InputSpec();
-
-  specList.reduce((agg, spec) => {
-    return agg.concat(Object.keys(spec.options));
-  }, []).forEach(optionName => {
-    const inputSpecWOption = specList.find(spec => spec.options[optionName]);
-    const glompFunc = inputSpecWOption.options[optionName].constructor.glomp;
-    const glompedOption = glompFunc(specList.map(spec => spec.options[optionName]));
-    result.options[optionName] = glompedOption;
-  });
-
-  return result;
-};
 
 export default InputSpec;

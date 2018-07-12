@@ -29,5 +29,6 @@ class InvalidConstruct extends BaseConstruct {
   }
 }
 InvalidConstruct.JSTYPE = 'object';
+InvalidConstruct.isBadValue = value => true;
 
 export default InvalidConstruct;

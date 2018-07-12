@@ -28,5 +28,6 @@ DateConstruct.standardize = ({ value }) => {
   }
   return value;
 };
+DateConstruct.isBadValue = value => value.toString() !== 'Invalid Date';
 
 export default DateConstruct;
