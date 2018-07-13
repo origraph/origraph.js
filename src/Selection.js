@@ -5,51 +5,23 @@ import md5 from 'blueimp-md5';
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection {
-  constructor (mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null } = {}) {
+  constructor (mure, selectorList = ['@' + DEFAULT_DOC_QUERY]) {
     if (!(selectorList instanceof Array)) {
       selectorList = [ selectorList ];
     }
-    this.selectors = selectorList.reduce((agg, selectorString) => {
-      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
-      if (!chunks || chunks[5]) {
+    this.selectors = selectorList.map(selectorString => {
+      const selector = mure.parseSelector(selectorString);
+      if (selector === null) {
         let err = new Error('Invalid selector: ' + selectorString);
         err.INVALID_SELECTOR = true;
         throw err;
       }
-      let parsedDocQuery = chunks[1] ? JSON.parse(chunks[1].trim()) : JSON.parse(DEFAULT_DOC_QUERY);
-      if (parentSelection) {
-        parentSelection.selectors.forEach(parentSelector => {
-          let mergedDocQuery = Object.assign({}, parsedDocQuery, parentSelector.parsedDocQuery);
-          let selector = {
-            docQuery: JSON.stringify(mergedDocQuery),
-            parsedDocQuery: mergedDocQuery,
-            parentShift: parentSelector.parentShift + (chunks[3] ? chunks[3].length : 0),
-            followLinks: !!chunks[4]
-          };
-          if (parentSelector.objQuery) {
-            selector.objQuery = parentSelector.objQuery + (chunks[2] ? chunks[2].trim().slice(1) : '');
-          } else {
-            selector.objQuery = chunks[2] ? chunks[2].trim() : '';
-          }
-          agg.push(selector);
-        });
-      } else {
-        let selector = {
-          docQuery: chunks[1] ? chunks[1].trim() : DEFAULT_DOC_QUERY,
-          parsedDocQuery,
-          objQuery: chunks[2] ? chunks[2].trim() : '',
-          parentShift: chunks[3] ? chunks[3].length : 0,
-          followLinks: !!chunks[4]
-        };
-        agg.push(selector);
-      }
-      return agg;
-    }, []);
+      return selector;
+    });
 
     // TODO: optimize and sort this.selectors for better hash equivalence
 
     this.mure = mure;
-    this.selectSingle = selectSingle;
 
     Selection.ALL.push(this);
   }
@@ -126,10 +98,7 @@ class Selection {
     return queueAsync(async () => {
       // Collect the results of objQuery
       this._cachedConstructs = {};
-      let addedConstruct = false;
-
       const addConstruct = item => {
-        addedConstruct = true;
         if (!this._cachedConstructs[item.uniqueSelector]) {
           this._cachedConstructs[item.uniqueSelector] = item;
         }
@@ -145,25 +114,22 @@ class Selection {
           if (selector.parentShift === 0 && !selector.followLinks) {
             addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
-              docList,
-              selectSingle: this.selectSingle
+              docList
             }));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
-            docList.some(doc => {
+            docList.forEach(doc => {
               addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                 mure: this.mure,
                 doc
               }));
-              return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
             addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
-              docList,
-              selectSingle: this.selectSingle
+              docList
             }));
           }
         } else {
@@ -182,8 +148,7 @@ class Selection {
                 if (!selector.followLinks) {
                   addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
                     mure: this.mure,
-                    docList,
-                    selectSingle: this.selectSingle
+                    docList
                   }));
                 }
               } else if (selector.parentShift === localPath.length - 1) {
@@ -202,7 +167,7 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values(await this.mure.followRelativeLink(value, doc, this.selectSingle))
+                  Object.values(await this.mure.followRelativeLink(value, doc))
                     .forEach(addConstruct);
                 } else {
                   const ConstructType = this.mure.inferType(value);
@@ -214,13 +179,9 @@ class Selection {
                   }));
                 }
               }
-              if (this.selectSingle && addedConstruct) { break; }
             }
-            if (this.selectSingle && addedConstruct) { break; }
           }
         }
-
-        if (this.selectSingle && addedConstruct) { break; }
       }
       return this._cachedConstructs;
     });
@@ -514,32 +475,6 @@ class Selection {
       setLookup[setKey].linkedIds[linkedId] = true;
     });
     return sets;
-  }
-
-  /*
-   These functions are useful for deriving additional selections based
-   on selectors (when there's no direct need to access items)
-  */
-  deriveSelection (selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
-    if (options.mode === this.mure.DERIVE_MODES.UNION) {
-      selectorList = selectorList.concat(this.selectorList);
-    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
-      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1)
-        .concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
-    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
-    return new Selection(this.mure, selectorList, options);
-  }
-  merge (otherSelection, options = {}) {
-    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
-    return this.deriveSelection(otherSelection.selectorList, options);
-  }
-  select (selectorList, options = {}) {
-    Object.assign(options, { selectSingle: true, parentSelection: this });
-    return this.deriveSelection(selectorList, options);
-  }
-  selectAll (selectorList, options = {}) {
-    Object.assign(options, { parentSelection: this });
-    return this.deriveSelection(selectorList, options);
   }
 }
 // TODO: this way of dealing with cache invalidation causes a memory leak, as

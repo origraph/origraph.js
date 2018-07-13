@@ -12,51 +12,23 @@ var D3Node = _interopDefault(require('d3-node'));
 const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
 
 class Selection {
-  constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY], { selectSingle = false, parentSelection = null } = {}) {
+  constructor(mure, selectorList = ['@' + DEFAULT_DOC_QUERY]) {
     if (!(selectorList instanceof Array)) {
       selectorList = [selectorList];
     }
-    this.selectors = selectorList.reduce((agg, selectorString) => {
-      let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
-      if (!chunks || chunks[5]) {
+    this.selectors = selectorList.map(selectorString => {
+      const selector = mure.parseSelector(selectorString);
+      if (selector === null) {
         let err = new Error('Invalid selector: ' + selectorString);
         err.INVALID_SELECTOR = true;
         throw err;
       }
-      let parsedDocQuery = chunks[1] ? JSON.parse(chunks[1].trim()) : JSON.parse(DEFAULT_DOC_QUERY);
-      if (parentSelection) {
-        parentSelection.selectors.forEach(parentSelector => {
-          let mergedDocQuery = Object.assign({}, parsedDocQuery, parentSelector.parsedDocQuery);
-          let selector = {
-            docQuery: JSON.stringify(mergedDocQuery),
-            parsedDocQuery: mergedDocQuery,
-            parentShift: parentSelector.parentShift + (chunks[3] ? chunks[3].length : 0),
-            followLinks: !!chunks[4]
-          };
-          if (parentSelector.objQuery) {
-            selector.objQuery = parentSelector.objQuery + (chunks[2] ? chunks[2].trim().slice(1) : '');
-          } else {
-            selector.objQuery = chunks[2] ? chunks[2].trim() : '';
-          }
-          agg.push(selector);
-        });
-      } else {
-        let selector = {
-          docQuery: chunks[1] ? chunks[1].trim() : DEFAULT_DOC_QUERY,
-          parsedDocQuery,
-          objQuery: chunks[2] ? chunks[2].trim() : '',
-          parentShift: chunks[3] ? chunks[3].length : 0,
-          followLinks: !!chunks[4]
-        };
-        agg.push(selector);
-      }
-      return agg;
-    }, []);
+      return selector;
+    });
 
     // TODO: optimize and sort this.selectors for better hash equivalence
 
     this.mure = mure;
-    this.selectSingle = selectSingle;
 
     Selection.ALL.push(this);
   }
@@ -130,10 +102,7 @@ class Selection {
     return uki.queueAsync(async () => {
       // Collect the results of objQuery
       this._cachedConstructs = {};
-      let addedConstruct = false;
-
       const addConstruct = item => {
-        addedConstruct = true;
         if (!this._cachedConstructs[item.uniqueSelector]) {
           this._cachedConstructs[item.uniqueSelector] = item;
         }
@@ -149,25 +118,22 @@ class Selection {
           if (selector.parentShift === 0 && !selector.followLinks) {
             addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
-              docList,
-              selectSingle: this.selectSingle
+              docList
             }));
           }
         } else if (selector.objQuery === '$') {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
-            docList.some(doc => {
+            docList.forEach(doc => {
               addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
                 mure: this.mure,
                 doc
               }));
-              return this.selectSingle;
             });
           } else if (selector.parentShift === 1) {
             addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
               mure: this.mure,
-              docList,
-              selectSingle: this.selectSingle
+              docList
             }));
           }
         } else {
@@ -186,8 +152,7 @@ class Selection {
                 if (!selector.followLinks) {
                   addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
                     mure: this.mure,
-                    docList,
-                    selectSingle: this.selectSingle
+                    docList
                   }));
                 }
               } else if (selector.parentShift === localPath.length - 1) {
@@ -206,7 +171,7 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values((await this.mure.followRelativeLink(value, doc, this.selectSingle))).forEach(addConstruct);
+                  Object.values((await this.mure.followRelativeLink(value, doc))).forEach(addConstruct);
                 } else {
                   const ConstructType = this.mure.inferType(value);
                   addConstruct(new ConstructType({
@@ -217,18 +182,8 @@ class Selection {
                   }));
                 }
               }
-              if (this.selectSingle && addedConstruct) {
-                break;
-              }
-            }
-            if (this.selectSingle && addedConstruct) {
-              break;
             }
           }
-        }
-
-        if (this.selectSingle && addedConstruct) {
-          break;
         }
       }
       return this._cachedConstructs;
@@ -514,31 +469,6 @@ class Selection {
     });
     return sets;
   }
-
-  /*
-   These functions are useful for deriving additional selections based
-   on selectors (when there's no direct need to access items)
-  */
-  deriveSelection(selectorList, options = { mode: this.mure.DERIVE_MODES.REPLACE }) {
-    if (options.mode === this.mure.DERIVE_MODES.UNION) {
-      selectorList = selectorList.concat(this.selectorList);
-    } else if (options.mode === this.mure.DERIVE_MODES.XOR) {
-      selectorList = selectorList.filter(selector => this.selectorList.indexOf(selector) === -1).concat(this.selectorList.filter(selector => selectorList.indexOf(selector) === -1));
-    } // else if (options.mode === DERIVE_MODES.REPLACE) { // do nothing }
-    return new Selection(this.mure, selectorList, options);
-  }
-  merge(otherSelection, options = {}) {
-    Object.assign(options, { mode: this.mure.DERIVE_MODES.UNION });
-    return this.deriveSelection(otherSelection.selectorList, options);
-  }
-  select(selectorList, options = {}) {
-    Object.assign(options, { selectSingle: true, parentSelection: this });
-    return this.deriveSelection(selectorList, options);
-  }
-  selectAll(selectorList, options = {}) {
-    Object.assign(options, { parentSelection: this });
-    return this.deriveSelection(selectorList, options);
-  }
 }
 // TODO: this way of dealing with cache invalidation causes a memory leak, as
 // old selections are going to pile up in CACHED_DOCS and ALL after they've lost
@@ -640,7 +570,7 @@ BaseConstruct.standardize = ({ value }) => {
 BaseConstruct.isBadValue = value => false;
 
 class RootConstruct extends BaseConstruct {
-  constructor({ mure, docList, selectSingle }) {
+  constructor({ mure, docList }) {
     super({
       mure,
       path: [],
@@ -650,9 +580,8 @@ class RootConstruct extends BaseConstruct {
       label: null,
       uniqueSelector: '@'
     });
-    docList.some(doc => {
+    docList.forEach(doc => {
       this.value[doc._id] = doc;
-      return selectSingle;
     });
   }
   remove() {
@@ -1439,13 +1368,13 @@ Object.defineProperty(BaseOperation, 'type', {
 });
 
 class ContextualOption extends InputOption {
-  constructor({ parameterName, defaultValue, choices = [] }) {
+  constructor({ parameterName, defaultValue, choices = [], hiddenChoices = [] }) {
     if (choices.length < 2) {
       throw new Error('Contextual options must specify at least two choices a priori');
     }
     super({ parameterName, defaultValue, choices, openEnded: false });
     this.specs = {};
-    choices.forEach(choice => {
+    choices.concat(hiddenChoices).forEach(choice => {
       this.specs[choice] = new InputSpec();
     });
   }
@@ -1472,7 +1401,8 @@ class SelectOperation extends BaseOperation {
     const result = super.getInputSpec();
     const context = new ContextualOption({
       parameterName: 'context',
-      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members'],
+      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members', 'Selector'],
+      hiddenChoices: ['Selector List'],
       defaultValue: 'Children'
     });
     result.addOption(context);
@@ -1484,6 +1414,22 @@ class SelectOperation extends BaseOperation {
     });
     context.specs['Nodes'].addOption(direction);
     context.specs['Edges'].addOption(direction);
+
+    context.specs['Selector'].addOption(new InputOption({
+      parameterName: 'append',
+      defaultValue: '[*]',
+      openEnded: true
+    }));
+
+    context.specs['Selector List'].addOption(new InputOption({
+      paramterName: 'selectorList',
+      defaultValue: []
+    }));
+    context.specs['Selector List'].addOption(new InputOption({
+      parameterName: 'mode',
+      choices: ['Replace', 'Union', 'XOR'],
+      defaultValue: 'Replace'
+    }));
   }
   async canExecuteOnInstance(item, inputOptions) {
     if (await super.canExecuteOnInstance(item, inputOptions)) {
@@ -1499,6 +1445,10 @@ class SelectOperation extends BaseOperation {
       return item instanceof this.mure.CONSTRUCTS.NodeConstruct || item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
     } else if (inputOptions.context === 'Members') {
       return item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct;
+    } else if (inputOptions.context === 'Selector') {
+      return this.mure.parseSelector(item.uniqueSelector + inputOptions.append) !== null;
+    } else {
+      return false;
     }
   }
   async executeOnInstance(item, inputOptions) {
@@ -1519,10 +1469,43 @@ class SelectOperation extends BaseOperation {
       output.addSelectors((await Promise.all((await item.nodeConstructs(forward)).map(node => node.edgeSelectors(forward)))));
     } else if (inputOptions.context === 'Members' && (item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
       output.addSelectors((await item.memberConstructs()));
+    } else if (inputOptions.context === 'Selector') {
+      const newString = item.uniqueSelector + inputOptions.append;
+      const newSelector = this.mure.parseSelector(newString);
+      if (newSelector === null) {
+        output.warn(`Invalid selector: ${newString}`);
+      } else {
+        output.addSelectors([newString]);
+      }
     } else {
       output.warn(`Can't select ${inputOptions.context} from ${item.type}`);
     }
     return output;
+  }
+  async canExecuteOnSelection(selection, inputOptions) {
+    if (inputOptions.context === 'Selector List') {
+      return inputOptions.selectorList instanceof Array;
+    } else {
+      return super.canExecuteOnSelection(selection, inputOptions);
+    }
+  }
+  async executeOnSelection(selection, inputOptions) {
+    if (inputOptions.context === 'Selector List') {
+      const output = new OutputSpec();
+      if (inputOptions.mode === 'Union') {
+        output.addSelectors(selection.selectorList.concat(inputOptions.selectorList));
+      } else if (inputOptions.mode === 'XOR') {
+        let selectorList = selection.selectorList;
+        selectorList = inputOptions.selectorList.filter(selector => selectorList.indexOf(selector) === -1).concat(selectorList.filter(selector => inputOptions.selectorList.indexOf(selector) === -1));
+        output.addSelectors(selectorList);
+      } else {
+        // if (inputOptions.mode === 'Replace') {
+        output.addSelectors(inputOptions.selectorList);
+      }
+      return output;
+    } else {
+      return super.executeOnSelection(selection, inputOptions);
+    }
   }
 }
 
@@ -2294,10 +2277,7 @@ class Mure extends uki.Model {
     });
   }
   selectDoc(docId) {
-    return this.select('@{"_id":"' + docId + '"}$');
-  }
-  select(selectorList) {
-    return new Selection(this, selectorList, { selectSingle: true });
+    return this.selectAll('@{"_id":"' + docId + '"}$');
   }
   selectAll(selectorList) {
     return new Selection(this, selectorList);
@@ -2323,6 +2303,20 @@ class Mure extends uki.Model {
     return {
       userSelection: this.selectAll(temp[0].selectorList),
       settings: temp[1].settings
+    };
+  }
+  parseSelector(selectorString) {
+    let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
+    if (!chunks || chunks[5]) {
+      return null;
+    }
+    let parsedDocQuery = chunks[1] ? JSON.parse(chunks[1].trim()) : JSON.parse(Selection.DEFAULT_DOC_QUERY);
+    return {
+      docQuery: chunks[1] ? chunks[1].trim() : Selection.DEFAULT_DOC_QUERY,
+      parsedDocQuery,
+      objQuery: chunks[2] ? chunks[2].trim() : '',
+      parentShift: chunks[3] ? chunks[3].length : 0,
+      followLinks: !!chunks[4]
     };
   }
   pathToSelector(path = [Selection.DEFAULT_DOC_QUERY]) {
@@ -2359,16 +2353,9 @@ class Mure extends uki.Model {
     if (this.JSTYPES[jsType]) {
       return this.JSTYPES[jsType];
     } else if (jsType === 'string') {
-      if (value[0] === '@') {
-        // Attempt to parse as a reference
-        try {
-          new Selection(null, value); // eslint-disable-line no-new
-          return this.CONSTRUCTS.ReferenceConstruct;
-        } catch (err) {
-          if (!err.INVALID_SELECTOR) {
-            throw err;
-          }
-        }
+      // Attempt to parse as a reference
+      if (value[0] === '@' && this.parseSelector(value) !== null) {
+        return this.CONSTRUCTS.ReferenceConstruct;
       }
       // Not a reference...
       if (aggressive) {
@@ -2420,7 +2407,7 @@ class Mure extends uki.Model {
       return this.CONSTRUCTS.ItemConstruct;
     }
   }
-  async followRelativeLink(selector, doc, selectSingle = false) {
+  async followRelativeLink(selector, doc) {
     // This selector specifies to follow the link
     if (typeof selector !== 'string') {
       return [];
@@ -2435,7 +2422,7 @@ class Mure extends uki.Model {
     }
     let tempSelection;
     try {
-      tempSelection = new Selection(this, selector, { selectSingle });
+      tempSelection = new Selection(this, selector);
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];

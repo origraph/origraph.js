@@ -1,7 +1,7 @@
 import BaseConstruct from './BaseConstruct.js';
 
 class RootConstruct extends BaseConstruct {
-  constructor ({ mure, docList, selectSingle }) {
+  constructor ({ mure, docList }) {
     super({
       mure,
       path: [],
@@ -11,9 +11,8 @@ class RootConstruct extends BaseConstruct {
       label: null,
       uniqueSelector: '@'
     });
-    docList.some(doc => {
+    docList.forEach(doc => {
       this.value[doc._id] = doc;
-      return selectSingle;
     });
   }
   remove () {

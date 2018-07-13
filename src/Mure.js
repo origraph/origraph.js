@@ -368,10 +368,7 @@ class Mure extends Model {
     });
   }
   selectDoc (docId) {
-    return this.select('@{"_id":"' + docId + '"}$');
-  }
-  select (selectorList) {
-    return new Selection(this, selectorList, { selectSingle: true });
+    return this.selectAll('@{"_id":"' + docId + '"}$');
   }
   selectAll (selectorList) {
     return new Selection(this, selectorList);
@@ -400,6 +397,20 @@ class Mure extends Model {
     return {
       userSelection: this.selectAll(temp[0].selectorList),
       settings: temp[1].settings
+    };
+  }
+  parseSelector (selectorString) {
+    let chunks = /@\s*({.*})?\s*(\$[^↑→]*)?\s*(↑*)\s*(→)?(.*)/.exec(selectorString);
+    if (!chunks || chunks[5]) {
+      return null;
+    }
+    let parsedDocQuery = chunks[1] ? JSON.parse(chunks[1].trim()) : JSON.parse(Selection.DEFAULT_DOC_QUERY);
+    return {
+      docQuery: chunks[1] ? chunks[1].trim() : Selection.DEFAULT_DOC_QUERY,
+      parsedDocQuery,
+      objQuery: chunks[2] ? chunks[2].trim() : '',
+      parentShift: chunks[3] ? chunks[3].length : 0,
+      followLinks: !!chunks[4]
     };
   }
   pathToSelector (path = [Selection.DEFAULT_DOC_QUERY]) {
@@ -436,16 +447,9 @@ class Mure extends Model {
     if (this.JSTYPES[jsType]) {
       return this.JSTYPES[jsType];
     } else if (jsType === 'string') {
-      if (value[0] === '@') {
-        // Attempt to parse as a reference
-        try {
-          new Selection(null, value); // eslint-disable-line no-new
-          return this.CONSTRUCTS.ReferenceConstruct;
-        } catch (err) {
-          if (!err.INVALID_SELECTOR) {
-            throw err;
-          }
-        }
+      // Attempt to parse as a reference
+      if (value[0] === '@' && this.parseSelector(value) !== null) {
+        return this.CONSTRUCTS.ReferenceConstruct;
       }
       // Not a reference...
       if (aggressive) {
@@ -497,7 +501,7 @@ class Mure extends Model {
       return this.CONSTRUCTS.ItemConstruct;
     }
   }
-  async followRelativeLink (selector, doc, selectSingle = false) {
+  async followRelativeLink (selector, doc) {
     // This selector specifies to follow the link
     if (typeof selector !== 'string') {
       return [];
@@ -512,7 +516,7 @@ class Mure extends Model {
     }
     let tempSelection;
     try {
-      tempSelection = new Selection(this, selector, { selectSingle });
+      tempSelection = new Selection(this, selector);
     } catch (err) {
       if (err.INVALID_SELECTOR) {
         return [];
