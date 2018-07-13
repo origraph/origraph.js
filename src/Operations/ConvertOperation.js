@@ -11,9 +11,9 @@ class ConvertOperation extends BaseOperation {
     super(mure);
 
     const conversionList = [
-      BooleanConversion,
-      NullConversion,
-      NodeConversion
+      new BooleanConversion(mure),
+      new NullConversion(mure),
+      new NodeConversion(mure)
     ];
     this.CONVERSIONS = {};
     conversionList.forEach(conversion => {

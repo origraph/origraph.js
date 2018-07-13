@@ -697,8 +697,8 @@ class TypedConstruct extends BaseConstruct {
   }
 }
 TypedConstruct.JSTYPE = 'object';
-TypedConstruct.isBadValue = value => {
-  return typeof value !== TypedConstruct.JSTYPE; // eslint-disable-line valid-typeof
+TypedConstruct.isBadValue = function (value) {
+  return typeof value !== this.JSTYPE; // eslint-disable-line valid-typeof
 };
 
 var ItemConstructMixin = (superclass => class extends superclass {
@@ -1539,8 +1539,6 @@ class BaseConversion extends Introspectable {
     specialTypes.forEach(Type => {
       this.specialTypes[Type.type] = Type;
     });
-    this.standardTypes = [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct];
-    this.specialTypes = [];
   }
   canExecuteOnInstance(item, inputOptions) {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
@@ -1558,7 +1556,12 @@ class BaseConversion extends Introspectable {
   standardConversion(item, inputOptions, outputSpec) {
     // Because of BaseConstruct's setter, this will actually apply to the
     // item's document as well as to the item wrapper
-    item.value = this.TargetType.standardize(item.value);
+    item.value = this.TargetType.standardize({
+      mure: this.mure,
+      value: item.value,
+      path: item.path,
+      doc: item.doc
+    });
     if (this.TargetType.isBadValue(item.value)) {
       outputSpec.warn(`Converted ${item.type} to ${item.value}`);
     }
@@ -1575,7 +1578,7 @@ Object.defineProperty(BaseConversion, 'type', {
 });
 
 class NullConversion extends BaseConversion {
-  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor(mure) {
     super({
       mure,
       TargetType: mure.CONSTRUCTS.NullConstruct,
@@ -1586,10 +1589,10 @@ class NullConversion extends BaseConversion {
 }
 
 class BooleanConversion extends BaseConversion {
-  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
+      TargetType: mure.CONSTRUCTS.BooleanConstruct,
       standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
       specialTypes: [mure.CONSTRUCTS.StringConstruct]
     });
@@ -1601,10 +1604,10 @@ class BooleanConversion extends BaseConversion {
 }
 
 class NodeConversion extends BaseConversion {
-  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
+      TargetType: mure.CONSTRUCTS.NodeConstruct,
       standardTypes: [mure.CONSTRUCTS.ItemConstruct],
       specialTypes: []
     });
@@ -1615,7 +1618,7 @@ class ConvertOperation extends BaseOperation {
   constructor(mure) {
     super(mure);
 
-    const conversionList = [BooleanConversion, NullConversion, NodeConversion];
+    const conversionList = [new BooleanConversion(mure), new NullConversion(mure), new NodeConversion(mure)];
     this.CONVERSIONS = {};
     conversionList.forEach(conversion => {
       this.CONVERSIONS[conversion.type] = conversion;
@@ -2525,7 +2528,7 @@ var pkg = {
 
 let d3n = new D3Node();
 // Attach a few extra shims for testing
-d3n.window.localStorage = { getConstruct: () => null };
+d3n.window.localStorage = { getItem: () => null };
 
 let PouchDB = require('pouchdb-node').plugin(require('pouchdb-find')).plugin(require('pouchdb-authentication'));
 

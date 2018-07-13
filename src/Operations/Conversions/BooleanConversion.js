@@ -1,10 +1,10 @@
 import BaseConversion from './BaseConversion.js';
 
 class BooleanConversion extends BaseConversion {
-  constructor ({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
+      TargetType: mure.CONSTRUCTS.BooleanConstruct,
       standardTypes: [
         mure.CONSTRUCTS.NullConstruct,
         mure.CONSTRUCTS.BooleanConstruct,

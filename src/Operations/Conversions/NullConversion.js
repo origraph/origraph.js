@@ -1,7 +1,7 @@
 import BaseConversion from './BaseConversion.js';
 
 class NullConversion extends BaseConversion {
-  constructor ({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor (mure) {
     super({
       mure,
       TargetType: mure.CONSTRUCTS.NullConstruct,

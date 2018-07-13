@@ -25,15 +25,14 @@ module.exports = [
         // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
         let hands = doc.selectAll('@$.contents.hands[*]');
-        await hands.convert({ context: 'ConvertContainerToNode' });
+        await hands.convert({ context: 'Node' });
         await hands.assignClass({ className: 'player' });
         let tricks = doc.selectAll('@$.contents.tricks[*]');
-        await tricks.convert({ context: 'ConvertContainerToNode' });
+        await tricks.convert({ context: 'Node' });
         await tricks.assignClass({ className: 'trick' });
-        let cards = await doc.selectAll('@$.contents.hands[*][*]')
-          .chain(mure.OPERATIONS.Convert, { context: 'ConvertContainerToNode' })
-          .chain(mure.OPERATIONS.AssignClass, { className: 'card' })
-          .executeChain();
+        let cards = await doc.selectAll('@$.contents.hands[*][*]');
+        await cards.convert({ context: 'Node' });
+        await cards.assignClass({ className: 'card' });
 
         let allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
 

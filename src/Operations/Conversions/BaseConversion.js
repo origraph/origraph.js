@@ -9,19 +9,6 @@ class BaseConversion extends Introspectable {
     standardTypes.forEach(Type => { this.standardTypes[Type.type] = Type; });
     this.specialTypes = {};
     specialTypes.forEach(Type => { this.specialTypes[Type.type] = Type; });
-    this.standardTypes = [
-      mure.CONSTRUCTS.NullConstruct,
-      mure.CONSTRUCTS.BooleanConstruct,
-      mure.CONSTRUCTS.NumberConstruct,
-      mure.CONSTRUCTS.StringConstruct,
-      mure.CONSTRUCTS.DateConstruct,
-      mure.CONSTRUCTS.ReferenceConstruct,
-      mure.CONSTRUCTS.NodeConstruct,
-      mure.CONSTRUCTS.EdgeConstruct,
-      mure.CONSTRUCTS.SetConstruct,
-      mure.CONSTRUCTS.SupernodeConstruct
-    ];
-    this.specialTypes = [];
   }
   canExecuteOnInstance (item, inputOptions) {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
@@ -39,7 +26,12 @@ class BaseConversion extends Introspectable {
   standardConversion (item, inputOptions, outputSpec) {
     // Because of BaseConstruct's setter, this will actually apply to the
     // item's document as well as to the item wrapper
-    item.value = this.TargetType.standardize(item.value);
+    item.value = this.TargetType.standardize({
+      mure: this.mure,
+      value: item.value,
+      path: item.path,
+      doc: item.doc
+    });
     if (this.TargetType.isBadValue(item.value)) {
       outputSpec.warn(`Converted ${item.type} to ${item.value}`);
     }

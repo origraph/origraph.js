@@ -1,10 +1,10 @@
 import BaseConversion from './BaseConversion.js';
 
 class NodeConversion extends BaseConversion {
-  constructor ({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
+  constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
+      TargetType: mure.CONSTRUCTS.NodeConstruct,
       standardTypes: [
         mure.CONSTRUCTS.ItemConstruct
       ],

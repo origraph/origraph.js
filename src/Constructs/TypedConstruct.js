@@ -38,8 +38,8 @@ class TypedConstruct extends BaseConstruct {
   }
 }
 TypedConstruct.JSTYPE = 'object';
-TypedConstruct.isBadValue = value => {
-  return typeof value !== TypedConstruct.JSTYPE; // eslint-disable-line valid-typeof
+TypedConstruct.isBadValue = function (value) {
+  return (typeof value) !== this.JSTYPE; // eslint-disable-line valid-typeof
 };
 
 export default TypedConstruct;
