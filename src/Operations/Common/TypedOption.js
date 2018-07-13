@@ -1,7 +1,7 @@
 import ItemConstruct from '../../Constructs/ItemConstruct.js';
 import InputOption from './InputOption.js';
 
-class ConstructOption extends InputOption {
+class TypedOption extends InputOption {
   constructor ({
     parameterName,
     defaultValue,
@@ -38,4 +38,4 @@ class ConstructOption extends InputOption {
     this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
   }
 }
-export default ConstructOption;
+export default TypedOption;

@@ -24,17 +24,26 @@ module.exports = [
 
         // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
-        let hands = doc.selectAll('@$.contents.hands[*]');
+        let hands = await doc.selectAll({
+          context: 'Selector', append: '.contents.hands[*]'
+        });
         await hands.convert({ context: 'Node' });
         await hands.assignClass({ className: 'player' });
-        let tricks = doc.selectAll('@$.contents.tricks[*]');
+        let tricks = await doc.selectAll({
+          context: 'Selector', append: '.contents.tricks[*]'
+        });
         await tricks.convert({ context: 'Node' });
         await tricks.assignClass({ className: 'trick' });
-        let cards = await doc.selectAll('@$.contents.hands[*][*]');
+        let cards = await doc.selectAll({
+          context: 'Selector', append: '.contents.hands[*][*]'
+        });
         await cards.convert({ context: 'Node' });
         await cards.assignClass({ className: 'card' });
 
-        let allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
+        let allClasses = await doc.selectAll({
+          context: 'Selector', append: '.classes'
+        });
+        allClasses = Object.values(await allClasses.items())[0].value;
 
         tests.push({
           name: 'Add player, trick, and card classes',
@@ -66,18 +75,21 @@ module.exports = [
         });
 
         // Add edges
+        let orphans = await doc.selectAll({ context: 'Selector', append: '.orphans' });
+        orphans = Object.values(await orphans.items())[0];
         const wonByEdges = await hands.connect({
-          context: 'ConnectNodesOnFunction',
-          targetSelection: tricks,
-          connectWhen: (hand, trick) => {
-            return trick.value.winner === hand.label;
-          },
-          direction: 'target'
+          context: 'Bipartite',
+          target: tricks,
+          sourceAttribute: null,
+          targetAttribute: 'winner',
+          directed: 'Directed',
+          saveEdgesIn: orphans
         });
         await wonByEdges.assignClass({ className: 'Won By' });
         const playedEdges = await cards.connect({
-          context: 'ConnectNodesOnFunction',
-          targetSelection: tricks,
+          context: 'Bipartite',
+          target: tricks,
+          mode: 'Function',
           connectWhen: (card, trick) => {
             return Object.entries(trick.value)
               .filter(([player, index]) => {
@@ -85,11 +97,16 @@ module.exports = [
                   card.doc.contents.hands[player][index] === card.value;
               }).length > 0;
           },
-          direction: 'source'
+          directed: 'Directed',
+          saveEdgesIn: orphans
         });
-        await playedEdges.assignClass({ className: 'Played' });
+        const dummyPromise = playedEdges.assignClass({ className: 'Played' });
+        await dummyPromise;
 
-        allClasses = Object.values(await doc.select('@$.classes').items())[0].value;
+        allClasses = await doc.selectAll({
+          context: 'Selector', append: '.classes'
+        });
+        allClasses = Object.values(await allClasses.items())[0].value;
 
         tests.push({
           name: 'Add "Won By" and "Played" edges',

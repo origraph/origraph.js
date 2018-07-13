@@ -28,8 +28,6 @@ class Selection {
     // TODO: optimize and sort this.selectors for better hash equivalence
 
     this.mure = mure;
-
-    Selection.ALL.push(this);
   }
   get hash() {
     if (!this._hash) {
@@ -470,9 +468,10 @@ class Selection {
   }
 }
 // TODO: this way of dealing with cache invalidation causes a memory leak, as
-// old selections are going to pile up in CACHED_DOCS and ALL after they've lost
-// all other references, preventing their garbage collection. Unfortunately
-// things like WeakMap aren't enumerable...
+// old selections are going to pile up in CACHED_DOCS after they've lost all
+// other references, preventing their garbage collection. Unfortunately things
+// like WeakMap aren't enumerable... a good idea would probably be to just
+// purge the cache every n minutes or so...?
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
 Selection.INVALIDATE_DOC_CACHE = docId => {
@@ -483,10 +482,12 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
-Selection.ALL = [];
 Selection.INVALIDATE_ALL_CACHES = () => {
-  Selection.ALL.forEach(selection => {
-    selection.invalidateCache();
+  Object.values(Selection.CACHED_DOCS).forEach(({ cachedDoc, selections }) => {
+    selections.forEach(selection => {
+      selection.invalidateCache();
+    });
+    delete Selection.CACHED_DOCS[cachedDoc._id];
   });
 };
 
@@ -1395,7 +1396,7 @@ class ContextualOption extends InputOption {
   }
 }
 
-class SelectOperation extends BaseOperation {
+class SelectAllOperation extends BaseOperation {
   getInputSpec() {
     const result = super.getInputSpec();
     const context = new ContextualOption({
@@ -1639,7 +1640,7 @@ class ConvertOperation extends BaseOperation {
   }
 }
 
-class ConstructOption extends InputOption {
+class TypedOption extends InputOption {
   constructor({
     parameterName,
     defaultValue,
@@ -1712,9 +1713,9 @@ class ConnectOperation extends BaseOperation {
 
     // For bipartite connection, we need to specify a target document, item, or
     // set (class or group) to connect nodes to
-    context.specs['Bipartite'].addOption(new ConstructOption({
+    context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'target',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct]
+      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, Selection]
     }));
     // The bipartite approach also allows us to specify edge direction
     context.specs['Bipartite'].addOption(new InputOption({
@@ -1751,7 +1752,7 @@ class ConnectOperation extends BaseOperation {
 
     // Final option added to all context / modes: where to store the created
     // edges?
-    result.addOption(new ConstructOption({
+    result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
       validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     }));
@@ -1770,11 +1771,14 @@ class ConnectOperation extends BaseOperation {
       return false;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct)) {
+      if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.target instanceof Selection)) {
         return false;
       }
     }
     if (inputOptions.mode === 'Function') {
+      if (typeof inputOptions.connectWhen === 'function') {
+        return true;
+      }
       try {
         Function('source', 'target', // eslint-disable-line no-new-func
         inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
@@ -1800,15 +1804,18 @@ class ConnectOperation extends BaseOperation {
     // Figure out the criteria for matching nodes
     let connectWhen;
     if (inputOptions.mode === 'Function') {
-      try {
-        connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
-        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
-      } catch (err) {
-        if (err instanceof SyntaxError) {
-          output.warn(`connectWhen SyntaxError: ${err.message}`);
-          return output;
-        } else {
-          throw err;
+      connectWhen = inputOptions.connectWhen;
+      if (typeof connectWhen !== 'function') {
+        try {
+          connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
+          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        } catch (err) {
+          if (err instanceof SyntaxError) {
+            output.warn(`connectWhen SyntaxError: ${err.message}`);
+            return output;
+          } else {
+            throw err;
+          }
         }
       }
     } else {
@@ -1830,6 +1837,8 @@ class ConnectOperation extends BaseOperation {
         targetList = await inputOptions.target.getContents();
       } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
         targetList = await inputOptions.target.getMembers();
+      } else if (inputOptions.target instanceof Selection) {
+        targetList = Object.values((await inputOptions.target.items()));
       } else {
         output.warn(`Target is not a valid Document, Item, or Set`);
         return output;
@@ -2009,7 +2018,7 @@ class Mure extends Model {
     };
 
     // All the supported operations
-    let operationClasses = [SelectOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
+    let operationClasses = [SelectAllOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
     this.OPERATIONS = {};
 
     // Unlike CONSTRUCTS, we actually want to instantiate all the operations
@@ -2264,7 +2273,7 @@ class Mure extends Model {
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
-      return this.select(`@{"_id":"${doc._id}"}$`);
+      return this.selectAll(`@{"_id":"${doc._id}"}$`);
     }
   }
   async deleteDoc(docQuery) {

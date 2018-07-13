@@ -3,7 +3,7 @@ import OutputSpec from './Common/OutputSpec.js';
 import ContextualOption from './Common/ContextualOption.js';
 import InputOption from './Common/InputOption.js';
 
-class SelectOperation extends BaseOperation {
+class SelectAllOperation extends BaseOperation {
   getInputSpec () {
     const result = super.getInputSpec();
     const context = new ContextualOption({
@@ -137,4 +137,4 @@ class SelectOperation extends BaseOperation {
   }
 }
 
-export default SelectOperation;
+export default SelectAllOperation;

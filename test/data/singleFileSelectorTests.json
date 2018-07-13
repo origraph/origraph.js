@@ -1,5 +1,5 @@
 {
-  "@ $.contents['Player 1']": [
+  ".contents['Player 1']": [
     {
       "0": {
         "suit": "♣",
@@ -16,7 +16,7 @@
   ],
 
 
-  "@ $.contents['Player 1'][?(@.suit==='♣')]": [
+  ".contents['Player 1'][?(@.suit==='♣')]": [
     {
       "suit": "♣",
       "value": 8,
@@ -30,7 +30,7 @@
   ],
 
 
-  "@ $.contents[*][?(@.suit==='♥')] ↑": [
+  ".contents[*][?(@.suit==='♥')] ↑": [
     {
       "0": {
         "suit": "♥",

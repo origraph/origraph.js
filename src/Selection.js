@@ -22,8 +22,6 @@ class Selection {
     // TODO: optimize and sort this.selectors for better hash equivalence
 
     this.mure = mure;
-
-    Selection.ALL.push(this);
   }
   get hash () {
     if (!this._hash) {
@@ -478,9 +476,10 @@ class Selection {
   }
 }
 // TODO: this way of dealing with cache invalidation causes a memory leak, as
-// old selections are going to pile up in CACHED_DOCS and ALL after they've lost
-// all other references, preventing their garbage collection. Unfortunately
-// things like WeakMap aren't enumerable...
+// old selections are going to pile up in CACHED_DOCS after they've lost all
+// other references, preventing their garbage collection. Unfortunately things
+// like WeakMap aren't enumerable... a good idea would probably be to just
+// purge the cache every n minutes or so...?
 Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
 Selection.CACHED_DOCS = {};
 Selection.INVALIDATE_DOC_CACHE = docId => {
@@ -491,10 +490,12 @@ Selection.INVALIDATE_DOC_CACHE = docId => {
     delete Selection.CACHED_DOCS[docId];
   }
 };
-Selection.ALL = [];
 Selection.INVALIDATE_ALL_CACHES = () => {
-  Selection.ALL.forEach(selection => {
-    selection.invalidateCache();
+  Object.values(Selection.CACHED_DOCS).forEach(({ cachedDoc, selections }) => {
+    selections.forEach(selection => {
+      selection.invalidateCache();
+    });
+    delete Selection.CACHED_DOCS[cachedDoc._id];
   });
 };
 export default Selection;

@@ -1,7 +1,8 @@
+import Selection from '../Selection.js';
 import BaseOperation from './Common/BaseOperation.js';
 import OutputSpec from './Common/OutputSpec.js';
 import ContextualOption from './Common/ContextualOption.js';
-import ConstructOption from './Common/ConstructOption.js';
+import TypedOption from './Common/TypedOption.js';
 import AttributeOption from './Common/AttributeOption.js';
 import InputOption from './Common/InputOption.js';
 
@@ -22,12 +23,13 @@ class ConnectOperation extends BaseOperation {
 
     // For bipartite connection, we need to specify a target document, item, or
     // set (class or group) to connect nodes to
-    context.specs['Bipartite'].addOption(new ConstructOption({
+    context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'target',
       validTypes: [
         this.mure.CONSTRUCTS.DocumentConstruct,
         this.mure.CONSTRUCTS.ItemConstruct,
-        this.mure.CONSTRUCTS.SetConstruct
+        this.mure.CONSTRUCTS.SetConstruct,
+        Selection
       ]
     }));
     // The bipartite approach also allows us to specify edge direction
@@ -65,7 +67,7 @@ class ConnectOperation extends BaseOperation {
 
     // Final option added to all context / modes: where to store the created
     // edges?
-    result.addOption(new ConstructOption({
+    result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
       validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     }));
@@ -86,11 +88,15 @@ class ConnectOperation extends BaseOperation {
     if (inputOptions.context === 'Bipartite') {
       if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
             inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct ||
-            inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct)) {
+            inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct ||
+            inputOptions.target instanceof Selection)) {
         return false;
       }
     }
     if (inputOptions.mode === 'Function') {
+      if (typeof inputOptions.connectWhen === 'function') {
+        return true;
+      }
       try {
         Function('source', 'target', // eslint-disable-line no-new-func
           inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
@@ -116,15 +122,18 @@ class ConnectOperation extends BaseOperation {
     // Figure out the criteria for matching nodes
     let connectWhen;
     if (inputOptions.mode === 'Function') {
-      try {
-        connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
-          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
-      } catch (err) {
-        if (err instanceof SyntaxError) {
-          output.warn(`connectWhen SyntaxError: ${err.message}`);
-          return output;
-        } else {
-          throw err;
+      connectWhen = inputOptions.connectWhen;
+      if (typeof connectWhen !== 'function') {
+        try {
+          connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
+            inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        } catch (err) {
+          if (err instanceof SyntaxError) {
+            output.warn(`connectWhen SyntaxError: ${err.message}`);
+            return output;
+          } else {
+            throw err;
+          }
         }
       }
     } else { // if (inputOptions.mode === 'Attribute')
@@ -150,6 +159,8 @@ class ConnectOperation extends BaseOperation {
         targetList = (await inputOptions.target.getContents());
       } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
         targetList = await inputOptions.target.getMembers();
+      } else if (inputOptions.target instanceof Selection) {
+        targetList = Object.values(await inputOptions.target.items());
       } else {
         output.warn(`Target is not a valid Document, Item, or Set`);
         return output;

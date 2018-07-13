@@ -18,7 +18,7 @@ Examples of selectors and their results can be seen in `test/data/singleFileSele
 The difference between each is that the first contains the results where each selector is evaluated in this context:
 
 ```js
-mure.select('{"_id":"application/json;blackJack_round1.json"}')
+mure.selectAll('{"_id":"application/json;blackJack_round1.json"}')
   .selectAll(selector);
 ```
 

@@ -20,7 +20,7 @@ import EdgeConstruct from './Constructs/EdgeConstruct.js';
 import NodeConstruct from './Constructs/NodeConstruct.js';
 import SupernodeConstruct from './Constructs/SupernodeConstruct.js';
 
-import SelectOperation from './Operations/SelectOperation.js';
+import SelectAllOperation from './Operations/SelectAllOperation.js';
 import ConvertOperation from './Operations/ConvertOperation.js';
 import ConnectOperation from './Operations/ConnectOperation.js';
 import AssignClassOperation from './Operations/AssignClassOperation.js';
@@ -95,7 +95,7 @@ class Mure extends Model {
 
     // All the supported operations
     let operationClasses = [
-      SelectOperation,
+      SelectAllOperation,
       ConvertOperation,
       ConnectOperation,
       AssignClassOperation
@@ -356,7 +356,7 @@ class Mure extends Model {
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
-      return this.select(`@{"_id":"${doc._id}"}$`);
+      return this.selectAll(`@{"_id":"${doc._id}"}$`);
     }
   }
   async deleteDoc (docQuery) {
