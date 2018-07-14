@@ -69,11 +69,11 @@ module.exports = [
         // Add Won By edges
         let orphans = await doc.subSelect('.orphans');
         orphans = Object.values(await orphans.items())[0];
-        const wonByEdges = await hands.connect({
+        const wonByEdges = await tricks.connect({
           context: 'Bipartite',
-          target: tricks,
-          sourceAttribute: null,
-          targetAttribute: 'winner',
+          target: hands,
+          sourceAttribute: 'winner',
+          targetAttribute: null,
           directed: 'Directed',
           saveEdgesIn: orphans
         });
