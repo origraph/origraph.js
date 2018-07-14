@@ -236,6 +236,16 @@ class Selection {
   }
 
   /*
+   Shortcuts for selection manipulation
+   */
+  async subSelect (append, mode = 'Replace') {
+    return this.selectAll({ context: 'Selector', append, mode });
+  }
+  async mergeSelection (otherSelection) {
+    return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
+  }
+
+  /*
    These functions provide statistics / summaries of the selection:
    */
   async inferInputs (operation) {

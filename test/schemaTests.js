@@ -24,25 +24,17 @@ module.exports = [
 
         // Add classes, and interpet hands, tricks, and cards as nodes
         let doc = mure.selectDoc('application/json;hearts_schema.json');
-        let hands = await doc.selectAll({
-          context: 'Selector', append: '.contents.hands[*]'
-        });
+        let hands = await doc.subSelect('.contents.hands[*]');
         await hands.convert({ context: 'Node' });
         await hands.assignClass({ className: 'player' });
-        let tricks = await doc.selectAll({
-          context: 'Selector', append: '.contents.tricks[*]'
-        });
+        let tricks = await doc.subSelect('.contents.tricks[*]');
         await tricks.convert({ context: 'Node' });
         await tricks.assignClass({ className: 'trick' });
-        let cards = await doc.selectAll({
-          context: 'Selector', append: '.contents.hands[*][*]'
-        });
+        let cards = await doc.subSelect('.contents.hands[*][*]');
         await cards.convert({ context: 'Node' });
         await cards.assignClass({ className: 'card' });
 
-        let allClasses = await doc.selectAll({
-          context: 'Selector', append: '.classes'
-        });
+        let allClasses = await doc.subSelect('.classes');
         allClasses = Object.values(await allClasses.items())[0].value;
 
         tests.push({
@@ -75,7 +67,7 @@ module.exports = [
         });
 
         // Add Won By edges
-        let orphans = await doc.selectAll({ context: 'Selector', append: '.orphans' });
+        let orphans = await doc.subSelect('.orphans');
         orphans = Object.values(await orphans.items())[0];
         const wonByEdges = await hands.connect({
           context: 'Bipartite',
@@ -88,7 +80,7 @@ module.exports = [
         await wonByEdges.assignClass({ className: 'Won By' });
 
         // Add Played edges
-        orphans = await doc.selectAll({ context: 'Selector', append: '.orphans' });
+        orphans = await doc.subSelect('.orphans');
         orphans = Object.values(await orphans.items())[0];
         const playedEdges = await cards.connect({
           context: 'Bipartite',
@@ -107,9 +99,7 @@ module.exports = [
         const dummyPromise = playedEdges.assignClass({ className: 'Played' });
         await dummyPromise;
 
-        allClasses = await doc.selectAll({
-          context: 'Selector', append: '.classes'
-        });
+        allClasses = await doc.subSelect('.classes');
         allClasses = Object.values(await allClasses.items())[0].value;
 
         tests.push({
@@ -118,11 +108,10 @@ module.exports = [
         });
 
         // Test schema summary functions
-        let allConstructs = hands
-          .merge(cards)
-          .merge(tricks)
-          .merge(wonByEdges)
-          .merge(playedEdges);
+        let allConstructs = await hands.mergeSelection(cards);
+        allConstructs = await allConstructs.mergeSelection(tricks);
+        allConstructs = await allConstructs.mergeSelection(wonByEdges);
+        allConstructs = await allConstructs.mergeSelection(playedEdges);
 
         let summary = await allConstructs.getFlatGraphSchema();
         tests.push({

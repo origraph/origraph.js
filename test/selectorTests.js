@@ -47,11 +47,11 @@ module.exports = [
         let selectors = Object.keys(testResults.singleFile);
         for (let i = 0; i < selectors.length; i += 1) {
           let selector = selectors[i];
-          let selection = await docSelection.selectAll({ context: 'Selector', append: selector });
+          let selection = await docSelection.subSelect(selector);
           let expectedObjs = testResults.singleFile[selector];
           let selectedObjs = Object.values(await selection.items()).map(n => n.value);
           tests.push({
-            name: 'mure.selectDoc().selectAll(\'' + selector + '\')',
+            name: 'mure.selectDoc().subSelect(\'' + selector + '\')',
             result: logging.testObjectEquality(expectedObjs, selectedObjs)
           });
         }

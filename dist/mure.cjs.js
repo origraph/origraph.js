@@ -239,6 +239,16 @@ class Selection {
   }
 
   /*
+   Shortcuts for selection manipulation
+   */
+  async subSelect(append, mode = 'Replace') {
+    return this.selectAll({ context: 'Selector', append, mode });
+  }
+  async mergeSelection(otherSelection) {
+    return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
+  }
+
+  /*
    These functions provide statistics / summaries of the selection:
    */
   async inferInputs(operation) {
@@ -1410,8 +1420,8 @@ class SelectAllOperation extends BaseOperation {
     const result = super.getInputSpec();
     const context = new ContextualOption({
       parameterName: 'context',
-      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members', 'Selector'],
-      hiddenChoices: ['Selector List'],
+      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members'],
+      hiddenChoices: ['Selector', 'Selector List', 'Selection'],
       defaultValue: 'Children'
     });
     result.addOption(context);
@@ -1424,21 +1434,28 @@ class SelectAllOperation extends BaseOperation {
     context.specs['Nodes'].addOption(direction);
     context.specs['Edges'].addOption(direction);
 
+    // Extra settings for hidden modes:
     context.specs['Selector'].addOption(new InputOption({
       parameterName: 'append',
       defaultValue: '[*]',
       openEnded: true
     }));
-
     context.specs['Selector List'].addOption(new InputOption({
       paramterName: 'selectorList',
       defaultValue: []
     }));
-    context.specs['Selector List'].addOption(new InputOption({
+    context.specs['Selection'].addOption(new InputOption({
+      parameterName: 'otherSelection'
+    }));
+
+    const mode = new InputOption({
       parameterName: 'mode',
       choices: ['Replace', 'Union', 'XOR'],
       defaultValue: 'Replace'
-    }));
+    });
+    context.specs['Selector'].addOption(mode);
+    context.specs['Selector List'].addOption(mode);
+    context.specs['Selection'].addOption(mode);
   }
   async canExecuteOnInstance(item, inputOptions) {
     if (await super.canExecuteOnInstance(item, inputOptions)) {
@@ -1494,22 +1511,23 @@ class SelectAllOperation extends BaseOperation {
   async canExecuteOnSelection(selection, inputOptions) {
     if (inputOptions.context === 'Selector List') {
       return inputOptions.selectorList instanceof Array;
+    } else if (inputOptions.context === 'Selection') {
+      return inputOptions.otherSelection instanceof Selection;
     } else {
       return super.canExecuteOnSelection(selection, inputOptions);
     }
   }
   async executeOnSelection(selection, inputOptions) {
-    if (inputOptions.context === 'Selector List') {
+    let otherSelectorList = inputOptions.selectorList || inputOptions.otherSelection && inputOptions.otherSelection.selectorList;
+    if (otherSelectorList) {
       const output = new OutputSpec();
       if (inputOptions.mode === 'Union') {
-        output.addSelectors(selection.selectorList.concat(inputOptions.selectorList));
+        output.addSelectors(selection.selectorList.concat(otherSelectorList));
       } else if (inputOptions.mode === 'XOR') {
-        let selectorList = selection.selectorList;
-        selectorList = inputOptions.selectorList.filter(selector => selectorList.indexOf(selector) === -1).concat(selectorList.filter(selector => inputOptions.selectorList.indexOf(selector) === -1));
-        output.addSelectors(selectorList);
+        output.addSelectors(otherSelectorList.filter(selector => selection.selectorList.indexOf(selector) === -1).concat(selection.selectorList.filter(selector => otherSelectorList.indexOf(selector) === -1)));
       } else {
         // if (inputOptions.mode === 'Replace') {
-        output.addSelectors(inputOptions.selectorList);
+        output.addSelectors(otherSelectorList);
       }
       return output;
     } else {
