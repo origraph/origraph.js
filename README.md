@@ -57,10 +57,11 @@ npm run watchumd
 # Releasing a new version
 A list of reminders to make sure we don't forget any steps:
 
+- Run `npm-check-updates`
 - Update the version in package.json
 - Update the release link in this README
-- `npm run test`
 - `npm run build`
+- `npm run test`
 - `git commit -a -m "commit message"`
 - `git push`
 - (Verify Travis CI doesn't fail)

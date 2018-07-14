@@ -2502,7 +2502,7 @@ class Mure extends uki.Model {
 }
 
 var name = "mure";
-var version = "0.4.0";
+var version = "0.4.1";
 var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
@@ -2537,8 +2537,8 @@ var devDependencies = {
 	"d3-node": "^2.0.1",
 	diff: "^3.5.0",
 	"pouchdb-node": "^7.0.0",
-	rollup: "^0.61.2",
-	"rollup-plugin-babel": "^3.0.5",
+	rollup: "^0.62.0",
+	"rollup-plugin-babel": "^3.0.7",
 	"rollup-plugin-commonjs": "^9.1.3",
 	"rollup-plugin-json": "^3.0.0",
 	"rollup-plugin-node-builtins": "^2.1.2",
@@ -2548,7 +2548,7 @@ var devDependencies = {
 };
 var dependencies = {
 	"blueimp-md5": "^2.10.0",
-	datalib: "^1.8.0",
+	datalib: "^1.9.1",
 	jsonpath: "^1.0.0",
 	"mime-types": "^2.1.18",
 	"pouchdb-authentication": "^1.1.3",
