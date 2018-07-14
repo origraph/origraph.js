@@ -187,23 +187,18 @@ class Selection {
   async execute (operation, inputOptions) {
     let outputSpec = await operation.executeOnSelection(this, inputOptions);
 
-    // Any selection that has cached any of the documents that we altered
-    // needs to have its cache invalidated
     const pollutedDocs = Object.values(outputSpec.pollutedDocs);
-    pollutedDocs.forEach(doc => {
-      Selection.INVALIDATE_DOC_CACHE(doc._id);
-    });
 
     // Write any warnings, and, depending on the user's settings, skip or save
     // the results
+    let skipSave = false;
     if (Object.keys(outputSpec.warnings).length > 0) {
       let warningString;
       if (outputSpec.skipErrors === 'Stop') {
+        skipSave = true;
         warningString = `${operation.humanReadableType} operation failed.\n`;
       } else {
         warningString = `${operation.humanReadableType} operation finished with warnings:\n`;
-        // Save even though there were warnings
-        await this.mure.putDocs(pollutedDocs);
       }
       warningString += Object.entries(outputSpec.warnings).map(([warning, count]) => {
         if (count > 1) {
@@ -213,14 +208,27 @@ class Selection {
         }
       });
       this.mure.warn(warningString);
-    } else {
-      // Save the results
-      await this.mure.putDocs(pollutedDocs);
     }
+    let saveSuccessful = false;
+    if (!skipSave) {
+      // Save the results
+      const saveResult = await this.mure.putDocs(pollutedDocs);
+      saveSuccessful = saveResult.error !== true;
+      if (!saveSuccessful) {
+        // There was a problem saving the result
+        this.mure.warn(saveResult.message);
+      }
+    }
+
+    // Any selection that has cached any of the documents that we altered
+    // needs to have its cache invalidated
+    pollutedDocs.forEach(doc => {
+      Selection.INVALIDATE_DOC_CACHE(doc._id);
+    });
 
     // Finally, return this selection, or a new selection, depending on the
     // operation
-    if (outputSpec.newSelectors !== null) {
+    if (saveSuccessful && outputSpec.newSelectors !== null) {
       return new Selection(this.mure, outputSpec.newSelectors);
     } else {
       return this;

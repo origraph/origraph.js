@@ -281,19 +281,50 @@ class Mure extends Model {
       return this.db.put(doc);
     } catch (err) {
       this.warn(err.message);
-      err.ok = false;
       return err;
     }
   }
   async putDocs (docList) {
     await this.dbStatus;
-    try {
-      return this.db.bulkDocs(docList);
-    } catch (err) {
-      this.warn(err.message);
-      err.ok = false;
-      return err;
+    // PouchDB doesn't support transactions, so we want to be able to roll back
+    // any changes in the event that our update fails
+    const previousDocs = (await this.db.find({
+      selector: {'$or': docList.map(doc => {
+        return { _id: doc._id };
+      })}
+    })).docs;
+    const result = await this.db.bulkDocs(docList);
+    let newRevs = {};
+    let errorMessages = {};
+    let errorSeen = false;
+    result.forEach(resultObj => {
+      if (resultObj.error) {
+        errorSeen = true;
+        errorMessages[resultObj.message] = errorMessages[resultObj.message] || [];
+        errorMessages[resultObj.message].push(resultObj.id);
+      } else {
+        newRevs[resultObj.id] = resultObj.rev;
+      }
+    });
+    if (errorSeen) {
+      // We need to revert any documents that were successful
+      const revertedDocs = previousDocs.filter(doc => {
+        if (newRevs[doc._id]) {
+          doc._rev = newRevs[doc._id];
+          return true;
+        } else {
+          return false;
+        }
+      });
+      // TODO: what if THIS fails?
+      await this.db.bulkDocs(revertedDocs);
+      const error = new Error(Object.entries(errorMessages).map(([message, ids]) => {
+        return `${message}\nAffected Documents:\n  ${ids.join('\n  ')}`;
+      }).join('\n\n'));
+      error.error = true;
+      return error;
     }
+    return result;
   }
   /**
    * Downloads a given file, optionally specifying a particular format
