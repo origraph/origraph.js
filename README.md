@@ -57,6 +57,8 @@ npm run watchumd
 # Releasing a new version
 A list of reminders to make sure we don't forget any steps:
 
+- `git checkout master`
+- `git merge <branch>`
 - Run `npm-check-updates`
 - Update the version in package.json
 - Update the release link in this README
