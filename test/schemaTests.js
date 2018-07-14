@@ -74,7 +74,7 @@ module.exports = [
           }
         });
 
-        // Add edges
+        // Add Won By edges
         let orphans = await doc.selectAll({ context: 'Selector', append: '.orphans' });
         orphans = Object.values(await orphans.items())[0];
         const wonByEdges = await hands.connect({
@@ -86,6 +86,10 @@ module.exports = [
           saveEdgesIn: orphans
         });
         await wonByEdges.assignClass({ className: 'Won By' });
+
+        // Add Played edges
+        orphans = await doc.selectAll({ context: 'Selector', append: '.orphans' });
+        orphans = Object.values(await orphans.items())[0];
         const playedEdges = await cards.connect({
           context: 'Bipartite',
           target: tricks,
