@@ -3,7 +3,7 @@ class InputSpec {
     this.options = {};
   }
   addOption (option) {
-    this.options[option.name] = option;
+    this.options[option.parameterName] = option;
   }
   getDefaultInputOptions () {
     let inputOptions = {};
@@ -39,13 +39,13 @@ class InputSpec {
       }
     }));
   }
-  async populateChoicesFromSelection (item) {
+  async populateChoicesFromSelection (selection) {
     return Promise.all(Object.values(this.options).map(option => {
       if (option.specs) {
         return Promise.all(Object.values(option.specs)
-          .map(spec => spec.populateChoicesFromSelection(item)));
+          .map(spec => spec.populateChoicesFromSelection(selection)));
       } else if (option.populateChoicesFromSelection) {
-        return option.populateChoicesFromSelection(item);
+        return option.populateChoicesFromSelection(selection);
       }
     }));
   }

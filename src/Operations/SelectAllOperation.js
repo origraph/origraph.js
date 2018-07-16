@@ -45,6 +45,8 @@ class SelectAllOperation extends BaseOperation {
     context.specs['Selector'].addOption(mode);
     context.specs['Selector List'].addOption(mode);
     context.specs['Selection'].addOption(mode);
+
+    return result;
   }
   async canExecuteOnInstance (item, inputOptions) {
     if (await super.canExecuteOnInstance(item, inputOptions)) {
@@ -80,7 +82,7 @@ class SelectAllOperation extends BaseOperation {
     if (inputOptions.context === 'Children' &&
        (item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
         item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors((await item.contentConstructs())
+      output.addSelectors((await item.getContents())
         .map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' &&
              !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||

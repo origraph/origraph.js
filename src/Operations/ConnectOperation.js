@@ -71,6 +71,11 @@ class ConnectOperation extends BaseOperation {
       parameterName: 'saveEdgesIn',
       validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     }));
+
+    return result;
+  }
+  potentiallyExecutableOnItem (item) {
+    return false;
   }
   async canExecuteOnInstance (item, inputOptions) {
     return false;
@@ -78,8 +83,14 @@ class ConnectOperation extends BaseOperation {
   async executeOnInstance (item, inputOptions) {
     throw new Error(`Running the Connect operation on an instance level is not yet supported.`);
   }
+  async potentiallyExecutableOnSelection (selection) {
+    const items = await selection.items();
+    return Object.values(items).some(item => {
+      return item instanceof this.mure.CONSTRUCTS.NodeConstruct;
+    });
+  }
   async canExecuteOnSelection (selection, inputOptions) {
-    if (inputOptions.skipErrors !== 'Stop') {
+    if (inputOptions.ignoreErrors !== 'Stop on Error') {
       return true;
     }
     if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {

@@ -196,7 +196,7 @@ class Selection {
     let skipSave = false;
     if (Object.keys(outputSpec.warnings).length > 0) {
       let warningString;
-      if (outputSpec.skipErrors === 'Stop') {
+      if (outputSpec.ignoreErrors === 'Stop on Error') {
         skipSave = true;
         warningString = `${operation.humanReadableType} operation failed.\n`;
       } else {
@@ -250,16 +250,17 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
-  async inferInputs(operation) {
-    if (this._summaryCaches && this._summaryCaches.opInputs && this._summaryCaches.opInputs[operation.type]) {
-      return this._summaryCaches.opInputs[operation.type];
+  async getPopulatedInputSpec(operation) {
+    if (this._summaryCaches && this._summaryCaches.inputSpecs && this._summaryCaches.inputSpecs[operation.type]) {
+      return this._summaryCaches.inputSpecs[operation.type];
     }
 
-    const inputSpec = await operation.inferSelectionInputs(this);
+    const inputSpec = operation.getInputSpec();
+    await inputSpec.populateChoicesFromSelection(this);
 
     this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
-    this._summaryCaches.opInputs[operation.type] = inputSpec;
+    this._summaryCaches.inputSpecs = this._summaryCaches.inputSpecs || {};
+    this._summaryCaches.inputSpecs[operation.type] = inputSpec;
     return inputSpec;
   }
   async histograms(numBins = 20) {
@@ -331,8 +332,8 @@ class Selection {
       if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
         countPrimitive(result.raw, item);
       } else {
-        if (item.contentConstructs) {
-          (await item.contentConstructs()).forEach(childConstruct => {
+        if (item.getContents) {
+          (await item.getContents()).forEach(childConstruct => {
             const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
@@ -345,7 +346,7 @@ class Selection {
           });
         }
         // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to contentConstructs?)
+        // (and a set's members' attributes, similar to getContents?)
       }
     }
 
@@ -669,6 +670,9 @@ var ItemConstructMixin = (superclass => class extends superclass {
       return agg;
     }, []);
   }
+  async getContentSelectors(target = this._contentConstruct || this) {
+    return this.getContents().map(item => item.uniqueSelector);
+  }
   async getContentCount(target = this._contentConstruct || this) {
     return Object.keys(target.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
   }
@@ -714,15 +718,6 @@ class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
       item.value._id = `@${jsonPath.stringify(this.path.slice(1).concat([label]))}`;
     }
     this.value[label] = item.value;
-  }
-  async contentSelectors() {
-    return (await this.contentConstructs()).map(item => item.uniqueSelector);
-  }
-  async contentConstructs() {
-    return this.getValueContents();
-  }
-  async contentConstructCount() {
-    return this.getValueContentCount();
   }
 }
 ItemConstruct.getBoilerplateValue = () => {
@@ -1204,7 +1199,7 @@ class InputSpec {
     this.options = {};
   }
   addOption(option) {
-    this.options[option.name] = option;
+    this.options[option.parameterName] = option;
   }
   getDefaultInputOptions() {
     let inputOptions = {};
@@ -1239,12 +1234,12 @@ class InputSpec {
       }
     }));
   }
-  async populateChoicesFromSelection(item) {
+  async populateChoicesFromSelection(selection) {
     return Promise.all(Object.values(this.options).map(option => {
       if (option.specs) {
-        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromSelection(item)));
+        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromSelection(selection)));
       } else if (option.populateChoicesFromSelection) {
-        return option.populateChoicesFromSelection(item);
+        return option.populateChoicesFromSelection(selection);
       }
     }));
   }
@@ -1332,14 +1327,17 @@ class BaseOperation extends Introspectable {
   getInputSpec() {
     const result = new InputSpec();
     result.addOption(new InputOption({
-      parameterName: 'skipErrors',
-      options: ['Ignore', 'Stop'],
-      defaultValue: 'Ignore'
+      parameterName: 'ignoreErrors',
+      choices: ['Stop on Error', 'Ignore'],
+      defaultValue: 'Stop on Error'
     }));
     return result;
   }
+  potentiallyExecutableOnItem(item) {
+    return true;
+  }
   async canExecuteOnInstance(item, inputOptions) {
-    return inputOptions.skipErrors !== 'Stop';
+    return inputOptions.ignoreErrors !== 'Stop on Error';
   }
   async executeOnInstance(item, inputOptions) {
     throw new Error('unimplemented');
@@ -1353,13 +1351,17 @@ class BaseOperation extends Introspectable {
     });
     return itemsInUse;
   }
+  async potentiallyExecutableOnSelection(selection) {
+    const items = await selection.items();
+    return Object.values(items).some(item => this.potentiallyExecutableOnItem(item));
+  }
   async canExecuteOnSelection(selection, inputOptions) {
     const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
     const canExecuteInstances = await Promise.all(Object.values(items).map(item => {
-      return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item);
+      return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item, inputOptions);
     }));
-    if (inputOptions.skipErrors === 'Stop') {
+    if (inputOptions.ignoreErrors === 'Stop on Error') {
       return canExecuteInstances.every(canExecute => canExecute);
     } else {
       return canExecuteInstances.some(canExecute => canExecute);
@@ -1455,6 +1457,8 @@ class SelectAllOperation extends BaseOperation {
     context.specs['Selector'].addOption(mode);
     context.specs['Selector List'].addOption(mode);
     context.specs['Selection'].addOption(mode);
+
+    return result;
   }
   async canExecuteOnInstance(item, inputOptions) {
     if (await super.canExecuteOnInstance(item, inputOptions)) {
@@ -1481,7 +1485,7 @@ class SelectAllOperation extends BaseOperation {
     const direction = inputOptions.direction || 'Ignore';
     const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
     if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors((await item.contentConstructs()).map(childConstruct => childConstruct.uniqueSelector));
+      output.addSelectors((await item.getContents()).map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
       output.addSelectors([item.parentConstruct.uniqueSelector]);
     } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
@@ -1549,7 +1553,7 @@ class BaseConversion extends Introspectable {
       this.specialTypes[Type.type] = Type;
     });
   }
-  canExecuteOnInstance(item, inputOptions) {
+  canExecuteOnInstance(item) {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
   }
   convertItem(item, inputOptions, outputSpec) {
@@ -1643,7 +1647,14 @@ class ConvertOperation extends BaseOperation {
     result.addOption(context);
 
     context.choices.forEach(choice => {
-      this.CONVERSIONS[choice].addOptionsToSpec(context.spec[choice]);
+      this.CONVERSIONS[choice].addOptionsToSpec(context.specs[choice]);
+    });
+
+    return result;
+  }
+  potentiallyExecutableOnItem(item) {
+    return Object.values(this.CONVERSIONS).some(conversion => {
+      return conversion.canExecuteOnInstance(item);
     });
   }
   async canExecuteOnInstance(item, inputOptions) {
@@ -1782,6 +1793,11 @@ class ConnectOperation extends BaseOperation {
       parameterName: 'saveEdgesIn',
       validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
     }));
+
+    return result;
+  }
+  potentiallyExecutableOnItem(item) {
+    return false;
   }
   async canExecuteOnInstance(item, inputOptions) {
     return false;
@@ -1789,8 +1805,14 @@ class ConnectOperation extends BaseOperation {
   async executeOnInstance(item, inputOptions) {
     throw new Error(`Running the Connect operation on an instance level is not yet supported.`);
   }
+  async potentiallyExecutableOnSelection(selection) {
+    const items = await selection.items();
+    return Object.values(items).some(item => {
+      return item instanceof this.mure.CONSTRUCTS.NodeConstruct;
+    });
+  }
   async canExecuteOnSelection(selection, inputOptions) {
-    if (inputOptions.skipErrors !== 'Stop') {
+    if (inputOptions.ignoreErrors !== 'Stop on Error') {
       return true;
     }
     if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {
@@ -1942,9 +1964,14 @@ class AssignClassOperation extends BaseOperation {
     context.specs['Attribute'].addOption(new AttributeOption({
       parameterName: 'attribute'
     }));
+
+    return result;
+  }
+  potentiallyExecutableOnItem(item) {
+    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
   }
   async canExecuteOnInstance(item, inputOptions) {
-    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.TaggableItem;
+    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
   }
   async executeOnInstance(item, inputOptions) {
     const output = new OutputSpec();

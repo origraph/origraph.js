@@ -44,15 +44,6 @@ class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
     }
     this.value[label] = item.value;
   }
-  async contentSelectors () {
-    return (await this.contentConstructs()).map(item => item.uniqueSelector);
-  }
-  async contentConstructs () {
-    return this.getValueContents();
-  }
-  async contentConstructCount () {
-    return this.getValueContentCount();
-  }
 }
 ItemConstruct.getBoilerplateValue = () => { return {}; };
 ItemConstruct.convertArray = value => {

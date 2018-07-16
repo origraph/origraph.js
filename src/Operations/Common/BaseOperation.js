@@ -11,14 +11,17 @@ class BaseOperation extends Introspectable {
   getInputSpec () {
     const result = new InputSpec();
     result.addOption(new InputOption({
-      parameterName: 'skipErrors',
-      options: ['Ignore', 'Stop'],
-      defaultValue: 'Ignore'
+      parameterName: 'ignoreErrors',
+      choices: ['Stop on Error', 'Ignore'],
+      defaultValue: 'Stop on Error'
     }));
     return result;
   }
+  potentiallyExecutableOnItem (item) {
+    return true;
+  }
   async canExecuteOnInstance (item, inputOptions) {
-    return inputOptions.skipErrors !== 'Stop';
+    return inputOptions.ignoreErrors !== 'Stop on Error';
   }
   async executeOnInstance (item, inputOptions) {
     throw new Error('unimplemented');
@@ -32,14 +35,18 @@ class BaseOperation extends Introspectable {
     });
     return itemsInUse;
   }
+  async potentiallyExecutableOnSelection (selection) {
+    const items = await selection.items();
+    return Object.values(items).some(item => this.potentiallyExecutableOnItem(item));
+  }
   async canExecuteOnSelection (selection, inputOptions) {
     const itemsInUse = this.getItemsInUse(inputOptions);
     const items = await selection.items();
     const canExecuteInstances = (await Promise.all(Object.values(items)
       .map(item => {
-        return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item);
+        return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item, inputOptions);
       })));
-    if (inputOptions.skipErrors === 'Stop') {
+    if (inputOptions.ignoreErrors === 'Stop on Error') {
       return canExecuteInstances.every(canExecute => canExecute);
     } else {
       return canExecuteInstances.some(canExecute => canExecute);

@@ -194,7 +194,7 @@ class Selection {
     let skipSave = false;
     if (Object.keys(outputSpec.warnings).length > 0) {
       let warningString;
-      if (outputSpec.skipErrors === 'Stop') {
+      if (outputSpec.ignoreErrors === 'Stop on Error') {
         skipSave = true;
         warningString = `${operation.humanReadableType} operation failed.\n`;
       } else {
@@ -248,17 +248,18 @@ class Selection {
   /*
    These functions provide statistics / summaries of the selection:
    */
-  async inferInputs (operation) {
-    if (this._summaryCaches && this._summaryCaches.opInputs &&
-        this._summaryCaches.opInputs[operation.type]) {
-      return this._summaryCaches.opInputs[operation.type];
+  async getPopulatedInputSpec (operation) {
+    if (this._summaryCaches && this._summaryCaches.inputSpecs &&
+        this._summaryCaches.inputSpecs[operation.type]) {
+      return this._summaryCaches.inputSpecs[operation.type];
     }
 
-    const inputSpec = await operation.inferSelectionInputs(this);
+    const inputSpec = operation.getInputSpec();
+    await inputSpec.populateChoicesFromSelection(this);
 
     this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.opInputs = this._summaryCaches.opInputs || {};
-    this._summaryCaches.opInputs[operation.type] = inputSpec;
+    this._summaryCaches.inputSpecs = this._summaryCaches.inputSpecs || {};
+    this._summaryCaches.inputSpecs[operation.type] = inputSpec;
     return inputSpec;
   }
   async histograms (numBins = 20) {
@@ -332,8 +333,8 @@ class Selection {
       if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
         countPrimitive(result.raw, item);
       } else {
-        if (item.contentConstructs) {
-          (await item.contentConstructs()).forEach(childConstruct => {
+        if (item.getContents) {
+          (await item.getContents()).forEach(childConstruct => {
             const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
@@ -346,7 +347,7 @@ class Selection {
           });
         }
         // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to contentConstructs?)
+        // (and a set's members' attributes, similar to getContents?)
       }
     }
 

@@ -30,7 +30,14 @@ class ConvertOperation extends BaseOperation {
     result.addOption(context);
 
     context.choices.forEach(choice => {
-      this.CONVERSIONS[choice].addOptionsToSpec(context.spec[choice]);
+      this.CONVERSIONS[choice].addOptionsToSpec(context.specs[choice]);
+    });
+
+    return result;
+  }
+  potentiallyExecutableOnItem (item) {
+    return Object.values(this.CONVERSIONS).some(conversion => {
+      return conversion.canExecuteOnInstance(item);
     });
   }
   async canExecuteOnInstance (item, inputOptions) {

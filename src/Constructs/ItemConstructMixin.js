@@ -20,6 +20,9 @@ export default (superclass) => class extends superclass {
         return agg;
       }, []);
   }
+  async getContentSelectors (target = this._contentConstruct || this) {
+    return this.getContents().map(item => item.uniqueSelector);
+  }
   async getContentCount (target = this._contentConstruct || this) {
     return Object.keys(target.value)
       .filter(label => !this.mure.RESERVED_OBJ_KEYS[label])

@@ -10,7 +10,7 @@ class BaseConversion extends Introspectable {
     this.specialTypes = {};
     specialTypes.forEach(Type => { this.specialTypes[Type.type] = Type; });
   }
-  canExecuteOnInstance (item, inputOptions) {
+  canExecuteOnInstance (item) {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
   }
   convertItem (item, inputOptions, outputSpec) {
