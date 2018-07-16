@@ -654,7 +654,7 @@ var ItemConstructMixin = (superclass => class extends superclass {
     return target.value[attribute];
   }
   async getAttributes(target = this._contentConstruct || this) {
-    return Object.keys(target.value);
+    return Object.keys(target.value).filter(d => !this.mure.RESERVED_OBJ_KEYS[d]);
   }
   async getContents(target = this._contentConstruct || this) {
     const result = {};
@@ -1732,7 +1732,8 @@ class AttributeOption extends InputOption {
         attributes[attr] = true;
       });
     });
-    this.choices = Object.keys(attributes).unshift(null); // null indicates that the item's label should be used
+    this.choices = Object.keys(attributes);
+    this.choices.unshift(null); // null indicates that the item's label should be used
   }
 }
 
@@ -1794,7 +1795,8 @@ class ConnectOperation extends BaseOperation {
     // edges?
     result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
-      validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
+      validTypes: [this.mure.CONSTRUCTS.ItemConstruct],
+      suggestOrphans: true
     }));
 
     return result;

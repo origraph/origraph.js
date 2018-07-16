@@ -14,8 +14,8 @@ class AttributeOption extends InputOption {
         attributes[attr] = true;
       });
     });
-    this.choices = Object.keys(attributes)
-      .unshift(null); // null indicates that the item's label should be used
+    this.choices = Object.keys(attributes);
+    this.choices.unshift(null); // null indicates that the item's label should be used
   }
 }
 export default AttributeOption;

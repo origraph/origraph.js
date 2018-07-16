@@ -69,7 +69,8 @@ class ConnectOperation extends BaseOperation {
     // edges?
     result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
-      validTypes: [this.mure.CONSTRUCTS.ItemConstruct]
+      validTypes: [this.mure.CONSTRUCTS.ItemConstruct],
+      suggestOrphans: true
     }));
 
     return result;
