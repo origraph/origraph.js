@@ -167,7 +167,7 @@ class ConnectOperation extends BaseOperation {
       let targetList;
       if (inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
           inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        targetList = (await inputOptions.target.getContents());
+        targetList = Object.values(await inputOptions.target.getContents());
       } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
         targetList = await inputOptions.target.getMembers();
       } else if (inputOptions.target instanceof Selection) {

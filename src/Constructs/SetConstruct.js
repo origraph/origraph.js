@@ -1,14 +1,7 @@
 import TypedConstruct from './TypedConstruct.js';
 import SetConstructMixin from './SetConstructMixin.js';
 
-class SetConstruct extends SetConstructMixin(TypedConstruct) {
-  memberSelectors () {
-    return Object.keys(this.value.$members);
-  }
-  async memberConstructs () {
-    return this.mure.selectAll(this.memberSelectors()).items();
-  }
-}
+class SetConstruct extends SetConstructMixin(TypedConstruct) {}
 SetConstruct.getBoilerplateValue = () => {
   return { $members: {} };
 };

@@ -6,22 +6,23 @@ export default (superclass) => class extends superclass {
     return Object.keys(target.value);
   }
   async getContents (target = this._contentConstruct || this) {
-    return Object.entries(target.value)
-      .reduce((agg, [label, value]) => {
-        if (!this.mure.RESERVED_OBJ_KEYS[label]) {
-          let ConstructType = this.mure.inferType(value);
-          agg.push(new ConstructType({
-            mure: this.mure,
-            value,
-            path: target.path.concat([label]),
-            doc: target.doc
-          }));
-        }
-        return agg;
-      }, []);
+    const result = {};
+    Object.entries(target.value).forEach(([label, value]) => {
+      if (!this.mure.RESERVED_OBJ_KEYS[label]) {
+        let ConstructType = this.mure.inferType(value);
+        const temp = new ConstructType({
+          mure: this.mure,
+          value,
+          path: target.path.concat([label]),
+          doc: target.doc
+        });
+        result[temp.uniqueSelector] = temp;
+      }
+    });
+    return result;
   }
   async getContentSelectors (target = this._contentConstruct || this) {
-    return this.getContents().map(item => item.uniqueSelector);
+    return Object.keys(await this.getContents(target));
   }
   async getContentCount (target = this._contentConstruct || this) {
     return Object.keys(target.value)

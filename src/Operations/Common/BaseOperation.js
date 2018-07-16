@@ -21,7 +21,7 @@ class BaseOperation extends Introspectable {
     return true;
   }
   async canExecuteOnInstance (item, inputOptions) {
-    return inputOptions.ignoreErrors !== 'Stop on Error';
+    return item && inputOptions.ignoreErrors !== 'Stop on Error';
   }
   async executeOnInstance (item, inputOptions) {
     throw new Error('unimplemented');
@@ -46,7 +46,9 @@ class BaseOperation extends Introspectable {
       .map(item => {
         return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item, inputOptions);
       })));
-    if (inputOptions.ignoreErrors === 'Stop on Error') {
+    if (canExecuteInstances.length === 0) {
+      return false;
+    } if (inputOptions.ignoreErrors === 'Stop on Error') {
       return canExecuteInstances.every(canExecute => canExecute);
     } else {
       return canExecuteInstances.some(canExecute => canExecute);

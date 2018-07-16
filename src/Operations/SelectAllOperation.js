@@ -82,7 +82,7 @@ class SelectAllOperation extends BaseOperation {
     if (inputOptions.context === 'Children' &&
        (item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
         item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors((await item.getContents())
+      output.addSelectors(Object.values(await item.getContents())
         .map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' &&
              !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
@@ -105,7 +105,7 @@ class SelectAllOperation extends BaseOperation {
     } else if (inputOptions.context === 'Members' &&
               (item instanceof this.mure.CONSTRUCTS.SetConstruct ||
                item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
-      output.addSelectors(await item.memberConstructs());
+      output.addSelectors(await item.getMemberSelectors());
     } else if (inputOptions.context === 'Selector') {
       const newString = item.uniqueSelector + inputOptions.append;
       const newSelector = this.mure.parseSelector(newString);

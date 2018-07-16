@@ -334,7 +334,7 @@ class Selection {
         countPrimitive(result.raw, item);
       } else {
         if (item.getContents) {
-          (await item.getContents()).forEach(childConstruct => {
+          Object.values((await item.getContents())).forEach(childConstruct => {
             const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
@@ -658,21 +658,23 @@ var ItemConstructMixin = (superclass => class extends superclass {
     return Object.keys(target.value);
   }
   async getContents(target = this._contentConstruct || this) {
-    return Object.entries(target.value).reduce((agg, [label, value]) => {
+    const result = {};
+    Object.entries(target.value).forEach(([label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
         let ConstructType = this.mure.inferType(value);
-        agg.push(new ConstructType({
+        const temp = new ConstructType({
           mure: this.mure,
           value,
           path: target.path.concat([label]),
           doc: target.doc
-        }));
+        });
+        result[temp.uniqueSelector] = temp;
       }
-      return agg;
-    }, []);
+    });
+    return result;
   }
   async getContentSelectors(target = this._contentConstruct || this) {
-    return this.getContents().map(item => item.uniqueSelector);
+    return Object.keys((await this.getContents(target)));
   }
   async getContentCount(target = this._contentConstruct || this) {
     return Object.keys(target.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
@@ -1064,16 +1066,15 @@ var SetConstructMixin = (superclass => class extends superclass {
     this.value.$members[itemTag] = true;
     item.value.$tags[setTag] = true;
   }
-});
-
-class SetConstruct extends SetConstructMixin(TypedConstruct) {
-  memberSelectors() {
+  getMemberSelectors() {
     return Object.keys(this.value.$members);
   }
-  async memberConstructs() {
-    return this.mure.selectAll(this.memberSelectors()).items();
+  async getMembers() {
+    return this.mure.selectAll(this.getMemberSelectors()).items();
   }
-}
+});
+
+class SetConstruct extends SetConstructMixin(TypedConstruct) {}
 SetConstruct.getBoilerplateValue = () => {
   return { $members: {} };
 };
@@ -1338,7 +1339,7 @@ class BaseOperation extends Introspectable {
     return true;
   }
   async canExecuteOnInstance(item, inputOptions) {
-    return inputOptions.ignoreErrors !== 'Stop on Error';
+    return item && inputOptions.ignoreErrors !== 'Stop on Error';
   }
   async executeOnInstance(item, inputOptions) {
     throw new Error('unimplemented');
@@ -1362,7 +1363,9 @@ class BaseOperation extends Introspectable {
     const canExecuteInstances = await Promise.all(Object.values(items).map(item => {
       return itemsInUse[item.uniqueSelector] || this.canExecuteOnInstance(item, inputOptions);
     }));
-    if (inputOptions.ignoreErrors === 'Stop on Error') {
+    if (canExecuteInstances.length === 0) {
+      return false;
+    }if (inputOptions.ignoreErrors === 'Stop on Error') {
       return canExecuteInstances.every(canExecute => canExecute);
     } else {
       return canExecuteInstances.some(canExecute => canExecute);
@@ -1486,7 +1489,7 @@ class SelectAllOperation extends BaseOperation {
     const direction = inputOptions.direction || 'Ignore';
     const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
     if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors((await item.getContents()).map(childConstruct => childConstruct.uniqueSelector));
+      output.addSelectors(Object.values((await item.getContents())).map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
       output.addSelectors([item.parentConstruct.uniqueSelector]);
     } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
@@ -1498,7 +1501,7 @@ class SelectAllOperation extends BaseOperation {
     } else if (inputOptions.context === 'Edges' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
       output.addSelectors((await Promise.all((await item.nodeConstructs(forward)).map(node => node.edgeSelectors(forward)))));
     } else if (inputOptions.context === 'Members' && (item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
-      output.addSelectors((await item.memberConstructs()));
+      output.addSelectors((await item.getMemberSelectors()));
     } else if (inputOptions.context === 'Selector') {
       const newString = item.uniqueSelector + inputOptions.append;
       const newSelector = this.mure.parseSelector(newString);
@@ -1883,7 +1886,7 @@ class ConnectOperation extends BaseOperation {
       // Figure out what nodes we're connecting to...
       let targetList;
       if (inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        targetList = await inputOptions.target.getContents();
+        targetList = Object.values((await inputOptions.target.getContents()));
       } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
         targetList = await inputOptions.target.getMembers();
       } else if (inputOptions.target instanceof Selection) {
