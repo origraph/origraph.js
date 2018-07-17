@@ -1,7 +1,12 @@
 import Introspectable from '../../Common/Introspectable.js';
 
 class InputOption extends Introspectable {
-  constructor ({ parameterName, defaultValue = null, choices = [], openEnded = false }) {
+  constructor ({
+    parameterName,
+    defaultValue = null,
+    choices = [],
+    openEnded = false
+  }) {
     super();
     this.parameterName = parameterName;
     this._defaultValue = defaultValue;

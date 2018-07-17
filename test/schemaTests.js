@@ -70,8 +70,8 @@ module.exports = [
         let orphans = await doc.subSelect('.orphans');
         orphans = Object.values(await orphans.items())[0];
         const wonByEdges = await tricks.connect({
-          context: 'Bipartite',
-          target: hands,
+          context: 'Target Container',
+          targets: hands,
           sourceAttribute: 'winner',
           targetAttribute: null,
           directed: 'Directed',
@@ -84,7 +84,8 @@ module.exports = [
         orphans = Object.values(await orphans.items())[0];
         const playedEdges = await cards.connect({
           context: 'Bipartite',
-          target: tricks,
+          sources: cards,
+          targets: tricks,
           mode: 'Function',
           connectWhen: (card, trick) => {
             return Object.entries(trick.value)

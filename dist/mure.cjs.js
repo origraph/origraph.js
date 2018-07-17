@@ -1203,52 +1203,24 @@ class InputSpec {
   addOption(option) {
     this.options[option.parameterName] = option;
   }
-  getDefaultInputOptions() {
-    let inputOptions = {};
-
-    let defaultExists = Object.entries(this.options).every(([opName, option]) => {
-      let value;
-      if (option.specs) {
-        value = option.getNestedDefaultValues(inputOptions);
-      } else {
-        value = option.defaultValue;
-      }
-      if (value !== null) {
-        inputOptions[opName] = value;
-        return true;
-      } else {
-        return false;
-      }
-    });
-
-    if (!defaultExists) {
-      return null;
-    } else {
-      return inputOptions;
-    }
-  }
-  async populateChoicesFromItem(item) {
+  async updateChoices(params) {
     return Promise.all(Object.values(this.options).map(option => {
       if (option.specs) {
-        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromItem(item)));
-      } else if (option.populateChoicesFromItem) {
-        return option.populateChoicesFromItem(item);
-      }
-    }));
-  }
-  async populateChoicesFromSelection(selection) {
-    return Promise.all(Object.values(this.options).map(option => {
-      if (option.specs) {
-        return Promise.all(Object.values(option.specs).map(spec => spec.populateChoicesFromSelection(selection)));
-      } else if (option.populateChoicesFromSelection) {
-        return option.populateChoicesFromSelection(selection);
+        return Promise.all(Object.values(option.specs).map(spec => spec.updateChoices(params)));
+      } else if (option.updateChoices) {
+        return option.updateChoices(params);
       }
     }));
   }
 }
 
 class InputOption extends Introspectable {
-  constructor({ parameterName, defaultValue = null, choices = [], openEnded = false }) {
+  constructor({
+    parameterName,
+    defaultValue = null,
+    choices = [],
+    openEnded = false
+  }) {
     super();
     this.parameterName = parameterName;
     this._defaultValue = defaultValue;
@@ -1401,22 +1373,6 @@ class ContextualOption extends InputOption {
     choices.concat(hiddenChoices).forEach(choice => {
       this.specs[choice] = new InputSpec();
     });
-  }
-  getNestedDefaultValues(inputOptions) {
-    let choice = this.defaultValue;
-    let nestedDefaults = this.specs[choice].getDefaultInputOptions();
-    if (nestedDefaults === null) {
-      choice = this.choices.some(choice => {
-        nestedDefaults = this.specs[choice].getDefaultInputOptions();
-        return nestedDefaults && choice;
-      });
-    }
-    if (nestedDefaults) {
-      Object.assign(inputOptions, nestedDefaults);
-      return choice;
-    } else {
-      return null;
-    }
   }
 }
 
@@ -1686,8 +1642,7 @@ class TypedOption extends InputOption {
     parameterName,
     defaultValue,
     choices,
-    validTypes = [],
-    suggestOrphans = false
+    validTypes = []
   }) {
     super({
       parameterName,
@@ -1696,12 +1651,15 @@ class TypedOption extends InputOption {
       openEnded: false
     });
     this.validTypes = validTypes;
-    this.suggestOrphans = suggestOrphans;
   }
-  async populateChoicesFromSelection(selection) {
+  async updateChoices({ items, inputOptions, reset = false, suggestOrphans = true }) {
     const itemLookup = {};
     const orphanLookup = {};
-    const items = await selection.items();
+    if (!reset) {
+      this.choices.forEach(choice => {
+        itemLookup[choice.uniqueSelector] = choice;
+      });
+    }
     Object.values(items).forEach(item => {
       if (this.validTypes.indexOf(item.constructor) !== -1) {
         itemLookup[item.uniqueSelector] = item;
@@ -1719,20 +1677,61 @@ class TypedOption extends InputOption {
   }
 }
 
-class AttributeOption extends InputOption {
-  async populateChoicesFromItem(item) {
-    // null indicates that the item's label should be used
-    return item.getAttributes ? item.getAttributes().unshift(null) : [null];
+class StringOption extends InputOption {
+  populateExistingChoiceStrings(choiceDict) {
+    this.choices.forEach(choice => {
+      if (choice !== null) {
+        choiceDict[choice] = true;
+      }
+    });
   }
-  async populateChoicesFromSelection(selection) {
-    let attributes = {};
-    (await Promise.all(Object.values((await selection.items())).map(item => {
-      return item.getAttributes ? item.getAttributes() : [];
-    }))).forEach(attrList => {
-      attrList.forEach(attr => {
+}
+
+class AttributeOption extends StringOption {
+  async populateFromItem(item, attributes) {
+    if (item.getAttributes) {
+      (await item.getAttributes()).forEach(attr => {
         attributes[attr] = true;
       });
-    });
+    }
+  }
+  async populateFromItems(items, attributes) {
+    return Promise.all(Object.values(items).map(item => {
+      return this.populateFromItem(item, attributes);
+    }));
+  }
+  async updateChoices({ items, inputOptions, reset = false }) {
+    let attributes = {};
+    if (!reset) {
+      this.populateExistingChoiceStrings(attributes);
+    }
+    await this.populateFromItems(items, attributes);
+    this.choices = Object.keys(attributes);
+    this.choices.unshift(null); // null indicates that the item's label should be used
+  }
+}
+
+class NestedAttributeOption extends AttributeOption {
+  constructor({ parameterName, defaultValue, choices, openEnded, getItemChoiceRole }) {
+    super({ parameterName, defaultValue, choices, openEnded });
+    this.getItemChoiceRole = getItemChoiceRole;
+  }
+  async updateChoices({ items, inputOptions, reset = false }) {
+    let attributes = {};
+    if (!reset) {
+      this.populateExistingChoiceStrings(attributes);
+    }
+    const itemList = Object.values(items);
+    for (let i = 0; i < itemList.length; i++) {
+      const item = itemList[i];
+      const itemRole = this.getItemChoiceRole(item, inputOptions);
+      if (itemRole === 'standard') {
+        await this.populateFromItem(item, attributes);
+      } else if (itemRole === 'deep') {
+        const children = item.getMembers ? await item.getMembers() : item.getContents ? await item.getContents() : {};
+        await this.populateFromItems(children);
+      } // else if (itemRole === 'ignore')
+    }
     this.choices = Object.keys(attributes);
     this.choices.unshift(null); // null indicates that the item's label should be used
   }
@@ -1749,24 +1748,34 @@ class ConnectOperation extends BaseOperation {
     const context = new ContextualOption({
       parameterName: 'context',
       choices: ['Within Selection', 'Bipartite'],
+      hiddenChoices: ['Target Container'],
       defaultValue: 'Within Selection'
     });
     result.addOption(context);
 
-    // For bipartite connection, we need to specify a target document, item, or
-    // set (class or group) to connect nodes to
+    // For some contexts, we need to specify source and/or target documents,
+    // items, or sets (classes or groups)
     context.specs['Bipartite'].addOption(new TypedOption({
-      parameterName: 'target',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, Selection]
+      parameterName: 'sources',
+      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
     }));
-    // The bipartite approach also allows us to specify edge direction
-    context.specs['Bipartite'].addOption(new InputOption({
+    const targets = new TypedOption({
+      parameterName: 'targets',
+      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+    });
+    context.specs['Bipartite'].addOption(targets);
+    context.specs['Target Container'].addOption(targets);
+
+    // Edge direction
+    const direction = new InputOption({
       parameterName: 'directed',
       choices: ['Undirected', 'Directed'],
       defaultValue: 'Undirected'
-    }));
+    });
+    context.specs['Bipartite'].addOption(direction);
+    context.specs['Target Container'].addOption(direction);
 
-    // Either context can be executed by matching attributes or evaluating
+    // All contexts can be executed by matching attributes or evaluating
     // a function
     const mode = new ContextualOption({
       parameterName: 'mode',
@@ -1775,14 +1784,38 @@ class ConnectOperation extends BaseOperation {
     });
     result.addOption(mode);
 
-    // Attribute mode needs source and target attribute suggestions
-    mode.specs['Attribute'].addOption(new AttributeOption({
+    // Attribute mode needs source and target attributes
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
       parameterName: 'sourceAttribute',
-      defaultValue: null // null indicates that the label should be used
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (item.equals(inputOptions.saveEdgesIn)) {
+          return 'ignore';
+        } else if (inputOptions === 'Bipartite') {
+          if (inputOptions.source && item.equals(inputOptions.source)) {
+            return 'deep';
+          } else {
+            return 'ignore';
+          }
+        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+          return 'ignore';
+        } else {
+          return 'standard';
+        }
+      }
     }));
-    mode.specs['Attribute'].addOption(new AttributeOption({
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
       parameterName: 'targetAttribute',
-      defaultValue: null // null indicates that the label should be used
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (item.equals(inputOptions.saveEdgesIn) || inputOptions.source && item.equals(inputOptions.source)) {
+          return 'ignore';
+        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+          return 'deep';
+        } else {
+          return 'standard';
+        }
+      }
     }));
 
     // Function mode needs the function
@@ -1802,20 +1835,11 @@ class ConnectOperation extends BaseOperation {
 
     return result;
   }
-  potentiallyExecutableOnItem(item) {
-    return false;
-  }
   async canExecuteOnInstance(item, inputOptions) {
     return false;
   }
   async executeOnInstance(item, inputOptions) {
-    throw new Error(`Running the Connect operation on an instance level is not yet supported.`);
-  }
-  async potentiallyExecutableOnSelection(selection) {
-    const items = await selection.items();
-    return Object.values(items).some(item => {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct;
-    });
+    throw new Error(`Running the Connect operation on an instance is not supported.`);
   }
   async canExecuteOnSelection(selection, inputOptions) {
     if (inputOptions.ignoreErrors !== 'Stop on Error') {
@@ -1825,7 +1849,29 @@ class ConnectOperation extends BaseOperation {
       return false;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.target instanceof Selection)) {
+      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+        return false;
+      }
+    } else if (inputOptions.context === 'To Selection') {
+      if (!inputOptions.targets || !inputOptions.targets.items) {
+        return false;
+      }
+      let items = await selection.items();
+      let targetItems = await inputOptions.targets.items();
+      return Object.values(items).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct) && Object.values(targetItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+    } else {
+      // inputOptions.context === 'Within Selection'
+      const items = await selection.items();
+      let count = 0;
+      const atLeastTwoNodes = Object.values(items).some(item => {
+        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+          count += 1;
+          if (count >= 2) {
+            return true;
+          }
+        }
+      });
+      if (!atLeastTwoNodes) {
         return false;
       }
     }
@@ -1836,6 +1882,7 @@ class ConnectOperation extends BaseOperation {
       try {
         Function('source', 'target', // eslint-disable-line no-new-func
         inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        return true;
       } catch (err) {
         if (err instanceof SyntaxError) {
           return false;
@@ -1843,8 +1890,27 @@ class ConnectOperation extends BaseOperation {
           throw err;
         }
       }
+    } else {
+      return inputOptions.sourceAttribute && inputOptions.targetAttribute;
     }
-    return true;
+  }
+  async executeWithinSelection(items, connectWhen, saveEdgesIn, output) {
+    // We're only creating edges within the selection; we don't have to worry
+    // about direction or the other set of nodes, but we do need to iterate in
+    // a way that guarantees that we don't duplicate edges
+    const sourceList = Object.values(items);
+    for (let i = 0; i < sourceList.length; i++) {
+      for (let j = i + 1; j < sourceList.length; j++) {
+        if (connectWhen(sourceList[i], sourceList[j])) {
+          const newEdge = sourceList[i].linkTo(sourceList[j], saveEdgesIn);
+          output.addSelectors([newEdge.uniqueSelector]);
+          output.flagPollutedDoc(sourceList[i].doc);
+          output.flagPollutedDoc(sourceList[j].doc);
+          output.flagPollutedDoc(newEdge.doc);
+        }
+      }
+    }
+    return output;
   }
   async executeOnSelection(selection, inputOptions) {
     const output = new OutputSpec();
@@ -1879,74 +1945,68 @@ class ConnectOperation extends BaseOperation {
       connectWhen = (source, target) => getSourceValue(source) === getTargetValue(target);
     }
 
-    const items = await selection.items();
-
-    if (inputOptions.context === 'Bipartite') {
-      // What role are the source nodes playing ('undirected' vs 'source')?
-      const direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
-
-      // Figure out what nodes we're connecting to...
-      let targetList;
-      if (inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        targetList = Object.values((await inputOptions.target.getContents()));
-      } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
-        targetList = await inputOptions.target.getMembers();
-      } else if (inputOptions.target instanceof Selection) {
-        targetList = Object.values((await inputOptions.target.items()));
-      } else {
-        output.warn(`Target is not a valid Document, Item, or Set`);
-        return output;
-      }
-      targetList = targetList.filter(target => target instanceof this.mure.CONSTRUCTS.NodeConstruct);
-      if (targetList.length === 0) {
-        output.warn(`Target does not contain any Nodes`);
-        return output;
-      }
-
-      // Create the edges!
-      Object.values(items).forEach(source => {
-        targetList.forEach(target => {
-          if (connectWhen(source, target)) {
-            const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
-            output.addSelectors([newEdge.uniqueSelector]);
-            output.flagPollutedDoc(source.doc);
-            output.flagPollutedDoc(target.doc);
-            output.flagPollutedDoc(newEdge.doc);
-          }
-        });
-      });
+    let sources;
+    if (inputOptions.context === 'Bipartite' && inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) {
+      sources = await inputOptions.sources.getMembers();
     } else {
-      // if (context === 'Within Selection') {
-      // We're only creating edges within the selection; we don't have to worry
-      // about direction or the other set of nodes, but we do need to iterate in
-      // a way that guarantees that we don't duplicate edges
-      const sourceList = Object.values(items);
-      for (let i = 0; i < sourceList.length; i++) {
-        for (let j = i + 1; j < sourceList.length; j++) {
-          if (connectWhen(sourceList[i], sourceList[j])) {
-            const newEdge = sourceList[i].linkTo(sourceList[j], inputOptions.saveEdgesIn);
-            output.addSelectors([newEdge.uniqueSelector]);
-            output.flagPollutedDoc(sourceList[i].doc);
-            output.flagPollutedDoc(sourceList[j].doc);
-            output.flagPollutedDoc(newEdge.doc);
-          }
-        }
-      }
+      sources = await selection.items();
     }
+
+    if (Object.keys(sources).length === 0) {
+      output.warn(`No sources supplied to connect operation`);
+      return output;
+    }
+
+    // At this point we know enough to deal with 'Within Selection' mode:
+    if (inputOptions.context === 'Within Selection') {
+      return this.executeWithinSelection(sources, connectWhen, inputOptions.saveEdgesIn, output);
+    }
+
+    // What role are the source nodes playing ('undirected' vs 'source')?
+    const direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
+
+    let targets;
+    if (inputOptions.targets instanceof Selection) {
+      targets = await inputOptions.targets.items();
+    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      targets = await inputOptions.targets.getMembers();
+    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+      targets = await inputOptions.targets.getContents();
+    } else {
+      output.warn(`inputOptions.targets is of unexpected type ${targets.type}`);
+    }
+
+    const targetList = Object.values(targets);
+    if (targetList.length === 0) {
+      output.warn('No targets supplied to connect operation');
+    }
+
+    // Create the edges!
+    Object.values(sources).forEach(source => {
+      targetList.forEach(target => {
+        if (connectWhen(source, target)) {
+          const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
+          output.addSelectors([newEdge.uniqueSelector]);
+          output.flagPollutedDoc(source.doc);
+          output.flagPollutedDoc(target.doc);
+          output.flagPollutedDoc(newEdge.doc);
+        }
+      });
+    });
     return output;
   }
 }
 
-class ClassOption extends InputOption {
-  async populateChoicesFromItem(item) {
-    return item.getClasses ? item.getClasses() : [];
-  }
-  async populateChoicesFromSelection(selection) {
+class ClassOption extends StringOption {
+  async updateChoices({ items, reset = false }) {
     let classes = {};
-    (await Promise.all(Object.values((await selection.items())).map(item => {
+    if (!reset) {
+      this.populateExistingChoiceStrings(classes);
+    }
+    Object.values(items).map(item => {
       return item.getClasses ? item.getClasses() : [];
-    }))).forEach(attrList => {
-      attrList.forEach(className => {
+    }).forEach(classList => {
+      classList.forEach(className => {
         classes[className] = true;
       });
     });

@@ -3,7 +3,7 @@ import BaseOperation from './Common/BaseOperation.js';
 import OutputSpec from './Common/OutputSpec.js';
 import ContextualOption from './Common/ContextualOption.js';
 import TypedOption from './Common/TypedOption.js';
-import AttributeOption from './Common/AttributeOption.js';
+import NestedAttributeOption from './Common/NestedAttributeOption.js';
 import InputOption from './Common/InputOption.js';
 
 const DEFAULT_CONNECT_WHEN = 'return source.label === target.label;';
@@ -17,29 +17,46 @@ class ConnectOperation extends BaseOperation {
     const context = new ContextualOption({
       parameterName: 'context',
       choices: ['Within Selection', 'Bipartite'],
+      hiddenChoices: ['Target Container'],
       defaultValue: 'Within Selection'
     });
     result.addOption(context);
 
-    // For bipartite connection, we need to specify a target document, item, or
-    // set (class or group) to connect nodes to
+    // For some contexts, we need to specify source and/or target documents,
+    // items, or sets (classes or groups)
     context.specs['Bipartite'].addOption(new TypedOption({
-      parameterName: 'target',
+      parameterName: 'sources',
       validTypes: [
         this.mure.CONSTRUCTS.DocumentConstruct,
         this.mure.CONSTRUCTS.ItemConstruct,
         this.mure.CONSTRUCTS.SetConstruct,
+        this.mure.CONSTRUCTS.SupernodeConstruct,
         Selection
       ]
     }));
-    // The bipartite approach also allows us to specify edge direction
-    context.specs['Bipartite'].addOption(new InputOption({
+    const targets = new TypedOption({
+      parameterName: 'targets',
+      validTypes: [
+        this.mure.CONSTRUCTS.DocumentConstruct,
+        this.mure.CONSTRUCTS.ItemConstruct,
+        this.mure.CONSTRUCTS.SetConstruct,
+        this.mure.CONSTRUCTS.SupernodeConstruct,
+        Selection
+      ]
+    });
+    context.specs['Bipartite'].addOption(targets);
+    context.specs['Target Container'].addOption(targets);
+
+    // Edge direction
+    const direction = new InputOption({
       parameterName: 'directed',
       choices: ['Undirected', 'Directed'],
       defaultValue: 'Undirected'
-    }));
+    });
+    context.specs['Bipartite'].addOption(direction);
+    context.specs['Target Container'].addOption(direction);
 
-    // Either context can be executed by matching attributes or evaluating
+    // All contexts can be executed by matching attributes or evaluating
     // a function
     const mode = new ContextualOption({
       parameterName: 'mode',
@@ -48,14 +65,39 @@ class ConnectOperation extends BaseOperation {
     });
     result.addOption(mode);
 
-    // Attribute mode needs source and target attribute suggestions
-    mode.specs['Attribute'].addOption(new AttributeOption({
+    // Attribute mode needs source and target attributes
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
       parameterName: 'sourceAttribute',
-      defaultValue: null // null indicates that the label should be used
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (item.equals(inputOptions.saveEdgesIn)) {
+          return 'ignore';
+        } else if (inputOptions === 'Bipartite') {
+          if (inputOptions.source && item.equals(inputOptions.source)) {
+            return 'deep';
+          } else {
+            return 'ignore';
+          }
+        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+          return 'ignore';
+        } else {
+          return 'standard';
+        }
+      }
     }));
-    mode.specs['Attribute'].addOption(new AttributeOption({
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
       parameterName: 'targetAttribute',
-      defaultValue: null // null indicates that the label should be used
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (item.equals(inputOptions.saveEdgesIn) ||
+            (inputOptions.source && item.equals(inputOptions.source))) {
+          return 'ignore';
+        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+          return 'deep';
+        } else {
+          return 'standard';
+        }
+      }
     }));
 
     // Function mode needs the function
@@ -75,20 +117,11 @@ class ConnectOperation extends BaseOperation {
 
     return result;
   }
-  potentiallyExecutableOnItem (item) {
-    return false;
-  }
   async canExecuteOnInstance (item, inputOptions) {
     return false;
   }
   async executeOnInstance (item, inputOptions) {
-    throw new Error(`Running the Connect operation on an instance level is not yet supported.`);
-  }
-  async potentiallyExecutableOnSelection (selection) {
-    const items = await selection.items();
-    return Object.values(items).some(item => {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct;
-    });
+    throw new Error(`Running the Connect operation on an instance is not supported.`);
   }
   async canExecuteOnSelection (selection, inputOptions) {
     if (inputOptions.ignoreErrors !== 'Stop on Error') {
@@ -98,10 +131,37 @@ class ConnectOperation extends BaseOperation {
       return false;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!(inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-            inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct ||
-            inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct ||
-            inputOptions.target instanceof Selection)) {
+      if (!(
+        (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
+         inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) &&
+        (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
+         inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+        return false;
+      }
+    } else if (inputOptions.context === 'To Selection') {
+      if (!inputOptions.targets || !inputOptions.targets.items) {
+        return false;
+      }
+      let items = await selection.items();
+      let targetItems = await inputOptions.targets.items();
+      return Object.values(items)
+        .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct) &&
+        Object.values(targetItems)
+          .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+    } else { // inputOptions.context === 'Within Selection'
+      const items = await selection.items();
+      let count = 0;
+      const atLeastTwoNodes = Object.values(items).some(item => {
+        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+          count += 1;
+          if (count >= 2) {
+            return true;
+          }
+        }
+      });
+      if (!atLeastTwoNodes) {
         return false;
       }
     }
@@ -112,6 +172,7 @@ class ConnectOperation extends BaseOperation {
       try {
         Function('source', 'target', // eslint-disable-line no-new-func
           inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        return true;
       } catch (err) {
         if (err instanceof SyntaxError) {
           return false;
@@ -119,8 +180,27 @@ class ConnectOperation extends BaseOperation {
           throw err;
         }
       }
+    } else {
+      return inputOptions.sourceAttribute && inputOptions.targetAttribute;
     }
-    return true;
+  }
+  async executeWithinSelection (items, connectWhen, saveEdgesIn, output) {
+    // We're only creating edges within the selection; we don't have to worry
+    // about direction or the other set of nodes, but we do need to iterate in
+    // a way that guarantees that we don't duplicate edges
+    const sourceList = Object.values(items);
+    for (let i = 0; i < sourceList.length; i++) {
+      for (let j = i + 1; j < sourceList.length; j++) {
+        if (connectWhen(sourceList[i], sourceList[j])) {
+          const newEdge = sourceList[i].linkTo(sourceList[j], saveEdgesIn);
+          output.addSelectors([newEdge.uniqueSelector]);
+          output.flagPollutedDoc(sourceList[i].doc);
+          output.flagPollutedDoc(sourceList[j].doc);
+          output.flagPollutedDoc(newEdge.doc);
+        }
+      }
+    }
+    return output;
   }
   async executeOnSelection (selection, inputOptions) {
     const output = new OutputSpec();
@@ -158,61 +238,57 @@ class ConnectOperation extends BaseOperation {
       connectWhen = (source, target) => getSourceValue(source) === getTargetValue(target);
     }
 
-    const items = await selection.items();
-
-    if (inputOptions.context === 'Bipartite') {
-      // What role are the source nodes playing ('undirected' vs 'source')?
-      const direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
-
-      // Figure out what nodes we're connecting to...
-      let targetList;
-      if (inputOptions.target instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-          inputOptions.target instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        targetList = Object.values(await inputOptions.target.getContents());
-      } else if (inputOptions.target instanceof this.mure.CONSTRUCTS.SetConstruct) {
-        targetList = await inputOptions.target.getMembers();
-      } else if (inputOptions.target instanceof Selection) {
-        targetList = Object.values(await inputOptions.target.items());
-      } else {
-        output.warn(`Target is not a valid Document, Item, or Set`);
-        return output;
-      }
-      targetList = targetList
-        .filter(target => target instanceof this.mure.CONSTRUCTS.NodeConstruct);
-      if (targetList.length === 0) {
-        output.warn(`Target does not contain any Nodes`);
-        return output;
-      }
-
-      // Create the edges!
-      Object.values(items).forEach(source => {
-        targetList.forEach(target => {
-          if (connectWhen(source, target)) {
-            const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
-            output.addSelectors([newEdge.uniqueSelector]);
-            output.flagPollutedDoc(source.doc);
-            output.flagPollutedDoc(target.doc);
-            output.flagPollutedDoc(newEdge.doc);
-          }
-        });
-      });
-    } else { // if (context === 'Within Selection') {
-      // We're only creating edges within the selection; we don't have to worry
-      // about direction or the other set of nodes, but we do need to iterate in
-      // a way that guarantees that we don't duplicate edges
-      const sourceList = Object.values(items);
-      for (let i = 0; i < sourceList.length; i++) {
-        for (let j = i + 1; j < sourceList.length; j++) {
-          if (connectWhen(sourceList[i], sourceList[j])) {
-            const newEdge = sourceList[i].linkTo(sourceList[j], inputOptions.saveEdgesIn);
-            output.addSelectors([newEdge.uniqueSelector]);
-            output.flagPollutedDoc(sourceList[i].doc);
-            output.flagPollutedDoc(sourceList[j].doc);
-            output.flagPollutedDoc(newEdge.doc);
-          }
-        }
-      }
+    let sources;
+    if (inputOptions.context === 'Bipartite' &&
+        inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) {
+      sources = await inputOptions.sources.getMembers();
+    } else {
+      sources = await selection.items();
     }
+
+    if (Object.keys(sources).length === 0) {
+      output.warn(`No sources supplied to connect operation`);
+      return output;
+    }
+
+    // At this point we know enough to deal with 'Within Selection' mode:
+    if (inputOptions.context === 'Within Selection') {
+      return this.executeWithinSelection(sources, connectWhen, inputOptions.saveEdgesIn, output);
+    }
+
+    // What role are the source nodes playing ('undirected' vs 'source')?
+    const direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
+
+    let targets;
+    if (inputOptions.targets instanceof Selection) {
+      targets = await inputOptions.targets.items();
+    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct ||
+               inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      targets = await inputOptions.targets.getMembers();
+    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+               inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+      targets = await inputOptions.targets.getContents();
+    } else {
+      output.warn(`inputOptions.targets is of unexpected type ${targets.type}`);
+    }
+
+    const targetList = Object.values(targets);
+    if (targetList.length === 0) {
+      output.warn('No targets supplied to connect operation');
+    }
+
+    // Create the edges!
+    Object.values(sources).forEach(source => {
+      targetList.forEach(target => {
+        if (connectWhen(source, target)) {
+          const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
+          output.addSelectors([newEdge.uniqueSelector]);
+          output.flagPollutedDoc(source.doc);
+          output.flagPollutedDoc(target.doc);
+          output.flagPollutedDoc(newEdge.doc);
+        }
+      });
+    });
     return output;
   }
 }

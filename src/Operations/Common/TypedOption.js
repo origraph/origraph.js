@@ -6,8 +6,7 @@ class TypedOption extends InputOption {
     parameterName,
     defaultValue,
     choices,
-    validTypes = [],
-    suggestOrphans = false
+    validTypes = []
   }) {
     super({
       parameterName,
@@ -16,12 +15,15 @@ class TypedOption extends InputOption {
       openEnded: false
     });
     this.validTypes = validTypes;
-    this.suggestOrphans = suggestOrphans;
   }
-  async populateChoicesFromSelection (selection) {
+  async updateChoices ({ items, inputOptions, reset = false, suggestOrphans = true }) {
     const itemLookup = {};
     const orphanLookup = {};
-    const items = await selection.items();
+    if (!reset) {
+      this.choices.forEach(choice => {
+        itemLookup[choice.uniqueSelector] = choice;
+      });
+    }
     Object.values(items).forEach(item => {
       if (this.validTypes.indexOf(item.constructor) !== -1) {
         itemLookup[item.uniqueSelector] = item;
