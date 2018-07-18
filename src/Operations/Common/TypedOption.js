@@ -6,7 +6,8 @@ class TypedOption extends InputOption {
     parameterName,
     defaultValue,
     choices,
-    validTypes = []
+    validTypes = [],
+    suggestOrphans = false
   }) {
     super({
       parameterName,
@@ -15,8 +16,9 @@ class TypedOption extends InputOption {
       openEnded: false
     });
     this.validTypes = validTypes;
+    this.suggestOrphans = suggestOrphans;
   }
-  async updateChoices ({ items, inputOptions, reset = false, suggestOrphans = true }) {
+  async updateChoices ({ items, inputOptions, reset = false }) {
     const itemLookup = {};
     const orphanLookup = {};
     if (!reset) {

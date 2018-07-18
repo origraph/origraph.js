@@ -27,7 +27,8 @@ class BaseConstruct extends Introspectable {
     delete this.parent[this.label];
   }
   equals (other) {
-    return this.uniqueSelector === other.uniqueSelector;
+    return other instanceof BaseConstruct &&
+      this.uniqueSelector === other.uniqueSelector;
   }
 }
 Object.defineProperty(BaseConstruct, 'type', {

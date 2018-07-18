@@ -27640,7 +27640,7 @@
 	    delete this.parent[this.label];
 	  }
 	  equals(other) {
-	    return this.uniqueSelector === other.uniqueSelector;
+	    return other instanceof BaseConstruct && this.uniqueSelector === other.uniqueSelector;
 	  }
 	}
 	Object.defineProperty(BaseConstruct, 'type', {
@@ -34054,7 +34054,7 @@
 	    this.pollutedDocs[doc._id] = doc;
 	  }
 	  warn(warning) {
-	    this.warnings[warning] = this.warning[warning] || 0;
+	    this.warnings[warning] = this.warnings[warning] || 0;
 	    this.warnings[warning] += 1;
 	  }
 	}
@@ -34071,7 +34071,7 @@
 	    Object.values(spec.pollutedDocs).forEach(doc => {
 	      pollutedDocs[doc._id] = doc;
 	    });
-	    Object.entries(([warning, count]) => {
+	    Object.entries(spec.warnings).forEach(([warning, count]) => {
 	      warnings[warning] = warnings[warning] || 0;
 	      warnings[warning] += count;
 	    });
@@ -34433,7 +34433,8 @@
 	    parameterName,
 	    defaultValue,
 	    choices,
-	    validTypes = []
+	    validTypes = [],
+	    suggestOrphans = false
 	  }) {
 	    super({
 	      parameterName,
@@ -34442,8 +34443,9 @@
 	      openEnded: false
 	    });
 	    this.validTypes = validTypes;
+	    this.suggestOrphans = suggestOrphans;
 	  }
-	  async updateChoices({ items, inputOptions, reset = false, suggestOrphans = true }) {
+	  async updateChoices({ items, inputOptions, reset = false }) {
 	    const itemLookup = {};
 	    const orphanLookup = {};
 	    if (!reset) {
@@ -34520,7 +34522,7 @@
 	        await this.populateFromItem(item, attributes);
 	      } else if (itemRole === 'deep') {
 	        const children = item.getMembers ? await item.getMembers() : item.getContents ? await item.getContents() : {};
-	        await this.populateFromItems(children);
+	        await this.populateFromItems(children, attributes);
 	      } // else if (itemRole === 'ignore')
 	    }
 	    this.choices = Object.keys(attributes);
@@ -34582,13 +34584,13 @@
 	      getItemChoiceRole: (item, inputOptions) => {
 	        if (item.equals(inputOptions.saveEdgesIn)) {
 	          return 'ignore';
-	        } else if (inputOptions === 'Bipartite') {
-	          if (inputOptions.source && item.equals(inputOptions.source)) {
+	        } else if (inputOptions.context === 'Bipartite') {
+	          if (inputOptions.sources && item.equals(inputOptions.sources)) {
 	            return 'deep';
 	          } else {
 	            return 'ignore';
 	          }
-	        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+	        } else if (inputOptions.targets && item.equals(inputOptions.targets)) {
 	          return 'ignore';
 	        } else {
 	          return 'standard';
@@ -34599,10 +34601,12 @@
 	      parameterName: 'targetAttribute',
 	      defaultValue: null, // null indicates that the label should be used
 	      getItemChoiceRole: (item, inputOptions) => {
-	        if (item.equals(inputOptions.saveEdgesIn) || inputOptions.source && item.equals(inputOptions.source)) {
+	        if (item.equals(inputOptions.saveEdgesIn)) {
 	          return 'ignore';
-	        } else if (inputOptions.target && item.equals(inputOptions.target)) {
+	        } else if (inputOptions.targets && item.equals(inputOptions.targets)) {
 	          return 'deep';
+	        } else if (inputOptions.context === 'Bipartite') {
+	          return 'ignore';
 	        } else {
 	          return 'standard';
 	        }
@@ -34737,8 +34741,18 @@
 	    }
 
 	    let sources;
-	    if (inputOptions.context === 'Bipartite' && inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) {
-	      sources = await inputOptions.sources.getMembers();
+	    if (inputOptions.context === 'Bipartite') {
+	      if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+	        sources = await inputOptions.sources.getMembers();
+	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+	        sources = await inputOptions.sources.getContents();
+	      } else if (inputOptions.sources) {
+	        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources.type}`);
+	        return output;
+	      } else {
+	        output.warn(`sources option is required for context ${inputOptions.context}`);
+	        return output;
+	      }
 	    } else {
 	      sources = await selection.items();
 	    }
@@ -34763,8 +34777,12 @@
 	      targets = await inputOptions.targets.getMembers();
 	    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
 	      targets = await inputOptions.targets.getContents();
+	    } else if (inputOptions.targets) {
+	      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets.type}`);
+	      return output;
 	    } else {
-	      output.warn(`inputOptions.targets is of unexpected type ${targets.type}`);
+	      output.warn(`targets option is required for context ${inputOptions.context}`);
+	      return output;
 	    }
 
 	    const targetList = Object.values(targets);
