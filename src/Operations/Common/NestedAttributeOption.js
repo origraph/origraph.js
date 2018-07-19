@@ -18,7 +18,7 @@ class NestedAttributeOption extends AttributeOption {
         await this.populateFromItem(item, attributes);
       } else if (itemRole === 'deep') {
         const children = item.getMembers ? await item.getMembers()
-          : item.getContents ? await item.getContents() : {};
+          : item.getContents ? item.getContents() : {};
         await this.populateFromItems(children, attributes);
       } // else if (itemRole === 'ignore')
     }

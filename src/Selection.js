@@ -334,7 +334,7 @@ class Selection {
         countPrimitive(result.raw, item);
       } else {
         if (item.getContents) {
-          Object.values(await item.getContents()).forEach(childConstruct => {
+          Object.values(item.getContents()).forEach(childConstruct => {
             const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},

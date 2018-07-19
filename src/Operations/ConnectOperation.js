@@ -246,7 +246,7 @@ class ConnectOperation extends BaseOperation {
         sources = await inputOptions.sources.getMembers();
       } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
                  inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        sources = await inputOptions.sources.getContents();
+        sources = inputOptions.sources.getContents();
       } else if (inputOptions.sources) {
         output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources.type}`);
         return output;
@@ -279,7 +279,7 @@ class ConnectOperation extends BaseOperation {
       targets = await inputOptions.targets.getMembers();
     } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct ||
                inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
-      targets = await inputOptions.targets.getContents();
+      targets = inputOptions.targets.getContents();
     } else if (inputOptions.targets) {
       output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets.type}`);
       return output;

@@ -334,7 +334,7 @@ class Selection {
         countPrimitive(result.raw, item);
       } else {
         if (item.getContents) {
-          Object.values((await item.getContents())).forEach(childConstruct => {
+          Object.values(item.getContents()).forEach(childConstruct => {
             const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
               typeBins: {},
               categoricalBins: {},
@@ -651,13 +651,13 @@ TypedConstruct.isBadValue = function (value) {
 };
 
 var ItemConstructMixin = (superclass => class extends superclass {
-  async getValue(attribute, target = this._contentConstruct || this) {
+  getValue(attribute, target = this._contentConstruct || this) {
     return target.value[attribute];
   }
-  async getAttributes(target = this._contentConstruct || this) {
+  getAttributes(target = this._contentConstruct || this) {
     return Object.keys(target.value).filter(d => !this.mure.RESERVED_OBJ_KEYS[d]);
   }
-  async getContents(target = this._contentConstruct || this) {
+  getContents(target = this._contentConstruct || this) {
     const result = {};
     Object.entries(target.value).forEach(([label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
@@ -673,10 +673,10 @@ var ItemConstructMixin = (superclass => class extends superclass {
     });
     return result;
   }
-  async getContentSelectors(target = this._contentConstruct || this) {
-    return Object.keys((await this.getContents(target)));
+  getContentSelectors(target = this._contentConstruct || this) {
+    return Object.keys(this.getContents(target));
   }
-  async getContentCount(target = this._contentConstruct || this) {
+  getContentCount(target = this._contentConstruct || this) {
     return Object.keys(target.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
   }
 });
@@ -1445,7 +1445,7 @@ class SelectAllOperation extends BaseOperation {
     const direction = inputOptions.direction || 'Ignore';
     const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
     if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors(Object.values((await item.getContents())).map(childConstruct => childConstruct.uniqueSelector));
+      output.addSelectors(Object.values(item.getContents()).map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
       output.addSelectors([item.parentConstruct.uniqueSelector]);
     } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
@@ -1730,7 +1730,7 @@ class NestedAttributeOption extends AttributeOption {
       if (itemRole === 'standard') {
         await this.populateFromItem(item, attributes);
       } else if (itemRole === 'deep') {
-        const children = item.getMembers ? await item.getMembers() : item.getContents ? await item.getContents() : {};
+        const children = item.getMembers ? await item.getMembers() : item.getContents ? item.getContents() : {};
         await this.populateFromItems(children, attributes);
       } // else if (itemRole === 'ignore')
     }
@@ -1954,7 +1954,7 @@ class ConnectOperation extends BaseOperation {
       if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
         sources = await inputOptions.sources.getMembers();
       } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-        sources = await inputOptions.sources.getContents();
+        sources = inputOptions.sources.getContents();
       } else if (inputOptions.sources) {
         output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources.type}`);
         return output;
@@ -1985,7 +1985,7 @@ class ConnectOperation extends BaseOperation {
     } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
       targets = await inputOptions.targets.getMembers();
     } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
-      targets = await inputOptions.targets.getContents();
+      targets = inputOptions.targets.getContents();
     } else if (inputOptions.targets) {
       output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets.type}`);
       return output;
@@ -2066,7 +2066,7 @@ class AssignClassOperation extends BaseOperation {
         return output;
       }
       if (item.getValue) {
-        className = item.getValue(inputOptions.attribute);
+        className = await item.getValue(inputOptions.attribute);
       } else {
         output.warn(`Can't get attributes from ${item.type} instance`);
         return output;

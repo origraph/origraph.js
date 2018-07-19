@@ -1,12 +1,12 @@
 export default (superclass) => class extends superclass {
-  async getValue (attribute, target = this._contentConstruct || this) {
+  getValue (attribute, target = this._contentConstruct || this) {
     return target.value[attribute];
   }
-  async getAttributes (target = this._contentConstruct || this) {
+  getAttributes (target = this._contentConstruct || this) {
     return Object.keys(target.value)
       .filter(d => !this.mure.RESERVED_OBJ_KEYS[d]);
   }
-  async getContents (target = this._contentConstruct || this) {
+  getContents (target = this._contentConstruct || this) {
     const result = {};
     Object.entries(target.value).forEach(([label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
@@ -22,10 +22,10 @@ export default (superclass) => class extends superclass {
     });
     return result;
   }
-  async getContentSelectors (target = this._contentConstruct || this) {
-    return Object.keys(await this.getContents(target));
+  getContentSelectors (target = this._contentConstruct || this) {
+    return Object.keys(this.getContents(target));
   }
-  async getContentCount (target = this._contentConstruct || this) {
+  getContentCount (target = this._contentConstruct || this) {
     return Object.keys(target.value)
       .filter(label => !this.mure.RESERVED_OBJ_KEYS[label])
       .length;

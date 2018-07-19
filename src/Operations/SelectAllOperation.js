@@ -82,7 +82,7 @@ class SelectAllOperation extends BaseOperation {
     if (inputOptions.context === 'Children' &&
        (item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
         item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors(Object.values(await item.getContents())
+      output.addSelectors(Object.values(item.getContents())
         .map(childConstruct => childConstruct.uniqueSelector));
     } else if (inputOptions.context === 'Parents' &&
              !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
