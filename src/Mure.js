@@ -21,6 +21,7 @@ import NodeConstruct from './Constructs/NodeConstruct.js';
 import SupernodeConstruct from './Constructs/SupernodeConstruct.js';
 
 import SelectAllOperation from './Operations/SelectAllOperation.js';
+import FilterOperation from './Operations/FilterOperation.js';
 import ConvertOperation from './Operations/ConvertOperation.js';
 import ConnectOperation from './Operations/ConnectOperation.js';
 import AssignClassOperation from './Operations/AssignClassOperation.js';
@@ -96,6 +97,7 @@ class Mure extends Model {
     // All the supported operations
     let operationClasses = [
       SelectAllOperation,
+      FilterOperation,
       ConvertOperation,
       ConnectOperation,
       AssignClassOperation

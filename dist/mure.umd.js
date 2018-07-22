@@ -9316,7 +9316,7 @@
 		default: path
 	});
 
-	var require$$1 = ( path$1 && path ) || path$1;
+	var require$$0$1 = ( path$1 && path ) || path$1;
 
 	var mimeTypes = createCommonjsModule(function (module, exports) {
 
@@ -9326,7 +9326,7 @@
 	 */
 
 
-	var extname = require$$1.extname;
+	var extname = require$$0$1.extname;
 
 	/**
 	 * Module variables.
@@ -12613,7 +12613,7 @@
 		default: empty
 	});
 
-	var require$$0$1 = ( empty$1 && empty ) || empty$1;
+	var require$$0$2 = ( empty$1 && empty ) || empty$1;
 
 	var grammar = {
 
@@ -12713,9 +12713,9 @@
 	                [ 'Q_STRING',  "$$ = $1" ] ]
 	    }
 	};
-	if (require$$0$1.readFileSync) {
-	  grammar.moduleInclude = require$$0$1.readFileSync(commonjsRequire.resolve("../include/module.js"));
-	  grammar.actionInclude = require$$0$1.readFileSync(commonjsRequire.resolve("../include/action.js"));
+	if (require$$0$2.readFileSync) {
+	  grammar.moduleInclude = require$$0$2.readFileSync(commonjsRequire.resolve("../include/module.js"));
+	  grammar.actionInclude = require$$0$2.readFileSync(commonjsRequire.resolve("../include/action.js"));
 	}
 
 	var grammar_1 = grammar;
@@ -13425,7 +13425,7 @@
 	        console.log('Usage: '+args[0]+' FILE');
 	        process.exit(1);
 	    }
-	    var source = require$$0$1.readFileSync(require$$1.normalize(args[1]), "utf8");
+	    var source = require$$0$2.readFileSync(require$$0$1.normalize(args[1]), "utf8");
 	    return exports.parser.parse(source);
 	};
 	if (commonjsRequire.main === module) {
@@ -17377,7 +17377,7 @@
 		default: _package
 	});
 
-	var require$$0$2 = ( _package$1 && _package ) || _package$1;
+	var require$$0$3 = ( _package$1 && _package ) || _package$1;
 
 	var estraverse = createCommonjsModule(function (module, exports) {
 	/*
@@ -18182,7 +18182,7 @@
 	        return tree;
 	    }
 
-	    exports.version = require$$0$2.version;
+	    exports.version = require$$0$3.version;
 	    exports.Syntax = Syntax;
 	    exports.traverse = traverse;
 	    exports.replace = replace;
@@ -33367,10 +33367,10 @@
 	  return list.concat(top).join('\n');
 	}
 
-	var require$$0$3 = ( _package$5 && _package$4 ) || _package$5;
+	var require$$0$4 = ( _package$5 && _package$4 ) || _package$5;
 
 	var dl = {
-	  version:    require$$0$3.version,
+	  version:    require$$0$4.version,
 	  load:       load_1,
 	  read:       read_1,
 	  type:       type_1,
@@ -34290,6 +34290,115 @@
 	  }
 	}
 
+	class StringOption extends InputOption {
+	  populateExistingChoiceStrings(choiceDict) {
+	    this.choices.forEach(choice => {
+	      if (choice !== null) {
+	        choiceDict[choice] = true;
+	      }
+	    });
+	  }
+	}
+
+	class ClassOption extends StringOption {
+	  async updateChoices({ items, reset = false }) {
+	    let classes = {};
+	    if (!reset) {
+	      this.populateExistingChoiceStrings(classes);
+	    }
+	    Object.values(items).map(item => {
+	      return item.getClasses ? item.getClasses() : [];
+	    }).forEach(classList => {
+	      classList.forEach(className => {
+	        classes[className] = true;
+	      });
+	    });
+	    this.choices = Object.keys(classes);
+	  }
+	}
+
+	const DEFAULT_FILTER_FUNC = 'return item.value === true';
+
+	class FilterOperation extends BaseOperation {
+	  getInputSpec() {
+	    const result = super.getInputSpec();
+	    const context = new ContextualOption({
+	      parameterName: 'context',
+	      choices: ['Class', 'Function'],
+	      defaultValue: 'Class'
+	    });
+	    result.addOption(context);
+
+	    context.specs['Class'].addOption(new ClassOption({
+	      parameterName: 'className'
+	    }));
+	    context.specs['Function'].addOption(new InputOption({
+	      parameterName: 'filterFunction',
+	      defaultValue: DEFAULT_FILTER_FUNC,
+	      openEnded: true
+	    }));
+
+	    return result;
+	  }
+	  async canExecuteOnInstance(item, inputOptions) {
+	    return false;
+	  }
+	  async executeOnInstance(item, inputOptions) {
+	    throw new Error(`The Filter operation is not yet supported at the instance level`);
+	  }
+	  async canExecuteOnSelection(selection, inputOptions) {
+	    if (inputOptions.context === 'Function') {
+	      if (typeof inputOptions.filterFunction === 'function') {
+	        return true;
+	      }
+	      try {
+	        Function('item', // eslint-disable-line no-new-func
+	        inputOptions.connectWhen || DEFAULT_FILTER_FUNC);
+	        return true;
+	      } catch (err) {
+	        if (err instanceof SyntaxError) {
+	          return false;
+	        } else {
+	          throw err;
+	        }
+	      }
+	    } else {
+	      return inputOptions.className;
+	    }
+	  }
+	  async executeOnSelection(selection, inputOptions) {
+	    const output = new OutputSpec();
+	    let filterFunction;
+	    if (inputOptions.context === 'Function') {
+	      filterFunction = inputOptions.filterFunction;
+	      if (typeof filterFunction !== 'function') {
+	        try {
+	          filterFunction = new Function('item', // eslint-disable-line no-new-func
+	          inputOptions.connectWhen || DEFAULT_FILTER_FUNC);
+	        } catch (err) {
+	          if (err instanceof SyntaxError) {
+	            output.warn(`filterFunction SyntaxError: ${err.message}`);
+	            return output;
+	          } else {
+	            throw err;
+	          }
+	        }
+	      }
+	    } else {
+	      // if (inputOptions.context === 'Class')
+	      filterFunction = item => {
+	        return item.getClasses && item.getClasses().indexOf(inputOptions.className) !== -1;
+	      };
+	    }
+	    Object.values((await selection.items())).forEach(item => {
+	      if (filterFunction(item)) {
+	        output.addSelectors([item.uniqueSelector]);
+	      }
+	    });
+	    return output;
+	  }
+	}
+
 	class BaseConversion extends Introspectable {
 	  constructor({ mure, TargetType, standardTypes = [], specialTypes = [] }) {
 	    super();
@@ -34467,16 +34576,6 @@
 	      }
 	    });
 	    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
-	  }
-	}
-
-	class StringOption extends InputOption {
-	  populateExistingChoiceStrings(choiceDict) {
-	    this.choices.forEach(choice => {
-	      if (choice !== null) {
-	        choiceDict[choice] = true;
-	      }
-	    });
 	  }
 	}
 
@@ -34806,23 +34905,6 @@
 	  }
 	}
 
-	class ClassOption extends StringOption {
-	  async updateChoices({ items, reset = false }) {
-	    let classes = {};
-	    if (!reset) {
-	      this.populateExistingChoiceStrings(classes);
-	    }
-	    Object.values(items).map(item => {
-	      return item.getClasses ? item.getClasses() : [];
-	    }).forEach(classList => {
-	      classList.forEach(className => {
-	        classes[className] = true;
-	      });
-	    });
-	    this.choices = Object.keys(classes);
-	  }
-	}
-
 	class AssignClassOperation extends BaseOperation {
 	  getInputSpec() {
 	    const result = super.getInputSpec();
@@ -34946,7 +35028,7 @@
 	    };
 
 	    // All the supported operations
-	    let operationClasses = [SelectAllOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
+	    let operationClasses = [SelectAllOperation, FilterOperation, ConvertOperation, ConnectOperation, AssignClassOperation];
 	    this.OPERATIONS = {};
 
 	    // Unlike CONSTRUCTS, we actually want to instantiate all the operations
