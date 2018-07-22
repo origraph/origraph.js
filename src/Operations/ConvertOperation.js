@@ -4,6 +4,8 @@ import OutputSpec from './Common/OutputSpec.js';
 import ContextualOption from './Common/ContextualOption.js';
 import NullConversion from './Conversions/NullConversion.js';
 import BooleanConversion from './Conversions/BooleanConversion.js';
+import NumberConversion from './Conversions/NumberConversion.js';
+import StringConversion from './Conversions/StringConversion.js';
 import NodeConversion from './Conversions/NodeConversion.js';
 
 class ConvertOperation extends BaseOperation {
@@ -12,6 +14,8 @@ class ConvertOperation extends BaseOperation {
 
     const conversionList = [
       new BooleanConversion(mure),
+      new NumberConversion(mure),
+      new StringConversion(mure),
       new NullConversion(mure),
       new NodeConversion(mure)
     ];
