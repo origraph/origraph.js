@@ -24,6 +24,7 @@ import SelectAllOperation from './Operations/SelectAllOperation.js';
 import FilterOperation from './Operations/FilterOperation.js';
 import ConvertOperation from './Operations/ConvertOperation.js';
 import ConnectOperation from './Operations/ConnectOperation.js';
+import AttachOperation from './Operations/AttachOperation.js';
 import AssignClassOperation from './Operations/AssignClassOperation.js';
 
 class Mure extends Model {
@@ -100,6 +101,7 @@ class Mure extends Model {
       FilterOperation,
       ConvertOperation,
       ConnectOperation,
+      AttachOperation,
       AssignClassOperation
     ];
     this.OPERATIONS = {};
