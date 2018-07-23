@@ -7,6 +7,7 @@ import BooleanConversion from './Conversions/BooleanConversion.js';
 import NumberConversion from './Conversions/NumberConversion.js';
 import StringConversion from './Conversions/StringConversion.js';
 import NodeConversion from './Conversions/NodeConversion.js';
+import EdgeConversion from './Conversions/EdgeConversion.js';
 
 class ConvertOperation extends BaseOperation {
   constructor (mure) {
@@ -17,7 +18,8 @@ class ConvertOperation extends BaseOperation {
       new NumberConversion(mure),
       new StringConversion(mure),
       new NullConversion(mure),
-      new NodeConversion(mure)
+      new NodeConversion(mure),
+      new EdgeConversion(mure)
     ];
     this.CONVERSIONS = {};
     conversionList.forEach(conversion => {

@@ -14,7 +14,10 @@ class BaseConversion extends Introspectable {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
   }
   convertItem (item, inputOptions, outputSpec) {
-    if (this.standardTypes[item.type]) {
+    if (item.constructor === this.TargetType) {
+      // skip conversion if the type is already the same
+      return;
+    } if (this.standardTypes[item.type]) {
       this.standardConversion(item, inputOptions, outputSpec);
     } else if (this.specialTypes[item.type]) {
       this.specialConversion(item, inputOptions, outputSpec);

@@ -34417,7 +34417,10 @@
 	    return this.standardTypes[item.type] || this.specialTypes[item.type];
 	  }
 	  convertItem(item, inputOptions, outputSpec) {
-	    if (this.standardTypes[item.type]) {
+	    if (item.constructor === this.TargetType) {
+	      // skip conversion if the type is already the same
+	      return;
+	    }if (this.standardTypes[item.type]) {
 	      this.standardConversion(item, inputOptions, outputSpec);
 	    } else if (this.specialTypes[item.type]) {
 	      this.specialConversion(item, inputOptions, outputSpec);
@@ -34455,7 +34458,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.NullConstruct,
-	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+	      standardTypes: [mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
 	      specialTypes: []
 	    });
 	  }
@@ -34466,7 +34469,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.BooleanConstruct,
-	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
 	      specialTypes: [mure.CONSTRUCTS.StringConstruct]
 	    });
 	  }
@@ -34480,8 +34483,8 @@
 	  constructor(mure) {
 	    super({
 	      mure,
-	      TargetType: mure.CONSTRUCTS.BooleanConstruct,
-	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct]
+	      TargetType: mure.CONSTRUCTS.NumberConstruct,
+	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.StringConstruct]
 	    });
 	  }
 	}
@@ -34490,8 +34493,8 @@
 	  constructor(mure) {
 	    super({
 	      mure,
-	      TargetType: mure.CONSTRUCTS.BooleanConstruct,
-	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct]
+	      TargetType: mure.CONSTRUCTS.StringConstruct,
+	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct]
 	    });
 	  }
 	}
@@ -34504,98 +34507,6 @@
 	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
 	      specialTypes: []
 	    });
-	  }
-	}
-
-	class ConvertOperation extends BaseOperation {
-	  constructor(mure) {
-	    super(mure);
-
-	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new NodeConversion(mure)];
-	    this.CONVERSIONS = {};
-	    conversionList.forEach(conversion => {
-	      this.CONVERSIONS[conversion.type] = conversion;
-	    });
-	  }
-	  getInputSpec() {
-	    const result = new InputSpec();
-	    const context = new ContextualOption({
-	      parameterName: 'context',
-	      choices: Object.keys(this.CONVERSIONS),
-	      defaultValue: 'String'
-	    });
-	    result.addOption(context);
-
-	    context.choices.forEach(choice => {
-	      this.CONVERSIONS[choice].addOptionsToSpec(context.specs[choice]);
-	    });
-
-	    return result;
-	  }
-	  potentiallyExecutableOnItem(item) {
-	    return Object.values(this.CONVERSIONS).some(conversion => {
-	      return conversion.canExecuteOnInstance(item);
-	    });
-	  }
-	  async canExecuteOnInstance(item, inputOptions) {
-	    if (await super.canExecuteOnInstance(item, inputOptions)) {
-	      return true;
-	    }
-	    const conversion = this.CONVERSIONS[inputOptions.context];
-	    return conversion && conversion.canExecuteOnInstance(item, inputOptions);
-	  }
-	  async executeOnInstance(item, inputOptions) {
-	    const output = new OutputSpec();
-	    const conversion = this.CONVERSIONS[inputOptions.context];
-	    if (!conversion) {
-	      output.warn(`Unknown context for conversion: ${inputOptions.context}`);
-	    } else {
-	      conversion.convertItem(item, inputOptions, output);
-	      output.flagPollutedDoc(item.doc);
-	    }
-	    return output;
-	  }
-	}
-
-	class TypedOption extends InputOption {
-	  constructor({
-	    parameterName,
-	    defaultValue,
-	    choices,
-	    validTypes = [],
-	    suggestOrphans = false
-	  }) {
-	    super({
-	      parameterName,
-	      defaultValue,
-	      choices,
-	      openEnded: false
-	    });
-	    this.validTypes = validTypes;
-	    this.suggestOrphans = suggestOrphans;
-	  }
-	  async updateChoices({ items, inputOptions, reset = false }) {
-	    const itemLookup = {};
-	    const orphanLookup = {};
-	    if (!reset) {
-	      this.choices.forEach(choice => {
-	        itemLookup[choice.uniqueSelector] = choice;
-	      });
-	    }
-	    Object.values(items).forEach(item => {
-	      if (this.validTypes.indexOf(item.constructor) !== -1) {
-	        itemLookup[item.uniqueSelector] = item;
-	      }
-	      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-	        orphanLookup[item.doc._id] = new ItemConstruct({
-	          mure: this.mure,
-	          value: item.doc.orphans,
-	          path: [item.path[0], 'orphans'],
-	          doc: item.doc
-	        });
-	      }
-	    });
-	    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
 	  }
 	}
 
@@ -34649,7 +34560,213 @@
 	  }
 	}
 
-	const DEFAULT_CONNECT_WHEN = 'return source.label === target.label;';
+	class TypedOption extends InputOption {
+	  constructor({
+	    parameterName,
+	    defaultValue,
+	    choices,
+	    validTypes = [],
+	    suggestOrphans = false
+	  }) {
+	    super({
+	      parameterName,
+	      defaultValue,
+	      choices,
+	      openEnded: false
+	    });
+	    this.validTypes = validTypes;
+	    this.suggestOrphans = suggestOrphans;
+	  }
+	  async updateChoices({ items, inputOptions, reset = false }) {
+	    const itemLookup = {};
+	    const orphanLookup = {};
+	    if (!reset) {
+	      this.choices.forEach(choice => {
+	        itemLookup[choice.uniqueSelector] = choice;
+	      });
+	    }
+	    Object.values(items).forEach(item => {
+	      if (this.validTypes.indexOf(item.constructor) !== -1) {
+	        itemLookup[item.uniqueSelector] = item;
+	      }
+	      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
+	        orphanLookup[item.doc._id] = new ItemConstruct({
+	          mure: this.mure,
+	          value: item.doc.orphans,
+	          path: [item.path[0], 'orphans'],
+	          doc: item.doc
+	        });
+	      }
+	    });
+	    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
+	  }
+	}
+
+	const DEFAULT_CONNECT_WHEN = 'return edge.label === node.label;';
+
+	class EdgeConversion extends BaseConversion {
+	  constructor(mure) {
+	    super({
+	      mure,
+	      TargetType: mure.CONSTRUCTS.EdgeConstruct,
+	      standardTypes: [],
+	      specialTypes: [mure.CONSTRUCTS.ItemConstruct]
+	    });
+	  }
+	  addOptionsToSpec(inputSpec) {
+	    inputSpec.addOption(new TypedOption({
+	      parameterName: 'sources',
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	    }));
+	    inputSpec.addOption(new TypedOption({
+	      parameterName: 'targets',
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	    }));
+	    inputSpec.addOption(new InputOption({
+	      parameterName: 'directed',
+	      choices: ['Undirected', 'Directed'],
+	      defaultValue: 'Undirected'
+	    }));
+
+	    const mode = new ContextualOption({
+	      parameterName: 'mode',
+	      choices: ['Attribute', 'Function'],
+	      defaultValue: 'Attribute'
+	    });
+	    inputSpec.addOption(mode);
+
+	    // Attribute mode needs source and target attributes
+	    mode.specs['Attribute'].addOption(new NestedAttributeOption({
+	      parameterName: 'sourceAttribute',
+	      defaultValue: null, // null indicates that the label should be used
+	      getItemChoiceRole: (item, inputOptions) => {
+	        if (inputOptions.sources && item.equals(inputOptions.sources)) {
+	          return 'deep';
+	        } else {
+	          return 'ignore';
+	        }
+	      }
+	    }));
+	    mode.specs['Attribute'].addOption(new NestedAttributeOption({
+	      parameterName: 'targetAttribute',
+	      defaultValue: null, // null indicates that the label should be used
+	      getItemChoiceRole: (item, inputOptions) => {
+	        if (inputOptions.targets && item.equals(inputOptions.targets)) {
+	          return 'deep';
+	        } else if (inputOptions.context === 'Bipartite') {
+	          return 'ignore';
+	        }
+	      }
+	    }));
+
+	    // Function mode needs the function
+	    mode.specs['Function'].addOption(new InputOption({
+	      parameterName: 'connectWhen',
+	      defaultValue: DEFAULT_CONNECT_WHEN,
+	      openEnded: true
+	    }));
+	  }
+	  async specialConversion(item, inputOptions, outputSpec) {
+	    if (item instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+	      let connectWhen;
+	      if (inputOptions.mode === 'Function') {
+	        connectWhen = inputOptions.connectWhen;
+	        if (typeof connectWhen !== 'function') {
+	          try {
+	            connectWhen = new Function('edge', 'node', // eslint-disable-line no-new-func
+	            inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+	          } catch (err) {
+	            if (err instanceof SyntaxError) {
+	              outputSpec.warn(`connectWhen SyntaxError: ${err.message}`);
+	              return outputSpec;
+	            } else {
+	              throw err;
+	            }
+	          }
+	        }
+	      } else {
+	        // if (inputOptions.mode === 'Attribute')
+	        const getSourceValue = inputOptions.sourceAttribute === null ? source => source.label : source => source.value[inputOptions.sourceAttribute];
+	        const getTargetValue = inputOptions.targetAttribute === null ? target => target.label : target => target.value[inputOptions.targetAttribute];
+	        connectWhen = (source, target) => getSourceValue(source) === getTargetValue(target);
+	      }
+	      item.value = this.mure.CONSTRUCTS.EdgeConstruct.standardize({
+	        mure: this.mure,
+	        value: item.value,
+	        path: item.path,
+	        doc: item.doc
+	      });
+	      let direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
+	      Object.values((await inputOptions.sources.items())).forEach(source => {
+	        if (connectWhen(item, source)) {
+	          item.value.$nodes[source.uniqueSelector] = item.value.$nodes[source.uniqueSelector] || {};
+	          item.value.$nodes[source.uniqueSelector][direction] = item.value.$nodes[source.uniqueSelector][direction] || 0;
+	          item.value.$nodes[source.uniqueSelector][direction] += 1;
+	        }
+	      });
+	      direction = inputOptions.directed === 'Directed' ? 'target' : 'undirected';
+	      Object.values((await inputOptions.sources.items())).forEach(target => {
+	        if (connectWhen(item, target)) {
+	          item.value.$nodes[target.uniqueSelector] = item.value.$nodes[target.uniqueSelector] || {};
+	          item.value.$nodes[target.uniqueSelector][direction] = item.value.$nodes[target.uniqueSelector][direction] || 0;
+	          item.value.$nodes[target.uniqueSelector][direction] += 1;
+	        }
+	      });
+	    }
+	  }
+	}
+
+	class ConvertOperation extends BaseOperation {
+	  constructor(mure) {
+	    super(mure);
+
+	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new NodeConversion(mure), new EdgeConversion(mure)];
+	    this.CONVERSIONS = {};
+	    conversionList.forEach(conversion => {
+	      this.CONVERSIONS[conversion.type] = conversion;
+	    });
+	  }
+	  getInputSpec() {
+	    const result = new InputSpec();
+	    const context = new ContextualOption({
+	      parameterName: 'context',
+	      choices: Object.keys(this.CONVERSIONS),
+	      defaultValue: 'String'
+	    });
+	    result.addOption(context);
+
+	    context.choices.forEach(choice => {
+	      this.CONVERSIONS[choice].addOptionsToSpec(context.specs[choice]);
+	    });
+
+	    return result;
+	  }
+	  potentiallyExecutableOnItem(item) {
+	    return Object.values(this.CONVERSIONS).some(conversion => {
+	      return conversion.canExecuteOnInstance(item);
+	    });
+	  }
+	  async canExecuteOnInstance(item, inputOptions) {
+	    if (await super.canExecuteOnInstance(item, inputOptions)) {
+	      return true;
+	    }
+	    const conversion = this.CONVERSIONS[inputOptions.context];
+	    return conversion && conversion.canExecuteOnInstance(item, inputOptions);
+	  }
+	  async executeOnInstance(item, inputOptions) {
+	    const output = new OutputSpec();
+	    const conversion = this.CONVERSIONS[inputOptions.context];
+	    if (!conversion) {
+	      output.warn(`Unknown context for conversion: ${inputOptions.context}`);
+	    } else {
+	      conversion.convertItem(item, inputOptions, output);
+	      output.flagPollutedDoc(item.doc);
+	    }
+	    return output;
+	  }
+	}
+
+	const DEFAULT_CONNECT_WHEN$1 = 'return source.label === target.label;';
 
 	class ConnectOperation extends BaseOperation {
 	  getInputSpec() {
@@ -34735,7 +34852,7 @@
 	    // Function mode needs the function
 	    mode.specs['Function'].addOption(new InputOption({
 	      parameterName: 'connectWhen',
-	      defaultValue: DEFAULT_CONNECT_WHEN,
+	      defaultValue: DEFAULT_CONNECT_WHEN$1,
 	      openEnded: true
 	    }));
 
@@ -34795,7 +34912,7 @@
 	      }
 	      try {
 	        Function('source', 'target', // eslint-disable-line no-new-func
-	        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+	        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN$1);
 	        return true;
 	      } catch (err) {
 	        if (err instanceof SyntaxError) {
@@ -34842,7 +34959,7 @@
 	      if (typeof connectWhen !== 'function') {
 	        try {
 	          connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
-	          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+	          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN$1);
 	        } catch (err) {
 	          if (err instanceof SyntaxError) {
 	            output.warn(`connectWhen SyntaxError: ${err.message}`);

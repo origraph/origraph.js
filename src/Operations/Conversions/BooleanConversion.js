@@ -7,7 +7,6 @@ class BooleanConversion extends BaseConversion {
       TargetType: mure.CONSTRUCTS.BooleanConstruct,
       standardTypes: [
         mure.CONSTRUCTS.NullConstruct,
-        mure.CONSTRUCTS.BooleanConstruct,
         mure.CONSTRUCTS.NumberConstruct,
         mure.CONSTRUCTS.DateConstruct,
         mure.CONSTRUCTS.ReferenceConstruct,

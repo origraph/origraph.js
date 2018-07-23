@@ -6,7 +6,6 @@ class NullConversion extends BaseConversion {
       mure,
       TargetType: mure.CONSTRUCTS.NullConstruct,
       standardTypes: [
-        mure.CONSTRUCTS.NullConstruct,
         mure.CONSTRUCTS.BooleanConstruct,
         mure.CONSTRUCTS.NumberConstruct,
         mure.CONSTRUCTS.StringConstruct,
