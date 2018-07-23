@@ -1,0 +1,283 @@
+import Selection from '../Selection.js';
+import BaseOperation from './Common/BaseOperation.js';
+import OutputSpec from './Common/OutputSpec.js';
+import ContextualOption from './Common/ContextualOption.js';
+import TypedOption from './Common/TypedOption.js';
+import NestedAttributeOption from './Common/NestedAttributeOption.js';
+import InputOption from './Common/InputOption.js';
+
+const DEFAULT_CONNECT_WHEN = 'return edge.label === node.label;';
+
+class AttachOperation extends BaseOperation {
+  getInputSpec () {
+    const result = super.getInputSpec();
+
+    // Do we connect nodes in the current selection, or to the nodes inside some
+    // set-like construct?
+    const context = new ContextualOption({
+      parameterName: 'context',
+      choices: ['Within Selection', 'Bipartite'],
+      hiddenChoices: ['Target Container'],
+      defaultValue: 'Within Selection'
+    });
+    result.addOption(context);
+
+    // For some contexts, we need to specify source and/or target documents,
+    // items, or sets (classes or groups)
+    context.specs['Bipartite'].addOption(new TypedOption({
+      parameterName: 'edges',
+      validTypes: [
+        this.mure.CONSTRUCTS.DocumentConstruct,
+        this.mure.CONSTRUCTS.ItemConstruct,
+        this.mure.CONSTRUCTS.SetConstruct,
+        this.mure.CONSTRUCTS.SupernodeConstruct,
+        Selection
+      ]
+    }));
+    const nodes = new TypedOption({
+      parameterName: 'nodes',
+      validTypes: [
+        this.mure.CONSTRUCTS.DocumentConstruct,
+        this.mure.CONSTRUCTS.ItemConstruct,
+        this.mure.CONSTRUCTS.SetConstruct,
+        this.mure.CONSTRUCTS.SupernodeConstruct,
+        Selection
+      ]
+    });
+    context.specs['Bipartite'].addOption(nodes);
+    context.specs['Target Container'].addOption(nodes);
+
+    // Edge direction
+    const direction = new InputOption({
+      parameterName: 'direction',
+      choices: ['undirected', 'source', 'target'],
+      defaultValue: 'undirected'
+    });
+    context.addOption(direction);
+
+    // All contexts can be executed by matching attributes or evaluating
+    // a function
+    const mode = new ContextualOption({
+      parameterName: 'mode',
+      choices: ['Attribute', 'Function'],
+      defaultValue: 'Attribute'
+    });
+    result.addOption(mode);
+
+    // Attribute mode needs source and target attributes
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
+      parameterName: 'edgeAttribute',
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (inputOptions.context === 'Bipartite') {
+          if (inputOptions.edges && item.equals(inputOptions.edges)) {
+            return 'deep';
+          } else {
+            return 'ignore';
+          }
+        } else if (inputOptions.nodes && item.equals(inputOptions.nodes)) {
+          return 'ignore';
+        } else {
+          return 'standard';
+        }
+      }
+    }));
+    mode.specs['Attribute'].addOption(new NestedAttributeOption({
+      parameterName: 'nodeAttribute',
+      defaultValue: null, // null indicates that the label should be used
+      getItemChoiceRole: (item, inputOptions) => {
+        if (inputOptions.targets && item.equals(inputOptions.targets)) {
+          return 'deep';
+        } else if (inputOptions.context === 'Bipartite') {
+          return 'ignore';
+        } else {
+          return 'standard';
+        }
+      }
+    }));
+
+    // Function mode needs the function
+    mode.specs['Function'].addOption(new InputOption({
+      parameterName: 'connectWhen',
+      defaultValue: DEFAULT_CONNECT_WHEN,
+      openEnded: true
+    }));
+
+    return result;
+  }
+  async canExecuteOnInstance (item, inputOptions) {
+    return false;
+  }
+  async executeOnInstance (item, inputOptions) {
+    throw new Error(`Running the Attach operation on an instance is not supported.`);
+  }
+  async canExecuteOnSelection (selection, inputOptions) {
+    if (inputOptions.ignoreErrors !== 'Stop on Error') {
+      return true;
+    }
+    if (inputOptions.context === 'Bipartite') {
+      if (!(
+        (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
+         inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) &&
+        (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
+         inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+        return false;
+      }
+    } else if (inputOptions.context === 'Target Container') {
+      if (!inputOptions.targets || !inputOptions.targets.items) {
+        return false;
+      }
+      let items = await selection.items();
+      let targetItems = await inputOptions.targets.items();
+      return Object.values(items)
+        .some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) &&
+        Object.values(targetItems)
+          .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+    } else { // inputOptions.context === 'Within Selection'
+      const items = await selection.items();
+      let oneNode = false;
+      let oneEdge = false;
+      return Object.values(items).some(item => {
+        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+          oneNode = true;
+        } else if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+          oneEdge = true;
+        }
+        return oneNode && oneEdge;
+      });
+    }
+    if (inputOptions.mode === 'Function') {
+      if (typeof inputOptions.connectWhen === 'function') {
+        return true;
+      }
+      try {
+        Function('edge', 'node', // eslint-disable-line no-new-func
+          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        return true;
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          return false;
+        } else {
+          throw err;
+        }
+      }
+    } else {
+      return inputOptions.edgeAttribute && inputOptions.nodeAttribute;
+    }
+  }
+  async executeWithinSelection (items, connectWhen, direction, output) {
+    // Within the selection, we only know which ones are edges and which ones
+    // are nodes on the fly
+    const itemList = Object.values(items);
+    for (let i = 0; i < itemList.length; i++) {
+      for (let j = i + 1; j < itemList.length; j++) {
+        let edge =
+          (itemList[i] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[i]) ||
+          (itemList[j] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[j]);
+        let node =
+          (itemList[i] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[i]) ||
+          (itemList[j] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[j]);
+        if (edge && node && connectWhen(edge, node)) {
+          edge.attachTo(node, direction);
+          output.flagPollutedDoc(edge.doc);
+          output.flagPollutedDoc(node.doc);
+        }
+      }
+    }
+    return output;
+  }
+  async executeOnSelection (selection, inputOptions) {
+    const output = new OutputSpec();
+
+    // Figure out the criteria for matching nodes
+    let connectWhen;
+    if (inputOptions.mode === 'Function') {
+      connectWhen = inputOptions.connectWhen;
+      if (typeof connectWhen !== 'function') {
+        try {
+          connectWhen = new Function('edge', 'node', // eslint-disable-line no-new-func
+            inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
+        } catch (err) {
+          if (err instanceof SyntaxError) {
+            output.warn(`connectWhen SyntaxError: ${err.message}`);
+            return output;
+          } else {
+            throw err;
+          }
+        }
+      }
+    } else { // if (inputOptions.mode === 'Attribute')
+      const getEdgeValue = inputOptions.edgeAttribute === null
+        ? edge => edge.label
+        : edge => edge.value[inputOptions.edgeAttribute];
+      const getNodeValue = inputOptions.nodeAttribute === null
+        ? node => node.label
+        : node => node.value[inputOptions.nodeAttribute];
+      connectWhen = (source, target) => getEdgeValue(source) === getNodeValue(target);
+    }
+
+    let edges;
+    if (inputOptions.context === 'Bipartite') {
+      if (inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct ||
+          inputOptions.edges instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+        edges = await inputOptions.edges.getMembers();
+      } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
+                 inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+        edges = inputOptions.edges.getContents();
+      } else {
+        output.warn(`inputOptions.edges is of unexpected type ${inputOptions.edges && inputOptions.edges.type}`);
+        return output;
+      }
+    } else {
+      edges = await selection.items();
+    }
+
+    let edgeList = Object.values(edges);
+    if (edgeList.length === 0) {
+      output.warn(`No edges supplied to attach operation`);
+      return output;
+    }
+
+    // At this point we know enough to deal with 'Within Selection' mode:
+    if (inputOptions.context === 'Within Selection') {
+      return this.executeWithinSelection(edges, connectWhen, inputOptions.direction, output);
+    }
+
+    let nodes;
+    if (inputOptions.nodes instanceof Selection) {
+      nodes = await inputOptions.nodes.items();
+    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct ||
+               inputOptions.nodes instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      nodes = await inputOptions.nodes.getMembers();
+    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+               inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+      nodes = inputOptions.nodes.getContents();
+    } else {
+      output.warn(`inputOptions.nodes is of unexpected type ${inputOptions.nodes && inputOptions.nodes.type}`);
+      return output;
+    }
+
+    const nodeList = Object.values(nodes);
+    if (nodeList.length === 0) {
+      output.warn('No nodes supplied to attach operation');
+    }
+
+    // Attach the edges!
+    edgeList.forEach(edge => {
+      nodeList.forEach(node => {
+        if (edge instanceof this.mure.CONSTRUCTS.EdgeConstruct &&
+            node instanceof this.mure.CONSTRUCTS.NodeConstruct &&
+            connectWhen(edge, node)) {
+          edge.attachTo(node, inputOptions.direction);
+          output.flagPollutedDoc(edge.doc);
+          output.flagPollutedDoc(node.doc);
+        }
+      });
+    });
+    return output;
+  }
+}
+
+export default AttachOperation;

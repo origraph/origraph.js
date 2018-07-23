@@ -33882,6 +33882,13 @@
 	      throw new TypeError(`EdgeConstruct requires a $nodes object`);
 	    }
 	  }
+	  attachTo(node, direction = 'undirected') {
+	    node.value.$edges[this.uniqueSelector] = true;
+	    let nodeId = node.uniqueSelector;
+	    this.value.$nodes[nodeId] = this.value.$nodes[nodeId] || {};
+	    this.value.$nodes[nodeId][direction] = this.value.$nodes[nodeId][direction] || 0;
+	    this.value.$nodes[nodeId][direction] += 1;
+	  }
 	  async nodeSelectors(direction = null) {
 	    return Object.entries(this.value.$nodes).filter(([selector, directions]) => {
 	      // null indicates that we allow all movement
@@ -33930,19 +33937,10 @@
 	      throw new TypeError(`NodeConstruct requires an $edges object`);
 	    }
 	  }
-	  linkTo(otherNode, container, direction = 'undirected') {
+	  connectTo(otherNode, container, direction = 'undirected') {
 	    let newEdge = container.createNewConstruct({}, undefined, EdgeConstruct);
-
-	    const helper = (node, direction) => {
-	      node.value.$edges[newEdge.uniqueSelector] = true;
-	      let nodeId = node.uniqueSelector;
-	      newEdge.value.$nodes[nodeId] = newEdge.value.$nodes[nodeId] || {};
-	      newEdge.value.$nodes[nodeId][direction] = newEdge.value.$nodes[nodeId][direction] || 0;
-	      newEdge.value.$nodes[nodeId][direction] += 1;
-	    };
-
-	    helper(this, direction);
-	    helper(otherNode, EdgeConstruct.oppositeDirection(direction));
+	    newEdge.attachTo(this, direction);
+	    newEdge.attachTo(otherNode, EdgeConstruct.oppositeDirection(direction));
 	    return newEdge;
 	  }
 	  async edgeSelectors(direction = null) {
@@ -34510,209 +34508,14 @@
 	  }
 	}
 
-	class AttributeOption extends StringOption {
-	  async populateFromItem(item, attributes) {
-	    if (item.getAttributes) {
-	      (await item.getAttributes()).forEach(attr => {
-	        attributes[attr] = true;
-	      });
-	    }
-	  }
-	  async populateFromItems(items, attributes) {
-	    return Promise.all(Object.values(items).map(item => {
-	      return this.populateFromItem(item, attributes);
-	    }));
-	  }
-	  async updateChoices({ items, inputOptions, reset = false }) {
-	    let attributes = {};
-	    if (!reset) {
-	      this.populateExistingChoiceStrings(attributes);
-	    }
-	    await this.populateFromItems(items, attributes);
-	    this.choices = Object.keys(attributes);
-	    this.choices.unshift(null); // null indicates that the item's label should be used
-	  }
-	}
-
-	class NestedAttributeOption extends AttributeOption {
-	  constructor({ parameterName, defaultValue, choices, openEnded, getItemChoiceRole }) {
-	    super({ parameterName, defaultValue, choices, openEnded });
-	    this.getItemChoiceRole = getItemChoiceRole;
-	  }
-	  async updateChoices({ items, inputOptions, reset = false }) {
-	    let attributes = {};
-	    if (!reset) {
-	      this.populateExistingChoiceStrings(attributes);
-	    }
-	    const itemList = Object.values(items);
-	    for (let i = 0; i < itemList.length; i++) {
-	      const item = itemList[i];
-	      const itemRole = this.getItemChoiceRole(item, inputOptions);
-	      if (itemRole === 'standard') {
-	        await this.populateFromItem(item, attributes);
-	      } else if (itemRole === 'deep') {
-	        const children = item.getMembers ? await item.getMembers() : item.getContents ? item.getContents() : {};
-	        await this.populateFromItems(children, attributes);
-	      } // else if (itemRole === 'ignore')
-	    }
-	    this.choices = Object.keys(attributes);
-	    this.choices.unshift(null); // null indicates that the item's label should be used
-	  }
-	}
-
-	class TypedOption extends InputOption {
-	  constructor({
-	    parameterName,
-	    defaultValue,
-	    choices,
-	    validTypes = [],
-	    suggestOrphans = false
-	  }) {
-	    super({
-	      parameterName,
-	      defaultValue,
-	      choices,
-	      openEnded: false
-	    });
-	    this.validTypes = validTypes;
-	    this.suggestOrphans = suggestOrphans;
-	  }
-	  async updateChoices({ items, inputOptions, reset = false }) {
-	    const itemLookup = {};
-	    const orphanLookup = {};
-	    if (!reset) {
-	      this.choices.forEach(choice => {
-	        itemLookup[choice.uniqueSelector] = choice;
-	      });
-	    }
-	    Object.values(items).forEach(item => {
-	      if (this.validTypes.indexOf(item.constructor) !== -1) {
-	        itemLookup[item.uniqueSelector] = item;
-	      }
-	      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-	        orphanLookup[item.doc._id] = new ItemConstruct({
-	          mure: this.mure,
-	          value: item.doc.orphans,
-	          path: [item.path[0], 'orphans'],
-	          doc: item.doc
-	        });
-	      }
-	    });
-	    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
-	  }
-	}
-
-	const DEFAULT_CONNECT_WHEN = 'return edge.label === node.label;';
-
 	class EdgeConversion extends BaseConversion {
 	  constructor(mure) {
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.EdgeConstruct,
-	      standardTypes: [],
-	      specialTypes: [mure.CONSTRUCTS.ItemConstruct]
+	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+	      specialTypes: []
 	    });
-	  }
-	  addOptionsToSpec(inputSpec) {
-	    inputSpec.addOption(new TypedOption({
-	      parameterName: 'sources',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
-	    }));
-	    inputSpec.addOption(new TypedOption({
-	      parameterName: 'targets',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
-	    }));
-	    inputSpec.addOption(new InputOption({
-	      parameterName: 'directed',
-	      choices: ['Undirected', 'Directed'],
-	      defaultValue: 'Undirected'
-	    }));
-
-	    const mode = new ContextualOption({
-	      parameterName: 'mode',
-	      choices: ['Attribute', 'Function'],
-	      defaultValue: 'Attribute'
-	    });
-	    inputSpec.addOption(mode);
-
-	    // Attribute mode needs source and target attributes
-	    mode.specs['Attribute'].addOption(new NestedAttributeOption({
-	      parameterName: 'sourceAttribute',
-	      defaultValue: null, // null indicates that the label should be used
-	      getItemChoiceRole: (item, inputOptions) => {
-	        if (inputOptions.sources && item.equals(inputOptions.sources)) {
-	          return 'deep';
-	        } else {
-	          return 'ignore';
-	        }
-	      }
-	    }));
-	    mode.specs['Attribute'].addOption(new NestedAttributeOption({
-	      parameterName: 'targetAttribute',
-	      defaultValue: null, // null indicates that the label should be used
-	      getItemChoiceRole: (item, inputOptions) => {
-	        if (inputOptions.targets && item.equals(inputOptions.targets)) {
-	          return 'deep';
-	        } else if (inputOptions.context === 'Bipartite') {
-	          return 'ignore';
-	        }
-	      }
-	    }));
-
-	    // Function mode needs the function
-	    mode.specs['Function'].addOption(new InputOption({
-	      parameterName: 'connectWhen',
-	      defaultValue: DEFAULT_CONNECT_WHEN,
-	      openEnded: true
-	    }));
-	  }
-	  async specialConversion(item, inputOptions, outputSpec) {
-	    if (item instanceof this.mure.CONSTRUCTS.ItemConstruct) {
-	      let connectWhen;
-	      if (inputOptions.mode === 'Function') {
-	        connectWhen = inputOptions.connectWhen;
-	        if (typeof connectWhen !== 'function') {
-	          try {
-	            connectWhen = new Function('edge', 'node', // eslint-disable-line no-new-func
-	            inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
-	          } catch (err) {
-	            if (err instanceof SyntaxError) {
-	              outputSpec.warn(`connectWhen SyntaxError: ${err.message}`);
-	              return outputSpec;
-	            } else {
-	              throw err;
-	            }
-	          }
-	        }
-	      } else {
-	        // if (inputOptions.mode === 'Attribute')
-	        const getSourceValue = inputOptions.sourceAttribute === null ? source => source.label : source => source.value[inputOptions.sourceAttribute];
-	        const getTargetValue = inputOptions.targetAttribute === null ? target => target.label : target => target.value[inputOptions.targetAttribute];
-	        connectWhen = (source, target) => getSourceValue(source) === getTargetValue(target);
-	      }
-	      item.value = this.mure.CONSTRUCTS.EdgeConstruct.standardize({
-	        mure: this.mure,
-	        value: item.value,
-	        path: item.path,
-	        doc: item.doc
-	      });
-	      let direction = inputOptions.directed === 'Directed' ? 'source' : 'undirected';
-	      Object.values((await inputOptions.sources.items())).forEach(source => {
-	        if (connectWhen(item, source)) {
-	          item.value.$nodes[source.uniqueSelector] = item.value.$nodes[source.uniqueSelector] || {};
-	          item.value.$nodes[source.uniqueSelector][direction] = item.value.$nodes[source.uniqueSelector][direction] || 0;
-	          item.value.$nodes[source.uniqueSelector][direction] += 1;
-	        }
-	      });
-	      direction = inputOptions.directed === 'Directed' ? 'target' : 'undirected';
-	      Object.values((await inputOptions.sources.items())).forEach(target => {
-	        if (connectWhen(item, target)) {
-	          item.value.$nodes[target.uniqueSelector] = item.value.$nodes[target.uniqueSelector] || {};
-	          item.value.$nodes[target.uniqueSelector][direction] = item.value.$nodes[target.uniqueSelector][direction] || 0;
-	          item.value.$nodes[target.uniqueSelector][direction] += 1;
-	        }
-	      });
-	    }
 	  }
 	}
 
@@ -34766,7 +34569,99 @@
 	  }
 	}
 
-	const DEFAULT_CONNECT_WHEN$1 = 'return source.label === target.label;';
+	class TypedOption extends InputOption {
+	  constructor({
+	    parameterName,
+	    defaultValue,
+	    choices,
+	    validTypes = [],
+	    suggestOrphans = false
+	  }) {
+	    super({
+	      parameterName,
+	      defaultValue,
+	      choices,
+	      openEnded: false
+	    });
+	    this.validTypes = validTypes;
+	    this.suggestOrphans = suggestOrphans;
+	  }
+	  async updateChoices({ items, inputOptions, reset = false }) {
+	    const itemLookup = {};
+	    const orphanLookup = {};
+	    if (!reset) {
+	      this.choices.forEach(choice => {
+	        itemLookup[choice.uniqueSelector] = choice;
+	      });
+	    }
+	    Object.values(items).forEach(item => {
+	      if (this.validTypes.indexOf(item.constructor) !== -1) {
+	        itemLookup[item.uniqueSelector] = item;
+	      }
+	      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
+	        orphanLookup[item.doc._id] = new ItemConstruct({
+	          mure: this.mure,
+	          value: item.doc.orphans,
+	          path: [item.path[0], 'orphans'],
+	          doc: item.doc
+	        });
+	      }
+	    });
+	    this.choices = Object.values(itemLookup).concat(Object.values(orphanLookup));
+	  }
+	}
+
+	class AttributeOption extends StringOption {
+	  async populateFromItem(item, attributes) {
+	    if (item.getAttributes) {
+	      (await item.getAttributes()).forEach(attr => {
+	        attributes[attr] = true;
+	      });
+	    }
+	  }
+	  async populateFromItems(items, attributes) {
+	    return Promise.all(Object.values(items).map(item => {
+	      return this.populateFromItem(item, attributes);
+	    }));
+	  }
+	  async updateChoices({ items, inputOptions, reset = false }) {
+	    let attributes = {};
+	    if (!reset) {
+	      this.populateExistingChoiceStrings(attributes);
+	    }
+	    await this.populateFromItems(items, attributes);
+	    this.choices = Object.keys(attributes);
+	    this.choices.unshift(null); // null indicates that the item's label should be used
+	  }
+	}
+
+	class NestedAttributeOption extends AttributeOption {
+	  constructor({ parameterName, defaultValue, choices, openEnded, getItemChoiceRole }) {
+	    super({ parameterName, defaultValue, choices, openEnded });
+	    this.getItemChoiceRole = getItemChoiceRole;
+	  }
+	  async updateChoices({ items, inputOptions, reset = false }) {
+	    let attributes = {};
+	    if (!reset) {
+	      this.populateExistingChoiceStrings(attributes);
+	    }
+	    const itemList = Object.values(items);
+	    for (let i = 0; i < itemList.length; i++) {
+	      const item = itemList[i];
+	      const itemRole = this.getItemChoiceRole(item, inputOptions);
+	      if (itemRole === 'standard') {
+	        await this.populateFromItem(item, attributes);
+	      } else if (itemRole === 'deep') {
+	        const children = item.getMembers ? await item.getMembers() : item.getContents ? item.getContents() : {};
+	        await this.populateFromItems(children, attributes);
+	      } // else if (itemRole === 'ignore')
+	    }
+	    this.choices = Object.keys(attributes);
+	    this.choices.unshift(null); // null indicates that the item's label should be used
+	  }
+	}
+
+	const DEFAULT_CONNECT_WHEN = 'return source.label === target.label;';
 
 	class ConnectOperation extends BaseOperation {
 	  getInputSpec() {
@@ -34852,7 +34747,7 @@
 	    // Function mode needs the function
 	    mode.specs['Function'].addOption(new InputOption({
 	      parameterName: 'connectWhen',
-	      defaultValue: DEFAULT_CONNECT_WHEN$1,
+	      defaultValue: DEFAULT_CONNECT_WHEN,
 	      openEnded: true
 	    }));
 
@@ -34883,7 +34778,7 @@
 	      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
 	        return false;
 	      }
-	    } else if (inputOptions.context === 'To Selection') {
+	    } else if (inputOptions.context === 'Target Container') {
 	      if (!inputOptions.targets || !inputOptions.targets.items) {
 	        return false;
 	      }
@@ -34912,7 +34807,7 @@
 	      }
 	      try {
 	        Function('source', 'target', // eslint-disable-line no-new-func
-	        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN$1);
+	        inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
 	        return true;
 	      } catch (err) {
 	        if (err instanceof SyntaxError) {
@@ -34933,7 +34828,7 @@
 	    for (let i = 0; i < sourceList.length; i++) {
 	      for (let j = i + 1; j < sourceList.length; j++) {
 	        if (connectWhen(sourceList[i], sourceList[j])) {
-	          const newEdge = sourceList[i].linkTo(sourceList[j], saveEdgesIn);
+	          const newEdge = sourceList[i].connectTo(sourceList[j], saveEdgesIn);
 	          output.addSelectors([newEdge.uniqueSelector]);
 	          output.flagPollutedDoc(sourceList[i].doc);
 	          output.flagPollutedDoc(sourceList[j].doc);
@@ -34959,7 +34854,7 @@
 	      if (typeof connectWhen !== 'function') {
 	        try {
 	          connectWhen = new Function('source', 'target', // eslint-disable-line no-new-func
-	          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN$1);
+	          inputOptions.connectWhen || DEFAULT_CONNECT_WHEN);
 	        } catch (err) {
 	          if (err instanceof SyntaxError) {
 	            output.warn(`connectWhen SyntaxError: ${err.message}`);
@@ -34978,22 +34873,22 @@
 
 	    let sources;
 	    if (inputOptions.context === 'Bipartite') {
-	      if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+	      if (inputOptions.sources instanceof Selection) {
+	        sources = await inputOptions.sources.items();
+	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
 	        sources = await inputOptions.sources.getMembers();
 	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
 	        sources = inputOptions.sources.getContents();
-	      } else if (inputOptions.sources) {
-	        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources.type}`);
-	        return output;
 	      } else {
-	        output.warn(`sources option is required for context ${inputOptions.context}`);
+	        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources && inputOptions.sources.type}`);
 	        return output;
 	      }
 	    } else {
 	      sources = await selection.items();
 	    }
 
-	    if (Object.keys(sources).length === 0) {
+	    const sourceList = Object.values(sources);
+	    if (sourceList.length === 0) {
 	      output.warn(`No sources supplied to connect operation`);
 	      return output;
 	    }
@@ -35013,11 +34908,8 @@
 	      targets = await inputOptions.targets.getMembers();
 	    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
 	      targets = inputOptions.targets.getContents();
-	    } else if (inputOptions.targets) {
-	      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets.type}`);
-	      return output;
 	    } else {
-	      output.warn(`targets option is required for context ${inputOptions.context}`);
+	      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets && inputOptions.targets.type}`);
 	      return output;
 	    }
 
@@ -35027,10 +34919,10 @@
 	    }
 
 	    // Create the edges!
-	    Object.values(sources).forEach(source => {
+	    sourceList.forEach(source => {
 	      targetList.forEach(target => {
-	        if (connectWhen(source, target)) {
-	          const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
+	        if (source instanceof this.mure.CONSTRUCTS.NodeConstruct && target instanceof this.mure.CONSTRUCTS.NodeConstruct && connectWhen(source, target)) {
+	          const newEdge = source.connectTo(target, inputOptions.saveEdgesIn, direction);
 	          output.addSelectors([newEdge.uniqueSelector]);
 	          output.flagPollutedDoc(source.doc);
 	          output.flagPollutedDoc(target.doc);

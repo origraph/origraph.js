@@ -141,7 +141,7 @@ class ConnectOperation extends BaseOperation {
          inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
         return false;
       }
-    } else if (inputOptions.context === 'To Selection') {
+    } else if (inputOptions.context === 'Target Container') {
       if (!inputOptions.targets || !inputOptions.targets.items) {
         return false;
       }
@@ -193,7 +193,7 @@ class ConnectOperation extends BaseOperation {
     for (let i = 0; i < sourceList.length; i++) {
       for (let j = i + 1; j < sourceList.length; j++) {
         if (connectWhen(sourceList[i], sourceList[j])) {
-          const newEdge = sourceList[i].linkTo(sourceList[j], saveEdgesIn);
+          const newEdge = sourceList[i].connectTo(sourceList[j], saveEdgesIn);
           output.addSelectors([newEdge.uniqueSelector]);
           output.flagPollutedDoc(sourceList[i].doc);
           output.flagPollutedDoc(sourceList[j].doc);
@@ -241,24 +241,24 @@ class ConnectOperation extends BaseOperation {
 
     let sources;
     if (inputOptions.context === 'Bipartite') {
-      if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct ||
+      if (inputOptions.sources instanceof Selection) {
+        sources = await inputOptions.sources.items();
+      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct ||
           inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
         sources = await inputOptions.sources.getMembers();
       } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
                  inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
         sources = inputOptions.sources.getContents();
-      } else if (inputOptions.sources) {
-        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources.type}`);
-        return output;
       } else {
-        output.warn(`sources option is required for context ${inputOptions.context}`);
+        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources && inputOptions.sources.type}`);
         return output;
       }
     } else {
       sources = await selection.items();
     }
 
-    if (Object.keys(sources).length === 0) {
+    const sourceList = Object.values(sources);
+    if (sourceList.length === 0) {
       output.warn(`No sources supplied to connect operation`);
       return output;
     }
@@ -280,11 +280,8 @@ class ConnectOperation extends BaseOperation {
     } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct ||
                inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
       targets = inputOptions.targets.getContents();
-    } else if (inputOptions.targets) {
-      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets.type}`);
-      return output;
     } else {
-      output.warn(`targets option is required for context ${inputOptions.context}`);
+      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets && inputOptions.targets.type}`);
       return output;
     }
 
@@ -294,10 +291,12 @@ class ConnectOperation extends BaseOperation {
     }
 
     // Create the edges!
-    Object.values(sources).forEach(source => {
+    sourceList.forEach(source => {
       targetList.forEach(target => {
-        if (connectWhen(source, target)) {
-          const newEdge = source.linkTo(target, inputOptions.saveEdgesIn, direction);
+        if (source instanceof this.mure.CONSTRUCTS.NodeConstruct &&
+            target instanceof this.mure.CONSTRUCTS.NodeConstruct &&
+            connectWhen(source, target)) {
+          const newEdge = source.connectTo(target, inputOptions.saveEdgesIn, direction);
           output.addSelectors([newEdge.uniqueSelector]);
           output.flagPollutedDoc(source.doc);
           output.flagPollutedDoc(target.doc);

@@ -7,6 +7,13 @@ class EdgeConstruct extends TaggableConstruct {
       throw new TypeError(`EdgeConstruct requires a $nodes object`);
     }
   }
+  attachTo (node, direction = 'undirected') {
+    node.value.$edges[this.uniqueSelector] = true;
+    let nodeId = node.uniqueSelector;
+    this.value.$nodes[nodeId] = this.value.$nodes[nodeId] || {};
+    this.value.$nodes[nodeId][direction] = this.value.$nodes[nodeId][direction] || 0;
+    this.value.$nodes[nodeId][direction] += 1;
+  }
   async nodeSelectors (direction = null) {
     return Object.entries(this.value.$nodes)
       .filter(([selector, directions]) => {

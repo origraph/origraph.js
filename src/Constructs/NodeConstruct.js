@@ -8,19 +8,10 @@ class NodeConstruct extends TaggableConstruct {
       throw new TypeError(`NodeConstruct requires an $edges object`);
     }
   }
-  linkTo (otherNode, container, direction = 'undirected') {
+  connectTo (otherNode, container, direction = 'undirected') {
     let newEdge = container.createNewConstruct({}, undefined, EdgeConstruct);
-
-    const helper = (node, direction) => {
-      node.value.$edges[newEdge.uniqueSelector] = true;
-      let nodeId = node.uniqueSelector;
-      newEdge.value.$nodes[nodeId] = newEdge.value.$nodes[nodeId] || {};
-      newEdge.value.$nodes[nodeId][direction] = newEdge.value.$nodes[nodeId][direction] || 0;
-      newEdge.value.$nodes[nodeId][direction] += 1;
-    };
-
-    helper(this, direction);
-    helper(otherNode, EdgeConstruct.oppositeDirection(direction));
+    newEdge.attachTo(this, direction);
+    newEdge.attachTo(otherNode, EdgeConstruct.oppositeDirection(direction));
     return newEdge;
   }
   async edgeSelectors (direction = null) {
