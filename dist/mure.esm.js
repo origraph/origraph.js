@@ -2158,7 +2158,7 @@ class AttachOperation extends BaseOperation {
     });
     result.addOption(context);
 
-    // For some contexts, we need to specify source and/or target documents,
+    // For some contexts, we need to specify edge and/or node documents,
     // items, or sets (classes or groups)
     context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'edges',
@@ -2172,12 +2172,11 @@ class AttachOperation extends BaseOperation {
     context.specs['Target Container'].addOption(nodes);
 
     // Edge direction
-    const direction = new InputOption({
+    result.addOption(new InputOption({
       parameterName: 'direction',
       choices: ['undirected', 'source', 'target'],
       defaultValue: 'undirected'
-    });
-    context.addOption(direction);
+    }));
 
     // All contexts can be executed by matching attributes or evaluating
     // a function
@@ -2188,7 +2187,7 @@ class AttachOperation extends BaseOperation {
     });
     result.addOption(mode);
 
-    // Attribute mode needs source and target attributes
+    // Attribute mode needs edge and node attributes
     mode.specs['Attribute'].addOption(new NestedAttributeOption({
       parameterName: 'edgeAttribute',
       defaultValue: null, // null indicates that the label should be used
@@ -2210,7 +2209,7 @@ class AttachOperation extends BaseOperation {
       parameterName: 'nodeAttribute',
       defaultValue: null, // null indicates that the label should be used
       getItemChoiceRole: (item, inputOptions) => {
-        if (inputOptions.targets && item.equals(inputOptions.targets)) {
+        if (inputOptions.nodes && item.equals(inputOptions.nodes)) {
           return 'deep';
         } else if (inputOptions.context === 'Bipartite') {
           return 'ignore';
@@ -2240,22 +2239,22 @@ class AttachOperation extends BaseOperation {
       return true;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+      if (!((inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
         return false;
       }
     } else if (inputOptions.context === 'Target Container') {
-      if (!inputOptions.targets || !inputOptions.targets.items) {
+      if (!inputOptions.nodes || !inputOptions.nodes.items) {
         return false;
       }
-      let items = await selection.items();
-      let targetItems = await inputOptions.targets.items();
-      return Object.values(items).some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) && Object.values(targetItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+      let edgeItems = await selection.items();
+      let nodeItems = await inputOptions.nodes.items();
+      return Object.values(edgeItems).some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) && Object.values(nodeItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
     } else {
       // inputOptions.context === 'Within Selection'
-      const items = await selection.items();
+      const edgeItems = await selection.items();
       let oneNode = false;
       let oneEdge = false;
-      return Object.values(items).some(item => {
+      return Object.values(edgeItems).some(item => {
         if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
           oneNode = true;
         } else if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
@@ -2324,7 +2323,7 @@ class AttachOperation extends BaseOperation {
       // if (inputOptions.mode === 'Attribute')
       const getEdgeValue = inputOptions.edgeAttribute === null ? edge => edge.label : edge => edge.value[inputOptions.edgeAttribute];
       const getNodeValue = inputOptions.nodeAttribute === null ? node => node.label : node => node.value[inputOptions.nodeAttribute];
-      connectWhen = (source, target) => getEdgeValue(source) === getNodeValue(target);
+      connectWhen = (edge, node) => getEdgeValue(edge) === getNodeValue(node);
     }
 
     let edges;

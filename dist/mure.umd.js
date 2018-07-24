@@ -9316,7 +9316,7 @@
 		default: path
 	});
 
-	var require$$0$1 = ( path$1 && path ) || path$1;
+	var require$$1 = ( path$1 && path ) || path$1;
 
 	var mimeTypes = createCommonjsModule(function (module, exports) {
 
@@ -9326,7 +9326,7 @@
 	 */
 
 
-	var extname = require$$0$1.extname;
+	var extname = require$$1.extname;
 
 	/**
 	 * Module variables.
@@ -12613,7 +12613,7 @@
 		default: empty
 	});
 
-	var require$$0$2 = ( empty$1 && empty ) || empty$1;
+	var require$$0$1 = ( empty$1 && empty ) || empty$1;
 
 	var grammar = {
 
@@ -12713,9 +12713,9 @@
 	                [ 'Q_STRING',  "$$ = $1" ] ]
 	    }
 	};
-	if (require$$0$2.readFileSync) {
-	  grammar.moduleInclude = require$$0$2.readFileSync(commonjsRequire.resolve("../include/module.js"));
-	  grammar.actionInclude = require$$0$2.readFileSync(commonjsRequire.resolve("../include/action.js"));
+	if (require$$0$1.readFileSync) {
+	  grammar.moduleInclude = require$$0$1.readFileSync(commonjsRequire.resolve("../include/module.js"));
+	  grammar.actionInclude = require$$0$1.readFileSync(commonjsRequire.resolve("../include/action.js"));
 	}
 
 	var grammar_1 = grammar;
@@ -13425,7 +13425,7 @@
 	        console.log('Usage: '+args[0]+' FILE');
 	        process.exit(1);
 	    }
-	    var source = require$$0$2.readFileSync(require$$0$1.normalize(args[1]), "utf8");
+	    var source = require$$0$1.readFileSync(require$$1.normalize(args[1]), "utf8");
 	    return exports.parser.parse(source);
 	};
 	if (commonjsRequire.main === module) {
@@ -17377,7 +17377,7 @@
 		default: _package
 	});
 
-	var require$$0$3 = ( _package$1 && _package ) || _package$1;
+	var require$$0$2 = ( _package$1 && _package ) || _package$1;
 
 	var estraverse = createCommonjsModule(function (module, exports) {
 	/*
@@ -18182,7 +18182,7 @@
 	        return tree;
 	    }
 
-	    exports.version = require$$0$3.version;
+	    exports.version = require$$0$2.version;
 	    exports.Syntax = Syntax;
 	    exports.traverse = traverse;
 	    exports.replace = replace;
@@ -33367,10 +33367,10 @@
 	  return list.concat(top).join('\n');
 	}
 
-	var require$$0$4 = ( _package$5 && _package$4 ) || _package$5;
+	var require$$0$3 = ( _package$5 && _package$4 ) || _package$5;
 
 	var dl = {
-	  version:    require$$0$4.version,
+	  version:    require$$0$3.version,
 	  load:       load_1,
 	  read:       read_1,
 	  type:       type_1,
@@ -34950,7 +34950,7 @@
 	    });
 	    result.addOption(context);
 
-	    // For some contexts, we need to specify source and/or target documents,
+	    // For some contexts, we need to specify edge and/or node documents,
 	    // items, or sets (classes or groups)
 	    context.specs['Bipartite'].addOption(new TypedOption({
 	      parameterName: 'edges',
@@ -34964,12 +34964,11 @@
 	    context.specs['Target Container'].addOption(nodes);
 
 	    // Edge direction
-	    const direction = new InputOption({
+	    result.addOption(new InputOption({
 	      parameterName: 'direction',
 	      choices: ['undirected', 'source', 'target'],
 	      defaultValue: 'undirected'
-	    });
-	    context.addOption(direction);
+	    }));
 
 	    // All contexts can be executed by matching attributes or evaluating
 	    // a function
@@ -34980,7 +34979,7 @@
 	    });
 	    result.addOption(mode);
 
-	    // Attribute mode needs source and target attributes
+	    // Attribute mode needs edge and node attributes
 	    mode.specs['Attribute'].addOption(new NestedAttributeOption({
 	      parameterName: 'edgeAttribute',
 	      defaultValue: null, // null indicates that the label should be used
@@ -35002,7 +35001,7 @@
 	      parameterName: 'nodeAttribute',
 	      defaultValue: null, // null indicates that the label should be used
 	      getItemChoiceRole: (item, inputOptions) => {
-	        if (inputOptions.targets && item.equals(inputOptions.targets)) {
+	        if (inputOptions.nodes && item.equals(inputOptions.nodes)) {
 	          return 'deep';
 	        } else if (inputOptions.context === 'Bipartite') {
 	          return 'ignore';
@@ -35032,22 +35031,22 @@
 	      return true;
 	    }
 	    if (inputOptions.context === 'Bipartite') {
-	      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+	      if (!((inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
 	        return false;
 	      }
 	    } else if (inputOptions.context === 'Target Container') {
-	      if (!inputOptions.targets || !inputOptions.targets.items) {
+	      if (!inputOptions.nodes || !inputOptions.nodes.items) {
 	        return false;
 	      }
-	      let items = await selection.items();
-	      let targetItems = await inputOptions.targets.items();
-	      return Object.values(items).some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) && Object.values(targetItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+	      let edgeItems = await selection.items();
+	      let nodeItems = await inputOptions.nodes.items();
+	      return Object.values(edgeItems).some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) && Object.values(nodeItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
 	    } else {
 	      // inputOptions.context === 'Within Selection'
-	      const items = await selection.items();
+	      const edgeItems = await selection.items();
 	      let oneNode = false;
 	      let oneEdge = false;
-	      return Object.values(items).some(item => {
+	      return Object.values(edgeItems).some(item => {
 	        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
 	          oneNode = true;
 	        } else if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
@@ -35116,7 +35115,7 @@
 	      // if (inputOptions.mode === 'Attribute')
 	      const getEdgeValue = inputOptions.edgeAttribute === null ? edge => edge.label : edge => edge.value[inputOptions.edgeAttribute];
 	      const getNodeValue = inputOptions.nodeAttribute === null ? node => node.label : node => node.value[inputOptions.nodeAttribute];
-	      connectWhen = (source, target) => getEdgeValue(source) === getNodeValue(target);
+	      connectWhen = (edge, node) => getEdgeValue(edge) === getNodeValue(node);
 	    }
 
 	    let edges;
