@@ -1,240 +1,133 @@
 const fs = require('fs');
-const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
 
-module.exports = [
-  async () => {
-    let doc = await mure.getDoc();
-    const expectedDoc = require('./data/Untitled 1');
-    return Promise.resolve([{
-      name: 'getDoc w/out arguments (creates new Untitled doc)',
-      result: logging.testObjectEquality(doc, expectedDoc)
-    }]);
-  },
-  async () => {
-    let doc = await mure.getDoc('dummy_id', { init: false });
-    let doc2 = await mure.getDoc({ 'filename': 'doesntExist.json' }, { init: false });
-    return Promise.resolve([
-      {
-        name: 'getDoc w/out init (bad id)',
-        result: {
-          passed: doc === null
-        }
-      },
-      {
-        name: 'getDoc w/out init (bad query)',
-        result: {
-          passed: doc2 === null
-        }
-      }
-    ]);
-  },
-  async () => {
-    return new Promise((resolve, reject) => {
-      const doc = require('./data/blackJack_round1');
-      const expectedDoc = require('./data/blackJack_round1_expected');
-      const data = JSON.stringify(doc);
-      (async () => {
-        let tests = [];
-        let uploadSelection = await mure.uploadString('blackJack_round1.json', 'application/json', 'UTF-8', data);
+const blackJack1 = require('./data/blackJack_round1.json');
+const expectedBlackJack1 = require('./data/blackJack_round1_expected.json');
+const blackJack2 = require('./data/blackJack_round2.json');
+const crossGameLinks = require('./data/crossGameLinks.json');
+const expectedCsv = require('./data/expectedCsv.json');
 
-        // Make sure the document has been loaded and has a _rev property
-        let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
-        let _revTestResult = {
-          passed: uploadSelection && dbDoc._rev
-        };
-        if (!_revTestResult.passed) {
-          _revTestResult.details = 'State after upload:' + '\n' +
-            JSON.stringify(dbDoc, null, 2);
-        }
-        tests.push({
-          name: 'blackJack_round1.json uploaded, has _rev property',
-          result: _revTestResult
-        });
+describe('Document Tests', () => {
+  beforeEach(() => {
+    if (!mure.db) {
+      mure.getOrInitDb();
+    }
+  });
 
-        // aside from _rev, blackJack_round1 should now match expectedDoc exactly
-        let rev = dbDoc._rev;
-        delete dbDoc._rev;
-        tests.push({
-          name: 'standardize blackJack_round1.json',
-          result: logging.testObjectEquality(dbDoc, expectedDoc)
-        });
-        dbDoc._rev = rev;
+  afterEach(async () => {
+    await mure.db.destroy();
+    delete mure.db;
+  });
 
-        // make a change and save the document
-        delete dbDoc.contents['Player 1'];
-        let saveMessage = await mure.putDoc(dbDoc);
-        let savedDoc = await mure.getDoc(dbDoc._id);
-        let saveTestResult = {
-          passed: saveMessage.ok && savedDoc._rev !== rev && !savedDoc.contents['Player 1']
-        };
-        if (!saveTestResult.passed) {
-          saveTestResult.details = 'Save message:\n' +
-            JSON.stringify(saveMessage, null, 2) + '\n\n' +
-            'Original _rev: ' + rev + '\n\n' +
-            'State after save:' + '\n' +
-            JSON.stringify(savedDoc, null, 2);
-        }
-        tests.push({
-          name: 'delete "Player 1" from document and save it',
-          result: saveTestResult
-        });
+  test('getDoc w/out arguments (creates new Untitled doc)', async () => {
+    expect.assertions(1);
+    expect(await mure.getDoc()).toEqual(require('./data/Untitled 1.json'));
+  });
 
-        // Delete the document, and validate that it was deleted
-        let deleteMessage = await mure.deleteDoc(savedDoc._id);
-        let deleteTestResult = { passed: deleteMessage.ok };
-        if (!deleteMessage.ok) {
-          deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
-        }
-        tests.push({
-          name: 'delete blackJack_round1.json',
-          result: deleteTestResult
-        });
-        resolve(tests);
-      })();
-    });
-  },
-  async () => {
-    return new Promise((resolve, reject) => {
-      const doc = require('./data/blackJack_round2');
-      const data = JSON.stringify(doc);
-      (async () => {
-        let uploadSelection = await mure.uploadString('blackJack_round2.json', 'application/json', 'UTF-8', data);
-        let tests = [];
+  test('getDoc w/out init', async () => {
+    expect.assertions(2);
+    const doc = await mure.getDoc('dummy_id', { init: false });
+    const doc2 = await mure.getDoc({ 'filename': 'doesntExist.json' }, { init: false });
+    expect(doc).toBeNull();
+    expect(doc2).toBeNull();
+  });
 
-        // Make sure the document has been loaded
-        let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round2.json' });
-        let _revTestResult = {
-          passed: uploadSelection && dbDoc._rev
-        };
-        if (!_revTestResult.passed) {
-          _revTestResult.details = 'State after upload:' + '\n' +
-            JSON.stringify(dbDoc, null, 2);
-        }
-        tests.push({
-          name: 'blackJack_round1.json uploaded, has _rev property',
-          result: _revTestResult
-        });
+  test('standardize a file', async () => {
+    expect.assertions(3);
 
-        // Validate that the array was actually converted, and that $wasArray
-        // was set
-        let _wasArrayResult = {
-          passed: !(dbDoc.contents['Player 1'] instanceof Array) &&
-            dbDoc.contents['Player 1'].$wasArray === true
-        };
-        if (!_wasArrayResult.passed) {
-          _wasArrayResult.details = 'State after upload:' + '\n' +
-            JSON.stringify(dbDoc, null, 2);
-        }
-        tests.push({
-          name: 'verify that Player 1 in blackJack_round2.json is no longer an array',
-          result: _wasArrayResult
-        });
+    // Make sure the upload works
+    expect(await mure.uploadString('blackJack_round1.json', 'application/json', 'UTF-8', JSON.stringify(blackJack1)))
+      .toBeTruthy();
 
-        // Delete the document, and validate that it was deleted
-        let deleteMessage = await mure.deleteDoc(dbDoc._id);
-        let deleteTestResult = { passed: deleteMessage.ok };
-        if (!deleteMessage.ok) {
-          deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
-        }
-        tests.push({
-          name: 'delete blackJack_round2.json',
-          result: deleteTestResult
-        });
-        resolve(tests);
-      })();
-    });
-  },
-  async () => {
-    return new Promise((resolve, reject) => {
-      const doc = require('./data/crossGameLinks');
-      const data = JSON.stringify(doc);
-      (async () => {
-        let tests = [];
-        let uploadSelection = await mure.uploadString(null, 'application/json', null, data);
+    // Make sure the document has been loaded and has a _rev property
+    let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
+    expect(dbDoc._rev).toBeTruthy();
 
-        // Make sure the document has been loaded and has a _rev property
-        let dbDoc = await mure.getDoc({ 'filename': 'Cross Game Links' });
-        let _revTestResult = {
-          passed: uploadSelection && dbDoc._rev
-        };
-        if (!_revTestResult.passed) {
-          _revTestResult.details = 'State after upload:' + '\n' +
-            JSON.stringify(dbDoc, null, 2);
-        }
-        tests.push({
-          name: 'crossGameLinks.json uploaded, has _rev property',
-          result: _revTestResult
-        });
+    // Aside from _rev, blackJack_round1 should now match expectedDoc exactly
+    let rev = dbDoc._rev;
+    delete dbDoc._rev;
+    expect(dbDoc).toEqual(expectedBlackJack1);
+    dbDoc._rev = rev;
+  });
 
-        // aside from _rev, it should match its original state exactly
-        let rev = dbDoc._rev;
-        delete dbDoc._rev;
-        tests.push({
-          name: 'standardize crossGameLinks.json without change',
-          result: logging.testObjectEquality(dbDoc, doc)
-        });
-        dbDoc._rev = rev;
+  test('edit a file', async () => {
+    expect.assertions(6);
 
-        // Delete the document, and validate that it was deleted
-        let deleteMessage = await mure.deleteDoc(dbDoc._id);
-        let deleteTestResult = { passed: deleteMessage.ok };
-        if (!deleteMessage.ok) {
-          deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
-        }
-        tests.push({
-          name: 'delete crossGameLinks.json',
-          result: deleteTestResult
-        });
-        resolve(tests);
-      })();
-    });
-  },
-  async () => {
-    return new Promise((resolve, reject) => {
-      const expectedCsv = require('./data/expectedCsv');
+    // Make sure the upload works
+    expect(await mure.uploadDoc('blackJack_round1.json', 'application/json', 'UTF-8', expectedBlackJack1))
+      .toBeTruthy();
+
+    // Get the document
+    let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round1.json' });
+    expect(dbDoc).toBeTruthy();
+
+    // Make a change and save the document
+    delete dbDoc.contents['Player 1'];
+    expect(await mure.putDoc(dbDoc)).toBeTruthy();
+
+    // Validate that the saved document has a different _rev, and that
+    // 'Player 1' no longer exists
+    let savedDoc = await mure.getDoc(dbDoc._id);
+    expect(dbDoc._rev).not.toMatch(savedDoc._rev);
+    expect(savedDoc.contents['Player 1']).toBeUndefined();
+
+    // Delete the file
+    expect((await mure.deleteDoc(savedDoc._id))
+      .ok).toBe(true);
+  });
+
+  test('convert arrays in files', async () => {
+    expect.assertions(4);
+
+    // Make sure the upload works
+    expect(await mure.uploadDoc('blackJack_round2.json', 'application/json', 'UTF-8', blackJack2))
+      .toBeTruthy();
+
+    // Get the document
+    let dbDoc = await mure.getDoc({ 'filename': 'blackJack_round2.json' });
+    expect(dbDoc).toBeTruthy();
+
+    // Validate that the array was converted
+    expect(dbDoc.contents['Player 1']).not.toBeInstanceOf(Array);
+    expect(dbDoc.contents['Player 1'].$wasArray).toBe(true);
+  });
+
+  test('check that already-standardized file loads without change', async () => {
+    expect.assertions(3);
+
+    // Make sure the upload works
+    expect(await mure.uploadString(null, 'application/json', null, JSON.stringify(crossGameLinks)))
+      .toBeTruthy();
+
+    // Get the document
+    let dbDoc = await mure.getDoc({ 'filename': 'Cross Game Links' });
+    expect(dbDoc).toBeTruthy();
+
+    // Aside from _rev, dbDoc should match crossGameLinks exactly
+    delete dbDoc._rev;
+    expect(dbDoc).toEqual(crossGameLinks);
+  });
+
+  test('load a CSV file', async () => {
+    expect.assertions(3);
+
+    const csvString = await new Promise((resolve, reject) => {
       fs.readFile('test/data/csvTest.csv', 'utf8', (err, data) => {
-        if (err) throw err;
-        (async () => {
-          let tests = [];
-          let uploadSelection = await mure.uploadString('csvTest.csv', 'text/csv', 'UTF-8', data);
-
-          // Make sure the document has been loaded and has a _rev property
-          let dbDoc = await mure.getDoc({ 'filename': 'csvTest.csv' });
-          let _revTestResult = {
-            passed: uploadSelection && dbDoc._rev
-          };
-          if (!_revTestResult.passed) {
-            _revTestResult.details = 'State after upload:' + '\n' +
-              JSON.stringify(dbDoc, null, 2);
-          }
-          tests.push({
-            name: 'csvTest.csv uploaded, has _rev property',
-            result: _revTestResult
-          });
-
-          // check that it matches what we'd expect (ignoring _rev)
-          let rev = dbDoc._rev;
-          delete dbDoc._rev;
-          tests.push({
-            name: 'csvTest.csv matches expected structure',
-            result: logging.testObjectEquality(dbDoc, expectedCsv)
-          });
-          dbDoc._rev = rev;
-
-          // Delete the document, and validate that it was deleted
-          let deleteMessage = await mure.deleteDoc(dbDoc._id);
-          let deleteTestResult = { passed: deleteMessage.ok };
-          if (!deleteMessage.ok) {
-            deleteTestResult.details = JSON.stringify(deleteMessage, null, 2);
-          }
-          tests.push({
-            name: 'delete csvTest.csv',
-            result: deleteTestResult
-          });
-          resolve(tests);
-        })();
+        if (err) { reject(err); }
+        resolve(data);
       });
     });
-  }
-];
+
+    // Make sure the upload works
+    expect(await mure.uploadString('csvTest.csv', 'text/csv', 'UTF-8', csvString))
+      .toBeTruthy();
+
+    // Get the document
+    let dbDoc = await mure.getDoc({ 'filename': 'csvTest.csv' });
+    expect(dbDoc).toBeTruthy();
+
+    // Aside from _rev, dbDoc should match expectedCsv exactly
+    delete dbDoc._rev;
+    expect(dbDoc).toEqual(expectedCsv);
+  });
+});

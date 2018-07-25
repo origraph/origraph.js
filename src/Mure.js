@@ -360,7 +360,7 @@ class Mure extends Model {
         return true;
       });
   }
-  async uploadFileObj (fileObj, { encoding = mime.charset(fileObj.type) } = {}) {
+  async uploadFileObj (fileObj, { encoding = mime.charset(fileObj.type), extensionOverride = null } = {}) {
     let string = await new Promise((resolve, reject) => {
       let reader = new window.FileReader();
       reader.onload = () => {
@@ -368,25 +368,19 @@ class Mure extends Model {
       };
       reader.readAsText(fileObj, encoding);
     });
-    return this.uploadString(fileObj.name, fileObj.type, encoding, string);
+    return this.uploadString(fileObj.name, fileObj.type, encoding, string, extensionOverride);
   }
   async uploadString (filename, mimeType, encoding, string, extensionOverride = null) {
-    if (!mimeType) {
-      let temp = mime.lookup(filename);
-      if (temp) {
-        mimeType = temp;
-      }
-    }
+    const extension = extensionOverride || mime.extension(mimeType || mime.lookup(filename)) || 'txt';
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
-    const extension = extensionOverride || mime.extension(mimeType) || 'txt';
     let doc = await this.WRAPPERS.DocumentWrapper.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
-    doc.mimeType = mimeType || doc.mimeType;
-    doc.charset = encoding || doc.charset;
+    doc.mimeType = mimeType || doc.mimeType || mime.lookup(filename);
+    doc.charset = encoding || doc.charset || mime.charset(doc.mimeType);
     doc = await this.WRAPPERS.DocumentWrapper.launchStandardization({ doc, mure: this });
     if (!(await this.putDoc(doc)).ok) {
       return null;
