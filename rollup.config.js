@@ -35,8 +35,8 @@ if (targets.cjs) {
     input: 'src/main.js',
     output: {
       file: pkg.main,
-      format: 'cjs'// ,
-      // sourcemap: 'inline'
+      format: 'cjs',
+      sourcemap: 'inline'
     },
     external: allExternals,
     plugins: commonPlugins

@@ -1,127 +1,98 @@
-const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
-require('events').EventEmitter.defaultMaxListeners = 30;
 
-module.exports = [
-  async () => {
-    return new Promise((resolve, reject) => {
-      const data = require('./data/hearts_for_schema_tests');
-      const schemaResults = require('./data/schemaResults');
+const heartsSchema = require('./data/hearts_for_schema_tests.json');
+const schemaResults = require('./data/schemaResults.json');
 
-      (async () => {
-        let tests = [];
+describe('Schema Tests', () => {
+  beforeAll(async () => {
+    if (!mure.db) {
+      mure.getOrInitDb();
+    }
+    await mure.uploadString('hearts_schema.json', 'application/json', 'UTF-8', JSON.stringify(heartsSchema));
+  });
 
-        let uploadMessage = await mure.uploadString(
-          'hearts_schema.json', 'application/json', 'UTF-8',
-          JSON.stringify(data));
+  afterEach(async () => {
+    await mure.db.destroy();
+    delete mure.db;
+  });
 
-        tests.push({
-          name: 'Upload file for schema testing',
-          result: {
-            passed: !!uploadMessage
-          }
-        });
+  test('(Crappy serial tests): interpret as nodes, add classes, and connect', async () => {
+    expect.assertions(5);
 
-        // Add classes, and interpet hands, tricks, and cards as nodes
-        let doc = mure.selectDoc('application/json;hearts_schema.json');
-        let hands = await doc.subSelect('.contents.hands[*]');
-        await hands.convert({ context: 'Node' });
-        await hands.assignClass({ className: 'player' });
-        let tricks = await doc.subSelect('.contents.tricks[*]');
-        await tricks.convert({ context: 'Node' });
-        await tricks.assignClass({ className: 'trick' });
-        let cards = await doc.subSelect('.contents.hands[*][*]');
-        await cards.convert({ context: 'Node' });
-        await cards.assignClass({ className: 'card' });
+    let doc = mure.selectDoc('application/json;hearts_schema.json');
 
-        let allClasses = await doc.subSelect('.classes');
-        allClasses = Object.values(await allClasses.items())[0].value;
+    // Add classes, and interpet hands, tricks, and cards as nodes
+    let hands = await doc.subSelect('.contents.hands[*]');
+    await hands.convert({ context: 'Node' });
+    await hands.assignClass({ className: 'player' });
+    let tricks = await doc.subSelect('.contents.tricks[*]');
+    await tricks.convert({ context: 'Node' });
+    await tricks.assignClass({ className: 'trick' });
+    let cards = await doc.subSelect('.contents.hands[*][*]');
+    await cards.convert({ context: 'Node' });
+    await cards.assignClass({ className: 'card' });
 
-        tests.push({
-          name: 'Add player, trick, and card classes',
-          result: logging.testObjectEquality(schemaResults.allClasses1, allClasses)
-        });
+    // Check that the classes are what we expect
+    let allClasses = await doc.subSelect('.classes');
+    allClasses = Object.values(await allClasses.items())[0].value;
 
-        let handWrappers = await hands.items();
-        let trickWrappers = await tricks.items();
-        let cardWrappers = await cards.items();
+    expect(allClasses).toEqual(schemaResults.allClasses1);
 
-        const handsAreNodes = Object.values(handWrappers)
-          .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const tricksAreNodes = Object.values(trickWrappers)
-          .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const cardsAreNodes = Object.values(cardWrappers)
-          .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const allNodes = handsAreNodes && tricksAreNodes && cardsAreNodes;
+    // Check that everything is nodes
+    let handWrappers = await hands.items();
+    let trickWrappers = await tricks.items();
+    let cardWrappers = await cards.items();
 
-        tests.push({
-          name: 'Interpret players, tricks, and cards as nodes',
-          result: {
-            passed: allNodes,
-            details: allNodes ? undefined : JSON.stringify({
-              handsAreNodes,
-              tricksAreNodes,
-              cardsAreNodes
-            }, null, 2)
-          }
-        });
+    const handsAreNodes = Object.values(handWrappers)
+      .reduce((agg, item) => agg && !!item.value.$edges, true);
+    expect(handsAreNodes).toBeTruthy();
 
-        // Add Won By edges
-        let orphans = await doc.subSelect('.orphans');
-        orphans = Object.values(await orphans.items())[0];
-        const wonByEdges = await tricks.connect({
-          context: 'Target Container',
-          targets: hands,
-          sourceAttribute: 'winner',
-          targetAttribute: null,
-          directed: 'Directed',
-          saveEdgesIn: orphans
-        });
-        await wonByEdges.assignClass({ className: 'Won By' });
+    const tricksAreNodes = Object.values(trickWrappers)
+      .reduce((agg, item) => agg && !!item.value.$edges, true);
+    expect(tricksAreNodes).toBeTruthy();
 
-        // Add Played edges
-        orphans = await doc.subSelect('.orphans');
-        orphans = Object.values(await orphans.items())[0];
-        const playedEdges = await cards.connect({
-          context: 'Bipartite',
-          sources: cards,
-          targets: tricks,
-          mode: 'Function',
-          connectWhen: (card, trick) => {
-            return Object.entries(trick.value)
-              .filter(([player, index]) => {
-                return card.doc.contents.hands[player] !== undefined &&
-                  card.doc.contents.hands[player][index] === card.value;
-              }).length > 0;
-          },
-          directed: 'Directed',
-          saveEdgesIn: orphans
-        });
-        const dummyPromise = playedEdges.assignClass({ className: 'Played' });
-        await dummyPromise;
+    const cardsAreNodes = Object.values(cardWrappers)
+      .reduce((agg, item) => agg && !!item.value.$edges, true);
+    expect(cardsAreNodes).toBeTruthy();
 
-        allClasses = await doc.subSelect('.classes');
-        allClasses = Object.values(await allClasses.items())[0].value;
-
-        tests.push({
-          name: 'Add "Won By" and "Played" edges',
-          result: logging.testObjectEquality(schemaResults.allClasses2, allClasses)
-        });
-
-        // Test schema summary functions
-        let allWrappers = await hands.mergeSelection(cards);
-        allWrappers = await allWrappers.mergeSelection(tricks);
-        allWrappers = await allWrappers.mergeSelection(wonByEdges);
-        allWrappers = await allWrappers.mergeSelection(playedEdges);
-
-        let summary = await allWrappers.getFlatGraphSchema();
-        tests.push({
-          name: 'Flat graph schema test',
-          result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)
-        });
-
-        resolve(tests);
-      })();
+    // Add Won By edges
+    let orphans = await doc.subSelect('.orphans');
+    orphans = Object.values(await orphans.items())[0];
+    const wonByEdges = await tricks.connect({
+      context: 'Target Container',
+      targets: hands,
+      sourceAttribute: 'winner',
+      targetAttribute: null,
+      directed: 'Directed',
+      saveEdgesIn: orphans
     });
-  }
-];
+    await wonByEdges.assignClass({ className: 'Won By' });
+
+    // Add Played edges
+    orphans = await doc.subSelect('.orphans');
+    orphans = Object.values(await orphans.items())[0];
+    const playedEdges = await cards.connect({
+      context: 'Bipartite',
+      sources: cards,
+      targets: tricks,
+      mode: 'Function',
+      connectWhen: (card, trick) => {
+        return Object.entries(trick.value)
+          .filter(([player, index]) => {
+            return card.doc.contents.hands[player] !== undefined &&
+              card.doc.contents.hands[player][index] === card.value;
+          }).length > 0;
+      },
+      directed: 'Directed',
+      saveEdgesIn: orphans
+    });
+    const dummyPromise = playedEdges.assignClass({ className: 'Played' });
+    await dummyPromise;
+
+    // Make sure the classes are what we expect
+    allClasses = await doc.subSelect('.classes');
+    allClasses = Object.values(await allClasses.items())[0].value;
+
+    expect(allClasses).toEqual(schemaResults.allClasses2);
+  });
+});
