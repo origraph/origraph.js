@@ -1000,20 +1000,18 @@ class TaggableConstruct extends ItemConstruct {
       throw new TypeError(`TaggableConstruct requires a $tags object`);
     }
   }
-  addToSetObj(setObj, setFileId) {
-    // Convenience function for tagging an item without having to wrap the set
-    // object as a SetConstruct
-    const itemTag = this.doc._id === setFileId ? this.value._id : this.mure.idToUniqueSelector(this.value._id, this.doc._id);
-    const setTag = this.doc._id === setFileId ? setObj._id : this.mure.idToUniqueSelector(setObj._id, setFileId);
-    setObj.$members[itemTag] = true;
-    this.value.$tags[setTag] = true;
-  }
   addClass(className) {
-    this.doc.classes[className] = this.doc.classes[className] || {
-      _id: '@' + jsonPath.stringify(['$', 'classes', className]),
-      $members: {}
-    };
-    this.addToSetObj(this.doc.classes[className], this.doc._id);
+    if (!this.doc.classes[className]) {
+      this.doc.classes[className] = this.mure.CONSTRUCTS.SetConstruct.getBoilerplateValue();
+      this.doc.classes[className]._id = '@' + jsonPath.stringify(['$', 'classes', className]);
+    }
+    const classItem = new this.mure.CONSTRUCTS.SetConstruct({
+      mure: this.mure,
+      path: [this.path[0], '$', 'classes', className],
+      value: this.doc.classes[className],
+      doc: this.doc
+    });
+    classItem.addConstruct(this);
   }
   getClasses() {
     if (!this.value || !this.value.$tags) {
@@ -3008,7 +3006,7 @@ var devDependencies = {
 	"d3-node": "^2.0.1",
 	diff: "^3.5.0",
 	"pouchdb-node": "^7.0.0",
-	rollup: "^0.62.0",
+	rollup: "^0.63.4",
 	"rollup-plugin-babel": "^3.0.7",
 	"rollup-plugin-commonjs": "^9.1.3",
 	"rollup-plugin-json": "^3.0.0",
@@ -3021,7 +3019,7 @@ var dependencies = {
 	"blueimp-md5": "^2.10.0",
 	datalib: "^1.9.1",
 	jsonpath: "^1.0.0",
-	"mime-types": "^2.1.18",
+	"mime-types": "^2.1.19",
 	"pouchdb-authentication": "^1.1.3",
 	"pouchdb-browser": "^7.0.0",
 	"pouchdb-find": "^7.0.0",
