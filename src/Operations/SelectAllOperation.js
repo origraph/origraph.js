@@ -45,26 +45,28 @@ class SelectAllOperation extends BaseOperation {
     context.specs['Selector'].addOption(mode);
     context.specs['Selector List'].addOption(mode);
     context.specs['Selection'].addOption(mode);
+
+    return result;
   }
   async canExecuteOnInstance (item, inputOptions) {
     if (await super.canExecuteOnInstance(item, inputOptions)) {
       return true;
     }
     if (inputOptions.context === 'Children') {
-      return item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
-        item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
+      return item instanceof this.mure.WRAPPERS.ContainerWrapper ||
+        item instanceof this.mure.WRAPPERS.DocumentWrapper;
     } else if (inputOptions.context === 'Parents') {
-      return !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-        item instanceof this.mure.CONSTRUCTS.RootConstruct);
+      return !(item instanceof this.mure.WRAPPERS.DocumentWrapper ||
+        item instanceof this.mure.WRAPPERS.RootWrapper);
     } else if (inputOptions.context === 'Nodes') {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct ||
-        item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+      return item instanceof this.mure.WRAPPERS.NodeWrapper ||
+        item instanceof this.mure.WRAPPERS.EdgeWrapper;
     } else if (inputOptions.context === 'Edges') {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct ||
-        item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+      return item instanceof this.mure.WRAPPERS.NodeWrapper ||
+        item instanceof this.mure.WRAPPERS.EdgeWrapper;
     } else if (inputOptions.context === 'Members') {
-      return item instanceof this.mure.CONSTRUCTS.SetConstruct ||
-        item instanceof this.mure.CONSTRUCTS.SupernodeConstruct;
+      return item instanceof this.mure.WRAPPERS.SetWrapper ||
+        item instanceof this.mure.WRAPPERS.SupernodeWrapper;
     } else if (inputOptions.context === 'Selector') {
       return this.mure.parseSelector(item.uniqueSelector + inputOptions.append) !== null;
     } else {
@@ -78,32 +80,32 @@ class SelectAllOperation extends BaseOperation {
       : direction === 'Backward' ? false
         : null;
     if (inputOptions.context === 'Children' &&
-       (item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
-        item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors((await item.contentConstructs())
-        .map(childConstruct => childConstruct.uniqueSelector));
+       (item instanceof this.mure.WRAPPERS.ContainerWrapper ||
+        item instanceof this.mure.WRAPPERS.DocumentWrapper)) {
+      output.addSelectors(Object.values(item.getContents())
+        .map(childWrapper => childWrapper.uniqueSelector));
     } else if (inputOptions.context === 'Parents' &&
-             !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-               item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
-      output.addSelectors([item.parentConstruct.uniqueSelector]);
+             !(item instanceof this.mure.WRAPPERS.DocumentWrapper ||
+               item instanceof this.mure.WRAPPERS.RootWrapper)) {
+      output.addSelectors([item.parentWrapper.uniqueSelector]);
     } else if (inputOptions.context === 'Nodes' &&
-               item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+               item instanceof this.mure.WRAPPERS.EdgeWrapper) {
       output.addSelectors(await item.nodeSelectors(forward));
     } else if (inputOptions.context === 'Nodes' &&
-               item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
-      output.addSelectors(await Promise.all((await item.edgeConstructs(forward))
+               item instanceof this.mure.WRAPPERS.NodeWrapper) {
+      output.addSelectors(await Promise.all((await item.edgeWrappers(forward))
         .map(edge => edge.nodeSelectors(forward))));
     } else if (inputOptions.context === 'Edges' &&
-               item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+               item instanceof this.mure.WRAPPERS.NodeWrapper) {
       output.addSelectors(await item.edgeSelectors(forward));
     } else if (inputOptions.context === 'Edges' &&
-               item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
-      output.addSelectors(await Promise.all((await item.nodeConstructs(forward))
+               item instanceof this.mure.WRAPPERS.EdgeWrapper) {
+      output.addSelectors(await Promise.all((await item.nodeWrappers(forward))
         .map(node => node.edgeSelectors(forward))));
     } else if (inputOptions.context === 'Members' &&
-              (item instanceof this.mure.CONSTRUCTS.SetConstruct ||
-               item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
-      output.addSelectors(await item.memberConstructs());
+              (item instanceof this.mure.WRAPPERS.SetWrapper ||
+               item instanceof this.mure.WRAPPERS.SupernodeWrapper)) {
+      output.addSelectors(await item.getMemberSelectors());
     } else if (inputOptions.context === 'Selector') {
       const newString = item.uniqueSelector + inputOptions.append;
       const newSelector = this.mure.parseSelector(newString);

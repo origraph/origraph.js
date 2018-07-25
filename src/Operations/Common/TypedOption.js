@@ -1,4 +1,4 @@
-import ItemConstruct from '../../Constructs/ItemConstruct.js';
+import ContainerWrapper from '../../Wrappers/ContainerWrapper.js';
 import InputOption from './InputOption.js';
 
 class TypedOption extends InputOption {
@@ -18,16 +18,20 @@ class TypedOption extends InputOption {
     this.validTypes = validTypes;
     this.suggestOrphans = suggestOrphans;
   }
-  async populateChoicesFromSelection (selection) {
+  async updateChoices ({ items, inputOptions, reset = false }) {
     const itemLookup = {};
     const orphanLookup = {};
-    const items = await selection.items();
+    if (!reset) {
+      this.choices.forEach(choice => {
+        itemLookup[choice.uniqueSelector] = choice;
+      });
+    }
     Object.values(items).forEach(item => {
       if (this.validTypes.indexOf(item.constructor) !== -1) {
         itemLookup[item.uniqueSelector] = item;
       }
       if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-        orphanLookup[item.doc._id] = new ItemConstruct({
+        orphanLookup[item.doc._id] = new ContainerWrapper({
           mure: this.mure,
           value: item.doc.orphans,
           path: [item.path[0], 'orphans'],

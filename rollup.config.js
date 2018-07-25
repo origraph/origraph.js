@@ -26,6 +26,9 @@ let targets = {
   esm: !process.env.TARGET || process.env.TARGET === 'esm' || process.env.TARGET === 'all'
 };
 
+let sourcemap = process.env.SOURCEMAP === 'false' ? false
+  : process.env.SOURCEMAP === 'true' ? true : 'inline';
+
 // Basic build formats, without minification
 let builds = [];
 
@@ -35,7 +38,8 @@ if (targets.cjs) {
     input: 'src/main.js',
     output: {
       file: pkg.main,
-      format: 'cjs'
+      format: 'cjs',
+      sourcemap
     },
     external: allExternals,
     plugins: commonPlugins
@@ -50,7 +54,8 @@ if (targets.umd) {
       name: 'mure',
       file: pkg.browser,
       format: 'umd',
-      globals: { 'd3': 'd3' }
+      globals: { 'd3': 'd3' },
+      sourcemap
     },
     plugins: [
       resolve({
@@ -75,7 +80,8 @@ if (targets.esm) {
     input: 'src/module.js',
     output: {
       file: pkg.module,
-      format: 'es'
+      format: 'es',
+      sourcemap
     },
     external: allExternals,
     plugins: commonPlugins

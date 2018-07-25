@@ -4,7 +4,11 @@ import OutputSpec from './Common/OutputSpec.js';
 import ContextualOption from './Common/ContextualOption.js';
 import NullConversion from './Conversions/NullConversion.js';
 import BooleanConversion from './Conversions/BooleanConversion.js';
+import NumberConversion from './Conversions/NumberConversion.js';
+import StringConversion from './Conversions/StringConversion.js';
+import GenericConversion from './Conversions/GenericConversion.js';
 import NodeConversion from './Conversions/NodeConversion.js';
+import EdgeConversion from './Conversions/EdgeConversion.js';
 
 class ConvertOperation extends BaseOperation {
   constructor (mure) {
@@ -12,8 +16,12 @@ class ConvertOperation extends BaseOperation {
 
     const conversionList = [
       new BooleanConversion(mure),
+      new NumberConversion(mure),
+      new StringConversion(mure),
       new NullConversion(mure),
-      new NodeConversion(mure)
+      new GenericConversion(mure),
+      new NodeConversion(mure),
+      new EdgeConversion(mure)
     ];
     this.CONVERSIONS = {};
     conversionList.forEach(conversion => {
@@ -30,7 +38,14 @@ class ConvertOperation extends BaseOperation {
     result.addOption(context);
 
     context.choices.forEach(choice => {
-      this.CONVERSIONS[choice].addOptionsToSpec(context.spec[choice]);
+      this.CONVERSIONS[choice].addOptionsToSpec(context.specs[choice]);
+    });
+
+    return result;
+  }
+  potentiallyExecutableOnItem (item) {
+    return Object.values(this.CONVERSIONS).some(conversion => {
+      return conversion.canExecuteOnInstance(item);
     });
   }
   async canExecuteOnInstance (item, inputOptions) {

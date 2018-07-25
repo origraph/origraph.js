@@ -1,15 +1,15 @@
-import InputOption from './InputOption.js';
+import StringOption from './StringOption.js';
 
-class ClassOption extends InputOption {
-  async populateChoicesFromItem (item) {
-    return item.getClasses ? item.getClasses() : [];
-  }
-  async populateChoicesFromSelection (selection) {
+class ClassOption extends StringOption {
+  async updateChoices ({ items, reset = false }) {
     let classes = {};
-    (await Promise.all(Object.values(await selection.items()).map(item => {
+    if (!reset) {
+      this.populateExistingChoiceStrings(classes);
+    }
+    Object.values(items).map(item => {
       return item.getClasses ? item.getClasses() : [];
-    }))).forEach(attrList => {
-      attrList.forEach(className => {
+    }).forEach(classList => {
+      classList.forEach(className => {
         classes[className] = true;
       });
     });

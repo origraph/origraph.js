@@ -12,21 +12,5 @@ class ContextualOption extends InputOption {
       this.specs[choice] = new InputSpec();
     });
   }
-  getNestedDefaultValues (inputOptions) {
-    let choice = this.defaultValue;
-    let nestedDefaults = this.specs[choice].getDefaultInputOptions();
-    if (nestedDefaults === null) {
-      choice = this.choices.some(choice => {
-        nestedDefaults = this.specs[choice].getDefaultInputOptions();
-        return nestedDefaults && choice;
-      });
-    }
-    if (nestedDefaults) {
-      Object.assign(inputOptions, nestedDefaults);
-      return choice;
-    } else {
-      return null;
-    }
-  }
 }
 export default ContextualOption;

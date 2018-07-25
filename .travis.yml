@@ -4,3 +4,4 @@ node_js:
 notifications:
     slack: mure-apps:9SXKuestEVdHAevzd5JQf2J1
     email: false
+after_success: 'npm run coveralls'

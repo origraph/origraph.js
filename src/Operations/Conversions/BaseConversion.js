@@ -10,11 +10,14 @@ class BaseConversion extends Introspectable {
     this.specialTypes = {};
     specialTypes.forEach(Type => { this.specialTypes[Type.type] = Type; });
   }
-  canExecuteOnInstance (item, inputOptions) {
+  canExecuteOnInstance (item) {
     return this.standardTypes[item.type] || this.specialTypes[item.type];
   }
   convertItem (item, inputOptions, outputSpec) {
-    if (this.standardTypes[item.type]) {
+    if (item.constructor === this.TargetType) {
+      // skip conversion if the type is already the same
+      return;
+    } if (this.standardTypes[item.type]) {
       this.standardConversion(item, inputOptions, outputSpec);
     } else if (this.specialTypes[item.type]) {
       this.specialConversion(item, inputOptions, outputSpec);
@@ -24,7 +27,7 @@ class BaseConversion extends Introspectable {
   }
   addOptionsToSpec (inputSpec) {}
   standardConversion (item, inputOptions, outputSpec) {
-    // Because of BaseConstruct's setter, this will actually apply to the
+    // Because of BaseWrapper's setter, this will actually apply to the
     // item's document as well as to the item wrapper
     item.value = this.TargetType.standardize({
       mure: this.mure,

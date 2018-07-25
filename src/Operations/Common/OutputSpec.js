@@ -11,7 +11,7 @@ class OutputSpec {
     this.pollutedDocs[doc._id] = doc;
   }
   warn (warning) {
-    this.warnings[warning] = this.warning[warning] || 0;
+    this.warnings[warning] = this.warnings[warning] || 0;
     this.warnings[warning] += 1;
   }
 }
@@ -28,7 +28,7 @@ OutputSpec.glomp = specList => {
     Object.values(spec.pollutedDocs).forEach(doc => {
       pollutedDocs[doc._id] = doc;
     });
-    Object.entries(([warning, count]) => {
+    Object.entries(spec.warnings).forEach(([warning, count]) => {
       warnings[warning] = warnings[warning] || 0;
       warnings[warning] += count;
     });

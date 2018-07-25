@@ -20,10 +20,15 @@ class AssignClassOperation extends BaseOperation {
     context.specs['Attribute'].addOption(new AttributeOption({
       parameterName: 'attribute'
     }));
+
+    return result;
+  }
+  potentiallyExecutableOnItem (item) {
+    return item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async canExecuteOnInstance (item, inputOptions) {
     return (await super.canExecuteOnInstance(item, inputOptions)) ||
-      item instanceof this.mure.CONSTRUCTS.TaggableItem;
+      item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async executeOnInstance (item, inputOptions) {
     const output = new OutputSpec();
@@ -34,7 +39,7 @@ class AssignClassOperation extends BaseOperation {
         return output;
       }
       if (item.getValue) {
-        className = item.getValue(inputOptions.attribute);
+        className = await item.getValue(inputOptions.attribute);
       } else {
         output.warn(`Can't get attributes from ${item.type} instance`);
         return output;
