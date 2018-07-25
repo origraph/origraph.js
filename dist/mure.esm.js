@@ -2980,7 +2980,7 @@ var scripts = {
 	test: "jest",
 	pretest: "rollup -c --environment TARGET:cjs && rm -rf mure mure-mrview*",
 	posttest: "rm -rf mure mure-mrview*",
-	debug: "rm -rf mure mure-mrview* && node --inspect-brk node_modules/.bin/jest --runInBand -t",
+	debug: "rollup -c --environment TARGET:cjs,SOURCEMAP:false && rm -rf mure mure-mrview* && node --inspect-brk node_modules/.bin/jest --runInBand -t",
 	coveralls: "cat ./coverage/lcov.info | node node_modules/.bin/coveralls"
 };
 var files = ["dist"];
