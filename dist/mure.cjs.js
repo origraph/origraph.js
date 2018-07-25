@@ -2788,6 +2788,7 @@ class Mure extends uki.Model {
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
+    await this.dbStatus;
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType || mime.lookup(filename);
     doc.charset = encoding || doc.charset || mime.charset(doc.mimeType);
