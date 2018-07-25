@@ -1,6 +1,7 @@
 mure.js
 =======
 [![Build Status](https://travis-ci.org/mure-apps/mure-library.svg?branch=master)](https://travis-ci.org/mure-apps/mure-library)
+[![Coverage Status](https://coveralls.io/repos/github/mure-apps/mure-library/badge.svg?branch=master)](https://coveralls.io/github/mure-apps/mure-library?branch=master)
 
 `mure.js` is a library for wrangling graph data inside PouchDB. Graph constructs (like node, edge, supernode, hyperedge, class, etc) are deliberately lightweight, so that they are easy to map (and re-map) to data items, regardless of how the PouchDB documents are structured.
 
