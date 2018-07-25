@@ -1,10 +1,10 @@
 import BaseConversion from './BaseConversion.js';
 
-class NodeConversion extends BaseConversion {
+class GenericConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NodeConstruct,
+      TargetType: mure.CONSTRUCTS.GenericConstruct,
       standardTypes: [
         mure.CONSTRUCTS.ContainerConstruct
       ],
@@ -12,4 +12,4 @@ class NodeConversion extends BaseConversion {
     });
   }
 }
-export default NodeConversion;
+export default GenericConversion;

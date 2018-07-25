@@ -13,8 +13,8 @@ import NumberConstruct from './Constructs/NumberConstruct.js';
 import StringConstruct from './Constructs/StringConstruct.js';
 import DateConstruct from './Constructs/DateConstruct.js';
 import ReferenceConstruct from './Constructs/ReferenceConstruct.js';
-import ItemConstruct from './Constructs/ItemConstruct.js';
-import TaggableConstruct from './Constructs/TaggableConstruct.js';
+import ContainerConstruct from './Constructs/ContainerConstruct.js';
+import GenericConstruct from './Constructs/GenericConstruct.js';
 import SetConstruct from './Constructs/SetConstruct.js';
 import EdgeConstruct from './Constructs/EdgeConstruct.js';
 import NodeConstruct from './Constructs/NodeConstruct.js';
@@ -60,8 +60,8 @@ class Mure extends Model {
       StringConstruct,
       DateConstruct,
       ReferenceConstruct,
-      ItemConstruct,
-      TaggableConstruct,
+      ContainerConstruct,
+      GenericConstruct,
       SetConstruct,
       EdgeConstruct,
       NodeConstruct,
@@ -531,9 +531,9 @@ class Mure extends Model {
     } else if (value.$members) {
       return this.CONSTRUCTS.SetConstruct;
     } else if (value.$tags) {
-      return this.CONSTRUCTS.TaggableConstruct;
+      return this.CONSTRUCTS.GenericConstruct;
     } else {
-      return this.CONSTRUCTS.ItemConstruct;
+      return this.CONSTRUCTS.ContainerConstruct;
     }
   }
   async followRelativeLink (selector, doc) {

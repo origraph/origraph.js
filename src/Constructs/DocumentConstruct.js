@@ -1,8 +1,8 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
 import BaseConstruct from './BaseConstruct.js';
-import ItemConstruct from './ItemConstruct.js';
-import ItemConstructMixin from './ItemConstructMixin.js';
+import ContainerConstruct from './ContainerConstruct.js';
+import ContainerConstructMixin from './ContainerConstructMixin.js';
 
 // extensions that we want datalib to handle
 const DATALIB_FORMATS = [
@@ -13,7 +13,7 @@ const DATALIB_FORMATS = [
   'treejson'
 ];
 
-class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
+class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
   constructor ({ mure, doc }) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -25,7 +25,7 @@ class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
       label: doc['filename'],
       uniqueSelector: '@' + docPathQuery + '$'
     });
-    this._contentConstruct = new ItemConstruct({
+    this._contentConstruct = new ContainerConstruct({
       mure: this.mure,
       value: this.value.contents,
       path: this.path.concat(['contents']),
@@ -127,9 +127,9 @@ DocumentConstruct.standardize = ({
   doc.classes._id = '@$.classes';
 
   doc.contents = doc.contents || {};
-  // In case doc.contents is an array, prep it for ItemConstruct.standardize
-  doc.contents = ItemConstruct.convertArray(doc.contents);
-  doc.contents = ItemConstruct.standardize({
+  // In case doc.contents is an array, prep it for ContainerConstruct.standardize
+  doc.contents = ContainerConstruct.convertArray(doc.contents);
+  doc.contents = ContainerConstruct.standardize({
     mure,
     value: doc.contents,
     path: [`{"_id":"${doc._id}"}`, '$', 'contents'],

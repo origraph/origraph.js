@@ -28,7 +28,7 @@ class AttachOperation extends BaseOperation {
       parameterName: 'edges',
       validTypes: [
         this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ItemConstruct,
+        this.mure.CONSTRUCTS.ContainerConstruct,
         this.mure.CONSTRUCTS.SetConstruct,
         this.mure.CONSTRUCTS.SupernodeConstruct,
         Selection
@@ -38,7 +38,7 @@ class AttachOperation extends BaseOperation {
       parameterName: 'nodes',
       validTypes: [
         this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ItemConstruct,
+        this.mure.CONSTRUCTS.ContainerConstruct,
         this.mure.CONSTRUCTS.SetConstruct,
         this.mure.CONSTRUCTS.SupernodeConstruct,
         Selection
@@ -117,10 +117,10 @@ class AttachOperation extends BaseOperation {
     if (inputOptions.context === 'Bipartite') {
       if (!(
         (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
          inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) &&
         (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+         inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
          inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
         return false;
       }
@@ -223,7 +223,7 @@ class AttachOperation extends BaseOperation {
           inputOptions.edges instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
         edges = await inputOptions.edges.getMembers();
       } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-                 inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+                 inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
         edges = inputOptions.edges.getContents();
       } else {
         output.warn(`inputOptions.edges is of unexpected type ${inputOptions.edges && inputOptions.edges.type}`);
@@ -250,7 +250,7 @@ class AttachOperation extends BaseOperation {
     } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct ||
                inputOptions.nodes instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
       nodes = await inputOptions.nodes.getMembers();
-    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
                inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
       nodes = inputOptions.nodes.getContents();
     } else {

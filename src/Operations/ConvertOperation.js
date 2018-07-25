@@ -6,7 +6,7 @@ import NullConversion from './Conversions/NullConversion.js';
 import BooleanConversion from './Conversions/BooleanConversion.js';
 import NumberConversion from './Conversions/NumberConversion.js';
 import StringConversion from './Conversions/StringConversion.js';
-import TaggableConversion from './Conversions/TaggableConversion.js';
+import GenericConversion from './Conversions/GenericConversion.js';
 import NodeConversion from './Conversions/NodeConversion.js';
 import EdgeConversion from './Conversions/EdgeConversion.js';
 
@@ -19,7 +19,7 @@ class ConvertOperation extends BaseOperation {
       new NumberConversion(mure),
       new StringConversion(mure),
       new NullConversion(mure),
-      new TaggableConversion(mure),
+      new GenericConversion(mure),
       new NodeConversion(mure),
       new EdgeConversion(mure)
     ];

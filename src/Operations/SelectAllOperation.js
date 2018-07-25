@@ -53,7 +53,7 @@ class SelectAllOperation extends BaseOperation {
       return true;
     }
     if (inputOptions.context === 'Children') {
-      return item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+      return item instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
         item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
     } else if (inputOptions.context === 'Parents') {
       return !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
@@ -80,7 +80,7 @@ class SelectAllOperation extends BaseOperation {
       : direction === 'Backward' ? false
         : null;
     if (inputOptions.context === 'Children' &&
-       (item instanceof this.mure.CONSTRUCTS.ItemConstruct ||
+       (item instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
         item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
       output.addSelectors(Object.values(item.getContents())
         .map(childConstruct => childConstruct.uniqueSelector));

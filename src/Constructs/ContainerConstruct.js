@@ -1,8 +1,8 @@
 import jsonPath from 'jsonpath';
 import TypedConstruct from './TypedConstruct.js';
-import ItemConstructMixin from './ItemConstructMixin.js';
+import ContainerConstructMixin from './ContainerConstructMixin.js';
 
-class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
+class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value)
@@ -32,7 +32,7 @@ class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
     return item;
   }
   addConstruct (item, label) {
-    if (item instanceof ItemConstruct) {
+    if (item instanceof ContainerConstruct) {
       if (item.value._id) {
         throw new Error('Construct has already been assigned an _id');
       }
@@ -45,8 +45,8 @@ class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
     this.value[label] = item.value;
   }
 }
-ItemConstruct.getBoilerplateValue = () => { return {}; };
-ItemConstruct.convertArray = value => {
+ContainerConstruct.getBoilerplateValue = () => { return {}; };
+ContainerConstruct.convertArray = value => {
   if (value instanceof Array) {
     let temp = {};
     value.forEach((element, index) => {
@@ -57,7 +57,7 @@ ItemConstruct.convertArray = value => {
   }
   return value;
 };
-ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   // Assign the object's id if a path is supplied
   if (path) {
     value._id = '@' + jsonPath.stringify(path.slice(1));
@@ -69,7 +69,7 @@ ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
-        nestedValue = ItemConstruct.convertArray(nestedValue);
+        nestedValue = ContainerConstruct.convertArray(nestedValue);
         // What kind of value are we dealing with?
         let ConstructType = mure.inferType(nestedValue, aggressive);
         // Apply that class's standardization function
@@ -86,4 +86,4 @@ ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default ItemConstruct;
+export default ContainerConstruct;

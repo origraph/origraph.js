@@ -1,11 +1,11 @@
 import jsonPath from 'jsonpath';
-import ItemConstruct from './ItemConstruct.js';
+import ContainerConstruct from './ContainerConstruct.js';
 
-class TaggableConstruct extends ItemConstruct {
+class GenericConstruct extends ContainerConstruct {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$tags) {
-      throw new TypeError(`TaggableConstruct requires a $tags object`);
+      throw new TypeError(`GenericConstruct requires a $tags object`);
     }
   }
   addClass (className) {
@@ -34,12 +34,12 @@ class TaggableConstruct extends ItemConstruct {
     }, []).sort();
   }
 }
-TaggableConstruct.getBoilerplateValue = () => {
+GenericConstruct.getBoilerplateValue = () => {
   return { $tags: {} };
 };
-TaggableConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ItemConstruct standardization
-  value = ItemConstruct.standardize({ mure, value, path, doc, aggressive });
+GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular ContainerConstruct standardization
+  value = ContainerConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $tags object
   value.$tags = value.$tags || {};
   // Move any existing class definitions to this document
@@ -58,4 +58,4 @@ TaggableConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default TaggableConstruct;
+export default GenericConstruct;

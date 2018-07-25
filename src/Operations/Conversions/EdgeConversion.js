@@ -6,7 +6,7 @@ class EdgeConversion extends BaseConversion {
       mure,
       TargetType: mure.CONSTRUCTS.EdgeConstruct,
       standardTypes: [
-        mure.CONSTRUCTS.ItemConstruct
+        mure.CONSTRUCTS.ContainerConstruct
       ],
       specialTypes: []
     });

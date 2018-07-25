@@ -1,6 +1,6 @@
-import TaggableConstruct from './TaggableConstruct.js';
+import GenericConstruct from './GenericConstruct.js';
 
-class EdgeConstruct extends TaggableConstruct {
+class EdgeConstruct extends GenericConstruct {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$nodes) {
@@ -37,14 +37,14 @@ EdgeConstruct.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
 EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular TaggableConstruct standardization
-  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
+  // Do the regular GenericConstruct standardization
+  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $nodes object
   value.$nodes = value.$nodes || {};
   return value;
 };
 EdgeConstruct.glompValue = edgeList => {
-  let temp = TaggableConstruct.glomp(edgeList);
+  let temp = GenericConstruct.glomp(edgeList);
   temp.value.$nodes = {};
   edgeList.forEach(edgeConstruct => {
     Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {

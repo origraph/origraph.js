@@ -33976,7 +33976,7 @@
 	  return typeof value !== this.JSTYPE; // eslint-disable-line valid-typeof
 	};
 
-	var ItemConstructMixin = (superclass => class extends superclass {
+	var ContainerConstructMixin = (superclass => class extends superclass {
 	  getValue(attribute, target = this._contentConstruct || this) {
 	    return target.value[attribute];
 	  }
@@ -34007,7 +34007,7 @@
 	  }
 	});
 
-	class ItemConstruct extends ItemConstructMixin(TypedConstruct) {
+	class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
 	  constructor({ mure, value, path, doc }) {
 	    super({ mure, value, path, doc });
 	    this.nextLabel = Object.keys(this.value).reduce((max, key) => {
@@ -34036,7 +34036,7 @@
 	    return item;
 	  }
 	  addConstruct(item, label) {
-	    if (item instanceof ItemConstruct) {
+	    if (item instanceof ContainerConstruct) {
 	      if (item.value._id) {
 	        throw new Error('Construct has already been assigned an _id');
 	      }
@@ -34049,10 +34049,10 @@
 	    this.value[label] = item.value;
 	  }
 	}
-	ItemConstruct.getBoilerplateValue = () => {
+	ContainerConstruct.getBoilerplateValue = () => {
 	  return {};
 	};
-	ItemConstruct.convertArray = value => {
+	ContainerConstruct.convertArray = value => {
 	  if (value instanceof Array) {
 	    let temp = {};
 	    value.forEach((element, index) => {
@@ -34063,7 +34063,7 @@
 	  }
 	  return value;
 	};
-	ItemConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+	ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
 	  // Assign the object's id if a path is supplied
 	  if (path) {
 	    value._id = '@' + jsonpath.stringify(path.slice(1));
@@ -34075,7 +34075,7 @@
 	        let temp = Array.from(path);
 	        temp.push(key);
 	        // Alayws convert arrays to objects
-	        nestedValue = ItemConstruct.convertArray(nestedValue);
+	        nestedValue = ContainerConstruct.convertArray(nestedValue);
 	        // What kind of value are we dealing with?
 	        let ConstructType = mure.inferType(nestedValue, aggressive);
 	        // Apply that class's standardization function
@@ -34095,7 +34095,7 @@
 	// extensions that we want datalib to handle
 	const DATALIB_FORMATS = ['json', 'csv', 'tsv', 'topojson', 'treejson'];
 
-	class DocumentConstruct extends ItemConstructMixin(BaseConstruct) {
+	class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
 	  constructor({ mure, doc }) {
 	    const docPathQuery = `{"_id":"${doc._id}"}`;
 	    super({
@@ -34107,7 +34107,7 @@
 	      label: doc['filename'],
 	      uniqueSelector: '@' + docPathQuery + '$'
 	    });
-	    this._contentConstruct = new ItemConstruct({
+	    this._contentConstruct = new ContainerConstruct({
 	      mure: this.mure,
 	      value: this.value.contents,
 	      path: this.path.concat(['contents']),
@@ -34209,9 +34209,9 @@
 	  doc.classes._id = '@$.classes';
 
 	  doc.contents = doc.contents || {};
-	  // In case doc.contents is an array, prep it for ItemConstruct.standardize
-	  doc.contents = ItemConstruct.convertArray(doc.contents);
-	  doc.contents = ItemConstruct.standardize({
+	  // In case doc.contents is an array, prep it for ContainerConstruct.standardize
+	  doc.contents = ContainerConstruct.convertArray(doc.contents);
+	  doc.contents = ContainerConstruct.standardize({
 	    mure,
 	    value: doc.contents,
 	    path: [`{"_id":"${doc._id}"}`, '$', 'contents'],
@@ -34320,11 +34320,11 @@
 	class ReferenceConstruct extends StringConstruct {}
 	ReferenceConstruct.getBoilerplateValue = () => '@$';
 
-	class TaggableConstruct extends ItemConstruct {
+	class GenericConstruct extends ContainerConstruct {
 	  constructor({ mure, value, path, doc }) {
 	    super({ mure, value, path, doc });
 	    if (!value.$tags) {
-	      throw new TypeError(`TaggableConstruct requires a $tags object`);
+	      throw new TypeError(`GenericConstruct requires a $tags object`);
 	    }
 	  }
 	  addClass(className) {
@@ -34353,12 +34353,12 @@
 	    }, []).sort();
 	  }
 	}
-	TaggableConstruct.getBoilerplateValue = () => {
+	GenericConstruct.getBoilerplateValue = () => {
 	  return { $tags: {} };
 	};
-	TaggableConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-	  // Do the regular ItemConstruct standardization
-	  value = ItemConstruct.standardize({ mure, value, path, doc, aggressive });
+	GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+	  // Do the regular ContainerConstruct standardization
+	  value = ContainerConstruct.standardize({ mure, value, path, doc, aggressive });
 	  // Ensure the existence of a $tags object
 	  value.$tags = value.$tags || {};
 	  // Move any existing class definitions to this document
@@ -34408,7 +34408,7 @@
 	  return value;
 	};
 
-	class EdgeConstruct extends TaggableConstruct {
+	class EdgeConstruct extends GenericConstruct {
 	  constructor({ mure, value, path, doc }) {
 	    super({ mure, value, path, doc });
 	    if (!value.$nodes) {
@@ -34442,14 +34442,14 @@
 	  return { $tags: {}, $nodes: {} };
 	};
 	EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-	  // Do the regular TaggableConstruct standardization
-	  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
+	  // Do the regular GenericConstruct standardization
+	  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
 	  // Ensure the existence of a $nodes object
 	  value.$nodes = value.$nodes || {};
 	  return value;
 	};
 	EdgeConstruct.glompValue = edgeList => {
-	  let temp = TaggableConstruct.glomp(edgeList);
+	  let temp = GenericConstruct.glomp(edgeList);
 	  temp.value.$nodes = {};
 	  edgeList.forEach(edgeConstruct => {
 	    Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {
@@ -34463,7 +34463,7 @@
 	  return temp;
 	};
 
-	class NodeConstruct extends TaggableConstruct {
+	class NodeConstruct extends GenericConstruct {
 	  constructor({ mure, value, path, doc }) {
 	    super({ mure, value, path, doc });
 	    if (!value.$edges) {
@@ -34499,8 +34499,8 @@
 	  return { $tags: {}, $edges: {} };
 	};
 	NodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-	  // Do the regular TaggableConstruct standardization
-	  value = TaggableConstruct.standardize({ mure, value, path, doc, aggressive });
+	  // Do the regular GenericConstruct standardization
+	  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
 	  // Ensure the existence of an $edges object
 	  value.$edges = value.$edges || {};
 	  return value;
@@ -34747,7 +34747,7 @@
 	      return true;
 	    }
 	    if (inputOptions.context === 'Children') {
-	      return item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
+	      return item instanceof this.mure.CONSTRUCTS.ContainerConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
 	    } else if (inputOptions.context === 'Parents') {
 	      return !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct);
 	    } else if (inputOptions.context === 'Nodes') {
@@ -34766,7 +34766,7 @@
 	    const output = new OutputSpec();
 	    const direction = inputOptions.direction || 'Ignore';
 	    const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
-	    if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ItemConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
+	    if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ContainerConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
 	      output.addSelectors(Object.values(item.getContents()).map(childConstruct => childConstruct.uniqueSelector));
 	    } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
 	      output.addSelectors([item.parentConstruct.uniqueSelector]);
@@ -34989,7 +34989,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.NullConstruct,
-	      standardTypes: [mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+	      standardTypes: [mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ContainerConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
 	      specialTypes: []
 	    });
 	  }
@@ -35000,7 +35000,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.BooleanConstruct,
-	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ItemConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+	      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ContainerConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
 	      specialTypes: [mure.CONSTRUCTS.StringConstruct]
 	    });
 	  }
@@ -35030,12 +35030,12 @@
 	  }
 	}
 
-	class TaggableConversion extends BaseConversion {
+	class GenericConversion extends BaseConversion {
 	  constructor(mure) {
 	    super({
 	      mure,
-	      TargetType: mure.CONSTRUCTS.TaggableConstruct,
-	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+	      TargetType: mure.CONSTRUCTS.GenericConstruct,
+	      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
 	      specialTypes: []
 	    });
 	  }
@@ -35046,7 +35046,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.NodeConstruct,
-	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+	      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
 	      specialTypes: []
 	    });
 	  }
@@ -35057,7 +35057,7 @@
 	    super({
 	      mure,
 	      TargetType: mure.CONSTRUCTS.EdgeConstruct,
-	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+	      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
 	      specialTypes: []
 	    });
 	  }
@@ -35067,7 +35067,7 @@
 	  constructor(mure) {
 	    super(mure);
 
-	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new TaggableConversion(mure), new NodeConversion(mure), new EdgeConversion(mure)];
+	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new GenericConversion(mure), new NodeConversion(mure), new EdgeConversion(mure)];
 	    this.CONVERSIONS = {};
 	    conversionList.forEach(conversion => {
 	      this.CONVERSIONS[conversion.type] = conversion;
@@ -35143,7 +35143,7 @@
 	        itemLookup[item.uniqueSelector] = item;
 	      }
 	      if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-	        orphanLookup[item.doc._id] = new ItemConstruct({
+	        orphanLookup[item.doc._id] = new ContainerConstruct({
 	          mure: this.mure,
 	          value: item.doc.orphans,
 	          path: [item.path[0], 'orphans'],
@@ -35225,11 +35225,11 @@
 	    // items, or sets (classes or groups)
 	    context.specs['Bipartite'].addOption(new TypedOption({
 	      parameterName: 'sources',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
 	    }));
 	    const targets = new TypedOption({
 	      parameterName: 'targets',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
 	    });
 	    context.specs['Bipartite'].addOption(targets);
 	    context.specs['Target Container'].addOption(targets);
@@ -35299,7 +35299,7 @@
 	    // edges?
 	    result.addOption(new TypedOption({
 	      parameterName: 'saveEdgesIn',
-	      validTypes: [this.mure.CONSTRUCTS.ItemConstruct],
+	      validTypes: [this.mure.CONSTRUCTS.ContainerConstruct],
 	      suggestOrphans: true
 	    }));
 
@@ -35315,11 +35315,11 @@
 	    if (inputOptions.ignoreErrors !== 'Stop on Error') {
 	      return true;
 	    }
-	    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {
+	    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
 	      return false;
 	    }
 	    if (inputOptions.context === 'Bipartite') {
-	      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+	      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
 	        return false;
 	      }
 	    } else if (inputOptions.context === 'Target Container') {
@@ -35386,7 +35386,7 @@
 	    const output = new OutputSpec();
 
 	    // Make sure we have a place to save the edges
-	    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ItemConstruct)) {
+	    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
 	      output.warn(`saveEdgesIn is not an Item`);
 	      return output;
 	    }
@@ -35421,7 +35421,7 @@
 	        sources = await inputOptions.sources.items();
 	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
 	        sources = await inputOptions.sources.getMembers();
-	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+	      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
 	        sources = inputOptions.sources.getContents();
 	      } else {
 	        output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources && inputOptions.sources.type}`);
@@ -35450,7 +35450,7 @@
 	      targets = await inputOptions.targets.items();
 	    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
 	      targets = await inputOptions.targets.getMembers();
-	    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+	    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
 	      targets = inputOptions.targets.getContents();
 	    } else {
 	      output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets && inputOptions.targets.type}`);
@@ -35498,11 +35498,11 @@
 	    // items, or sets (classes or groups)
 	    context.specs['Bipartite'].addOption(new TypedOption({
 	      parameterName: 'edges',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
 	    }));
 	    const nodes = new TypedOption({
 	      parameterName: 'nodes',
-	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ItemConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+	      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
 	    });
 	    context.specs['Bipartite'].addOption(nodes);
 	    context.specs['Target Container'].addOption(nodes);
@@ -35575,7 +35575,7 @@
 	      return true;
 	    }
 	    if (inputOptions.context === 'Bipartite') {
-	      if (!((inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+	      if (!((inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
 	        return false;
 	      }
 	    } else if (inputOptions.context === 'Target Container') {
@@ -35666,7 +35666,7 @@
 	    if (inputOptions.context === 'Bipartite') {
 	      if (inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
 	        edges = await inputOptions.edges.getMembers();
-	      } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ItemConstruct) {
+	      } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
 	        edges = inputOptions.edges.getContents();
 	      } else {
 	        output.warn(`inputOptions.edges is of unexpected type ${inputOptions.edges && inputOptions.edges.type}`);
@@ -35692,7 +35692,7 @@
 	      nodes = await inputOptions.nodes.items();
 	    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
 	      nodes = await inputOptions.nodes.getMembers();
-	    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ItemConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+	    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
 	      nodes = inputOptions.nodes.getContents();
 	    } else {
 	      output.warn(`inputOptions.nodes is of unexpected type ${inputOptions.nodes && inputOptions.nodes.type}`);
@@ -35738,10 +35738,10 @@
 	    return result;
 	  }
 	  potentiallyExecutableOnItem(item) {
-	    return item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
+	    return item instanceof this.mure.CONSTRUCTS.GenericConstruct;
 	  }
 	  async canExecuteOnInstance(item, inputOptions) {
-	    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.TaggableConstruct;
+	    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.GenericConstruct;
 	  }
 	  async executeOnInstance(item, inputOptions) {
 	    const output = new OutputSpec();
@@ -35805,8 +35805,8 @@
 	      StringConstruct,
 	      DateConstruct,
 	      ReferenceConstruct,
-	      ItemConstruct,
-	      TaggableConstruct,
+	      ContainerConstruct,
+	      GenericConstruct,
 	      SetConstruct,
 	      EdgeConstruct,
 	      NodeConstruct,
@@ -36264,9 +36264,9 @@
 	    } else if (value.$members) {
 	      return this.CONSTRUCTS.SetConstruct;
 	    } else if (value.$tags) {
-	      return this.CONSTRUCTS.TaggableConstruct;
+	      return this.CONSTRUCTS.GenericConstruct;
 	    } else {
-	      return this.CONSTRUCTS.ItemConstruct;
+	      return this.CONSTRUCTS.ContainerConstruct;
 	    }
 	  }
 	  async followRelativeLink(selector, doc) {

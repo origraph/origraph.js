@@ -10,7 +10,7 @@ class BooleanConversion extends BaseConversion {
         mure.CONSTRUCTS.NumberConstruct,
         mure.CONSTRUCTS.DateConstruct,
         mure.CONSTRUCTS.ReferenceConstruct,
-        mure.CONSTRUCTS.ItemConstruct,
+        mure.CONSTRUCTS.ContainerConstruct,
         mure.CONSTRUCTS.NodeConstruct,
         mure.CONSTRUCTS.EdgeConstruct,
         mure.CONSTRUCTS.SetConstruct,
