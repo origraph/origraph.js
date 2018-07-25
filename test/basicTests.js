@@ -1,43 +1,34 @@
-const logging = require('./logging.js');
 const mure = require('../dist/mure.cjs.js');
 const pkg = require('../package.json');
 
-module.exports = [
-  async () => {
-    return Promise.resolve([{
-      name: 'Version check',
-      result: logging.testStringEquality(pkg.version, mure.version)
-    }]);
-  },
-  async () => {
-    let dbStatus = await mure.dbStatus;
-    return Promise.resolve([
-      {
-        name: 'Db status: synced === false',
-        result: { passed: dbStatus.synced === false }
-      },
-      {
-        name: 'Db status: indexed === true',
-        result: { passed: dbStatus.indexed === true }
-      },
-      {
-        name: 'Db status: linkedUserSelection === true',
-        result: { passed: dbStatus.linkedUserSelection === true }
-      },
-      {
-        name: 'Db status: linkedViewSettings === true',
-        result: { passed: dbStatus.linkedViewSettings === true }
-      }
-    ]);
-  },
-  async () => {
-    let svg = mure.d3n.createSVG(500, 500);
-    svg.append('g');
-    svg.select('g').classed('test', true);
-    return Promise.resolve([{
-      name: 'Simple d3n test',
-      result: logging.testStringEquality(mure.d3n.svgString(),
-        '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><g class="test"></g></svg>')
-    }]);
-  }
-];
+test('Version check', () => {
+  expect(pkg.version).toBe(mure.version);
+});
+
+test('DB Status: synced === false', async () => {
+  expect.assertions(1);
+  expect((await mure.dbStatus).synced).toBe(false);
+});
+
+test('DB Status: indexed === true', async () => {
+  expect.assertions(1);
+  expect((await mure.dbStatus).indexed).toBe(true);
+});
+
+test('DB Status: linkedUserSelection === true', async () => {
+  expect.assertions(1);
+  expect((await mure.dbStatus).linkedUserSelection).toBe(true);
+});
+
+test('DB Status: linkedViewSettings === true', async () => {
+  expect.assertions(1);
+  expect((await mure.dbStatus).linkedViewSettings).toBe(true);
+});
+
+test('Simple d3n test', () => {
+  let svg = mure.d3n.createSVG(500, 500);
+  svg.append('g');
+  svg.select('g').classed('test', true);
+  expect(mure.d3n.svgString())
+    .toMatch('<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><g class="test"></g></svg>');
+});

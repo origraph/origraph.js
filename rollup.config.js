@@ -35,7 +35,8 @@ if (targets.cjs) {
     input: 'src/main.js',
     output: {
       file: pkg.main,
-      format: 'cjs'
+      format: 'cjs',
+      sourcemap: 'inline'
     },
     external: allExternals,
     plugins: commonPlugins
@@ -50,7 +51,8 @@ if (targets.umd) {
       name: 'mure',
       file: pkg.browser,
       format: 'umd',
-      globals: { 'd3': 'd3' }
+      globals: { 'd3': 'd3' },
+      sourcemap: 'inline'
     },
     plugins: [
       resolve({
@@ -75,7 +77,8 @@ if (targets.esm) {
     input: 'src/module.js',
     output: {
       file: pkg.module,
-      format: 'es'
+      format: 'es',
+      sourcemap: 'inline'
     },
     external: allExternals,
     plugins: commonPlugins
