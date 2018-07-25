@@ -42,11 +42,11 @@ class Selection {
     });
   }
   get isCached() {
-    return !!this._cachedConstructs;
+    return !!this._cachedWrappers;
   }
   invalidateCache() {
     delete this._cachedDocLists;
-    delete this._cachedConstructs;
+    delete this._cachedWrappers;
     delete this._summaryCaches;
   }
   async docLists() {
@@ -55,7 +55,7 @@ class Selection {
     }
     this._cachedDocLists = await Promise.all(this.selectors.map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
     // We want all selections to operate from exactly the same document object,
-    // so it's easy / straightforward for Constructs to just mutate their own value
+    // so it's easy / straightforward for Wrappers to just mutate their own value
     // references, and have those changes automatically appear in documents
     // when they're saved... so we actually want to *swap out* matching documents
     // for their cached versions
@@ -87,8 +87,8 @@ class Selection {
     return this._cachedDocLists;
   }
   async items(docLists) {
-    if (this._cachedConstructs) {
-      return this._cachedConstructs;
+    if (this._cachedWrappers) {
+      return this._cachedWrappers;
     }
 
     // Note: we should only pass in docLists in rare situations (such as the
@@ -99,10 +99,10 @@ class Selection {
 
     return uki.queueAsync(async () => {
       // Collect the results of objQuery
-      this._cachedConstructs = {};
-      const addConstruct = item => {
-        if (!this._cachedConstructs[item.uniqueSelector]) {
-          this._cachedConstructs[item.uniqueSelector] = item;
+      this._cachedWrappers = {};
+      const addWrapper = item => {
+        if (!this._cachedWrappers[item.uniqueSelector]) {
+          this._cachedWrappers[item.uniqueSelector] = item;
         }
       };
 
@@ -114,7 +114,7 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+            addWrapper(new this.mure.WRAPPERS.RootWrapper({
               mure: this.mure,
               docList
             }));
@@ -123,13 +123,13 @@ class Selection {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.forEach(doc => {
-              addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
+              addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
                 mure: this.mure,
                 doc
               }));
             });
           } else if (selector.parentShift === 1) {
-            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+            addWrapper(new this.mure.WRAPPERS.RootWrapper({
               mure: this.mure,
               docList
             }));
@@ -138,9 +138,9 @@ class Selection {
           // Okay, we need to evaluate the jsonPath
           for (let docIndex = 0; docIndex < docList.length; docIndex++) {
             let doc = docList[docIndex];
-            let matchingConstructs = jsonPath.nodes(doc, selector.objQuery);
-            for (let itemIndex = 0; itemIndex < matchingConstructs.length; itemIndex++) {
-              let { path, value } = matchingConstructs[itemIndex];
+            let matchingWrappers = jsonPath.nodes(doc, selector.objQuery);
+            for (let itemIndex = 0; itemIndex < matchingWrappers.length; itemIndex++) {
+              let { path, value } = matchingWrappers[itemIndex];
               let localPath = path;
               if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
                 // Don't create items under reserved keys
@@ -148,7 +148,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+                  addWrapper(new this.mure.WRAPPERS.RootWrapper({
                     mure: this.mure,
                     docList
                   }));
@@ -156,7 +156,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
+                  addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
                     mure: this.mure,
                     doc
                   }));
@@ -169,10 +169,10 @@ class Selection {
                 }
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
-                  Object.values((await this.mure.followRelativeLink(value, doc))).forEach(addConstruct);
+                  Object.values((await this.mure.followRelativeLink(value, doc))).forEach(addWrapper);
                 } else {
-                  const ConstructType = this.mure.inferType(value);
-                  addConstruct(new ConstructType({
+                  const WrapperType = this.mure.inferType(value);
+                  addWrapper(new WrapperType({
                     mure: this.mure,
                     value,
                     path: [`{"_id":"${doc._id}"}`].concat(localPath),
@@ -184,7 +184,7 @@ class Selection {
           }
         }
       }
-      return this._cachedConstructs;
+      return this._cachedWrappers;
     });
   }
   async execute(operation, inputOptions) {
@@ -294,23 +294,23 @@ class Selection {
       if (counters.quantitativeBins !== null) {
         if (counters.quantitativeBins.length === 0) {
           // Init the counters with some temporary placeholders
-          counters.quantitativeConstructs = [];
+          counters.quantitativeWrappers = [];
           counters.quantitativeType = item.type;
-          if (item instanceof this.mure.CONSTRUCTS.NumberConstruct) {
+          if (item instanceof this.mure.WRAPPERS.NumberWrapper) {
             counters.quantitativeScale = this.mure.d3.scaleLinear().domain([item.value, item.value]);
-          } else if (item instanceof this.mure.CONSTRUCTS.DateConstruct) {
+          } else if (item instanceof this.mure.WRAPPERS.DateWrapper) {
             counters.quantitativeScale = this.mure.d3.scaleTime().domain([item.value, item.value]);
           } else {
             // The first value is non-quantitative; this likely isn't a quantitative attribute
             counters.quantitativeBins = null;
-            delete counters.quantitativeConstructs;
+            delete counters.quantitativeWrappers;
             delete counters.quantitativeType;
             delete counters.quantitativeScale;
           }
         } else if (counters.quantitativeType !== item.type) {
           // Encountered an item of a different type; this likely isn't a quantitative attribute
           counters.quantitativeBins = null;
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -330,19 +330,19 @@ class Selection {
     for (let i = 0; i < itemList.length; i++) {
       const item = itemList[i];
       result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
+      if (item instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
         countPrimitive(result.raw, item);
       } else {
         if (item.getContents) {
-          Object.values(item.getContents()).forEach(childConstruct => {
-            const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
+          Object.values(item.getContents()).forEach(childWrapper => {
+            const counters = result.attributes[childWrapper.label] = result.attributes[childWrapper.label] || {
               typeBins: {},
               categoricalBins: {},
               quantitativeBins: []
             };
-            counters.typeBins[childConstruct.type] = (counters.typeBins[childConstruct.type] || 0) + 1;
-            if (childConstruct instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
-              countPrimitive(counters, childConstruct);
+            counters.typeBins[childWrapper.type] = (counters.typeBins[childWrapper.type] || 0) + 1;
+            if (childWrapper instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
+              countPrimitive(counters, childWrapper);
             }
           });
         }
@@ -360,9 +360,9 @@ class Selection {
         counters.categoricalBins = null;
       }
       if (counters.quantitativeBins) {
-        if (!counters.quantitativeConstructs || counters.quantitativeConstructs.length === 0) {
+        if (!counters.quantitativeWrappers || counters.quantitativeWrappers.length === 0) {
           counters.quantitativeBins = null;
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -371,9 +371,9 @@ class Selection {
           counters.quantitativeScale.nice();
           // Histogram generator
           const histogramGenerator = this.mure.d3.histogram().domain(counters.quantitativeScale.domain()).thresholds(counters.quantitativeScale.ticks(numBins)).value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeConstructs);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeWrappers);
           // Clean up some of the temporary placeholders
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
         }
       }
@@ -401,7 +401,7 @@ class Selection {
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+      if (item instanceof this.mure.WRAPPERS.EdgeWrapper) {
         // This is an edge; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -411,12 +411,12 @@ class Selection {
           let pseudoEdge = result.edgeClasses[edgeClassName] = result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
           Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
-            let nodeConstruct = items[nodeSelector];
-            if (!nodeConstruct) {
+            let nodeWrapper = items[nodeSelector];
+            if (!nodeWrapper) {
               // This edge refers to a node outside the selection
               result.missingNodes = true;
             } else {
-              nodeConstruct.getClasses().forEach(nodeClassName => {
+              nodeWrapper.getClasses().forEach(nodeClassName => {
                 Object.entries(directions).forEach(([direction, count]) => {
                   pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
                   pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
@@ -426,7 +426,7 @@ class Selection {
             }
           });
         });
-      } else if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+      } else if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
         // This is a node; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -437,12 +437,12 @@ class Selection {
           pseudoNode.count += 1;
           // Ensure that the edge class is referenced (directions' counts are kept on the edges)
           Object.keys(item.value.$edges).forEach(edgeSelector => {
-            let edgeConstruct = items[edgeSelector];
-            if (!edgeConstruct) {
+            let edgeWrapper = items[edgeSelector];
+            if (!edgeWrapper) {
               // This node refers to an edge outside the selection
               result.missingEdges = true;
             } else {
-              edgeConstruct.getClasses().forEach(edgeClassName => {
+              edgeWrapper.getClasses().forEach(edgeClassName => {
                 pseudoNode.$edges[edgeClassName] = true;
               });
             }
@@ -542,7 +542,7 @@ Object.defineProperty(Introspectable, 'humanReadableType', {
   }
 });
 
-class BaseConstruct extends Introspectable {
+class BaseWrapper extends Introspectable {
   constructor({ mure, path, value, parent, doc, label, uniqueSelector }) {
     super();
     this.mure = mure;
@@ -559,7 +559,7 @@ class BaseConstruct extends Introspectable {
   set value(newValue) {
     if (this.parent) {
       // In the event that this is a primitive boolean, number, string, etc,
-      // setting the value on the Construct wrapper object *won't* naturally update
+      // setting the value on the Wrapper wrapper object *won't* naturally update
       // it in its containing document...
       this.parent[this.label] = newValue;
     }
@@ -571,25 +571,25 @@ class BaseConstruct extends Introspectable {
     delete this.parent[this.label];
   }
   equals(other) {
-    return other instanceof BaseConstruct && this.uniqueSelector === other.uniqueSelector;
+    return other instanceof BaseWrapper && this.uniqueSelector === other.uniqueSelector;
   }
 }
-Object.defineProperty(BaseConstruct, 'type', {
+Object.defineProperty(BaseWrapper, 'type', {
   get() {
-    return (/(.*)Construct/.exec(this.name)[1]
+    return (/(.*)Wrapper/.exec(this.name)[1]
     );
   }
 });
-BaseConstruct.getBoilerplateValue = () => {
+BaseWrapper.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
-BaseConstruct.standardize = ({ value }) => {
+BaseWrapper.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
-BaseConstruct.isBadValue = value => false;
+BaseWrapper.isBadValue = value => false;
 
-class RootConstruct extends BaseConstruct {
+class RootWrapper extends BaseWrapper {
   constructor({ mure, docList }) {
     super({
       mure,
@@ -609,11 +609,11 @@ class RootConstruct extends BaseConstruct {
   }
 }
 
-class TypedConstruct extends BaseConstruct {
+class TypedWrapper extends BaseWrapper {
   constructor({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
-      throw new Error(`Can't create a non-Root or non-Doc Construct with a path length less than 2`);
+      throw new Error(`Can't create a non-Root or non-Doc Wrapper with a path length less than 2`);
     } else if (path.length === 2) {
       parent = doc;
     } else {
@@ -635,7 +635,7 @@ class TypedConstruct extends BaseConstruct {
       throw new TypeError(`typeof ${value} is ${typeof value}, which does not match required ${this.constructor.JSTYPE}`);
     }
   }
-  get parentConstruct() {
+  get parentWrapper() {
     const ParentType = this.mure.inferType(this.parent);
     return new ParentType({
       mure: this.mure,
@@ -645,24 +645,24 @@ class TypedConstruct extends BaseConstruct {
     });
   }
 }
-TypedConstruct.JSTYPE = 'object';
-TypedConstruct.isBadValue = function (value) {
+TypedWrapper.JSTYPE = 'object';
+TypedWrapper.isBadValue = function (value) {
   return typeof value !== this.JSTYPE; // eslint-disable-line valid-typeof
 };
 
-var ContainerConstructMixin = (superclass => class extends superclass {
-  getValue(attribute, target = this._contentConstruct || this) {
+var ContainerWrapperMixin = (superclass => class extends superclass {
+  getValue(attribute, target = this._contentWrapper || this) {
     return target.value[attribute];
   }
-  getAttributes(target = this._contentConstruct || this) {
+  getAttributes(target = this._contentWrapper || this) {
     return Object.keys(target.value).filter(d => !this.mure.RESERVED_OBJ_KEYS[d]);
   }
-  getContents(target = this._contentConstruct || this) {
+  getContents(target = this._contentWrapper || this) {
     const result = {};
     Object.entries(target.value).forEach(([label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
-        let ConstructType = this.mure.inferType(value);
-        const temp = new ConstructType({
+        let WrapperType = this.mure.inferType(value);
+        const temp = new WrapperType({
           mure: this.mure,
           value,
           path: target.path.concat([label]),
@@ -673,15 +673,15 @@ var ContainerConstructMixin = (superclass => class extends superclass {
     });
     return result;
   }
-  getContentSelectors(target = this._contentConstruct || this) {
+  getContentSelectors(target = this._contentWrapper || this) {
     return Object.keys(this.getContents(target));
   }
-  getContentCount(target = this._contentConstruct || this) {
+  getContentCount(target = this._contentWrapper || this) {
     return Object.keys(target.value).filter(label => !this.mure.RESERVED_OBJ_KEYS[label]).length;
   }
 });
 
-class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
+class ContainerWrapper extends ContainerWrapperMixin(TypedWrapper) {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value).reduce((max, key) => {
@@ -693,26 +693,26 @@ class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
       }
     }, 0) + 1;
   }
-  createNewConstruct(value, label, ConstructType) {
-    ConstructType = ConstructType || this.mure.inferType(value);
+  createNewWrapper(value, label, WrapperType) {
+    WrapperType = WrapperType || this.mure.inferType(value);
     if (label === undefined) {
       label = String(this.nextLabel);
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ConstructType({
+    let item = new WrapperType({
       mure: this.mure,
-      value: ConstructType.getBoilerplateValue(),
+      value: WrapperType.getBoilerplateValue(),
       path,
       doc: this.doc
     });
-    this.addConstruct(item, label);
+    this.addWrapper(item, label);
     return item;
   }
-  addConstruct(item, label) {
-    if (item instanceof ContainerConstruct) {
+  addWrapper(item, label) {
+    if (item instanceof ContainerWrapper) {
       if (item.value._id) {
-        throw new Error('Construct has already been assigned an _id');
+        throw new Error('Wrapper has already been assigned an _id');
       }
       if (label === undefined) {
         label = this.nextLabel;
@@ -723,10 +723,10 @@ class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
     this.value[label] = item.value;
   }
 }
-ContainerConstruct.getBoilerplateValue = () => {
+ContainerWrapper.getBoilerplateValue = () => {
   return {};
 };
-ContainerConstruct.convertArray = value => {
+ContainerWrapper.convertArray = value => {
   if (value instanceof Array) {
     let temp = {};
     value.forEach((element, index) => {
@@ -737,7 +737,7 @@ ContainerConstruct.convertArray = value => {
   }
   return value;
 };
-ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+ContainerWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
   // Assign the object's id if a path is supplied
   if (path) {
     value._id = '@' + jsonPath.stringify(path.slice(1));
@@ -749,11 +749,11 @@ ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
-        nestedValue = ContainerConstruct.convertArray(nestedValue);
+        nestedValue = ContainerWrapper.convertArray(nestedValue);
         // What kind of value are we dealing with?
-        let ConstructType = mure.inferType(nestedValue, aggressive);
+        let WrapperType = mure.inferType(nestedValue, aggressive);
         // Apply that class's standardization function
-        value[key] = ConstructType.standardize({
+        value[key] = WrapperType.standardize({
           mure,
           value: nestedValue,
           path: temp,
@@ -769,7 +769,7 @@ ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
 // extensions that we want datalib to handle
 const DATALIB_FORMATS = ['json', 'csv', 'tsv', 'topojson', 'treejson'];
 
-class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
+class DocumentWrapper extends ContainerWrapperMixin(BaseWrapper) {
   constructor({ mure, doc }) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -781,7 +781,7 @@ class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
       label: doc['filename'],
       uniqueSelector: '@' + docPathQuery + '$'
     });
-    this._contentConstruct = new ContainerConstruct({
+    this._contentWrapper = new ContainerWrapper({
       mure: this.mure,
       value: this.value.contents,
       path: this.path.concat(['contents']),
@@ -795,7 +795,7 @@ class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
 }
-DocumentConstruct.isValidId = docId => {
+DocumentWrapper.isValidId = docId => {
   if (docId[0].toLowerCase() !== docId[0]) {
     return false;
   }
@@ -805,7 +805,7 @@ DocumentConstruct.isValidId = docId => {
   }
   return !!mime.extension(parts[0]);
 };
-DocumentConstruct.parse = async (text, extension) => {
+DocumentWrapper.parse = async (text, extension) => {
   let contents;
   if (DATALIB_FORMATS.indexOf(extension) !== -1) {
     contents = datalib.read(text, { type: extension });
@@ -819,25 +819,25 @@ DocumentConstruct.parse = async (text, extension) => {
   }
   return contents;
 };
-DocumentConstruct.launchStandardization = async ({ mure, doc }) => {
+DocumentWrapper.launchStandardization = async ({ mure, doc }) => {
   let existingUntitleds = await mure.db.allDocs({
     startkey: doc.mimeType + ';Untitled ',
     endkey: doc.mimeType + ';Untitled \uffff'
   });
-  return DocumentConstruct.standardize({
+  return DocumentWrapper.standardize({
     mure,
     doc,
     existingUntitleds,
     aggressive: true
   });
 };
-DocumentConstruct.standardize = ({
+DocumentWrapper.standardize = ({
   mure,
   doc,
   existingUntitleds = { rows: [] },
   aggressive
 }) => {
-  if (!doc._id || !DocumentConstruct.isValidId(doc._id)) {
+  if (!doc._id || !DocumentWrapper.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
@@ -883,9 +883,9 @@ DocumentConstruct.standardize = ({
   doc.classes._id = '@$.classes';
 
   doc.contents = doc.contents || {};
-  // In case doc.contents is an array, prep it for ContainerConstruct.standardize
-  doc.contents = ContainerConstruct.convertArray(doc.contents);
-  doc.contents = ContainerConstruct.standardize({
+  // In case doc.contents is an array, prep it for ContainerWrapper.standardize
+  doc.contents = ContainerWrapper.convertArray(doc.contents);
+  doc.contents = ContainerWrapper.standardize({
     mure,
     value: doc.contents,
     path: [`{"_id":"${doc._id}"}`, '$', 'contents'],
@@ -896,13 +896,13 @@ DocumentConstruct.standardize = ({
   return doc;
 };
 
-class PrimitiveConstruct extends TypedConstruct {
+class PrimitiveWrapper extends TypedWrapper {
   stringValue() {
     return String(this.value);
   }
 }
 
-class InvalidConstruct extends BaseConstruct {
+class InvalidWrapper extends BaseWrapper {
   constructor({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
@@ -929,29 +929,29 @@ class InvalidConstruct extends BaseConstruct {
     return 'Invalid: ' + String(this.value);
   }
 }
-InvalidConstruct.JSTYPE = 'object';
-InvalidConstruct.isBadValue = value => true;
+InvalidWrapper.JSTYPE = 'object';
+InvalidWrapper.isBadValue = value => true;
 
-class NullConstruct extends PrimitiveConstruct {}
-NullConstruct.JSTYPE = 'null';
-NullConstruct.getBoilerplateValue = () => null;
-NullConstruct.standardize = () => null;
+class NullWrapper extends PrimitiveWrapper {}
+NullWrapper.JSTYPE = 'null';
+NullWrapper.getBoilerplateValue = () => null;
+NullWrapper.standardize = () => null;
 
-class BooleanConstruct extends PrimitiveConstruct {}
-BooleanConstruct.JSTYPE = 'boolean';
-BooleanConstruct.getBoilerplateValue = () => false;
-BooleanConstruct.standardize = ({ value }) => !!value;
+class BooleanWrapper extends PrimitiveWrapper {}
+BooleanWrapper.JSTYPE = 'boolean';
+BooleanWrapper.getBoilerplateValue = () => false;
+BooleanWrapper.standardize = ({ value }) => !!value;
 
-class NumberConstruct extends PrimitiveConstruct {}
-NumberConstruct.JSTYPE = 'number';
-NumberConstruct.getBoilerplateValue = () => 0;
-NumberConstruct.standardize = ({ value }) => Number(value);
-NumberConstruct.isBadValue = isNaN;
+class NumberWrapper extends PrimitiveWrapper {}
+NumberWrapper.JSTYPE = 'number';
+NumberWrapper.getBoilerplateValue = () => 0;
+NumberWrapper.standardize = ({ value }) => Number(value);
+NumberWrapper.isBadValue = isNaN;
 
-class StringConstruct extends PrimitiveConstruct {}
-StringConstruct.JSTYPE = 'string';
-StringConstruct.getBoilerplateValue = () => '';
-StringConstruct.standardize = ({ value }) => {
+class StringWrapper extends PrimitiveWrapper {}
+StringWrapper.JSTYPE = 'string';
+StringWrapper.getBoilerplateValue = () => '';
+StringWrapper.standardize = ({ value }) => {
   if (isNaN(value) || value === undefined) {
     return String(value);
   } else {
@@ -959,22 +959,22 @@ StringConstruct.standardize = ({ value }) => {
   }
 };
 
-class DateConstruct extends PrimitiveConstruct {
+class DateWrapper extends PrimitiveWrapper {
   constructor({ mure, value, path, doc }) {
-    super({ mure, value: DateConstruct.standardize(value), path, doc });
+    super({ mure, value: DateWrapper.standardize(value), path, doc });
   }
   get value() {
     return new Date(this._value.str);
   }
   set value(newValue) {
-    super.value = DateConstruct.standardize(newValue);
+    super.value = DateWrapper.standardize(newValue);
   }
   stringValue() {
     return String(this.value);
   }
 }
-DateConstruct.getBoilerplateValue = () => new Date();
-DateConstruct.standardize = ({ value }) => {
+DateWrapper.getBoilerplateValue = () => new Date();
+DateWrapper.standardize = ({ value }) => {
   if (typeof value === 'string') {
     value = new Date(value);
   }
@@ -989,30 +989,30 @@ DateConstruct.standardize = ({ value }) => {
   }
   return value;
 };
-DateConstruct.isBadValue = value => value.toString() !== 'Invalid Date';
+DateWrapper.isBadValue = value => value.toString() !== 'Invalid Date';
 
-class ReferenceConstruct extends StringConstruct {}
-ReferenceConstruct.getBoilerplateValue = () => '@$';
+class ReferenceWrapper extends StringWrapper {}
+ReferenceWrapper.getBoilerplateValue = () => '@$';
 
-class GenericConstruct extends ContainerConstruct {
+class GenericWrapper extends ContainerWrapper {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$tags) {
-      throw new TypeError(`GenericConstruct requires a $tags object`);
+      throw new TypeError(`GenericWrapper requires a $tags object`);
     }
   }
   addClass(className) {
     if (!this.doc.classes[className]) {
-      this.doc.classes[className] = this.mure.CONSTRUCTS.SetConstruct.getBoilerplateValue();
+      this.doc.classes[className] = this.mure.WRAPPERS.SetWrapper.getBoilerplateValue();
       this.doc.classes[className]._id = '@' + jsonPath.stringify(['$', 'classes', className]);
     }
-    const classItem = new this.mure.CONSTRUCTS.SetConstruct({
+    const classItem = new this.mure.WRAPPERS.SetWrapper({
       mure: this.mure,
       path: [this.path[0], '$', 'classes', className],
       value: this.doc.classes[className],
       doc: this.doc
     });
-    classItem.addConstruct(this);
+    classItem.addWrapper(this);
   }
   getClasses() {
     if (!this.value || !this.value.$tags) {
@@ -1027,12 +1027,12 @@ class GenericConstruct extends ContainerConstruct {
     }, []).sort();
   }
 }
-GenericConstruct.getBoilerplateValue = () => {
+GenericWrapper.getBoilerplateValue = () => {
   return { $tags: {} };
 };
-GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ContainerConstruct standardization
-  value = ContainerConstruct.standardize({ mure, value, path, doc, aggressive });
+GenericWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular ContainerWrapper standardization
+  value = ContainerWrapper.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $tags object
   value.$tags = value.$tags || {};
   // Move any existing class definitions to this document
@@ -1051,14 +1051,14 @@ GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-var SetConstructMixin = (superclass => class extends superclass {
+var SetWrapperMixin = (superclass => class extends superclass {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$members) {
-      throw new TypeError(`SetConstruct requires a $members object`);
+      throw new TypeError(`SetWrapper requires a $members object`);
     }
   }
-  addConstruct(item) {
+  addWrapper(item) {
     const itemTag = item.value._id;
     const setTag = this.value._id;
     this.value.$members[itemTag] = true;
@@ -1072,21 +1072,21 @@ var SetConstructMixin = (superclass => class extends superclass {
   }
 });
 
-class SetConstruct extends SetConstructMixin(TypedConstruct) {}
-SetConstruct.getBoilerplateValue = () => {
+class SetWrapper extends SetWrapperMixin(TypedWrapper) {}
+SetWrapper.getBoilerplateValue = () => {
   return { $members: {} };
 };
-SetConstruct.standardize = ({ value }) => {
+SetWrapper.standardize = ({ value }) => {
   // Ensure the existence of a $members object
   value.$members = value.$members || {};
   return value;
 };
 
-class EdgeConstruct extends GenericConstruct {
+class EdgeWrapper extends GenericWrapper {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$nodes) {
-      throw new TypeError(`EdgeConstruct requires a $nodes object`);
+      throw new TypeError(`EdgeWrapper requires a $nodes object`);
     }
   }
   attachTo(node, direction = 'undirected') {
@@ -1102,31 +1102,31 @@ class EdgeConstruct extends GenericConstruct {
       return direction === null || directions[direction];
     }).map(([selector, directions]) => selector);
   }
-  async nodeConstructs(forward = null) {
+  async nodeWrappers(forward = null) {
     return this.mure.selectAll((await this.nodeSelectors(forward))).items();
   }
-  async nodeConstructCount(forward = null) {
+  async nodeWrapperCount(forward = null) {
     return (await this.nodeSelectors(forward)).length;
   }
 }
-EdgeConstruct.oppositeDirection = direction => {
+EdgeWrapper.oppositeDirection = direction => {
   return direction === 'source' ? 'target' : direction === 'target' ? 'source' : 'undirected';
 };
-EdgeConstruct.getBoilerplateValue = () => {
+EdgeWrapper.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
-EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular GenericConstruct standardization
-  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
+EdgeWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular GenericWrapper standardization
+  value = GenericWrapper.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $nodes object
   value.$nodes = value.$nodes || {};
   return value;
 };
-EdgeConstruct.glompValue = edgeList => {
-  let temp = GenericConstruct.glomp(edgeList);
+EdgeWrapper.glompValue = edgeList => {
+  let temp = GenericWrapper.glomp(edgeList);
   temp.value.$nodes = {};
-  edgeList.forEach(edgeConstruct => {
-    Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {
+  edgeList.forEach(edgeWrapper => {
+    Object.entries(edgeWrapper.value.$nodes).forEach(([selector, directions]) => {
       temp.$nodes[selector] = temp.value.$nodes[selector] || {};
       Object.keys(directions).forEach(direction => {
         temp.value.$nodes[selector][direction] = temp.value.$nodes[selector][direction] || 0;
@@ -1137,58 +1137,58 @@ EdgeConstruct.glompValue = edgeList => {
   return temp;
 };
 
-class NodeConstruct extends GenericConstruct {
+class NodeWrapper extends GenericWrapper {
   constructor({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$edges) {
-      throw new TypeError(`NodeConstruct requires an $edges object`);
+      throw new TypeError(`NodeWrapper requires an $edges object`);
     }
   }
   connectTo(otherNode, container, direction = 'undirected') {
-    let newEdge = container.createNewConstruct({}, undefined, EdgeConstruct);
+    let newEdge = container.createNewWrapper({}, undefined, EdgeWrapper);
     newEdge.attachTo(this, direction);
-    newEdge.attachTo(otherNode, EdgeConstruct.oppositeDirection(direction));
+    newEdge.attachTo(otherNode, EdgeWrapper.oppositeDirection(direction));
     return newEdge;
   }
   async edgeSelectors(direction = null) {
     if (direction === null) {
       return Object.keys(this.value.$edges);
     } else {
-      return (await this.edgeConstructs(direction)).map(item => item.uniqueSelector);
+      return (await this.edgeWrappers(direction)).map(item => item.uniqueSelector);
     }
   }
-  async edgeConstructs(direction = null) {
+  async edgeWrappers(direction = null) {
     return (await this.mure.selectAll(Object.keys(this.value.$egdes))).items().filter(item => {
       // null indicates that we allow all edges. If direction isn't null,
       // only include edges where we are the OPPOSITE direction (we are
       // at the beginning of the traversal)
-      return direction === null || item.$nodes[this.uniqueSelector][EdgeConstruct.oppositeDirection(direction)];
+      return direction === null || item.$nodes[this.uniqueSelector][EdgeWrapper.oppositeDirection(direction)];
     });
   }
-  async edgeConstructCount(forward = null) {
+  async edgeWrapperCount(forward = null) {
     return (await this.edgeSelectors(forward)).length;
   }
 }
-NodeConstruct.getBoilerplateValue = () => {
+NodeWrapper.getBoilerplateValue = () => {
   return { $tags: {}, $edges: {} };
 };
-NodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular GenericConstruct standardization
-  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
+NodeWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular GenericWrapper standardization
+  value = GenericWrapper.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of an $edges object
   value.$edges = value.$edges || {};
   return value;
 };
 
-class SupernodeConstruct extends SetConstructMixin(NodeConstruct) {}
-SupernodeConstruct.getBoilerplateValue = () => {
+class SupernodeWrapper extends SetWrapperMixin(NodeWrapper) {}
+SupernodeWrapper.getBoilerplateValue = () => {
   return { $tags: {}, $members: {}, $edges: {} };
 };
-SupernodeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular NodeConstruct standardization
-  value = NodeConstruct.standardize({ mure, value, path, doc, aggressive });
-  // ... and the SetConstruct standardization
-  value = SetConstruct.standardize({ value });
+SupernodeWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular NodeWrapper standardization
+  value = NodeWrapper.standardize({ mure, value, path, doc, aggressive });
+  // ... and the SetWrapper standardization
+  value = SetWrapper.standardize({ value });
   return value;
 };
 
@@ -1421,15 +1421,15 @@ class SelectAllOperation extends BaseOperation {
       return true;
     }
     if (inputOptions.context === 'Children') {
-      return item instanceof this.mure.CONSTRUCTS.ContainerConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct;
+      return item instanceof this.mure.WRAPPERS.ContainerWrapper || item instanceof this.mure.WRAPPERS.DocumentWrapper;
     } else if (inputOptions.context === 'Parents') {
-      return !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct);
+      return !(item instanceof this.mure.WRAPPERS.DocumentWrapper || item instanceof this.mure.WRAPPERS.RootWrapper);
     } else if (inputOptions.context === 'Nodes') {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct || item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+      return item instanceof this.mure.WRAPPERS.NodeWrapper || item instanceof this.mure.WRAPPERS.EdgeWrapper;
     } else if (inputOptions.context === 'Edges') {
-      return item instanceof this.mure.CONSTRUCTS.NodeConstruct || item instanceof this.mure.CONSTRUCTS.EdgeConstruct;
+      return item instanceof this.mure.WRAPPERS.NodeWrapper || item instanceof this.mure.WRAPPERS.EdgeWrapper;
     } else if (inputOptions.context === 'Members') {
-      return item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct;
+      return item instanceof this.mure.WRAPPERS.SetWrapper || item instanceof this.mure.WRAPPERS.SupernodeWrapper;
     } else if (inputOptions.context === 'Selector') {
       return this.mure.parseSelector(item.uniqueSelector + inputOptions.append) !== null;
     } else {
@@ -1440,19 +1440,19 @@ class SelectAllOperation extends BaseOperation {
     const output = new OutputSpec();
     const direction = inputOptions.direction || 'Ignore';
     const forward = direction === 'Forward' ? true : direction === 'Backward' ? false : null;
-    if (inputOptions.context === 'Children' && (item instanceof this.mure.CONSTRUCTS.ContainerConstruct || item instanceof this.mure.CONSTRUCTS.DocumentConstruct)) {
-      output.addSelectors(Object.values(item.getContents()).map(childConstruct => childConstruct.uniqueSelector));
-    } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.CONSTRUCTS.DocumentConstruct || item instanceof this.mure.CONSTRUCTS.RootConstruct)) {
-      output.addSelectors([item.parentConstruct.uniqueSelector]);
-    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+    if (inputOptions.context === 'Children' && (item instanceof this.mure.WRAPPERS.ContainerWrapper || item instanceof this.mure.WRAPPERS.DocumentWrapper)) {
+      output.addSelectors(Object.values(item.getContents()).map(childWrapper => childWrapper.uniqueSelector));
+    } else if (inputOptions.context === 'Parents' && !(item instanceof this.mure.WRAPPERS.DocumentWrapper || item instanceof this.mure.WRAPPERS.RootWrapper)) {
+      output.addSelectors([item.parentWrapper.uniqueSelector]);
+    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.WRAPPERS.EdgeWrapper) {
       output.addSelectors((await item.nodeSelectors(forward)));
-    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
-      output.addSelectors((await Promise.all((await item.edgeConstructs(forward)).map(edge => edge.nodeSelectors(forward)))));
-    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+    } else if (inputOptions.context === 'Nodes' && item instanceof this.mure.WRAPPERS.NodeWrapper) {
+      output.addSelectors((await Promise.all((await item.edgeWrappers(forward)).map(edge => edge.nodeSelectors(forward)))));
+    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.WRAPPERS.NodeWrapper) {
       output.addSelectors((await item.edgeSelectors(forward)));
-    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
-      output.addSelectors((await Promise.all((await item.nodeConstructs(forward)).map(node => node.edgeSelectors(forward)))));
-    } else if (inputOptions.context === 'Members' && (item instanceof this.mure.CONSTRUCTS.SetConstruct || item instanceof this.mure.CONSTRUCTS.SupernodeConstruct)) {
+    } else if (inputOptions.context === 'Edges' && item instanceof this.mure.WRAPPERS.EdgeWrapper) {
+      output.addSelectors((await Promise.all((await item.nodeWrappers(forward)).map(node => node.edgeSelectors(forward)))));
+    } else if (inputOptions.context === 'Members' && (item instanceof this.mure.WRAPPERS.SetWrapper || item instanceof this.mure.WRAPPERS.SupernodeWrapper)) {
       output.addSelectors((await item.getMemberSelectors()));
     } else if (inputOptions.context === 'Selector') {
       const newString = item.uniqueSelector + inputOptions.append;
@@ -1635,7 +1635,7 @@ class BaseConversion extends Introspectable {
   }
   addOptionsToSpec(inputSpec) {}
   standardConversion(item, inputOptions, outputSpec) {
-    // Because of BaseConstruct's setter, this will actually apply to the
+    // Because of BaseWrapper's setter, this will actually apply to the
     // item's document as well as to the item wrapper
     item.value = this.TargetType.standardize({
       mure: this.mure,
@@ -1662,8 +1662,8 @@ class NullConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
-      standardTypes: [mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.StringConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ContainerConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
+      TargetType: mure.WRAPPERS.NullWrapper,
+      standardTypes: [mure.WRAPPERS.BooleanWrapper, mure.WRAPPERS.NumberWrapper, mure.WRAPPERS.StringWrapper, mure.WRAPPERS.DateWrapper, mure.WRAPPERS.ReferenceWrapper, mure.WRAPPERS.ContainerWrapper, mure.WRAPPERS.NodeWrapper, mure.WRAPPERS.EdgeWrapper, mure.WRAPPERS.SetWrapper, mure.WRAPPERS.SupernodeWrapper],
       specialTypes: []
     });
   }
@@ -1673,9 +1673,9 @@ class BooleanConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.BooleanConstruct,
-      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct, mure.CONSTRUCTS.ReferenceConstruct, mure.CONSTRUCTS.ContainerConstruct, mure.CONSTRUCTS.NodeConstruct, mure.CONSTRUCTS.EdgeConstruct, mure.CONSTRUCTS.SetConstruct, mure.CONSTRUCTS.SupernodeConstruct],
-      specialTypes: [mure.CONSTRUCTS.StringConstruct]
+      TargetType: mure.WRAPPERS.BooleanWrapper,
+      standardTypes: [mure.WRAPPERS.NullWrapper, mure.WRAPPERS.NumberWrapper, mure.WRAPPERS.DateWrapper, mure.WRAPPERS.ReferenceWrapper, mure.WRAPPERS.ContainerWrapper, mure.WRAPPERS.NodeWrapper, mure.WRAPPERS.EdgeWrapper, mure.WRAPPERS.SetWrapper, mure.WRAPPERS.SupernodeWrapper],
+      specialTypes: [mure.WRAPPERS.StringWrapper]
     });
   }
   specialConversion(item, inputOptions, outputSpec) {
@@ -1688,8 +1688,8 @@ class NumberConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NumberConstruct,
-      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.StringConstruct]
+      TargetType: mure.WRAPPERS.NumberWrapper,
+      standardTypes: [mure.WRAPPERS.NullWrapper, mure.WRAPPERS.BooleanWrapper, mure.WRAPPERS.StringWrapper]
     });
   }
 }
@@ -1698,8 +1698,8 @@ class StringConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.StringConstruct,
-      standardTypes: [mure.CONSTRUCTS.NullConstruct, mure.CONSTRUCTS.BooleanConstruct, mure.CONSTRUCTS.NumberConstruct, mure.CONSTRUCTS.DateConstruct]
+      TargetType: mure.WRAPPERS.StringWrapper,
+      standardTypes: [mure.WRAPPERS.NullWrapper, mure.WRAPPERS.BooleanWrapper, mure.WRAPPERS.NumberWrapper, mure.WRAPPERS.DateWrapper]
     });
   }
 }
@@ -1708,8 +1708,8 @@ class GenericConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.GenericConstruct,
-      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
+      TargetType: mure.WRAPPERS.GenericWrapper,
+      standardTypes: [mure.WRAPPERS.ContainerWrapper],
       specialTypes: []
     });
   }
@@ -1719,8 +1719,8 @@ class NodeConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NodeConstruct,
-      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
+      TargetType: mure.WRAPPERS.NodeWrapper,
+      standardTypes: [mure.WRAPPERS.ContainerWrapper],
       specialTypes: []
     });
   }
@@ -1730,8 +1730,8 @@ class EdgeConversion extends BaseConversion {
   constructor(mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.EdgeConstruct,
-      standardTypes: [mure.CONSTRUCTS.ContainerConstruct],
+      TargetType: mure.WRAPPERS.EdgeWrapper,
+      standardTypes: [mure.WRAPPERS.ContainerWrapper],
       specialTypes: []
     });
   }
@@ -1817,7 +1817,7 @@ class TypedOption extends InputOption {
         itemLookup[item.uniqueSelector] = item;
       }
       if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-        orphanLookup[item.doc._id] = new ContainerConstruct({
+        orphanLookup[item.doc._id] = new ContainerWrapper({
           mure: this.mure,
           value: item.doc.orphans,
           path: [item.path[0], 'orphans'],
@@ -1899,11 +1899,11 @@ class ConnectOperation extends BaseOperation {
     // items, or sets (classes or groups)
     context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'sources',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+      validTypes: [this.mure.WRAPPERS.DocumentWrapper, this.mure.WRAPPERS.ContainerWrapper, this.mure.WRAPPERS.SetWrapper, this.mure.WRAPPERS.SupernodeWrapper, Selection]
     }));
     const targets = new TypedOption({
       parameterName: 'targets',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+      validTypes: [this.mure.WRAPPERS.DocumentWrapper, this.mure.WRAPPERS.ContainerWrapper, this.mure.WRAPPERS.SetWrapper, this.mure.WRAPPERS.SupernodeWrapper, Selection]
     });
     context.specs['Bipartite'].addOption(targets);
     context.specs['Target Container'].addOption(targets);
@@ -1973,7 +1973,7 @@ class ConnectOperation extends BaseOperation {
     // edges?
     result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
-      validTypes: [this.mure.CONSTRUCTS.ContainerConstruct],
+      validTypes: [this.mure.WRAPPERS.ContainerWrapper],
       suggestOrphans: true
     }));
 
@@ -1989,11 +1989,11 @@ class ConnectOperation extends BaseOperation {
     if (inputOptions.ignoreErrors !== 'Stop on Error') {
       return true;
     }
-    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.WRAPPERS.ContainerWrapper)) {
       return false;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!((inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+      if (!((inputOptions.sources instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.sources instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.sources instanceof this.mure.WRAPPERS.SetWrapper) && (inputOptions.targets instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.targets instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.targets instanceof this.mure.WRAPPERS.SetWrapper))) {
         return false;
       }
     } else if (inputOptions.context === 'Target Container') {
@@ -2002,13 +2002,13 @@ class ConnectOperation extends BaseOperation {
       }
       let items = await selection.items();
       let targetItems = await inputOptions.targets.items();
-      return Object.values(items).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct) && Object.values(targetItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+      return Object.values(items).some(item => item instanceof this.mure.WRAPPERS.NodeWrapper) && Object.values(targetItems).some(item => item instanceof this.mure.WRAPPERS.NodeWrapper);
     } else {
       // inputOptions.context === 'Within Selection'
       const items = await selection.items();
       let count = 0;
       const atLeastTwoNodes = Object.values(items).some(item => {
-        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+        if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
           count += 1;
           if (count >= 2) {
             return true;
@@ -2060,7 +2060,7 @@ class ConnectOperation extends BaseOperation {
     const output = new OutputSpec();
 
     // Make sure we have a place to save the edges
-    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.WRAPPERS.ContainerWrapper)) {
       output.warn(`saveEdgesIn is not an Item`);
       return output;
     }
@@ -2093,9 +2093,9 @@ class ConnectOperation extends BaseOperation {
     if (inputOptions.context === 'Bipartite') {
       if (inputOptions.sources instanceof Selection) {
         sources = await inputOptions.sources.items();
-      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      } else if (inputOptions.sources instanceof this.mure.WRAPPERS.SetWrapper || inputOptions.sources instanceof this.mure.WRAPPERS.SupernodeWrapper) {
         sources = await inputOptions.sources.getMembers();
-      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
+      } else if (inputOptions.sources instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.sources instanceof this.mure.WRAPPERS.ContainerWrapper) {
         sources = inputOptions.sources.getContents();
       } else {
         output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources && inputOptions.sources.type}`);
@@ -2122,9 +2122,9 @@ class ConnectOperation extends BaseOperation {
     let targets;
     if (inputOptions.targets instanceof Selection) {
       targets = await inputOptions.targets.items();
-    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+    } else if (inputOptions.targets instanceof this.mure.WRAPPERS.SetWrapper || inputOptions.targets instanceof this.mure.WRAPPERS.SupernodeWrapper) {
       targets = await inputOptions.targets.getMembers();
-    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+    } else if (inputOptions.targets instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.targets instanceof this.mure.WRAPPERS.DocumentWrapper) {
       targets = inputOptions.targets.getContents();
     } else {
       output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets && inputOptions.targets.type}`);
@@ -2139,7 +2139,7 @@ class ConnectOperation extends BaseOperation {
     // Create the edges!
     sourceList.forEach(source => {
       targetList.forEach(target => {
-        if (source instanceof this.mure.CONSTRUCTS.NodeConstruct && target instanceof this.mure.CONSTRUCTS.NodeConstruct && connectWhen(source, target)) {
+        if (source instanceof this.mure.WRAPPERS.NodeWrapper && target instanceof this.mure.WRAPPERS.NodeWrapper && connectWhen(source, target)) {
           const newEdge = source.connectTo(target, inputOptions.saveEdgesIn, direction);
           output.addSelectors([newEdge.uniqueSelector]);
           output.flagPollutedDoc(source.doc);
@@ -2172,11 +2172,11 @@ class AttachOperation extends BaseOperation {
     // items, or sets (classes or groups)
     context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'edges',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+      validTypes: [this.mure.WRAPPERS.DocumentWrapper, this.mure.WRAPPERS.ContainerWrapper, this.mure.WRAPPERS.SetWrapper, this.mure.WRAPPERS.SupernodeWrapper, Selection]
     }));
     const nodes = new TypedOption({
       parameterName: 'nodes',
-      validTypes: [this.mure.CONSTRUCTS.DocumentConstruct, this.mure.CONSTRUCTS.ContainerConstruct, this.mure.CONSTRUCTS.SetConstruct, this.mure.CONSTRUCTS.SupernodeConstruct, Selection]
+      validTypes: [this.mure.WRAPPERS.DocumentWrapper, this.mure.WRAPPERS.ContainerWrapper, this.mure.WRAPPERS.SetWrapper, this.mure.WRAPPERS.SupernodeWrapper, Selection]
     });
     context.specs['Bipartite'].addOption(nodes);
     context.specs['Target Container'].addOption(nodes);
@@ -2249,7 +2249,7 @@ class AttachOperation extends BaseOperation {
       return true;
     }
     if (inputOptions.context === 'Bipartite') {
-      if (!((inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) && (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+      if (!((inputOptions.edges instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.edges instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.edges instanceof this.mure.WRAPPERS.SetWrapper) && (inputOptions.nodes instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.nodes instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.nodes instanceof this.mure.WRAPPERS.SetWrapper))) {
         return false;
       }
     } else if (inputOptions.context === 'Target Container') {
@@ -2258,16 +2258,16 @@ class AttachOperation extends BaseOperation {
       }
       let edgeItems = await selection.items();
       let nodeItems = await inputOptions.nodes.items();
-      return Object.values(edgeItems).some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) && Object.values(nodeItems).some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+      return Object.values(edgeItems).some(item => item instanceof this.mure.WRAPPERS.EdgeWrapper) && Object.values(nodeItems).some(item => item instanceof this.mure.WRAPPERS.NodeWrapper);
     } else {
       // inputOptions.context === 'Within Selection'
       const edgeItems = await selection.items();
       let oneNode = false;
       let oneEdge = false;
       return Object.values(edgeItems).some(item => {
-        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+        if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
           oneNode = true;
-        } else if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+        } else if (item instanceof this.mure.WRAPPERS.EdgeWrapper) {
           oneEdge = true;
         }
         return oneNode && oneEdge;
@@ -2298,8 +2298,8 @@ class AttachOperation extends BaseOperation {
     const itemList = Object.values(items);
     for (let i = 0; i < itemList.length; i++) {
       for (let j = i + 1; j < itemList.length; j++) {
-        let edge = itemList[i] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[i] || itemList[j] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[j];
-        let node = itemList[i] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[i] || itemList[j] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[j];
+        let edge = itemList[i] instanceof this.mure.WRAPPERS.EdgeWrapper && itemList[i] || itemList[j] instanceof this.mure.WRAPPERS.EdgeWrapper && itemList[j];
+        let node = itemList[i] instanceof this.mure.WRAPPERS.NodeWrapper && itemList[i] || itemList[j] instanceof this.mure.WRAPPERS.NodeWrapper && itemList[j];
         if (edge && node && connectWhen(edge, node)) {
           edge.attachTo(node, direction);
           output.flagPollutedDoc(edge.doc);
@@ -2338,9 +2338,9 @@ class AttachOperation extends BaseOperation {
 
     let edges;
     if (inputOptions.context === 'Bipartite') {
-      if (inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      if (inputOptions.edges instanceof this.mure.WRAPPERS.SetWrapper || inputOptions.edges instanceof this.mure.WRAPPERS.SupernodeWrapper) {
         edges = await inputOptions.edges.getMembers();
-      } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct || inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
+      } else if (inputOptions.edges instanceof this.mure.WRAPPERS.DocumentWrapper || inputOptions.edges instanceof this.mure.WRAPPERS.ContainerWrapper) {
         edges = inputOptions.edges.getContents();
       } else {
         output.warn(`inputOptions.edges is of unexpected type ${inputOptions.edges && inputOptions.edges.type}`);
@@ -2364,9 +2364,9 @@ class AttachOperation extends BaseOperation {
     let nodes;
     if (inputOptions.nodes instanceof Selection) {
       nodes = await inputOptions.nodes.items();
-    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+    } else if (inputOptions.nodes instanceof this.mure.WRAPPERS.SetWrapper || inputOptions.nodes instanceof this.mure.WRAPPERS.SupernodeWrapper) {
       nodes = await inputOptions.nodes.getMembers();
-    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct || inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+    } else if (inputOptions.nodes instanceof this.mure.WRAPPERS.ContainerWrapper || inputOptions.nodes instanceof this.mure.WRAPPERS.DocumentWrapper) {
       nodes = inputOptions.nodes.getContents();
     } else {
       output.warn(`inputOptions.nodes is of unexpected type ${inputOptions.nodes && inputOptions.nodes.type}`);
@@ -2381,7 +2381,7 @@ class AttachOperation extends BaseOperation {
     // Attach the edges!
     edgeList.forEach(edge => {
       nodeList.forEach(node => {
-        if (edge instanceof this.mure.CONSTRUCTS.EdgeConstruct && node instanceof this.mure.CONSTRUCTS.NodeConstruct && connectWhen(edge, node)) {
+        if (edge instanceof this.mure.WRAPPERS.EdgeWrapper && node instanceof this.mure.WRAPPERS.NodeWrapper && connectWhen(edge, node)) {
           edge.attachTo(node, inputOptions.direction);
           output.flagPollutedDoc(edge.doc);
           output.flagPollutedDoc(node.doc);
@@ -2412,10 +2412,10 @@ class AssignClassOperation extends BaseOperation {
     return result;
   }
   potentiallyExecutableOnItem(item) {
-    return item instanceof this.mure.CONSTRUCTS.GenericConstruct;
+    return item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async canExecuteOnInstance(item, inputOptions) {
-    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.CONSTRUCTS.GenericConstruct;
+    return (await super.canExecuteOnInstance(item, inputOptions)) || item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async executeOnInstance(item, inputOptions) {
     const output = new OutputSpec();
@@ -2468,23 +2468,23 @@ class Mure extends uki.Model {
     this.d3.namespaces.mure = this.NSString;
 
     // Our custom type definitions
-    this.CONSTRUCTS = {
-      RootConstruct,
-      DocumentConstruct,
-      PrimitiveConstruct,
-      InvalidConstruct,
-      NullConstruct,
-      BooleanConstruct,
-      NumberConstruct,
-      StringConstruct,
-      DateConstruct,
-      ReferenceConstruct,
-      ContainerConstruct,
-      GenericConstruct,
-      SetConstruct,
-      EdgeConstruct,
-      NodeConstruct,
-      SupernodeConstruct
+    this.WRAPPERS = {
+      RootWrapper,
+      DocumentWrapper,
+      PrimitiveWrapper,
+      InvalidWrapper,
+      NullWrapper,
+      BooleanWrapper,
+      NumberWrapper,
+      StringWrapper,
+      DateWrapper,
+      ReferenceWrapper,
+      ContainerWrapper,
+      GenericWrapper,
+      SetWrapper,
+      EdgeWrapper,
+      NodeWrapper,
+      SupernodeWrapper
     };
 
     // Special keys that should be skipped in various operations
@@ -2507,18 +2507,18 @@ class Mure extends uki.Model {
       XOR: 'XOR'
     };
 
-    // Auto-mappings from native javascript types to Constructs
+    // Auto-mappings from native javascript types to Wrappers
     this.JSTYPES = {
-      'null': NullConstruct,
-      'boolean': BooleanConstruct,
-      'number': NumberConstruct
+      'null': NullWrapper,
+      'boolean': BooleanWrapper,
+      'number': NumberWrapper
     };
 
     // All the supported operations
     let operationClasses = [SelectAllOperation, FilterOperation, ConvertOperation, ConnectOperation, AttachOperation, AssignClassOperation];
     this.OPERATIONS = {};
 
-    // Unlike CONSTRUCTS, we actually want to instantiate all the operations
+    // Unlike WRAPPERS, we actually want to instantiate all the operations
     // with a reference to this. While we're at it, monkey patch them onto
     // the Selection class
     operationClasses.forEach(Operation => {
@@ -2639,8 +2639,8 @@ class Mure extends uki.Model {
     let results = await this.db.allDocs(options);
     return results.rows.map(row => row.doc);
   }
-  async allDocConstructs() {
-    return (await this.allDocs()).map(doc => new this.CONSTRUCTS.DocumentConstruct({ mure: this, doc }));
+  async allDocWrappers() {
+    return (await this.allDocs()).map(doc => new this.WRAPPERS.DocumentWrapper({ mure: this, doc }));
   }
   async queryDocs(queryObj) {
     await this.dbStatus;
@@ -2667,7 +2667,7 @@ class Mure extends uki.Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: {}, mure: this });
+      return this.WRAPPERS.DocumentWrapper.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -2680,7 +2680,7 @@ class Mure extends uki.Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: docQuery, mure: this });
+          doc = await this.WRAPPERS.DocumentWrapper.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -2754,7 +2754,7 @@ class Mure extends uki.Model {
   async downloadDoc(docQuery, { mimeType = null } = {}) {
     return this.getDoc(docQuery).then(doc => {
       mimeType = mimeType || doc.mimeType;
-      let contents = this.CONSTRUCTS.DocumentConstruct.formatDoc(doc, { mimeType });
+      let contents = this.WRAPPERS.DocumentWrapper.formatDoc(doc, { mimeType });
 
       // create a fake link to initiate the download
       let a = document.createElement('a');
@@ -2790,14 +2790,14 @@ class Mure extends uki.Model {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     const extension = extensionOverride || mime.extension(mimeType) || 'txt';
-    let doc = await this.CONSTRUCTS.DocumentConstruct.parse(string, extension);
+    let doc = await this.WRAPPERS.DocumentWrapper.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc(filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc, mure: this });
+    doc = await this.WRAPPERS.DocumentWrapper.launchStandardization({ doc, mure: this });
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
@@ -2891,13 +2891,13 @@ class Mure extends uki.Model {
     } else if (jsType === 'string') {
       // Attempt to parse as a reference
       if (value[0] === '@' && this.parseSelector(value) !== null) {
-        return this.CONSTRUCTS.ReferenceConstruct;
+        return this.WRAPPERS.ReferenceWrapper;
       }
       // Not a reference...
       if (aggressive) {
         // Aggressively attempt to identify something more specific than string
         if (!isNaN(Number(value))) {
-          return this.CONSTRUCTS.NumberConstruct;
+          return this.WRAPPERS.NumberWrapper;
           /*
            For now, we don't attempt to identify dates, even in aggressive mode,
            because things like new Date('Player 1') will successfully parse as a
@@ -2907,40 +2907,40 @@ class Mure extends uki.Model {
            maybe we'll add this back...
           */
           // } else if (!isNaN(new Date(value))) {
-          //  return CONSTRUCTS.DateConstruct;
+          //  return WRAPPERS.DateWrapper;
         } else {
           const temp = value.toLowerCase();
           if (temp === 'true') {
-            return this.CONSTRUCTS.BooleanConstruct;
+            return this.WRAPPERS.BooleanWrapper;
           } else if (temp === 'false') {
-            return this.CONSTRUCTS.BooleanConstruct;
+            return this.WRAPPERS.BooleanWrapper;
           } else if (temp === 'null') {
-            return this.CONSTRUCTS.NullConstruct;
+            return this.WRAPPERS.NullWrapper;
           }
         }
       }
       // Okay, it's just a string
-      return this.CONSTRUCTS.StringConstruct;
+      return this.WRAPPERS.StringWrapper;
     } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-      return this.CONSTRUCTS.InvalidConstruct;
+      return this.WRAPPERS.InvalidWrapper;
     } else if (value === null) {
-      return this.CONSTRUCTS.NullConstruct;
+      return this.WRAPPERS.NullWrapper;
     } else if (value instanceof Date || value.$isDate === true) {
-      return this.CONSTRUCTS.DateConstruct;
+      return this.WRAPPERS.DateWrapper;
     } else if (value.$nodes) {
-      return this.CONSTRUCTS.EdgeConstruct;
+      return this.WRAPPERS.EdgeWrapper;
     } else if (value.$edges) {
       if (value.$members) {
-        return this.CONSTRUCTS.SupernodeConstruct;
+        return this.WRAPPERS.SupernodeWrapper;
       } else {
-        return this.CONSTRUCTS.NodeConstruct;
+        return this.WRAPPERS.NodeWrapper;
       }
     } else if (value.$members) {
-      return this.CONSTRUCTS.SetConstruct;
+      return this.WRAPPERS.SetWrapper;
     } else if (value.$tags) {
-      return this.CONSTRUCTS.GenericConstruct;
+      return this.WRAPPERS.GenericWrapper;
     } else {
-      return this.CONSTRUCTS.ContainerConstruct;
+      return this.WRAPPERS.ContainerWrapper;
     }
   }
   async followRelativeLink(selector, doc) {

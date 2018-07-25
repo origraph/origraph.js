@@ -1,7 +1,7 @@
 import jsonPath from 'jsonpath';
-import BaseConstruct from './BaseConstruct.js';
+import BaseWrapper from './BaseWrapper.js';
 
-class InvalidConstruct extends BaseConstruct {
+class InvalidWrapper extends BaseWrapper {
   constructor ({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
@@ -28,7 +28,7 @@ class InvalidConstruct extends BaseConstruct {
     return 'Invalid: ' + String(this.value);
   }
 }
-InvalidConstruct.JSTYPE = 'object';
-InvalidConstruct.isBadValue = value => true;
+InvalidWrapper.JSTYPE = 'object';
+InvalidWrapper.isBadValue = value => true;
 
-export default InvalidConstruct;
+export default InvalidWrapper;

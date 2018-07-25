@@ -1,10 +1,10 @@
-import GenericConstruct from './GenericConstruct.js';
+import GenericWrapper from './GenericWrapper.js';
 
-class EdgeConstruct extends GenericConstruct {
+class EdgeWrapper extends GenericWrapper {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$nodes) {
-      throw new TypeError(`EdgeConstruct requires a $nodes object`);
+      throw new TypeError(`EdgeWrapper requires a $nodes object`);
     }
   }
   attachTo (node, direction = 'undirected') {
@@ -21,33 +21,33 @@ class EdgeConstruct extends GenericConstruct {
         return direction === null || directions[direction];
       }).map(([selector, directions]) => selector);
   }
-  async nodeConstructs (forward = null) {
+  async nodeWrappers (forward = null) {
     return this.mure.selectAll((await this.nodeSelectors(forward))).items();
   }
-  async nodeConstructCount (forward = null) {
+  async nodeWrapperCount (forward = null) {
     return (await this.nodeSelectors(forward)).length;
   }
 }
-EdgeConstruct.oppositeDirection = direction => {
+EdgeWrapper.oppositeDirection = direction => {
   return direction === 'source' ? 'target'
     : direction === 'target' ? 'source'
       : 'undirected';
 };
-EdgeConstruct.getBoilerplateValue = () => {
+EdgeWrapper.getBoilerplateValue = () => {
   return { $tags: {}, $nodes: {} };
 };
-EdgeConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular GenericConstruct standardization
-  value = GenericConstruct.standardize({ mure, value, path, doc, aggressive });
+EdgeWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular GenericWrapper standardization
+  value = GenericWrapper.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $nodes object
   value.$nodes = value.$nodes || {};
   return value;
 };
-EdgeConstruct.glompValue = edgeList => {
-  let temp = GenericConstruct.glomp(edgeList);
+EdgeWrapper.glompValue = edgeList => {
+  let temp = GenericWrapper.glomp(edgeList);
   temp.value.$nodes = {};
-  edgeList.forEach(edgeConstruct => {
-    Object.entries(edgeConstruct.value.$nodes).forEach(([selector, directions]) => {
+  edgeList.forEach(edgeWrapper => {
+    Object.entries(edgeWrapper.value.$nodes).forEach(([selector, directions]) => {
       temp.$nodes[selector] = temp.value.$nodes[selector] || {};
       Object.keys(directions).forEach(direction => {
         temp.value.$nodes[selector][direction] = temp.value.$nodes[selector][direction] || 0;
@@ -58,4 +58,4 @@ EdgeConstruct.glompValue = edgeList => {
   return temp;
 };
 
-export default EdgeConstruct;
+export default EdgeWrapper;

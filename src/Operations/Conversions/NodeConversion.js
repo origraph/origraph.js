@@ -4,9 +4,9 @@ class NodeConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NodeConstruct,
+      TargetType: mure.WRAPPERS.NodeWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.ContainerConstruct
+        mure.WRAPPERS.ContainerWrapper
       ],
       specialTypes: []
     });

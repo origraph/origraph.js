@@ -1,8 +1,8 @@
 import jsonPath from 'jsonpath';
-import TypedConstruct from './TypedConstruct.js';
-import ContainerConstructMixin from './ContainerConstructMixin.js';
+import TypedWrapper from './TypedWrapper.js';
+import ContainerWrapperMixin from './ContainerWrapperMixin.js';
 
-class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
+class ContainerWrapper extends ContainerWrapperMixin(TypedWrapper) {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     this.nextLabel = Object.keys(this.value)
@@ -15,26 +15,26 @@ class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
         }
       }, 0) + 1;
   }
-  createNewConstruct (value, label, ConstructType) {
-    ConstructType = ConstructType || this.mure.inferType(value);
+  createNewWrapper (value, label, WrapperType) {
+    WrapperType = WrapperType || this.mure.inferType(value);
     if (label === undefined) {
       label = String(this.nextLabel);
       this.nextLabel += 1;
     }
     let path = this.path.concat(label);
-    let item = new ConstructType({
+    let item = new WrapperType({
       mure: this.mure,
-      value: ConstructType.getBoilerplateValue(),
+      value: WrapperType.getBoilerplateValue(),
       path,
       doc: this.doc
     });
-    this.addConstruct(item, label);
+    this.addWrapper(item, label);
     return item;
   }
-  addConstruct (item, label) {
-    if (item instanceof ContainerConstruct) {
+  addWrapper (item, label) {
+    if (item instanceof ContainerWrapper) {
       if (item.value._id) {
-        throw new Error('Construct has already been assigned an _id');
+        throw new Error('Wrapper has already been assigned an _id');
       }
       if (label === undefined) {
         label = this.nextLabel;
@@ -45,8 +45,8 @@ class ContainerConstruct extends ContainerConstructMixin(TypedConstruct) {
     this.value[label] = item.value;
   }
 }
-ContainerConstruct.getBoilerplateValue = () => { return {}; };
-ContainerConstruct.convertArray = value => {
+ContainerWrapper.getBoilerplateValue = () => { return {}; };
+ContainerWrapper.convertArray = value => {
   if (value instanceof Array) {
     let temp = {};
     value.forEach((element, index) => {
@@ -57,7 +57,7 @@ ContainerConstruct.convertArray = value => {
   }
   return value;
 };
-ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
+ContainerWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
   // Assign the object's id if a path is supplied
   if (path) {
     value._id = '@' + jsonPath.stringify(path.slice(1));
@@ -69,11 +69,11 @@ ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
         let temp = Array.from(path);
         temp.push(key);
         // Alayws convert arrays to objects
-        nestedValue = ContainerConstruct.convertArray(nestedValue);
+        nestedValue = ContainerWrapper.convertArray(nestedValue);
         // What kind of value are we dealing with?
-        let ConstructType = mure.inferType(nestedValue, aggressive);
+        let WrapperType = mure.inferType(nestedValue, aggressive);
         // Apply that class's standardization function
-        value[key] = ConstructType.standardize({
+        value[key] = WrapperType.standardize({
           mure,
           value: nestedValue,
           path: temp,
@@ -86,4 +86,4 @@ ContainerConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default ContainerConstruct;
+export default ContainerWrapper;

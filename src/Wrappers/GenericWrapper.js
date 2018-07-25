@@ -1,25 +1,25 @@
 import jsonPath from 'jsonpath';
-import ContainerConstruct from './ContainerConstruct.js';
+import ContainerWrapper from './ContainerWrapper.js';
 
-class GenericConstruct extends ContainerConstruct {
+class GenericWrapper extends ContainerWrapper {
   constructor ({ mure, value, path, doc }) {
     super({ mure, value, path, doc });
     if (!value.$tags) {
-      throw new TypeError(`GenericConstruct requires a $tags object`);
+      throw new TypeError(`GenericWrapper requires a $tags object`);
     }
   }
   addClass (className) {
     if (!this.doc.classes[className]) {
-      this.doc.classes[className] = this.mure.CONSTRUCTS.SetConstruct.getBoilerplateValue();
+      this.doc.classes[className] = this.mure.WRAPPERS.SetWrapper.getBoilerplateValue();
       this.doc.classes[className]._id = '@' + jsonPath.stringify(['$', 'classes', className]);
     }
-    const classItem = new this.mure.CONSTRUCTS.SetConstruct({
+    const classItem = new this.mure.WRAPPERS.SetWrapper({
       mure: this.mure,
       path: [this.path[0], '$', 'classes', className],
       value: this.doc.classes[className],
       doc: this.doc
     });
-    classItem.addConstruct(this);
+    classItem.addWrapper(this);
   }
   getClasses () {
     if (!this.value || !this.value.$tags) {
@@ -34,12 +34,12 @@ class GenericConstruct extends ContainerConstruct {
     }, []).sort();
   }
 }
-GenericConstruct.getBoilerplateValue = () => {
+GenericWrapper.getBoilerplateValue = () => {
   return { $tags: {} };
 };
-GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ContainerConstruct standardization
-  value = ContainerConstruct.standardize({ mure, value, path, doc, aggressive });
+GenericWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
+  // Do the regular ContainerWrapper standardization
+  value = ContainerWrapper.standardize({ mure, value, path, doc, aggressive });
   // Ensure the existence of a $tags object
   value.$tags = value.$tags || {};
   // Move any existing class definitions to this document
@@ -58,4 +58,4 @@ GenericConstruct.standardize = ({ mure, value, path, doc, aggressive }) => {
   return value;
 };
 
-export default GenericConstruct;
+export default GenericWrapper;

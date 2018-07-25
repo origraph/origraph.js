@@ -1,19 +1,19 @@
-import PrimitiveConstruct from './PrimitiveConstruct.js';
+import PrimitiveWrapper from './PrimitiveWrapper.js';
 
-class DateConstruct extends PrimitiveConstruct {
+class DateWrapper extends PrimitiveWrapper {
   constructor ({ mure, value, path, doc }) {
-    super({ mure, value: DateConstruct.standardize(value), path, doc });
+    super({ mure, value: DateWrapper.standardize(value), path, doc });
   }
   get value () { return new Date(this._value.str); }
   set value (newValue) {
-    super.value = DateConstruct.standardize(newValue);
+    super.value = DateWrapper.standardize(newValue);
   }
   stringValue () {
     return String(this.value);
   }
 }
-DateConstruct.getBoilerplateValue = () => new Date();
-DateConstruct.standardize = ({ value }) => {
+DateWrapper.getBoilerplateValue = () => new Date();
+DateWrapper.standardize = ({ value }) => {
   if (typeof value === 'string') {
     value = new Date(value);
   }
@@ -28,6 +28,6 @@ DateConstruct.standardize = ({ value }) => {
   }
   return value;
 };
-DateConstruct.isBadValue = value => value.toString() !== 'Invalid Date';
+DateWrapper.isBadValue = value => value.toString() !== 'Invalid Date';
 
-export default DateConstruct;
+export default DateWrapper;

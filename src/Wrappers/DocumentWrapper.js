@@ -1,8 +1,8 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
-import BaseConstruct from './BaseConstruct.js';
-import ContainerConstruct from './ContainerConstruct.js';
-import ContainerConstructMixin from './ContainerConstructMixin.js';
+import BaseWrapper from './BaseWrapper.js';
+import ContainerWrapper from './ContainerWrapper.js';
+import ContainerWrapperMixin from './ContainerWrapperMixin.js';
 
 // extensions that we want datalib to handle
 const DATALIB_FORMATS = [
@@ -13,7 +13,7 @@ const DATALIB_FORMATS = [
   'treejson'
 ];
 
-class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
+class DocumentWrapper extends ContainerWrapperMixin(BaseWrapper) {
   constructor ({ mure, doc }) {
     const docPathQuery = `{"_id":"${doc._id}"}`;
     super({
@@ -25,7 +25,7 @@ class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
       label: doc['filename'],
       uniqueSelector: '@' + docPathQuery + '$'
     });
-    this._contentConstruct = new ContainerConstruct({
+    this._contentWrapper = new ContainerWrapper({
       mure: this.mure,
       value: this.value.contents,
       path: this.path.concat(['contents']),
@@ -39,7 +39,7 @@ class DocumentConstruct extends ContainerConstructMixin(BaseConstruct) {
     throw new Error(`Deleting files via Selections not yet implemented`);
   }
 }
-DocumentConstruct.isValidId = (docId) => {
+DocumentWrapper.isValidId = (docId) => {
   if (docId[0].toLowerCase() !== docId[0]) {
     return false;
   }
@@ -49,7 +49,7 @@ DocumentConstruct.isValidId = (docId) => {
   }
   return !!mime.extension(parts[0]);
 };
-DocumentConstruct.parse = async (text, extension) => {
+DocumentWrapper.parse = async (text, extension) => {
   let contents;
   if (DATALIB_FORMATS.indexOf(extension) !== -1) {
     contents = datalib.read(text, { type: extension });
@@ -63,25 +63,25 @@ DocumentConstruct.parse = async (text, extension) => {
   }
   return contents;
 };
-DocumentConstruct.launchStandardization = async ({ mure, doc }) => {
+DocumentWrapper.launchStandardization = async ({ mure, doc }) => {
   let existingUntitleds = await mure.db.allDocs({
     startkey: doc.mimeType + ';Untitled ',
     endkey: doc.mimeType + ';Untitled \uffff'
   });
-  return DocumentConstruct.standardize({
+  return DocumentWrapper.standardize({
     mure,
     doc,
     existingUntitleds,
     aggressive: true
   });
 };
-DocumentConstruct.standardize = ({
+DocumentWrapper.standardize = ({
   mure,
   doc,
   existingUntitleds = { rows: [] },
   aggressive
 }) => {
-  if (!doc._id || !DocumentConstruct.isValidId(doc._id)) {
+  if (!doc._id || !DocumentWrapper.isValidId(doc._id)) {
     if (!doc.mimeType && !doc.filename) {
       // Without an id, filename, or mimeType, just assume it's application/json
       doc.mimeType = 'application/json';
@@ -127,9 +127,9 @@ DocumentConstruct.standardize = ({
   doc.classes._id = '@$.classes';
 
   doc.contents = doc.contents || {};
-  // In case doc.contents is an array, prep it for ContainerConstruct.standardize
-  doc.contents = ContainerConstruct.convertArray(doc.contents);
-  doc.contents = ContainerConstruct.standardize({
+  // In case doc.contents is an array, prep it for ContainerWrapper.standardize
+  doc.contents = ContainerWrapper.convertArray(doc.contents);
+  doc.contents = ContainerWrapper.standardize({
     mure,
     value: doc.contents,
     path: [`{"_id":"${doc._id}"}`, '$', 'contents'],
@@ -140,4 +140,4 @@ DocumentConstruct.standardize = ({
   return doc;
 };
 
-export default DocumentConstruct;
+export default DocumentWrapper;

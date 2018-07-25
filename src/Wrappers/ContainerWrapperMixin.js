@@ -1,17 +1,17 @@
 export default (superclass) => class extends superclass {
-  getValue (attribute, target = this._contentConstruct || this) {
+  getValue (attribute, target = this._contentWrapper || this) {
     return target.value[attribute];
   }
-  getAttributes (target = this._contentConstruct || this) {
+  getAttributes (target = this._contentWrapper || this) {
     return Object.keys(target.value)
       .filter(d => !this.mure.RESERVED_OBJ_KEYS[d]);
   }
-  getContents (target = this._contentConstruct || this) {
+  getContents (target = this._contentWrapper || this) {
     const result = {};
     Object.entries(target.value).forEach(([label, value]) => {
       if (!this.mure.RESERVED_OBJ_KEYS[label]) {
-        let ConstructType = this.mure.inferType(value);
-        const temp = new ConstructType({
+        let WrapperType = this.mure.inferType(value);
+        const temp = new WrapperType({
           mure: this.mure,
           value,
           path: target.path.concat([label]),
@@ -22,10 +22,10 @@ export default (superclass) => class extends superclass {
     });
     return result;
   }
-  getContentSelectors (target = this._contentConstruct || this) {
+  getContentSelectors (target = this._contentWrapper || this) {
     return Object.keys(this.getContents(target));
   }
-  getContentCount (target = this._contentConstruct || this) {
+  getContentCount (target = this._contentWrapper || this) {
     return Object.keys(target.value)
       .filter(label => !this.mure.RESERVED_OBJ_KEYS[label])
       .length;

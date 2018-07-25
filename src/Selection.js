@@ -37,11 +37,11 @@ class Selection {
     });
   }
   get isCached () {
-    return !!this._cachedConstructs;
+    return !!this._cachedWrappers;
   }
   invalidateCache () {
     delete this._cachedDocLists;
-    delete this._cachedConstructs;
+    delete this._cachedWrappers;
     delete this._summaryCaches;
   }
   async docLists () {
@@ -51,7 +51,7 @@ class Selection {
     this._cachedDocLists = await Promise.all(this.selectors
       .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
     // We want all selections to operate from exactly the same document object,
-    // so it's easy / straightforward for Constructs to just mutate their own value
+    // so it's easy / straightforward for Wrappers to just mutate their own value
     // references, and have those changes automatically appear in documents
     // when they're saved... so we actually want to *swap out* matching documents
     // for their cached versions
@@ -83,8 +83,8 @@ class Selection {
     return this._cachedDocLists;
   }
   async items (docLists) {
-    if (this._cachedConstructs) {
-      return this._cachedConstructs;
+    if (this._cachedWrappers) {
+      return this._cachedWrappers;
     }
 
     // Note: we should only pass in docLists in rare situations (such as the
@@ -95,10 +95,10 @@ class Selection {
 
     return queueAsync(async () => {
       // Collect the results of objQuery
-      this._cachedConstructs = {};
-      const addConstruct = item => {
-        if (!this._cachedConstructs[item.uniqueSelector]) {
-          this._cachedConstructs[item.uniqueSelector] = item;
+      this._cachedWrappers = {};
+      const addWrapper = item => {
+        if (!this._cachedWrappers[item.uniqueSelector]) {
+          this._cachedWrappers[item.uniqueSelector] = item;
         }
       };
 
@@ -110,7 +110,7 @@ class Selection {
           // No objQuery means that we want a view of multiple documents (other
           // shenanigans mean we shouldn't select anything)
           if (selector.parentShift === 0 && !selector.followLinks) {
-            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+            addWrapper(new this.mure.WRAPPERS.RootWrapper({
               mure: this.mure,
               docList
             }));
@@ -119,13 +119,13 @@ class Selection {
           // Selecting the documents themselves
           if (selector.parentShift === 0 && !selector.followLinks) {
             docList.forEach(doc => {
-              addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
+              addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
                 mure: this.mure,
                 doc
               }));
             });
           } else if (selector.parentShift === 1) {
-            addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+            addWrapper(new this.mure.WRAPPERS.RootWrapper({
               mure: this.mure,
               docList
             }));
@@ -134,9 +134,9 @@ class Selection {
           // Okay, we need to evaluate the jsonPath
           for (let docIndex = 0; docIndex < docList.length; docIndex++) {
             let doc = docList[docIndex];
-            let matchingConstructs = jsonPath.nodes(doc, selector.objQuery);
-            for (let itemIndex = 0; itemIndex < matchingConstructs.length; itemIndex++) {
-              let { path, value } = matchingConstructs[itemIndex];
+            let matchingWrappers = jsonPath.nodes(doc, selector.objQuery);
+            for (let itemIndex = 0; itemIndex < matchingWrappers.length; itemIndex++) {
+              let { path, value } = matchingWrappers[itemIndex];
               let localPath = path;
               if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
                 // Don't create items under reserved keys
@@ -144,7 +144,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length) {
                 // we parent shifted up to the root level
                 if (!selector.followLinks) {
-                  addConstruct(new this.mure.CONSTRUCTS.RootConstruct({
+                  addWrapper(new this.mure.WRAPPERS.RootWrapper({
                     mure: this.mure,
                     docList
                   }));
@@ -152,7 +152,7 @@ class Selection {
               } else if (selector.parentShift === localPath.length - 1) {
                 // we parent shifted to the document level
                 if (!selector.followLinks) {
-                  addConstruct(new this.mure.CONSTRUCTS.DocumentConstruct({
+                  addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
                     mure: this.mure,
                     doc
                   }));
@@ -166,10 +166,10 @@ class Selection {
                 if (selector.followLinks) {
                   // We (potentially) selected a link that we need to follow
                   Object.values(await this.mure.followRelativeLink(value, doc))
-                    .forEach(addConstruct);
+                    .forEach(addWrapper);
                 } else {
-                  const ConstructType = this.mure.inferType(value);
-                  addConstruct(new ConstructType({
+                  const WrapperType = this.mure.inferType(value);
+                  addWrapper(new WrapperType({
                     mure: this.mure,
                     value,
                     path: [`{"_id":"${doc._id}"}`].concat(localPath),
@@ -181,7 +181,7 @@ class Selection {
           }
         }
       }
-      return this._cachedConstructs;
+      return this._cachedWrappers;
     });
   }
   async execute (operation, inputOptions) {
@@ -292,25 +292,25 @@ class Selection {
       if (counters.quantitativeBins !== null) {
         if (counters.quantitativeBins.length === 0) {
           // Init the counters with some temporary placeholders
-          counters.quantitativeConstructs = [];
+          counters.quantitativeWrappers = [];
           counters.quantitativeType = item.type;
-          if (item instanceof this.mure.CONSTRUCTS.NumberConstruct) {
+          if (item instanceof this.mure.WRAPPERS.NumberWrapper) {
             counters.quantitativeScale = this.mure.d3.scaleLinear()
               .domain([item.value, item.value]);
-          } else if (item instanceof this.mure.CONSTRUCTS.DateConstruct) {
+          } else if (item instanceof this.mure.WRAPPERS.DateWrapper) {
             counters.quantitativeScale = this.mure.d3.scaleTime()
               .domain([item.value, item.value]);
           } else {
             // The first value is non-quantitative; this likely isn't a quantitative attribute
             counters.quantitativeBins = null;
-            delete counters.quantitativeConstructs;
+            delete counters.quantitativeWrappers;
             delete counters.quantitativeType;
             delete counters.quantitativeScale;
           }
         } else if (counters.quantitativeType !== item.type) {
           // Encountered an item of a different type; this likely isn't a quantitative attribute
           counters.quantitativeBins = null;
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -330,19 +330,19 @@ class Selection {
     for (let i = 0; i < itemList.length; i++) {
       const item = itemList[i];
       result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
+      if (item instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
         countPrimitive(result.raw, item);
       } else {
         if (item.getContents) {
-          Object.values(item.getContents()).forEach(childConstruct => {
-            const counters = result.attributes[childConstruct.label] = result.attributes[childConstruct.label] || {
+          Object.values(item.getContents()).forEach(childWrapper => {
+            const counters = result.attributes[childWrapper.label] = result.attributes[childWrapper.label] || {
               typeBins: {},
               categoricalBins: {},
               quantitativeBins: []
             };
-            counters.typeBins[childConstruct.type] = (counters.typeBins[childConstruct.type] || 0) + 1;
-            if (childConstruct instanceof this.mure.CONSTRUCTS.PrimitiveConstruct) {
-              countPrimitive(counters, childConstruct);
+            counters.typeBins[childWrapper.type] = (counters.typeBins[childWrapper.type] || 0) + 1;
+            if (childWrapper instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
+              countPrimitive(counters, childWrapper);
             }
           });
         }
@@ -361,10 +361,10 @@ class Selection {
         counters.categoricalBins = null;
       }
       if (counters.quantitativeBins) {
-        if (!counters.quantitativeConstructs ||
-             counters.quantitativeConstructs.length === 0) {
+        if (!counters.quantitativeWrappers ||
+             counters.quantitativeWrappers.length === 0) {
           counters.quantitativeBins = null;
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
           delete counters.quantitativeScale;
         } else {
@@ -376,9 +376,9 @@ class Selection {
             .domain(counters.quantitativeScale.domain())
             .thresholds(counters.quantitativeScale.ticks(numBins))
             .value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeConstructs);
+          counters.quantitativeBins = histogramGenerator(counters.quantitativeWrappers);
           // Clean up some of the temporary placeholders
-          delete counters.quantitativeConstructs;
+          delete counters.quantitativeWrappers;
           delete counters.quantitativeType;
         }
       }
@@ -406,7 +406,7 @@ class Selection {
     // First pass: identify items by class, and generate pseudo-items that
     // point to classes instead of selectors
     Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+      if (item instanceof this.mure.WRAPPERS.EdgeWrapper) {
         // This is an edge; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -417,12 +417,12 @@ class Selection {
             result.edgeClasses[edgeClassName] || { $nodes: {} };
           // Add our direction counts for each of the node's classes to the pseudo-item
           Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
-            let nodeConstruct = items[nodeSelector];
-            if (!nodeConstruct) {
+            let nodeWrapper = items[nodeSelector];
+            if (!nodeWrapper) {
               // This edge refers to a node outside the selection
               result.missingNodes = true;
             } else {
-              nodeConstruct.getClasses().forEach(nodeClassName => {
+              nodeWrapper.getClasses().forEach(nodeClassName => {
                 Object.entries(directions).forEach(([direction, count]) => {
                   pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
                   pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
@@ -432,7 +432,7 @@ class Selection {
             }
           });
         });
-      } else if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+      } else if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
         // This is a node; create / add to a pseudo-item for each class
         let classList = item.getClasses();
         if (classList.length === 0) {
@@ -444,12 +444,12 @@ class Selection {
           pseudoNode.count += 1;
           // Ensure that the edge class is referenced (directions' counts are kept on the edges)
           Object.keys(item.value.$edges).forEach(edgeSelector => {
-            let edgeConstruct = items[edgeSelector];
-            if (!edgeConstruct) {
+            let edgeWrapper = items[edgeSelector];
+            if (!edgeWrapper) {
               // This node refers to an edge outside the selection
               result.missingEdges = true;
             } else {
-              edgeConstruct.getClasses().forEach(edgeClassName => {
+              edgeWrapper.getClasses().forEach(edgeClassName => {
                 pseudoNode.$edges[edgeClassName] = true;
               });
             }

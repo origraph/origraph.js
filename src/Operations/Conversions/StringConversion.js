@@ -4,12 +4,12 @@ class StringConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.StringConstruct,
+      TargetType: mure.WRAPPERS.StringWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.NullConstruct,
-        mure.CONSTRUCTS.BooleanConstruct,
-        mure.CONSTRUCTS.NumberConstruct,
-        mure.CONSTRUCTS.DateConstruct
+        mure.WRAPPERS.NullWrapper,
+        mure.WRAPPERS.BooleanWrapper,
+        mure.WRAPPERS.NumberWrapper,
+        mure.WRAPPERS.DateWrapper
       ]
     });
   }

@@ -1,11 +1,11 @@
 import jsonPath from 'jsonpath';
-import BaseConstruct from './BaseConstruct.js';
+import BaseWrapper from './BaseWrapper.js';
 
-class TypedConstruct extends BaseConstruct {
+class TypedWrapper extends BaseWrapper {
   constructor ({ mure, value, path, doc }) {
     let parent;
     if (path.length < 2) {
-      throw new Error(`Can't create a non-Root or non-Doc Construct with a path length less than 2`);
+      throw new Error(`Can't create a non-Root or non-Doc Wrapper with a path length less than 2`);
     } else if (path.length === 2) {
       parent = doc;
     } else {
@@ -27,7 +27,7 @@ class TypedConstruct extends BaseConstruct {
       throw new TypeError(`typeof ${value} is ${typeof value}, which does not match required ${this.constructor.JSTYPE}`);
     }
   }
-  get parentConstruct () {
+  get parentWrapper () {
     const ParentType = this.mure.inferType(this.parent);
     return new ParentType({
       mure: this.mure,
@@ -37,9 +37,9 @@ class TypedConstruct extends BaseConstruct {
     });
   }
 }
-TypedConstruct.JSTYPE = 'object';
-TypedConstruct.isBadValue = function (value) {
+TypedWrapper.JSTYPE = 'object';
+TypedWrapper.isBadValue = function (value) {
   return (typeof value) !== this.JSTYPE; // eslint-disable-line valid-typeof
 };
 
-export default TypedConstruct;
+export default TypedWrapper;

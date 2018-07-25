@@ -27,20 +27,20 @@ class AttachOperation extends BaseOperation {
     context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'edges',
       validTypes: [
-        this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ContainerConstruct,
-        this.mure.CONSTRUCTS.SetConstruct,
-        this.mure.CONSTRUCTS.SupernodeConstruct,
+        this.mure.WRAPPERS.DocumentWrapper,
+        this.mure.WRAPPERS.ContainerWrapper,
+        this.mure.WRAPPERS.SetWrapper,
+        this.mure.WRAPPERS.SupernodeWrapper,
         Selection
       ]
     }));
     const nodes = new TypedOption({
       parameterName: 'nodes',
       validTypes: [
-        this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ContainerConstruct,
-        this.mure.CONSTRUCTS.SetConstruct,
-        this.mure.CONSTRUCTS.SupernodeConstruct,
+        this.mure.WRAPPERS.DocumentWrapper,
+        this.mure.WRAPPERS.ContainerWrapper,
+        this.mure.WRAPPERS.SetWrapper,
+        this.mure.WRAPPERS.SupernodeWrapper,
         Selection
       ]
     });
@@ -116,12 +116,12 @@ class AttachOperation extends BaseOperation {
     }
     if (inputOptions.context === 'Bipartite') {
       if (!(
-        (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-         inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct) &&
-        (inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-         inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+        (inputOptions.edges instanceof this.mure.WRAPPERS.DocumentWrapper ||
+         inputOptions.edges instanceof this.mure.WRAPPERS.ContainerWrapper ||
+         inputOptions.edges instanceof this.mure.WRAPPERS.SetWrapper) &&
+        (inputOptions.nodes instanceof this.mure.WRAPPERS.DocumentWrapper ||
+         inputOptions.nodes instanceof this.mure.WRAPPERS.ContainerWrapper ||
+         inputOptions.nodes instanceof this.mure.WRAPPERS.SetWrapper))) {
         return false;
       }
     } else if (inputOptions.context === 'Target Container') {
@@ -131,17 +131,17 @@ class AttachOperation extends BaseOperation {
       let edgeItems = await selection.items();
       let nodeItems = await inputOptions.nodes.items();
       return Object.values(edgeItems)
-        .some(item => item instanceof this.mure.CONSTRUCTS.EdgeConstruct) &&
+        .some(item => item instanceof this.mure.WRAPPERS.EdgeWrapper) &&
         Object.values(nodeItems)
-          .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+          .some(item => item instanceof this.mure.WRAPPERS.NodeWrapper);
     } else { // inputOptions.context === 'Within Selection'
       const edgeItems = await selection.items();
       let oneNode = false;
       let oneEdge = false;
       return Object.values(edgeItems).some(item => {
-        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+        if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
           oneNode = true;
-        } else if (item instanceof this.mure.CONSTRUCTS.EdgeConstruct) {
+        } else if (item instanceof this.mure.WRAPPERS.EdgeWrapper) {
           oneEdge = true;
         }
         return oneNode && oneEdge;
@@ -173,11 +173,11 @@ class AttachOperation extends BaseOperation {
     for (let i = 0; i < itemList.length; i++) {
       for (let j = i + 1; j < itemList.length; j++) {
         let edge =
-          (itemList[i] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[i]) ||
-          (itemList[j] instanceof this.mure.CONSTRUCTS.EdgeConstruct && itemList[j]);
+          (itemList[i] instanceof this.mure.WRAPPERS.EdgeWrapper && itemList[i]) ||
+          (itemList[j] instanceof this.mure.WRAPPERS.EdgeWrapper && itemList[j]);
         let node =
-          (itemList[i] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[i]) ||
-          (itemList[j] instanceof this.mure.CONSTRUCTS.NodeConstruct && itemList[j]);
+          (itemList[i] instanceof this.mure.WRAPPERS.NodeWrapper && itemList[i]) ||
+          (itemList[j] instanceof this.mure.WRAPPERS.NodeWrapper && itemList[j]);
         if (edge && node && connectWhen(edge, node)) {
           edge.attachTo(node, direction);
           output.flagPollutedDoc(edge.doc);
@@ -219,11 +219,11 @@ class AttachOperation extends BaseOperation {
 
     let edges;
     if (inputOptions.context === 'Bipartite') {
-      if (inputOptions.edges instanceof this.mure.CONSTRUCTS.SetConstruct ||
-          inputOptions.edges instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      if (inputOptions.edges instanceof this.mure.WRAPPERS.SetWrapper ||
+          inputOptions.edges instanceof this.mure.WRAPPERS.SupernodeWrapper) {
         edges = await inputOptions.edges.getMembers();
-      } else if (inputOptions.edges instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-                 inputOptions.edges instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
+      } else if (inputOptions.edges instanceof this.mure.WRAPPERS.DocumentWrapper ||
+                 inputOptions.edges instanceof this.mure.WRAPPERS.ContainerWrapper) {
         edges = inputOptions.edges.getContents();
       } else {
         output.warn(`inputOptions.edges is of unexpected type ${inputOptions.edges && inputOptions.edges.type}`);
@@ -247,11 +247,11 @@ class AttachOperation extends BaseOperation {
     let nodes;
     if (inputOptions.nodes instanceof Selection) {
       nodes = await inputOptions.nodes.items();
-    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.SetConstruct ||
-               inputOptions.nodes instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+    } else if (inputOptions.nodes instanceof this.mure.WRAPPERS.SetWrapper ||
+               inputOptions.nodes instanceof this.mure.WRAPPERS.SupernodeWrapper) {
       nodes = await inputOptions.nodes.getMembers();
-    } else if (inputOptions.nodes instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-               inputOptions.nodes instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+    } else if (inputOptions.nodes instanceof this.mure.WRAPPERS.ContainerWrapper ||
+               inputOptions.nodes instanceof this.mure.WRAPPERS.DocumentWrapper) {
       nodes = inputOptions.nodes.getContents();
     } else {
       output.warn(`inputOptions.nodes is of unexpected type ${inputOptions.nodes && inputOptions.nodes.type}`);
@@ -266,8 +266,8 @@ class AttachOperation extends BaseOperation {
     // Attach the edges!
     edgeList.forEach(edge => {
       nodeList.forEach(node => {
-        if (edge instanceof this.mure.CONSTRUCTS.EdgeConstruct &&
-            node instanceof this.mure.CONSTRUCTS.NodeConstruct &&
+        if (edge instanceof this.mure.WRAPPERS.EdgeWrapper &&
+            node instanceof this.mure.WRAPPERS.NodeWrapper &&
             connectWhen(edge, node)) {
           edge.attachTo(node, inputOptions.direction);
           output.flagPollutedDoc(edge.doc);

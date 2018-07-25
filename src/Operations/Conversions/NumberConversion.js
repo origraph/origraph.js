@@ -4,11 +4,11 @@ class NumberConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NumberConstruct,
+      TargetType: mure.WRAPPERS.NumberWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.NullConstruct,
-        mure.CONSTRUCTS.BooleanConstruct,
-        mure.CONSTRUCTS.StringConstruct
+        mure.WRAPPERS.NullWrapper,
+        mure.WRAPPERS.BooleanWrapper,
+        mure.WRAPPERS.StringWrapper
       ]
     });
   }

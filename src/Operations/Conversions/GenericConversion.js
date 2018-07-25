@@ -4,9 +4,9 @@ class GenericConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.GenericConstruct,
+      TargetType: mure.WRAPPERS.GenericWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.ContainerConstruct
+        mure.WRAPPERS.ContainerWrapper
       ],
       specialTypes: []
     });

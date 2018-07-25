@@ -24,11 +24,11 @@ class AssignClassOperation extends BaseOperation {
     return result;
   }
   potentiallyExecutableOnItem (item) {
-    return item instanceof this.mure.CONSTRUCTS.GenericConstruct;
+    return item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async canExecuteOnInstance (item, inputOptions) {
     return (await super.canExecuteOnInstance(item, inputOptions)) ||
-      item instanceof this.mure.CONSTRUCTS.GenericConstruct;
+      item instanceof this.mure.WRAPPERS.GenericWrapper;
   }
   async executeOnInstance (item, inputOptions) {
     const output = new OutputSpec();

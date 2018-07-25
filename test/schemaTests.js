@@ -42,15 +42,15 @@ module.exports = [
           result: logging.testObjectEquality(schemaResults.allClasses1, allClasses)
         });
 
-        let handConstructs = await hands.items();
-        let trickConstructs = await tricks.items();
-        let cardConstructs = await cards.items();
+        let handWrappers = await hands.items();
+        let trickWrappers = await tricks.items();
+        let cardWrappers = await cards.items();
 
-        const handsAreNodes = Object.values(handConstructs)
+        const handsAreNodes = Object.values(handWrappers)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const tricksAreNodes = Object.values(trickConstructs)
+        const tricksAreNodes = Object.values(trickWrappers)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
-        const cardsAreNodes = Object.values(cardConstructs)
+        const cardsAreNodes = Object.values(cardWrappers)
           .reduce((agg, item) => agg && !!item.value.$edges, true);
         const allNodes = handsAreNodes && tricksAreNodes && cardsAreNodes;
 
@@ -109,12 +109,12 @@ module.exports = [
         });
 
         // Test schema summary functions
-        let allConstructs = await hands.mergeSelection(cards);
-        allConstructs = await allConstructs.mergeSelection(tricks);
-        allConstructs = await allConstructs.mergeSelection(wonByEdges);
-        allConstructs = await allConstructs.mergeSelection(playedEdges);
+        let allWrappers = await hands.mergeSelection(cards);
+        allWrappers = await allWrappers.mergeSelection(tricks);
+        allWrappers = await allWrappers.mergeSelection(wonByEdges);
+        allWrappers = await allWrappers.mergeSelection(playedEdges);
 
-        let summary = await allConstructs.getFlatGraphSchema();
+        let summary = await allWrappers.getFlatGraphSchema();
         tests.push({
           name: 'Flat graph schema test',
           result: logging.testObjectEquality(schemaResults.flatGraphSchema, summary)

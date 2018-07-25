@@ -1,6 +1,6 @@
 import Introspectable from '../Common/Introspectable.js';
 
-class BaseConstruct extends Introspectable {
+class BaseWrapper extends Introspectable {
   constructor ({ mure, path, value, parent, doc, label, uniqueSelector }) {
     super();
     this.mure = mure;
@@ -15,7 +15,7 @@ class BaseConstruct extends Introspectable {
   set value (newValue) {
     if (this.parent) {
       // In the event that this is a primitive boolean, number, string, etc,
-      // setting the value on the Construct wrapper object *won't* naturally update
+      // setting the value on the Wrapper wrapper object *won't* naturally update
       // it in its containing document...
       this.parent[this.label] = newValue;
     }
@@ -27,22 +27,22 @@ class BaseConstruct extends Introspectable {
     delete this.parent[this.label];
   }
   equals (other) {
-    return other instanceof BaseConstruct &&
+    return other instanceof BaseWrapper &&
       this.uniqueSelector === other.uniqueSelector;
   }
 }
-Object.defineProperty(BaseConstruct, 'type', {
+Object.defineProperty(BaseWrapper, 'type', {
   get () {
-    return /(.*)Construct/.exec(this.name)[1];
+    return /(.*)Wrapper/.exec(this.name)[1];
   }
 });
-BaseConstruct.getBoilerplateValue = () => {
+BaseWrapper.getBoilerplateValue = () => {
   throw new Error('unimplemented');
 };
-BaseConstruct.standardize = ({ value }) => {
+BaseWrapper.standardize = ({ value }) => {
   // Default action: do nothing
   return value;
 };
-BaseConstruct.isBadValue = value => false;
+BaseWrapper.isBadValue = value => false;
 
-export default BaseConstruct;
+export default BaseWrapper;

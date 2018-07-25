@@ -27,20 +27,20 @@ class ConnectOperation extends BaseOperation {
     context.specs['Bipartite'].addOption(new TypedOption({
       parameterName: 'sources',
       validTypes: [
-        this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ContainerConstruct,
-        this.mure.CONSTRUCTS.SetConstruct,
-        this.mure.CONSTRUCTS.SupernodeConstruct,
+        this.mure.WRAPPERS.DocumentWrapper,
+        this.mure.WRAPPERS.ContainerWrapper,
+        this.mure.WRAPPERS.SetWrapper,
+        this.mure.WRAPPERS.SupernodeWrapper,
         Selection
       ]
     }));
     const targets = new TypedOption({
       parameterName: 'targets',
       validTypes: [
-        this.mure.CONSTRUCTS.DocumentConstruct,
-        this.mure.CONSTRUCTS.ContainerConstruct,
-        this.mure.CONSTRUCTS.SetConstruct,
-        this.mure.CONSTRUCTS.SupernodeConstruct,
+        this.mure.WRAPPERS.DocumentWrapper,
+        this.mure.WRAPPERS.ContainerWrapper,
+        this.mure.WRAPPERS.SetWrapper,
+        this.mure.WRAPPERS.SupernodeWrapper,
         Selection
       ]
     });
@@ -112,7 +112,7 @@ class ConnectOperation extends BaseOperation {
     // edges?
     result.addOption(new TypedOption({
       parameterName: 'saveEdgesIn',
-      validTypes: [this.mure.CONSTRUCTS.ContainerConstruct],
+      validTypes: [this.mure.WRAPPERS.ContainerWrapper],
       suggestOrphans: true
     }));
 
@@ -128,17 +128,17 @@ class ConnectOperation extends BaseOperation {
     if (inputOptions.ignoreErrors !== 'Stop on Error') {
       return true;
     }
-    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.WRAPPERS.ContainerWrapper)) {
       return false;
     }
     if (inputOptions.context === 'Bipartite') {
       if (!(
-        (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-         inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct) &&
-        (inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-         inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-         inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct))) {
+        (inputOptions.sources instanceof this.mure.WRAPPERS.DocumentWrapper ||
+         inputOptions.sources instanceof this.mure.WRAPPERS.ContainerWrapper ||
+         inputOptions.sources instanceof this.mure.WRAPPERS.SetWrapper) &&
+        (inputOptions.targets instanceof this.mure.WRAPPERS.DocumentWrapper ||
+         inputOptions.targets instanceof this.mure.WRAPPERS.ContainerWrapper ||
+         inputOptions.targets instanceof this.mure.WRAPPERS.SetWrapper))) {
         return false;
       }
     } else if (inputOptions.context === 'Target Container') {
@@ -148,14 +148,14 @@ class ConnectOperation extends BaseOperation {
       let items = await selection.items();
       let targetItems = await inputOptions.targets.items();
       return Object.values(items)
-        .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct) &&
+        .some(item => item instanceof this.mure.WRAPPERS.NodeWrapper) &&
         Object.values(targetItems)
-          .some(item => item instanceof this.mure.CONSTRUCTS.NodeConstruct);
+          .some(item => item instanceof this.mure.WRAPPERS.NodeWrapper);
     } else { // inputOptions.context === 'Within Selection'
       const items = await selection.items();
       let count = 0;
       const atLeastTwoNodes = Object.values(items).some(item => {
-        if (item instanceof this.mure.CONSTRUCTS.NodeConstruct) {
+        if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
           count += 1;
           if (count >= 2) {
             return true;
@@ -207,7 +207,7 @@ class ConnectOperation extends BaseOperation {
     const output = new OutputSpec();
 
     // Make sure we have a place to save the edges
-    if (!(inputOptions.saveEdgesIn instanceof this.mure.CONSTRUCTS.ContainerConstruct)) {
+    if (!(inputOptions.saveEdgesIn instanceof this.mure.WRAPPERS.ContainerWrapper)) {
       output.warn(`saveEdgesIn is not an Item`);
       return output;
     }
@@ -243,11 +243,11 @@ class ConnectOperation extends BaseOperation {
     if (inputOptions.context === 'Bipartite') {
       if (inputOptions.sources instanceof Selection) {
         sources = await inputOptions.sources.items();
-      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.SetConstruct ||
-          inputOptions.sources instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+      } else if (inputOptions.sources instanceof this.mure.WRAPPERS.SetWrapper ||
+          inputOptions.sources instanceof this.mure.WRAPPERS.SupernodeWrapper) {
         sources = await inputOptions.sources.getMembers();
-      } else if (inputOptions.sources instanceof this.mure.CONSTRUCTS.DocumentConstruct ||
-                 inputOptions.sources instanceof this.mure.CONSTRUCTS.ContainerConstruct) {
+      } else if (inputOptions.sources instanceof this.mure.WRAPPERS.DocumentWrapper ||
+                 inputOptions.sources instanceof this.mure.WRAPPERS.ContainerWrapper) {
         sources = inputOptions.sources.getContents();
       } else {
         output.warn(`inputOptions.sources is of unexpected type ${inputOptions.sources && inputOptions.sources.type}`);
@@ -274,11 +274,11 @@ class ConnectOperation extends BaseOperation {
     let targets;
     if (inputOptions.targets instanceof Selection) {
       targets = await inputOptions.targets.items();
-    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.SetConstruct ||
-               inputOptions.targets instanceof this.mure.CONSTRUCTS.SupernodeConstruct) {
+    } else if (inputOptions.targets instanceof this.mure.WRAPPERS.SetWrapper ||
+               inputOptions.targets instanceof this.mure.WRAPPERS.SupernodeWrapper) {
       targets = await inputOptions.targets.getMembers();
-    } else if (inputOptions.targets instanceof this.mure.CONSTRUCTS.ContainerConstruct ||
-               inputOptions.targets instanceof this.mure.CONSTRUCTS.DocumentConstruct) {
+    } else if (inputOptions.targets instanceof this.mure.WRAPPERS.ContainerWrapper ||
+               inputOptions.targets instanceof this.mure.WRAPPERS.DocumentWrapper) {
       targets = inputOptions.targets.getContents();
     } else {
       output.warn(`inputOptions.targets is of unexpected type ${inputOptions.targets && inputOptions.targets.type}`);
@@ -293,8 +293,8 @@ class ConnectOperation extends BaseOperation {
     // Create the edges!
     sourceList.forEach(source => {
       targetList.forEach(target => {
-        if (source instanceof this.mure.CONSTRUCTS.NodeConstruct &&
-            target instanceof this.mure.CONSTRUCTS.NodeConstruct &&
+        if (source instanceof this.mure.WRAPPERS.NodeWrapper &&
+            target instanceof this.mure.WRAPPERS.NodeWrapper &&
             connectWhen(source, target)) {
           const newEdge = source.connectTo(target, inputOptions.saveEdgesIn, direction);
           output.addSelectors([newEdge.uniqueSelector]);

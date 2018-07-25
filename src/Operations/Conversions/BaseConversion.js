@@ -27,7 +27,7 @@ class BaseConversion extends Introspectable {
   }
   addOptionsToSpec (inputSpec) {}
   standardConversion (item, inputOptions, outputSpec) {
-    // Because of BaseConstruct's setter, this will actually apply to the
+    // Because of BaseWrapper's setter, this will actually apply to the
     // item's document as well as to the item wrapper
     item.value = this.TargetType.standardize({
       mure: this.mure,

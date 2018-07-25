@@ -1,6 +1,6 @@
-import BaseConstruct from './BaseConstruct.js';
+import BaseWrapper from './BaseWrapper.js';
 
-class RootConstruct extends BaseConstruct {
+class RootWrapper extends BaseWrapper {
   constructor ({ mure, docList }) {
     super({
       mure,
@@ -19,4 +19,4 @@ class RootConstruct extends BaseConstruct {
     throw new Error(`Can't remove the root item`);
   }
 }
-export default RootConstruct;
+export default RootWrapper;

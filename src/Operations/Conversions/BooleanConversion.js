@@ -4,20 +4,20 @@ class BooleanConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.BooleanConstruct,
+      TargetType: mure.WRAPPERS.BooleanWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.NullConstruct,
-        mure.CONSTRUCTS.NumberConstruct,
-        mure.CONSTRUCTS.DateConstruct,
-        mure.CONSTRUCTS.ReferenceConstruct,
-        mure.CONSTRUCTS.ContainerConstruct,
-        mure.CONSTRUCTS.NodeConstruct,
-        mure.CONSTRUCTS.EdgeConstruct,
-        mure.CONSTRUCTS.SetConstruct,
-        mure.CONSTRUCTS.SupernodeConstruct
+        mure.WRAPPERS.NullWrapper,
+        mure.WRAPPERS.NumberWrapper,
+        mure.WRAPPERS.DateWrapper,
+        mure.WRAPPERS.ReferenceWrapper,
+        mure.WRAPPERS.ContainerWrapper,
+        mure.WRAPPERS.NodeWrapper,
+        mure.WRAPPERS.EdgeWrapper,
+        mure.WRAPPERS.SetWrapper,
+        mure.WRAPPERS.SupernodeWrapper
       ],
       specialTypes: [
-        mure.CONSTRUCTS.StringConstruct
+        mure.WRAPPERS.StringWrapper
       ]
     });
   }

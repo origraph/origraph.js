@@ -3,22 +3,22 @@ import jsonPath from 'jsonpath';
 import { Model } from 'uki';
 import Selection from './Selection.js';
 
-import RootConstruct from './Constructs/RootConstruct.js';
-import DocumentConstruct from './Constructs/DocumentConstruct.js';
-import PrimitiveConstruct from './Constructs/PrimitiveConstruct.js';
-import InvalidConstruct from './Constructs/InvalidConstruct.js';
-import NullConstruct from './Constructs/NullConstruct.js';
-import BooleanConstruct from './Constructs/BooleanConstruct.js';
-import NumberConstruct from './Constructs/NumberConstruct.js';
-import StringConstruct from './Constructs/StringConstruct.js';
-import DateConstruct from './Constructs/DateConstruct.js';
-import ReferenceConstruct from './Constructs/ReferenceConstruct.js';
-import ContainerConstruct from './Constructs/ContainerConstruct.js';
-import GenericConstruct from './Constructs/GenericConstruct.js';
-import SetConstruct from './Constructs/SetConstruct.js';
-import EdgeConstruct from './Constructs/EdgeConstruct.js';
-import NodeConstruct from './Constructs/NodeConstruct.js';
-import SupernodeConstruct from './Constructs/SupernodeConstruct.js';
+import RootWrapper from './Wrappers/RootWrapper.js';
+import DocumentWrapper from './Wrappers/DocumentWrapper.js';
+import PrimitiveWrapper from './Wrappers/PrimitiveWrapper.js';
+import InvalidWrapper from './Wrappers/InvalidWrapper.js';
+import NullWrapper from './Wrappers/NullWrapper.js';
+import BooleanWrapper from './Wrappers/BooleanWrapper.js';
+import NumberWrapper from './Wrappers/NumberWrapper.js';
+import StringWrapper from './Wrappers/StringWrapper.js';
+import DateWrapper from './Wrappers/DateWrapper.js';
+import ReferenceWrapper from './Wrappers/ReferenceWrapper.js';
+import ContainerWrapper from './Wrappers/ContainerWrapper.js';
+import GenericWrapper from './Wrappers/GenericWrapper.js';
+import SetWrapper from './Wrappers/SetWrapper.js';
+import EdgeWrapper from './Wrappers/EdgeWrapper.js';
+import NodeWrapper from './Wrappers/NodeWrapper.js';
+import SupernodeWrapper from './Wrappers/SupernodeWrapper.js';
 
 import SelectAllOperation from './Operations/SelectAllOperation.js';
 import FilterOperation from './Operations/FilterOperation.js';
@@ -49,23 +49,23 @@ class Mure extends Model {
     this.d3.namespaces.mure = this.NSString;
 
     // Our custom type definitions
-    this.CONSTRUCTS = {
-      RootConstruct,
-      DocumentConstruct,
-      PrimitiveConstruct,
-      InvalidConstruct,
-      NullConstruct,
-      BooleanConstruct,
-      NumberConstruct,
-      StringConstruct,
-      DateConstruct,
-      ReferenceConstruct,
-      ContainerConstruct,
-      GenericConstruct,
-      SetConstruct,
-      EdgeConstruct,
-      NodeConstruct,
-      SupernodeConstruct
+    this.WRAPPERS = {
+      RootWrapper,
+      DocumentWrapper,
+      PrimitiveWrapper,
+      InvalidWrapper,
+      NullWrapper,
+      BooleanWrapper,
+      NumberWrapper,
+      StringWrapper,
+      DateWrapper,
+      ReferenceWrapper,
+      ContainerWrapper,
+      GenericWrapper,
+      SetWrapper,
+      EdgeWrapper,
+      NodeWrapper,
+      SupernodeWrapper
     };
 
     // Special keys that should be skipped in various operations
@@ -88,11 +88,11 @@ class Mure extends Model {
       XOR: 'XOR'
     };
 
-    // Auto-mappings from native javascript types to Constructs
+    // Auto-mappings from native javascript types to Wrappers
     this.JSTYPES = {
-      'null': NullConstruct,
-      'boolean': BooleanConstruct,
-      'number': NumberConstruct
+      'null': NullWrapper,
+      'boolean': BooleanWrapper,
+      'number': NumberWrapper
     };
 
     // All the supported operations
@@ -106,7 +106,7 @@ class Mure extends Model {
     ];
     this.OPERATIONS = {};
 
-    // Unlike CONSTRUCTS, we actually want to instantiate all the operations
+    // Unlike WRAPPERS, we actually want to instantiate all the operations
     // with a reference to this. While we're at it, monkey patch them onto
     // the Selection class
     operationClasses.forEach(Operation => {
@@ -229,9 +229,9 @@ class Mure extends Model {
     let results = await this.db.allDocs(options);
     return results.rows.map(row => row.doc);
   }
-  async allDocConstructs () {
+  async allDocWrappers () {
     return (await this.allDocs())
-      .map(doc => new this.CONSTRUCTS.DocumentConstruct({ mure: this, doc }));
+      .map(doc => new this.WRAPPERS.DocumentWrapper({ mure: this, doc }));
   }
   async queryDocs (queryObj) {
     await this.dbStatus;
@@ -256,7 +256,7 @@ class Mure extends Model {
     await this.dbStatus;
     let doc;
     if (!docQuery) {
-      return this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: {}, mure: this });
+      return this.WRAPPERS.DocumentWrapper.launchStandardization({ doc: {}, mure: this });
     } else {
       if (typeof docQuery === 'string') {
         if (docQuery[0] === '@') {
@@ -269,7 +269,7 @@ class Mure extends Model {
       if (matchingDocs.length === 0) {
         if (init) {
           // If missing, use the docQuery itself as the template for a new doc
-          doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc: docQuery, mure: this });
+          doc = await this.WRAPPERS.DocumentWrapper.launchStandardization({ doc: docQuery, mure: this });
         } else {
           return null;
         }
@@ -344,7 +344,7 @@ class Mure extends Model {
     return this.getDoc(docQuery)
       .then(doc => {
         mimeType = mimeType || doc.mimeType;
-        let contents = this.CONSTRUCTS.DocumentConstruct.formatDoc(doc, { mimeType });
+        let contents = this.WRAPPERS.DocumentWrapper.formatDoc(doc, { mimeType });
 
         // create a fake link to initiate the download
         let a = document.createElement('a');
@@ -380,14 +380,14 @@ class Mure extends Model {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     const extension = extensionOverride || mime.extension(mimeType) || 'txt';
-    let doc = await this.CONSTRUCTS.DocumentConstruct.parse(string, extension);
+    let doc = await this.WRAPPERS.DocumentWrapper.parse(string, extension);
     return this.uploadDoc(filename, mimeType, encoding, doc);
   }
   async uploadDoc (filename, mimeType, encoding, doc) {
     doc.filename = filename || doc.filename;
     doc.mimeType = mimeType || doc.mimeType;
     doc.charset = encoding || doc.charset;
-    doc = await this.CONSTRUCTS.DocumentConstruct.launchStandardization({ doc, mure: this });
+    doc = await this.WRAPPERS.DocumentWrapper.launchStandardization({ doc, mure: this });
     if (!(await this.putDoc(doc)).ok) {
       return null;
     } else {
@@ -484,13 +484,13 @@ class Mure extends Model {
     } else if (jsType === 'string') {
       // Attempt to parse as a reference
       if (value[0] === '@' && this.parseSelector(value) !== null) {
-        return this.CONSTRUCTS.ReferenceConstruct;
+        return this.WRAPPERS.ReferenceWrapper;
       }
       // Not a reference...
       if (aggressive) {
         // Aggressively attempt to identify something more specific than string
         if (!isNaN(Number(value))) {
-          return this.CONSTRUCTS.NumberConstruct;
+          return this.WRAPPERS.NumberWrapper;
         /*
          For now, we don't attempt to identify dates, even in aggressive mode,
          because things like new Date('Player 1') will successfully parse as a
@@ -500,40 +500,40 @@ class Mure extends Model {
          maybe we'll add this back...
         */
         // } else if (!isNaN(new Date(value))) {
-        //  return CONSTRUCTS.DateConstruct;
+        //  return WRAPPERS.DateWrapper;
         } else {
           const temp = value.toLowerCase();
           if (temp === 'true') {
-            return this.CONSTRUCTS.BooleanConstruct;
+            return this.WRAPPERS.BooleanWrapper;
           } else if (temp === 'false') {
-            return this.CONSTRUCTS.BooleanConstruct;
+            return this.WRAPPERS.BooleanWrapper;
           } else if (temp === 'null') {
-            return this.CONSTRUCTS.NullConstruct;
+            return this.WRAPPERS.NullWrapper;
           }
         }
       }
       // Okay, it's just a string
-      return this.CONSTRUCTS.StringConstruct;
+      return this.WRAPPERS.StringWrapper;
     } else if (jsType === 'function' || jsType === 'symbol' || jsType === 'undefined' || value instanceof Array) {
-      return this.CONSTRUCTS.InvalidConstruct;
+      return this.WRAPPERS.InvalidWrapper;
     } else if (value === null) {
-      return this.CONSTRUCTS.NullConstruct;
+      return this.WRAPPERS.NullWrapper;
     } else if (value instanceof Date || value.$isDate === true) {
-      return this.CONSTRUCTS.DateConstruct;
+      return this.WRAPPERS.DateWrapper;
     } else if (value.$nodes) {
-      return this.CONSTRUCTS.EdgeConstruct;
+      return this.WRAPPERS.EdgeWrapper;
     } else if (value.$edges) {
       if (value.$members) {
-        return this.CONSTRUCTS.SupernodeConstruct;
+        return this.WRAPPERS.SupernodeWrapper;
       } else {
-        return this.CONSTRUCTS.NodeConstruct;
+        return this.WRAPPERS.NodeWrapper;
       }
     } else if (value.$members) {
-      return this.CONSTRUCTS.SetConstruct;
+      return this.WRAPPERS.SetWrapper;
     } else if (value.$tags) {
-      return this.CONSTRUCTS.GenericConstruct;
+      return this.WRAPPERS.GenericWrapper;
     } else {
-      return this.CONSTRUCTS.ContainerConstruct;
+      return this.WRAPPERS.ContainerWrapper;
     }
   }
   async followRelativeLink (selector, doc) {

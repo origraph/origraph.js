@@ -4,18 +4,18 @@ class NullConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.NullConstruct,
+      TargetType: mure.WRAPPERS.NullWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.BooleanConstruct,
-        mure.CONSTRUCTS.NumberConstruct,
-        mure.CONSTRUCTS.StringConstruct,
-        mure.CONSTRUCTS.DateConstruct,
-        mure.CONSTRUCTS.ReferenceConstruct,
-        mure.CONSTRUCTS.ContainerConstruct,
-        mure.CONSTRUCTS.NodeConstruct,
-        mure.CONSTRUCTS.EdgeConstruct,
-        mure.CONSTRUCTS.SetConstruct,
-        mure.CONSTRUCTS.SupernodeConstruct
+        mure.WRAPPERS.BooleanWrapper,
+        mure.WRAPPERS.NumberWrapper,
+        mure.WRAPPERS.StringWrapper,
+        mure.WRAPPERS.DateWrapper,
+        mure.WRAPPERS.ReferenceWrapper,
+        mure.WRAPPERS.ContainerWrapper,
+        mure.WRAPPERS.NodeWrapper,
+        mure.WRAPPERS.EdgeWrapper,
+        mure.WRAPPERS.SetWrapper,
+        mure.WRAPPERS.SupernodeWrapper
       ],
       specialTypes: []
     });

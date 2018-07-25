@@ -4,9 +4,9 @@ class EdgeConversion extends BaseConversion {
   constructor (mure) {
     super({
       mure,
-      TargetType: mure.CONSTRUCTS.EdgeConstruct,
+      TargetType: mure.WRAPPERS.EdgeWrapper,
       standardTypes: [
-        mure.CONSTRUCTS.ContainerConstruct
+        mure.WRAPPERS.ContainerWrapper
       ],
       specialTypes: []
     });

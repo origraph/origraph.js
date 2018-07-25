@@ -1,4 +1,4 @@
-import ContainerConstruct from '../../Constructs/ContainerConstruct.js';
+import ContainerWrapper from '../../Wrappers/ContainerWrapper.js';
 import InputOption from './InputOption.js';
 
 class TypedOption extends InputOption {
@@ -31,7 +31,7 @@ class TypedOption extends InputOption {
         itemLookup[item.uniqueSelector] = item;
       }
       if (this.suggestOrphans && item.doc && !orphanLookup[item.doc._id]) {
-        orphanLookup[item.doc._id] = new ContainerConstruct({
+        orphanLookup[item.doc._id] = new ContainerWrapper({
           mure: this.mure,
           value: item.doc.orphans,
           path: [item.path[0], 'orphans'],
