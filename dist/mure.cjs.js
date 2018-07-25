@@ -2967,7 +2967,7 @@ class Mure extends uki.Model {
 }
 
 var name = "mure";
-var version = "0.4.1";
+var version = "0.4.2";
 var description = "An integration library for the mure ecosystem of apps";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";
