@@ -34497,6 +34497,17 @@
 	  }
 	}
 
+	class TaggableConversion extends BaseConversion {
+	  constructor(mure) {
+	    super({
+	      mure,
+	      TargetType: mure.CONSTRUCTS.TaggableConstruct,
+	      standardTypes: [mure.CONSTRUCTS.ItemConstruct],
+	      specialTypes: []
+	    });
+	  }
+	}
+
 	class NodeConversion extends BaseConversion {
 	  constructor(mure) {
 	    super({
@@ -34523,7 +34534,7 @@
 	  constructor(mure) {
 	    super(mure);
 
-	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new NodeConversion(mure), new EdgeConversion(mure)];
+	    const conversionList = [new BooleanConversion(mure), new NumberConversion(mure), new StringConversion(mure), new NullConversion(mure), new TaggableConversion(mure), new NodeConversion(mure), new EdgeConversion(mure)];
 	    this.CONVERSIONS = {};
 	    conversionList.forEach(conversion => {
 	      this.CONVERSIONS[conversion.type] = conversion;
