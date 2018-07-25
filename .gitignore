@@ -1,4 +1,5 @@
 node_modules
+coverage
 mure
 mure-mrview*
 package-lock.json
