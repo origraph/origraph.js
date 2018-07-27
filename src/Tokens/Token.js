@@ -9,6 +9,10 @@ class Token extends Introspectable {
     // By default, all tokens behave the same way (except for KeyToken)
     return this.constructor === otherToken.constructor ? this : null;
   }
+  isSuperSetOf (otherToken) {
+    // By default, all tokens behave the same way (except for KeyToken)
+    return this.constructor === otherToken.constructor ? this : null;
+  }
   toString () {
     // All tokens are single characters that we can pull from the REGEX (except
     // for KeyToken)

@@ -51,6 +51,21 @@ class KeyToken extends Token {
       return null;
     }
   }
+  isSuperSetOf (otherToken) {
+    if (otherToken.constructor !== KeyToken) {
+      return false;
+    } else if (otherToken.matchAll) {
+      return !!this.matchAll;
+    } else {
+      return Object.keys(otherToken.keys).every(key => {
+        if (key[0] === '⌘') {
+          return this.keys[key];
+        } else {
+          return !!this.matchAll || this.keys[key];
+        }
+      });
+    }
+  }
   toString () {
     return this.matchAll ? '[*]' : `['${Object.keys(this.keys).sort().join(`','`)}']`;
   }

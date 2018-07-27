@@ -28,7 +28,6 @@ class Selection {
   get selectorList () {
     return this.tokenLists.map(tokenList => tokenList.join(''));
   }
-
   async * iterate ({ startWithPath = [this.mure.root], mode = 'DFS' }) {
     if (mode === 'BFS') {
       throw new Error(`Breadth-first iteration is not yet implemented.`);
@@ -42,8 +41,8 @@ class Selection {
     }
   }
   /**
-   * Helps depth-first iteration (we only want to yield finished paths, so it
-   * lazily asks for them one at a time from the *final* token, recursively
+   * This helps depth-first iteration (we only want to yield finished paths, so
+   * it lazily asks for them one at a time from the *final* token, recursively
    * asking each preceding token to yield dependent paths only as needed)
    */
   async * deepHelper (tokenList, path0, mode, i) {
@@ -55,11 +54,10 @@ class Selection {
       }
     }
   }
-
-  async * sample ({ limit = Infinity, mode = 'BFS', includeMetadata = true }) {
+  async * sample ({ limit = Infinity, mode = 'BFS', wrap = true, aggressive }) {
     let count = 0;
     let metaSelection;
-    if (includeMetadata) {
+    if (wrap) {
       metaSelection = this.subSelectAll('⌘');
     }
     for await (let path of this.iterate({ mode })) {
@@ -68,15 +66,36 @@ class Selection {
       }
       count++;
       const value = path[path.length - 1];
-      if (includeMetadata) {
-        const metaData = {};
+      if (wrap) {
+        let metaData = {};
         for await (let metaPath of metaSelection.iterate()) {
-          const metaSelector = this.mure.pathToSelector(metaPath);
-          metaData[metaSelector] = metaPath[metaPath.length - 1];
+          this.augmentMetaDataObject(metaData, metaPath);
         }
-        yield { value, path, metaData };
+        yield this.mure.wrap({ value, path, metaData, aggressive });
       } else {
-        yield { value, path };
+        yield value;
+      }
+    }
+  }
+  augmentMetaDataObject (obj, path) {
+    let currentObj = obj;
+    for (let i = 0; i < path.length - 2; i++) {
+      if (i % 2 === 0) {
+        if (typeof path[i] !== 'object') {
+          throw new Error(`Bad meta path: ${path}`);
+        }
+      } else {
+        if (typeof path[i] !== 'string' && typeof path[i] !== 'number') {
+          throw new Error(`Bad meta path: ${path}`);
+        }
+        if (i === path.length - 3) {
+          // Skip the target path selector key; instead, strap the final object
+          // on directly
+          currentObj[path[i]] = path[path.length - 1];
+        } else {
+          currentObj[path[i]] = currentObj[path[i]] || {};
+          currentObj = currentObj[path[i]];
+        }
       }
     }
   }
@@ -84,11 +103,11 @@ class Selection {
   /*
    Shortcuts for selection manipulation
    */
-  subSelectAll (append, mode = this.mure.DERIVE_MODES.REPLACE) {
+  subSelectAll (append, mode = 'Replace') {
     return this.selectAll({ context: 'Selector', append, mode });
   }
   merge (otherSelection) {
-    return this.selectAll({ context: 'Selection', otherSelection, mode: this.mure.DERIVE_MODES.UNION });
+    return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
   }
 
   // TODO: continue here!

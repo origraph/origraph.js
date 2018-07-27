@@ -1,20 +1,24 @@
 import Token from './Token.js';
 
 class MetaToken extends Token {
-  * helper (path, obj, selector) {
+  * helper (path, parentMetaPath) {
+    const obj = parentMetaPath[parentMetaPath.length - 1];
     for (let key of obj) {
-      if (key === selector) {
-        yield path.concat([selector, obj[key]]);
-      } else if (key[0] === '⌘') {
-        yield * this.helper(path.concat([key, obj[key]], obj, selector));
+      const metaPath = path.concat([key, obj[key]]);
+      if (key[0] === '⌘') {
+        yield * this.helper(path, metaPath);
+      } else {
+        const superPath = this.mure.parseSelector(key);
+        if (this.mure.pathSupersedes(superPath, path)) {
+          yield metaPath;
+        }
       }
     }
   }
   * navigate (path) {
     const root = path[0];
     if (typeof root !== 'object') { return; }
-    const selector = this.mure.pathToSelector(path);
-    for (let metaPath of this.helper([root], root, selector)) {
+    for (let metaPath of this.helper([root], root)) {
       yield metaPath;
     }
   }

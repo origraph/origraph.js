@@ -9,8 +9,8 @@ class SelectAllOperation extends BaseOperation {
     const result = super.getInputSpec();
     const context = new ContextualOption({
       parameterName: 'context',
-      choices: ['Children', 'Parents', 'Nodes', 'Edges', 'Members'],
-      hiddenChoices: ['Selector', 'Selector List', 'Selection'],
+      choices: ['Children', 'Parents', 'Nodes', 'Edges'],
+      hiddenChoices: ['Selector', 'Selector List', 'Selection', 'Members', 'Root', 'URL', 'Metadata'],
       defaultValue: 'Children'
     });
     result.addOption(context);
@@ -31,7 +31,7 @@ class SelectAllOperation extends BaseOperation {
     }));
     context.specs['Selector List'].addOption(new InputOption({
       paramterName: 'selectorList',
-      defaultValue: []
+      defaultValue: ['[*]']
     }));
     context.specs['Selection'].addOption(new InputOption({
       parameterName: 'otherSelection'
