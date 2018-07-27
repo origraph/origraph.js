@@ -10,7 +10,8 @@ class Introspectable {
   }
 }
 Object.defineProperty(Introspectable, 'type', {
-  // This can / should be overridden by subclasses
+  // This can / should be overridden by subclasses that follow a common string
+  // pattern, such as RootToken, KeyToken, ParentToken, etc.
   configurable: true,
   get () { return this.type; }
 });

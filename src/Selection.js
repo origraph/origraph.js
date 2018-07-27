@@ -1,27 +1,23 @@
-import jsonPath from 'jsonpath';
-import { queueAsync } from 'uki';
 import md5 from 'blueimp-md5';
 
-const DEFAULT_DOC_QUERY = '{"_id":{"$gt":"_\uffff"}}';
-
 class Selection {
-  constructor (mure, selectorList = ['@' + DEFAULT_DOC_QUERY]) {
+  constructor (mure, selectorList = ['@']) {
+    this.mure = mure;
+
     if (!(selectorList instanceof Array)) {
       selectorList = [ selectorList ];
     }
-    this.selectors = selectorList.map(selectorString => {
-      const selector = mure.parseSelector(selectorString);
-      if (selector === null) {
-        let err = new Error('Invalid selector: ' + selectorString);
-        err.INVALID_SELECTOR = true;
-        throw err;
+
+    // Parse the selectors
+    this.tokenLists = selectorList.map(selectorString => {
+      const tokenList = mure.parseSelector(selectorString);
+      if (tokenList === null) {
+        throw new SyntaxError(`Invalid selector: ${selectorString}`);
       }
-      return selector;
+      return tokenList;
     });
 
-    // TODO: optimize and sort this.selectors for better hash equivalence
-
-    this.mure = mure;
+    // TODO: merge / optimize this.tokenLists
   }
   get hash () {
     if (!this._hash) {
@@ -30,160 +26,73 @@ class Selection {
     return this._hash;
   }
   get selectorList () {
-    return this.selectors.map(selector => {
-      return '@' + selector.docQuery + selector.objQuery +
-        Array.from(Array(selector.parentShift)).map(d => '↑').join('') +
-        (selector.followLinks ? '→' : '');
-    });
+    return this.tokenLists.map(tokenList => tokenList.join(''));
   }
-  get isCached () {
-    return !!this._cachedWrappers;
-  }
-  invalidateCache () {
-    delete this._cachedDocLists;
-    delete this._cachedWrappers;
-    delete this._summaryCaches;
-  }
-  async docLists () {
-    if (this._cachedDocLists) {
-      return this._cachedDocLists;
-    }
-    this._cachedDocLists = await Promise.all(this.selectors
-      .map(d => this.mure.queryDocs({ selector: d.parsedDocQuery })));
-    // We want all selections to operate from exactly the same document object,
-    // so it's easy / straightforward for Wrappers to just mutate their own value
-    // references, and have those changes automatically appear in documents
-    // when they're saved... so we actually want to *swap out* matching documents
-    // for their cached versions
-    for (let i = 0; i < this._cachedDocLists.length; i++) {
-      for (let j = 0; j < this._cachedDocLists[i].length; j++) {
-        const doc = this._cachedDocLists[i][j];
-        if (Selection.CACHED_DOCS[doc._id]) {
-          if (Selection.CACHED_DOCS[doc._id].selections.indexOf(this) === -1) {
-            // Register as a selection that's using this cache, so we're
-            // notified in the event that it gets invalidated
-            Selection.CACHED_DOCS[doc._id].selections.push(this);
-          }
-          // Verify that the doc has not changed (we watch for changes and
-          // invalidate caches in mure.getOrInitDb, so this should never happen)
-          if (doc._rev !== Selection.CACHED_DOCS[doc._id].cachedDoc._rev) {
-            throw new Error('Cached document _rev changed without notification');
-          }
-          // Swap for the cached version
-          this._cachedDocLists[i][j] = Selection.CACHED_DOCS[doc._id].cachedDoc;
-        } else {
-          // We're the first one to cache this document, so use ours
-          Selection.CACHED_DOCS[doc._id] = {
-            selections: [this],
-            cachedDoc: doc
-          };
+
+  async * iterate ({ startWithPath = [this.mure.root], mode = 'DFS' }) {
+    if (mode === 'BFS') {
+      throw new Error(`Breadth-first iteration is not yet implemented.`);
+    } else if (mode === 'DFS') {
+      for (let tokenList of this.tokenLists) {
+        const deepHelper = this.deepHelper(tokenList, startWithPath, mode, tokenList.length - 1);
+        for await (let finishedPath of deepHelper) {
+          yield finishedPath;
         }
       }
     }
-    return this._cachedDocLists;
   }
-  async items (docLists) {
-    if (this._cachedWrappers) {
-      return this._cachedWrappers;
-    }
-
-    // Note: we should only pass in docLists in rare situations (such as the
-    // one-off case in followRelativeLink() where we already have the document
-    // available, and creating the new selection will result in an unnnecessary
-    // query of the database). Usually, we should rely on the cache.
-    docLists = docLists || await this.docLists();
-
-    return queueAsync(async () => {
-      // Collect the results of objQuery
-      this._cachedWrappers = {};
-      const addWrapper = item => {
-        if (!this._cachedWrappers[item.uniqueSelector]) {
-          this._cachedWrappers[item.uniqueSelector] = item;
-        }
-      };
-
-      for (let index = 0; index < this.selectors.length; index++) {
-        const selector = this.selectors[index];
-        const docList = docLists[index];
-
-        if (selector.objQuery === '') {
-          // No objQuery means that we want a view of multiple documents (other
-          // shenanigans mean we shouldn't select anything)
-          if (selector.parentShift === 0 && !selector.followLinks) {
-            addWrapper(new this.mure.WRAPPERS.RootWrapper({
-              mure: this.mure,
-              docList
-            }));
-          }
-        } else if (selector.objQuery === '$') {
-          // Selecting the documents themselves
-          if (selector.parentShift === 0 && !selector.followLinks) {
-            docList.forEach(doc => {
-              addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
-                mure: this.mure,
-                doc
-              }));
-            });
-          } else if (selector.parentShift === 1) {
-            addWrapper(new this.mure.WRAPPERS.RootWrapper({
-              mure: this.mure,
-              docList
-            }));
-          }
-        } else {
-          // Okay, we need to evaluate the jsonPath
-          for (let docIndex = 0; docIndex < docList.length; docIndex++) {
-            let doc = docList[docIndex];
-            let matchingWrappers = jsonPath.nodes(doc, selector.objQuery);
-            for (let itemIndex = 0; itemIndex < matchingWrappers.length; itemIndex++) {
-              let { path, value } = matchingWrappers[itemIndex];
-              let localPath = path;
-              if (this.mure.RESERVED_OBJ_KEYS[localPath.slice(-1)[0]]) {
-                // Don't create items under reserved keys
-                continue;
-              } else if (selector.parentShift === localPath.length) {
-                // we parent shifted up to the root level
-                if (!selector.followLinks) {
-                  addWrapper(new this.mure.WRAPPERS.RootWrapper({
-                    mure: this.mure,
-                    docList
-                  }));
-                }
-              } else if (selector.parentShift === localPath.length - 1) {
-                // we parent shifted to the document level
-                if (!selector.followLinks) {
-                  addWrapper(new this.mure.WRAPPERS.DocumentWrapper({
-                    mure: this.mure,
-                    doc
-                  }));
-                }
-              } else {
-                if (selector.parentShift > 0 && selector.parentShift < localPath.length - 1) {
-                  // normal parentShift
-                  localPath.splice(localPath.length - selector.parentShift);
-                  value = jsonPath.query(doc, jsonPath.stringify(localPath))[0];
-                }
-                if (selector.followLinks) {
-                  // We (potentially) selected a link that we need to follow
-                  Object.values(await this.mure.followRelativeLink(value, doc))
-                    .forEach(addWrapper);
-                } else {
-                  const WrapperType = this.mure.inferType(value);
-                  addWrapper(new WrapperType({
-                    mure: this.mure,
-                    value,
-                    path: [`{"_id":"${doc._id}"}`].concat(localPath),
-                    doc
-                  }));
-                }
-              }
-            }
-          }
-        }
+  /**
+   * Helps depth-first iteration (we only want to yield finished paths, so it
+   * lazily asks for them one at a time from the *final* token, recursively
+   * asking each preceding token to yield dependent paths only as needed)
+   */
+  async * deepHelper (tokenList, path0, mode, i) {
+    if (i === 0) {
+      yield * await tokenList[0].navigate(path0);
+    } else {
+      for await (let pathI of this.deepHelper(tokenList, path0, mode, i - 1)) {
+        yield * await tokenList[i].navigate(pathI);
       }
-      return this._cachedWrappers;
-    });
+    }
   }
+
+  async * sample ({ limit = Infinity, mode = 'BFS', includeMetadata = true }) {
+    let count = 0;
+    let metaSelection;
+    if (includeMetadata) {
+      metaSelection = this.subSelectAll('⌘');
+    }
+    for await (let path of this.iterate({ mode })) {
+      if (count >= limit) {
+        return;
+      }
+      count++;
+      const value = path[path.length - 1];
+      if (includeMetadata) {
+        const metaData = {};
+        for await (let metaPath of metaSelection.iterate()) {
+          const metaSelector = this.mure.pathToSelector(metaPath);
+          metaData[metaSelector] = metaPath[metaPath.length - 1];
+        }
+        yield { value, path, metaData };
+      } else {
+        yield { value, path };
+      }
+    }
+  }
+
+  /*
+   Shortcuts for selection manipulation
+   */
+  subSelectAll (append, mode = this.mure.DERIVE_MODES.REPLACE) {
+    return this.selectAll({ context: 'Selector', append, mode });
+  }
+  merge (otherSelection) {
+    return this.selectAll({ context: 'Selection', otherSelection, mode: this.mure.DERIVE_MODES.UNION });
+  }
+
+  // TODO: continue here!
+
   async execute (operation, inputOptions) {
     let outputSpec = await operation.executeOnSelection(this, inputOptions);
 
@@ -233,16 +142,6 @@ class Selection {
     } else {
       return this;
     }
-  }
-
-  /*
-   Shortcuts for selection manipulation
-   */
-  async subSelect (append, mode = 'Replace') {
-    return this.selectAll({ context: 'Selector', append, mode });
-  }
-  async mergeSelection (otherSelection) {
-    return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
   }
 
   /*
@@ -494,27 +393,4 @@ class Selection {
     return sets;
   }
 }
-// TODO: this way of dealing with cache invalidation causes a memory leak, as
-// old selections are going to pile up in CACHED_DOCS after they've lost all
-// other references, preventing their garbage collection. Unfortunately things
-// like WeakMap aren't enumerable... a good idea would probably be to just
-// purge the cache every n minutes or so...?
-Selection.DEFAULT_DOC_QUERY = DEFAULT_DOC_QUERY;
-Selection.CACHED_DOCS = {};
-Selection.INVALIDATE_DOC_CACHE = docId => {
-  if (Selection.CACHED_DOCS[docId]) {
-    Selection.CACHED_DOCS[docId].selections.forEach(selection => {
-      selection.invalidateCache();
-    });
-    delete Selection.CACHED_DOCS[docId];
-  }
-};
-Selection.INVALIDATE_ALL_CACHES = () => {
-  Object.values(Selection.CACHED_DOCS).forEach(({ cachedDoc, selections }) => {
-    selections.forEach(selection => {
-      selection.invalidateCache();
-    });
-    delete Selection.CACHED_DOCS[cachedDoc._id];
-  });
-};
 export default Selection;
