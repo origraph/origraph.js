@@ -12,8 +12,10 @@ class Mure extends Model {
     this.FileReader = FileReader; // either window.FileReader or one from Node
     this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
-    // Object containing each of our data sources
+    // Object containing each of our data sources, as well as metadata that
+    // guides its interpretation
     this.root = {
+      '⌘edits': [],
       '⌘overrides': {},
       '⌘mixins': {
         '⌘nodes': {},
@@ -77,6 +79,9 @@ class Mure extends Model {
       };
     });
   }
+  fetch (url) {
+    throw new Error('unimplemented');
+  }
   selectAll (selectorList) {
     return new Selection(this, selectorList);
   }
@@ -124,8 +129,10 @@ class Mure extends Model {
   wrap ({ value, path, metaData, aggressive = false }) {
     let WrapperClass;
 
+    // TODO: apply any relevant functions that have been added to metaData['⌘edits']
+
     if (metaData['⌘overrides']) {
-      // First check and see if the user has specified an override; if so, we
+      // Check and see if the user has specified a wrapper override; if so, we
       // already know the base class. We should also standardize the value.
       WrapperClass = this.WRAPPERS[metaData['⌘overrides']];
       value = WrapperClass.standardize(value);
@@ -180,6 +187,12 @@ class Mure extends Model {
       }
     }
 
+    // If the value comes after an object, it's a key (slightly different value
+    // constraints / reassignment rules)
+    if (typeof path[path.length - 2] === 'object') {
+      WrapperClass = this.WRAPPERS.KeyWrapper(WrapperClass);
+    }
+
     // Now the fun part! Add any interperative mixins specified by the metadata
     for (let mixinType in (metaData['⌘mixins'] || {})) {
       if (this.WRAPPER_MIXINS[mixinType]) {
@@ -188,7 +201,7 @@ class Mure extends Model {
     }
 
     // Finally, instantiate the class
-    return new WrapperClass({ value, path, metaData });
+    return new WrapperClass({ mure: this, value, path, metaData });
   }
 
   // TODO: port these to Operations

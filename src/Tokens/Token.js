@@ -5,13 +5,21 @@ class Token extends Introspectable {
     super();
     this.mure = mure;
   }
-  merge (otherToken) {
-    // By default, all tokens behave the same way (except for KeyToken)
+  /**
+   * With the exception of KeyToken, a lot of set operations are well-defined:
+   */
+  union (otherToken) {
     return this.constructor === otherToken.constructor ? this : null;
   }
+  difference (otherToken) {
+    if (this.constructor === otherToken.constructor) {
+      return null;
+    } else {
+      throw new Error(`Can't compute the difference of two different token types`);
+    }
+  }
   isSuperSetOf (otherToken) {
-    // By default, all tokens behave the same way (except for KeyToken)
-    return this.constructor === otherToken.constructor ? this : null;
+    return this.constructor === otherToken.constructor;
   }
   toString () {
     // All tokens are single characters that we can pull from the REGEX (except

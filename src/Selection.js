@@ -17,7 +17,30 @@ class Selection {
       return tokenList;
     });
 
-    // TODO: merge / optimize this.tokenLists
+    // Quick merge / optimize this.tokenLists (not exhaustive on purpose):
+    let i = 0;
+    while (i < this.tokenLists.length - 1) {
+      const merged = this.mergeTokenLists(this.tokenLists[i], this.tokenLists[i + 1]);
+      if (merged) {
+        this.tokenLists.splice(1);
+        this.tokenLists[i] = merged;
+      } else {
+        i++;
+      }
+    }
+  }
+  mergeTokenLists (a, b) {
+    if (a.length !== b.length) {
+      return null;
+    } else {
+      const result = [];
+      if (!a.every((aToken, i) => {
+        const temp = a.merge(b[i]);
+        result.push(temp);
+        return temp;
+      })) { return null; }
+      return result;
+    }
   }
   get hash () {
     if (!this._hash) {
@@ -54,27 +77,20 @@ class Selection {
       }
     }
   }
-  async * sample ({ limit = Infinity, mode = 'BFS', wrap = true, aggressive }) {
+  async * sample ({ limit = Infinity, mode = 'BFS', aggressive }) {
     let count = 0;
-    let metaSelection;
-    if (wrap) {
-      metaSelection = this.subSelectAll('⌘');
-    }
+    let metaSelection = this.subSelectAll('⌘');
     for await (let path of this.iterate({ mode })) {
       if (count >= limit) {
         return;
       }
       count++;
-      const value = path[path.length - 1];
-      if (wrap) {
-        let metaData = {};
-        for await (let metaPath of metaSelection.iterate()) {
-          this.augmentMetaDataObject(metaData, metaPath);
-        }
-        yield this.mure.wrap({ value, path, metaData, aggressive });
-      } else {
-        yield value;
+      let value = path[path.length - 1];
+      let metaData = {};
+      for await (let metaPath of metaSelection.iterate()) {
+        this.augmentMetaDataObject(metaData, metaPath);
       }
+      yield this.mure.wrap({ value, path, metaData, aggressive });
     }
   }
   augmentMetaDataObject (obj, path) {
@@ -100,6 +116,17 @@ class Selection {
     }
   }
 
+  async execute (operation, inputOptions) {
+    let outputSpec = await operation.executeOnSelection(this, inputOptions);
+
+    // Return this selection, or a new selection, depending on the operation
+    if (outputSpec.newSelectors !== null) {
+      return new Selection(this.mure, outputSpec.newSelectors);
+    } else {
+      return this;
+    }
+  }
+
   /*
    Shortcuts for selection manipulation
    */
@@ -110,84 +137,15 @@ class Selection {
     return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
   }
 
-  // TODO: continue here!
-
-  async execute (operation, inputOptions) {
-    let outputSpec = await operation.executeOnSelection(this, inputOptions);
-
-    const pollutedDocs = Object.values(outputSpec.pollutedDocs);
-
-    // Write any warnings, and, depending on the user's settings, skip or save
-    // the results
-    let skipSave = false;
-    if (Object.keys(outputSpec.warnings).length > 0) {
-      let warningString;
-      if (outputSpec.ignoreErrors === 'Stop on Error') {
-        skipSave = true;
-        warningString = `${operation.humanReadableType} operation failed.\n`;
-      } else {
-        warningString = `${operation.humanReadableType} operation finished with warnings:\n`;
-      }
-      warningString += Object.entries(outputSpec.warnings).map(([warning, count]) => {
-        if (count > 1) {
-          return `${warning} (x${count})`;
-        } else {
-          return `${warning}`;
-        }
-      });
-      this.mure.warn(warningString);
-    }
-    let saveSuccessful = false;
-    if (!skipSave) {
-      // Save the results
-      const saveResult = await this.mure.putDocs(pollutedDocs);
-      saveSuccessful = saveResult.error !== true;
-      if (!saveSuccessful) {
-        // There was a problem saving the result
-        this.mure.warn(saveResult.message);
-      }
-    }
-
-    // Any selection that has cached any of the documents that we altered
-    // needs to have its cache invalidated
-    pollutedDocs.forEach(doc => {
-      Selection.INVALIDATE_DOC_CACHE(doc._id);
-    });
-
-    // Finally, return this selection, or a new selection, depending on the
-    // operation
-    if (saveSuccessful && outputSpec.newSelectors !== null) {
-      return new Selection(this.mure, outputSpec.newSelectors);
-    } else {
-      return this;
-    }
-  }
-
   /*
    These functions provide statistics / summaries of the selection:
    */
   async getPopulatedInputSpec (operation) {
-    if (this._summaryCaches && this._summaryCaches.inputSpecs &&
-        this._summaryCaches.inputSpecs[operation.type]) {
-      return this._summaryCaches.inputSpecs[operation.type];
-    }
-
     const inputSpec = operation.getInputSpec();
     await inputSpec.populateChoicesFromSelection(this);
-
-    this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.inputSpecs = this._summaryCaches.inputSpecs || {};
-    this._summaryCaches.inputSpecs[operation.type] = inputSpec;
     return inputSpec;
   }
-  async histograms (numBins = 20) {
-    if (this._summaryCaches && this._summaryCaches.histograms) {
-      return this._summaryCaches.histograms;
-    }
-
-    const items = await this.items();
-    const itemList = Object.values(items);
-
+  async histograms ({ numBins = 20, limit, mode, aggressive }) {
     let result = {
       raw: {
         typeBins: {},
@@ -245,28 +203,25 @@ class Selection {
       }
     };
 
-    for (let i = 0; i < itemList.length; i++) {
-      const item = itemList[i];
+    for await (let item of this.sample({ limit, mode, aggressive })) {
       result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
       if (item instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
         countPrimitive(result.raw, item);
-      } else {
-        if (item.getContents) {
-          Object.values(item.getContents()).forEach(childWrapper => {
-            const counters = result.attributes[childWrapper.label] = result.attributes[childWrapper.label] || {
-              typeBins: {},
-              categoricalBins: {},
-              quantitativeBins: []
-            };
-            counters.typeBins[childWrapper.type] = (counters.typeBins[childWrapper.type] || 0) + 1;
-            if (childWrapper instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
-              countPrimitive(counters, childWrapper);
-            }
-          });
+      } else if (item instanceof this.mure.WRAPPERS.ContainerMixin) {
+        for await (let childItem of item.iterateContents()) {
+          const counters = result.attributes[childItem.key] = result.attributes[childItem.key] || {
+            typeBins: {},
+            categoricalBins: {},
+            quantitativeBins: []
+          };
+          counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
+          if (childItem instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
+            countPrimitive(counters, childItem);
+          }
         }
         // TODO: collect more statistics, such as node degree, set size
         // (and a set's members' attributes, similar to getContents?)
-      }
+      } // TODO: else if (item instanceof this.mure.WRAPPERS.SetMixin) {}
     }
 
     const finalizeBins = counters => {
@@ -304,112 +259,7 @@ class Selection {
     finalizeBins(result.raw);
     Object.values(result.attributes).forEach(finalizeBins);
 
-    this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.histograms = result;
     return result;
-  }
-  async getFlatGraphSchema () {
-    if (this._summaryCaches && this._summaryCaches.flatGraphSchema) {
-      return this._summaryCaches.flatGraphSchema;
-    }
-
-    const items = await this.items();
-    let result = {
-      nodeClasses: {},
-      edgeClasses: {},
-      missingNodes: false,
-      missingEdges: false
-    };
-
-    // First pass: identify items by class, and generate pseudo-items that
-    // point to classes instead of selectors
-    Object.entries(items).forEach(([uniqueSelector, item]) => {
-      if (item instanceof this.mure.WRAPPERS.EdgeWrapper) {
-        // This is an edge; create / add to a pseudo-item for each class
-        let classList = item.getClasses();
-        if (classList.length === 0) {
-          classList.push('(no class)');
-        }
-        classList.forEach(edgeClassName => {
-          let pseudoEdge = result.edgeClasses[edgeClassName] =
-            result.edgeClasses[edgeClassName] || { $nodes: {} };
-          // Add our direction counts for each of the node's classes to the pseudo-item
-          Object.entries(item.value.$nodes).forEach(([nodeSelector, directions]) => {
-            let nodeWrapper = items[nodeSelector];
-            if (!nodeWrapper) {
-              // This edge refers to a node outside the selection
-              result.missingNodes = true;
-            } else {
-              nodeWrapper.getClasses().forEach(nodeClassName => {
-                Object.entries(directions).forEach(([direction, count]) => {
-                  pseudoEdge.$nodes[nodeClassName] = pseudoEdge.$nodes[nodeClassName] || {};
-                  pseudoEdge.$nodes[nodeClassName][direction] = pseudoEdge.$nodes[nodeClassName][direction] || 0;
-                  pseudoEdge.$nodes[nodeClassName][direction] += count;
-                });
-              });
-            }
-          });
-        });
-      } else if (item instanceof this.mure.WRAPPERS.NodeWrapper) {
-        // This is a node; create / add to a pseudo-item for each class
-        let classList = item.getClasses();
-        if (classList.length === 0) {
-          classList.push('(no class)');
-        }
-        classList.forEach(nodeClassName => {
-          let pseudoNode = result.nodeClasses[nodeClassName] =
-            result.nodeClasses[nodeClassName] || { count: 0, $edges: {} };
-          pseudoNode.count += 1;
-          // Ensure that the edge class is referenced (directions' counts are kept on the edges)
-          Object.keys(item.value.$edges).forEach(edgeSelector => {
-            let edgeWrapper = items[edgeSelector];
-            if (!edgeWrapper) {
-              // This node refers to an edge outside the selection
-              result.missingEdges = true;
-            } else {
-              edgeWrapper.getClasses().forEach(edgeClassName => {
-                pseudoNode.$edges[edgeClassName] = true;
-              });
-            }
-          });
-        });
-      }
-    });
-
-    this._summaryCaches = this._summaryCaches || {};
-    this._summaryCaches.flatGraphSchema = result;
-    return result;
-  }
-  async getIntersectedGraphSchema () {
-    // const items = await this.items();
-    throw new Error('unimplemented');
-  }
-  async allMetaObjIntersections (metaObjs) {
-    const items = await this.items();
-    let linkedIds = {};
-    items.forEach(item => {
-      metaObjs.forEach(metaObj => {
-        if (item.value[metaObj]) {
-          Object.keys(item.value[metaObj]).forEach(linkedId => {
-            linkedId = this.mure.idToUniqueSelector(linkedId, item.doc._id);
-            linkedIds[linkedId] = linkedIds[linkedId] || {};
-            linkedIds[linkedId][item.uniqueSelector] = true;
-          });
-        }
-      });
-    });
-    let sets = [];
-    let setLookup = {};
-    Object.keys(linkedIds).forEach(linkedId => {
-      let itemIds = Object.keys(linkedIds[linkedId]).sort();
-      let setKey = itemIds.join(',');
-      if (setLookup[setKey] === undefined) {
-        setLookup[setKey] = sets.length;
-        sets.push({ itemIds, linkedIds: {} });
-      }
-      setLookup[setKey].linkedIds[linkedId] = true;
-    });
-    return sets;
   }
 }
 export default Selection;

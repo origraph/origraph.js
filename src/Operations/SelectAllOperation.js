@@ -37,14 +37,13 @@ class SelectAllOperation extends BaseOperation {
       parameterName: 'otherSelection'
     }));
 
+    // Add advanced set operations to all hidden choices
     const mode = new InputOption({
       parameterName: 'mode',
       choices: ['Replace', 'Union', 'XOR'],
       defaultValue: 'Replace'
     });
-    context.specs['Selector'].addOption(mode);
-    context.specs['Selector List'].addOption(mode);
-    context.specs['Selection'].addOption(mode);
+    context.hiddenChoices.forEach(choice => context.specs[choice].addOption(mode));
 
     return result;
   }
