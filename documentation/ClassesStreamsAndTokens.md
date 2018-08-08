@@ -165,7 +165,7 @@ Syntax: `.keys( query )`
 
 Yields an object's keys, or an array's indices. Throws a `TypeError` if the input is not an object or array.
 
-`query` is optional; if omitted, the token yields all keys and/or indices. If included, it should be a comma-delimited list of specific keys or indices (e.g. `.keys(0,'Some key',5-17,20-∞)`). Hyphenated numeric index ranges are accepted (ranges can reach to infinity with `∞`). Note that all key strings must be wrapped with `'` or `"`. These characters should be escaped when part of a key string: `\'`, `\"`, `\\`
+`query` is optional; if omitted, the token yields all keys and/or indices. If included, it should be a comma-delimited list of specific keys or indices (e.g. `.keys(0,'Some key',5-17,20-∞)`). Hyphenated numeric index ranges are accepted (ranges can reach to infinity with `∞`). Note that all key strings must be wrapped with single quotes `'`. These characters should be escaped when part of a key string: `\'`, `\\`, `\,`
 
 #### Examples
 ```js
@@ -568,9 +568,11 @@ const roles = mure.stream({
       const castObject = thisPath[thisPath.length - 2];
       const movieObject = thisPath[thisPath.length - 4];
       yield {
-        // thisItem is the key, e.g. "Harrison Ford" or "Carrie Fisher"
+        // thisItem is a key of the cast object, e.g. "Harrison Ford" or "Carrie Fisher"
         characterName: castObject[thisItem],
         movieTitle: movieObject.title,
+        // otherItem is the actor object
+        reversedActorName: otherItem['Last Name'] + ', ' + otherItem['First Name'],
         // Save foreign keys into the other tables:
         actorIndex: otherPath[otherPath.length - 2],
         movieIndex: thisPath[thisPath.length - 5]
@@ -583,11 +585,11 @@ const roles = mure.stream({
 })
 
 for await (const role of roles.sample({ limit: 2 })) {
-  console.log(role.actorIndex, role.characterName, role.movieTitle);
+  console.log(role.reversedActorName, role.characterName, role.movieTitle);
 }
 /* Output:
-2 Han Solo Star Wars
-1 Leia Organa Star Wars
+Ford, Harrison Han Solo Star Wars
+Fisher, Carrie Leia Organa Star Wars
 */
 ```
 
