@@ -22,7 +22,7 @@ Classes need a way to describe their items declaratively, without loading or tra
   "actors.csv": [
     { "First name": "Carrie", "Last Name": "Fisher" },
     { "First name": "Harrison", "Last Name": "Ford" },
-    ...
+    /* ... */
   ],
   "movies.json": [
     {
@@ -30,10 +30,10 @@ Classes need a way to describe their items declaratively, without loading or tra
       "cast": {
         "Harrison Ford": "Han Solo",
         "Carrie Fisher": "Princess Leia",
-        ...
+        /* ... */
       }
     },
-    ...
+    /* ... */
   ]
 }
 ```
@@ -46,7 +46,7 @@ Alternatively, if we didn't have an `actors.csv` array, we could still refer to 
 
 `root.values('movies.json').values('cast').keys().promote()`
 
-The selector defines a location in the data, that the stream uses to extract a series of items (keys, values, objects, or arrays). The series of **tokens** in the selector indicate where and how items should be extracted from the raw data that has been loaded or linked.
+The selector defines a location in the data, that the stream uses to extract a series of items (keys, values, objects, or arrays). The series of **<a href="#token-reference">tokens</a>** in the selector indicate where and how items should be extracted from the raw data that has been loaded or linked.
 
 ## Raw Data
 Speaking of raw data, we want to delay most of the parsing / loading of raw data as we can until **after** interactive network modeling has taken place—if we want this to be scalable, only the final processing step should take a complete pass.
@@ -71,7 +71,7 @@ const root = {
   "actors.csv": [
     { "First name": "Carrie", "Last Name": "Fisher" },
     { "First name": "Harrison", "Last Name": "Ford" },
-    ...
+    /* ... */
   ],
   "movies.json": [
     {
@@ -79,10 +79,10 @@ const root = {
       "cast": {
         "Harrison Ford": "Han Solo",
         "Carrie Fisher": "Princess Leia",
-        ...
+        /* ... */
       }
     },
-    ...
+    /* ... */
   ],
 
   // We can also point to APIs:
@@ -193,6 +193,7 @@ Allows a custom function (`generator`) to yield anything in response to input.
 
 `generator` is required; it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the inputs to the next token in the selector. It will be called with these parameters:
 - `item` The item yielded by the previous token
+- `path` An array containing each result leading up to `item`, yielded by each preceding token. `path[0]` is the root object, and `path[path.length - 1]` is `item`.
 
 #### Example
 ```js
@@ -202,7 +203,7 @@ const stream = mure.stream({
     'actors.csv': [
       { 'First name': 'Carrie', 'Last Name': 'Fisher' },
       { 'First name': 'Harrison', 'Last Name': 'Ford' },
-      ...
+      /* ... */
     ],
   },
   functions: {
@@ -215,31 +216,87 @@ const stream = mure.stream({
 for (const item of stream.sample({ limit: 2 })) {
   console.log(item);
 }
-// Output:
-// Carrie Fisher
-// Harrison Ford
+/* Output is:
+Carrie Fisher
+Harrison Ford
+*/
 ```
 
 ### Promote
 Syntax: `.promote( map, hash, reduceInstances )`
 
-Only yield unique values the first time they're encountered
+Only yields unique values the first time they're encountered.
 
-`map` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the unique, promoted items. This is useful, for example, in cases where we would want to wrap a promoted string value inside an object, in order to add attributes (via `reduceInstances`). If omitted, the first unique item is yielded as-is.
+`map` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the unique, promoted items. This is useful, for example, in cases where we would want to wrap a promoted string value inside an object, in order to add attributes (via `reduceInstances`). If omitted, the first unique item is yielded as-is. It will be called with these parameters:
+- `item` The item yielded by the previous token
+- `path` An array containing each result leading up to `item`, yielded by each preceding token. `path[0]` is the root object, and `path[path.length - 1]` is `item`.
 
-`hash` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that returns a unique string that represents this item, so that the algorithm can tell if it has already been seen. Its `item` argument is the result of `map`. Default behavior is to use [md5](https://www.npmjs.com/package/blueimp-md5).
+`hash` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that returns a unique string that represents the item, so that the algorithm can tell if it has already been seen. Default behavior is to use [md5](https://www.npmjs.com/package/blueimp-md5). It will be called once for each item yielded by `map`:
+- `item` The result of `map`
+- `path` An array containing each result leading up to `item`, yielded by each preceding token. `path[0]` is the root object, and `path[path.length - 1]` is `item`.
 
-`reduceInstances` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that adds some kind of aggregate information, like a count, to the originally yielded item. Its parameters are `function (yieldedItem, newMatchItem, path) {}`. This is called every time an additional match is encountered. **Note:** As this can mutate the originally-yielded item, it's important to be aware that samples can change **after** they have already been consumed / rendered / etc! The only way to know if an item is stable is if the sampling process has completed.
+`reduceInstances` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that adds some kind of aggregate information, like a count, to the originally yielded item. This function is called every time an additional match is encountered, with these parameters:
+- `yieldedItem` The originally-yielded item
+- `newMatchItem` The new item that matches the original
+- `path` The path leading up to `newMatchItem` (except for `newMatchItem`, the path should be identical to the one originally encountered with `yieldedItem`)
+
+**Note:** As `reduceInstances` can mutate the originally-yielded item, it's important to be aware that samples can change **after** they have already been consumed / rendered / etc! The only way to know if an item is stable is if the sampling process has completed.
 
 #### Examples
-(TODO)
+```js
+const stream = mure.stream({
+  selector: `root.values('movies.json').values('cast').keys().promote(wrapActor, , addActorCount)`
+  root: {
+    'movies.json': [
+      {
+        'title': 'Star Wars',
+        'cast': {
+          'Harrison Ford': 'Han Solo',
+          'Carrie Fisher': 'Princess Leia',
+          /* ... */
+        }
+      },
+      /* ... */
+    ]
+  },
+  functions: {
+    wrapActor: function * (item, path) {
+      yield { name: item, count: 1 };
+    },
+    addActorCount: function (yieldedItem, newMatchItem, path) {
+      yieldedItem.count += 1;
+    }
+  }
+});
+
+for (const actor of stream.sample({ limit: 2 })) {
+  console.log(actor.name, actor.count);
+}
+/* Output is:
+Carrie Fisher 1
+Harrison Ford 1
+*/
+
+const actors = [];
+for (const actor of stream.sample({ limit: Infinity })) {
+  actors.push(actor);
+}
+for (const actor of actors) {
+  console.log(actor.name, actor.count);
+}
+/* Output might look like:
+Carrie Fisher 38
+Harrison Ford 52
+...
+*/
+```
 
 ### Union
 Syntax: `.union( otherStream )`
 
 Yields the results of `otherStream` after the current stream has been completed.
 
-`otherStream` is required; should be the <a href="#about-named-functions-and-streams">name</a> of another stream, provided in the `mure.stream(streams={ ... })` parameter.
+`otherStream` is required; should be the <a href="#about-named-functions-and-streams">name</a> of another stream.
 
 #### Example
 (TODO)
@@ -249,22 +306,30 @@ Syntax: `.join( otherStream, thisKey, otherKey, map )`
 
 Yields an item for every match between the input item and every item in `otherStream`
 
-`otherStream` is required; should be the <a href="#about-named-functions-and-streams">name</a> of another stream, provided in the `mure.stream(streams={ ... })` parameter.
+`otherStream` is required; should be the <a href="#about-named-functions-and-streams">name</a> of another stream.
 
 `thisKey` and `otherKey` are optional <a href="#about-named-functions-and-streams">named</a> [generator functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) that should yield strings that will be used for indexing and matching. Default behavior, when omitted, is to return the item's key or index (or the key or index itself if one has been selected). (TODO: these arguments probably require their own section for what they do / why they're important)
 
-`map` is optional; when omitted, default behavior is to yield an array containing both items, with the item from this stream as the first element, and the item from the other stream as the second. If included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s a new item. Its parameters are: `function * (thisItem, thisPath, otherItem, otherPath) { ... }`.
+`map` is optional; when omitted, default behavior is to yield an array containing both items, with the item from this stream as the first element, and the item from the other stream as the second. If included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s a new item. It will be called for each match with these parameters:
+- `thisItem` The item from this selection that matched
+- `thisPath` The path leading up to `thisItem`
+- `otherItem` The item from `otherStream` that matched
+- `otherPath` The path leading up to `otherItem`
 
 #### Examples
 (TODO)
 
 # About Named Functions and Streams
-Unless otherwise specified, all functions are called with two arguments: `function * (item, path) { ... }`, where `item` is the input item yielded by the previous token, and `path` is the result of each token leading up to `item` (`path[0]` is the root, and `path[path.length - 1]` is `item`).
-
-The name of each function should correspond to a key in the `functions` argument. For example, this would yield all datasets that have been loaded in memory as items:
+The name of each function should correspond to a key in the `functions` argument. For example:
 ```javascript
-mure.stream({
-  root: { /* ... */ },
+const localStreams = mure.stream({
+  root: {
+    people: [
+      { name: 'Luke Skywalker' },
+      /* ... */
+    ],
+    planets: 'https://swapi.co/api/planets/'
+  },
   selector: 'root.values().map(objectsOnly)',
   functions: {
     objectsOnly: function * (item, path) => {
@@ -273,32 +338,44 @@ mure.stream({
       }
     }
   }
-})
+});
+
+for await (let localStream of localStreams.sample({ limit: Infinity })) {
+  console.log(JSON.stringify(localStream, null, 2));
+}
+/* Output:
+[
+  {
+    "name": "Luke Skywalker",
+    ...
+  },
+  ...
+]
+*/
 ```
 
-# Examples: TODO!
-All of the examples below operate in the context of this example root object:
-
+References to other streams, as used by the <a href="#union">Union</a> and <a href="#join">Join</a> tokens, should also be passed to the stream definition. For example:
 ```js
 const root = {
-  'Actors': {
-
-  },
-  'Roles': {
-
-  },
-  'Star Wars API': {
-    'people': 'https://swapi.co/people',
-    'planets': 'https://swapi.co/planets',
-    'films': 'https://swapi.co/films',
-    'species': 'https://swapi.co/species',
-    'vehicles': 'https://swapi.co/vehicles',
-    'starships': 'https://swapi.co/starships'
-  }
+  jedi: [
+    { name: 'Luke Skywalker' },
+    /* ... */
+  ],
+  sith: [
+    { name: 'Darth Vader' },
+    /* ... */
+  ]
 };
 
-
+const jediStream = mure.stream({
+  root,
+  selector: `root.values('jedi').values()`
+});
+const forceUsersStream = mure.stream({
+  root,
+  selector: `root.values('sith').values().union(jediStream)`,
+  streams: {
+    jediStream
+  }
+});
 ```
-
-# Example Workflows
-TODO!
