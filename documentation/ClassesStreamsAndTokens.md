@@ -12,9 +12,36 @@ const allClasses = [
 ];
 ```
 
-The only required part of a class is the **stream definition**. The class's stream yields a series of items (keys, values, objects, or arrays). The stream is defined with a string _selector_, made of a series of _tokens_—these indicate where and how items should be extracted from the raw data that has been loaded or linked.
+The only required part of a class is the **stream definition**, described in the next section. TODO: more about classes' optional, user-defined bits
 
-TODO: better intro
+# Streams
+**Warning:** *I know, the selector syntax in here looks absolutely horrifying. But there are good reasons for it, and I promise it starts to make sense after a while. Don't worry too much about what the weird symbols mean for now.*
+
+Classes need a way to describe their items, without loading or traversing any data. We also need to be able to sample a class's items. For example, if we've loaded datasets that look like:
+
+```js
+{
+  "actors.csv": [
+    { "First name": "Carrie", "Last Name": "Fisher" },
+    { "First name": "Harrison", "Last Name": "Ford" },
+    ...
+  ],
+  "movies.json": [
+    { "title": "Star Wars", "cast": {
+      "Harrison Ford": "Han Solo",
+      "Carrie Fisher": "Princess Leia",
+      ...
+      }
+    },
+    ...
+  ]
+}
+```
+
+An "Actors" class that refers to the contents of the `actors.csv` array would need to use a selector like this: `@['actors.csv']→[*]`
+Alternatively, if we didn't have an `actors.csv` array, we could still refer to "Actor" entities using this selector (promoting the keys inside `movies.json` as distinct entities): `@['movies.json']→[*]→['cast']→[*]↑`
+
+The selector defines a location in the data, that the stream uses to extract a series of items (keys, values, objects, or arrays). The series of characters in the selector are called _tokens_—these indicate where and how items should be extracted from the raw data that has been loaded or linked.
 
 This snippet should give you a feel for what this is trying to enable:
 ```javascript
@@ -48,7 +75,7 @@ for await (const item of samples) {
 
 // What full iteration might look like (would be used by a node.js script)
 const outputFile = fs.createWriteStream('result.csv');
-outputFile.write(/* csv file header string goes here*/);
+outputFile.write(/* csv file header string goes here */);
 for await (const item of stream.sample({ limit: Infinity })) {
   let row = '';
   /* ... convert item to a CSV row ... */
@@ -58,6 +85,7 @@ outputFile.end();
 ```
 
 # Token Reference
+
 The series of tokens in a selector represent a traversal of the overall data structure. Each token yields a series of values that serve as the input for the next token, or, in the case of the final token, the series of values that make up the stream.
 
 - **Root `@`** Indicates the start of a selector, and yields the root object.
@@ -68,7 +96,7 @@ The series of tokens in a selector represent a traversal of the overall data str
 - **Value `→`** Yields the corresponding value of an object's key, or an array's index; a `TypeError` is thrown if the input is not an object's key or an array's index.
 - **Evaluate `↬`** Interprets a key or value string in the data as a selector, evaluates it, and fowards any yielded results or errors of that evaluation. Non-string inputs throw `TypeError`, and bad selectors throw `SyntaxError`.
 - **Link `🔗`** Interprets a key or value in the data as a URL, sends an AJAX request, and yields the object or string in the response body. Non-string inputs throw `TypeError`, and failed requests throw `URIError`.
-- **Map `ƒ( map )`* Allows a custom function (`map`) to yield anything in response to input.
+- **Map `ƒ( map )`** Allows a custom function (`map`) to yield anything in response to input.
   - `map` is required; it should be the name of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the inputs to the next token in the selector.
 - **Promote `↑( map, hash, reduceInstances )`** Only yield unique values the first time they're encountered
   - `map` is optional; if included, it should be the name of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the unique, promoted items. This is useful, for example, in cases where we would want to wrap a promoted string value inside an object, in order to add attributes (via `reduceInstances`). If omitted, the first unique item is yielded as-is.
