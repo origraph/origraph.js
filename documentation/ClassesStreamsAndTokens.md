@@ -1,7 +1,7 @@
 # Class Specification
 
 Classes are stored in memory like this:
-```javascript
+```js
 const allClasses = [
   {
     names: ['My Class'], // if undefined, auto-inferred from the stream
@@ -29,7 +29,7 @@ Classes need a way to describe their items declaratively, without loading or tra
       "title": "Star Wars",
       "cast": {
         "Harrison Ford": "Han Solo",
-        "Carrie Fisher": "Princess Leia",
+        "Carrie Fisher": "Leia Organa",
         /* ... */
       }
     },
@@ -58,14 +58,14 @@ TODO: for now, we're just using in-memory, pre-parsed Javascript objects at the 
 1. Something to handle / chunks / close each browser / node raw stream (I know there are Stack Overflow examples somewhere...)
 2. Something to parse chunks based on file format and yield objects... CSV is easy, but I think I've seen JSON / XML examples as well...
 
-```javascript
+```js
 // Streams reinterpret a "root" object that can contain all kinds of things
 const root = {
   // Streaming a file in node.js (TODO: finish this)
   "rawMoviesFile": fs.createReadStream('movies.json'),
 
   // Streaming a file in the browser (TODO: finish this)
-  "rawActorsFile": await fetch('actors.json').then(response => response.body.getReader()),
+  "rawActorsFile": await fetch('actors.csv').then(response => response.body.getReader()),
 
   // Of course, we can handle in-memory, pre-parsed, native Javascript objects:
   "actors.csv": [
@@ -78,7 +78,7 @@ const root = {
       "title": "Star Wars",
       "cast": {
         "Harrison Ford": "Han Solo",
-        "Carrie Fisher": "Princess Leia",
+        "Carrie Fisher": "Leia Organa",
         /* ... */
       }
     },
@@ -88,7 +88,8 @@ const root = {
   // We can also point to APIs:
   exampleApi: 'http://www.someapi.com/api'
 
-  // TODO: I'm sure there's a way to stream databases?
+  // TODO: I'm sure there are standard ways for streaming / getting paged results
+  // from most databases?
 };
 ```
 
@@ -100,7 +101,7 @@ Ultimately, each raw data source should be stored as:
 ## Starting a stream
 Once the raw data is set up in a `root` object, we can set up a stream like this:
 
-```javascript
+```js
 const stream = mure.stream({
   root,
   selector: 'root', // root would normally be followed by a series of tokens, described in the next section
@@ -124,7 +125,7 @@ for await (const item of samples) {
 
 // What full iteration might look like (would be used by a node.js script)
 const outputFile = fs.createWriteStream('result.csv');
-outputFile.write(/* csv file header string goes here */);
+outputFile.write(/* ... csv file header string goes here ... */);
 for await (const item of stream.sample({ limit: Infinity })) {
   let row = '';
   /* ... convert item to a CSV row ... */
@@ -140,6 +141,23 @@ The series of tokens in a selector represent a traversal of the overall data str
 ### Root
 Syntax: `root`
 
+#### Example
+```js
+const stream = mure.stream({
+  root: {
+    'emptyDataset': [],
+  },
+  selector: `root`
+});
+
+for await (const root of stream.sample({ limit: Infinity })) {
+  console.log(JSON.stringify(root));
+}
+/* Output is:
+{"emptyDataset":[]}
+*/
+```
+
 Indicates the start of a selector, and yields the root object.
 
 ### Keys
@@ -147,26 +165,138 @@ Syntax: `.keys( query )`
 
 Yields an object's keys, or an array's indices. Throws a `TypeError` if the input is not an object or array.
 
-`query` is optional; if omitted, the token yields all keys and/or indices. If included, it should be a comma-delimited list of specific keys or indices (e.g. `.keys(0,'Some key',5-17,'⌘hidden key',20-∞)`). Hyphenated numeric index ranges are accepted (ranges can reach to infinity with `∞`). Note that all key strings must be wrapped with `'` or `"`. These characters should be escaped when part of a key string: `\'`, `\"`, `\\`
+`query` is optional; if omitted, the token yields all keys and/or indices. If included, it should be a comma-delimited list of specific keys or indices (e.g. `.keys(0,'Some key',5-17,20-∞)`). Hyphenated numeric index ranges are accepted (ranges can reach to infinity with `∞`). Note that all key strings must be wrapped with `'` or `"`. These characters should be escaped when part of a key string: `\'`, `\"`, `\\`
 
-#### Example
-(TODO)
+#### Examples
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': ['a', 'b', 'c'],
+  },
+  selector: `root.values('dataset').keys()`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+0
+1
+2
+*/
+```
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': ['a', 'b', 'c', 'd', 'e', 'f'],
+  },
+  selector: `root.values('dataset').keys(0-2,4-∞).value()`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+a
+b
+c
+e
+f
+*/
+```
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': { a: 'b', c: 'd', e: 'f' },
+  },
+  selector: `root.values('dataset').keys(a,e).value()`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+b
+f
+*/
+```
 
 ### Value
 Syntax: `.value()`
 
 Yields the corresponding value of an object's key, or an array's index; a `TypeError` is thrown if the input is not an object's key or an array's index.
 
-#### Example
-(TODO)
+#### Examples
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': ['a', 'b', 'c', 'd', 'e', 'f'],
+  },
+  selector: `root.values('dataset').keys(0-2,4-∞).value()`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+a
+b
+c
+e
+f
+*/
+```
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': { a: 'b', c: 'd', e: 'f' },
+  },
+  selector: `root.values('dataset').keys(a,e).value()`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+b
+f
+*/
+```
 
 ### Values
 Syntax: `.values( query )`
 
 Shorthand for `.keys( query ).value()`
 
-#### Example
-(TODO)
+#### Examples
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': ['a', 'b', 'c', 'd', 'e', 'f'],
+  },
+  selector: `root.values('dataset').values(0-2,4-∞)`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+a
+b
+c
+e
+f
+*/
+```
+```js
+const stream = mure.stream({
+  root: {
+    'dataset': { a: 'b', c: 'd', e: 'f' },
+  },
+  selector: `root.values('dataset').values(a,e)`
+});
+for await (const item of stream.sample({ limit: Infinity })) {
+  console.log(item);
+}
+/* Output:
+b
+f
+*/
+```
 
 ### Evaluate
 Syntax: `.evaluate()`
@@ -174,7 +304,36 @@ Syntax: `.evaluate()`
 Interprets a key or value string in the data as a selector, evaluates it, and fowards any yielded results or errors of that evaluation. Non-string inputs throw `TypeError`, and bad selectors throw `SyntaxError`.
 
 #### Example
-(TODO)
+```js
+const stream = mure.stream({
+  root: {
+    'actors.csv': [
+      { 'First name': 'Carrie', 'Last Name': 'Fisher' },
+      { 'First name': 'Harrison', 'Last Name': 'Ford' },
+      /* ... */
+    ],
+    'movies.json': [
+      {
+        'title': 'Star Wars',
+        'cast': {
+          'Han Solo': `root.values('actors.csv').values(1)`,
+          'Leia Organa': `root.values('actors.csv').values(1)`,
+          /* ... */
+        }
+      },
+      /* ... */
+    ]
+  },
+  selector: `root.values('movies.json').values('cast').values().evaluate()`
+});
+for await (const actor of stream.sample({ limit: 2 })) {
+  console.log(actor['First Name']);
+}
+/* Output:
+Harrison
+Carrie
+*/
+```
 
 ### Link
 Syntax: `.link()`
@@ -184,7 +343,40 @@ Interprets a key or value in the data as a URL, sends an AJAX request, and yield
 (TODO: should probably add a helper argument for dealing with pagination / throttling of API calls)
 
 #### Example
-(TODO)
+```js
+const stream = mure.stream({
+  root: {
+    'people': 'https://swapi.co/api/people'
+  },
+  selector: `root.values('people').link()
+                 .values('results').values()`
+});
+for await (const person of stream.sample({ limit: 2 })) {
+  console.log(person['name']);
+}
+/* Output:
+Luke Skywalker
+C-3PO
+*/
+```
+```js
+const stream = mure.stream({
+  root: {
+    'people': 'https://swapi.co/api/people'
+  },
+  selector: `root.values('people').link()
+                 .values('results').values()
+                 .values('films').values().link()
+                 .values('results').values()`
+});
+for await (const film of stream.sample({ limit: 2 })) {
+  console.log(film['title']);
+}
+/* Output:
+The Empire Strikes Back
+Revenge of the Sith
+*/
+```
 
 ### Map
 Syntax: `.map( generator )`
@@ -213,7 +405,7 @@ const stream = mure.stream({
   }
 });
 
-for (const item of stream.sample({ limit: 2 })) {
+for await (const item of stream.sample({ limit: 2 })) {
   console.log(item);
 }
 /* Output is:
@@ -252,7 +444,7 @@ const stream = mure.stream({
         'title': 'Star Wars',
         'cast': {
           'Harrison Ford': 'Han Solo',
-          'Carrie Fisher': 'Princess Leia',
+          'Carrie Fisher': 'Leia Organa',
           /* ... */
         }
       },
@@ -269,7 +461,7 @@ const stream = mure.stream({
   }
 });
 
-for (const actor of stream.sample({ limit: 2 })) {
+for await (const actor of stream.sample({ limit: 2 })) {
   console.log(actor.name, actor.count);
 }
 /* Output is:
@@ -278,10 +470,10 @@ Harrison Ford 1
 */
 
 const actors = [];
-for (const actor of stream.sample({ limit: Infinity })) {
+for await (const actor of stream.sample({ limit: Infinity })) {
   actors.push(actor);
 }
-for (const actor of actors) {
+for await (const actor of actors) {
   console.log(actor.name, actor.count);
 }
 /* Output might look like:
@@ -299,7 +491,30 @@ Yields the results of `otherStream` after the current stream has been completed.
 `otherStream` is required; should be the <a href="#about-named-functions-and-streams">name</a> of another stream.
 
 #### Example
-(TODO)
+```js
+const root = {
+  jedi: [
+    { name: 'Luke Skywalker' },
+    /* ... */
+  ],
+  sith: [
+    { name: 'Darth Vader' },
+    /* ... */
+  ]
+};
+
+const jediStream = mure.stream({
+  root,
+  selector: `root.values('jedi').values()`
+});
+const forceUsersStream = mure.stream({
+  root,
+  selector: `root.values('sith').values().union(jediStream)`,
+  streams: {
+    jediStream
+  }
+});
+```
 
 ### Join
 Syntax: `.join( otherStream, thisKey, otherKey, map )`
@@ -317,12 +532,69 @@ Yields an item for every match between the input item and every item in `otherSt
 - `otherPath` The path leading up to `otherItem`
 
 #### Examples
-(TODO)
+```js
+const root = {
+  'actors.csv': [
+    { 'First name': 'Carrie', 'Last Name': 'Fisher' },
+    { 'First name': 'Harrison', 'Last Name': 'Ford' },
+    /* ... */
+  ],
+  'movies.json': [
+    {
+      'title': 'Star Wars',
+      'cast': {
+        'Harrison Ford': 'Han Solo',
+        'Carrie Fisher': 'Leia Organa',
+        /* ... */
+      }
+    },
+    /* ... */
+  ]
+};
+
+const actors = mure.stream({
+  root,
+  selector: `root.values('actors.csv').values()`
+});
+
+const roles = mure.stream({
+  root,
+  selector: `root.values('movies.json').values().keys('cast').join(actors, , actorKey, buildRoleObject)`,
+  functions: {
+    actorKey: function * (item, path) {
+      yield item['First name'] + ' ' + item['Last Name'];
+    },
+    buildRoleObject: function * (thisItem, thisPath, otherItem, otherPath) {
+      const castObject = thisPath[thisPath.length - 2];
+      const movieObject = thisPath[thisPath.length - 4];
+      yield {
+        // thisItem is the key, e.g. "Harrison Ford" or "Carrie Fisher"
+        characterName: castObject[thisItem],
+        movieTitle: movieObject.title,
+        // Save foreign keys into the other tables:
+        actorIndex: otherPath[otherPath.length - 2],
+        movieIndex: thisPath[thisPath.length - 5]
+      };
+    }
+  },
+  streams: {
+    actors
+  }
+})
+
+for await (const role of roles.sample({ limit: 2 })) {
+  console.log(role.actorIndex, role.characterName, role.movieTitle);
+}
+/* Output:
+2 Han Solo Star Wars
+1 Leia Organa Star Wars
+*/
+```
 
 # About Named Functions and Streams
 The name of each function should correspond to a key in the `functions` argument. For example:
-```javascript
-const localStreams = mure.stream({
+```js
+const localDatasets = mure.stream({
   root: {
     people: [
       { name: 'Luke Skywalker' },
@@ -334,14 +606,15 @@ const localStreams = mure.stream({
   functions: {
     objectsOnly: function * (item, path) => {
       if (typeof item === 'object') {
+        // Filter out the 'planets' dataset, because it's a URL, not an object:
         yield item;
       }
     }
   }
 });
 
-for await (let localStream of localStreams.sample({ limit: Infinity })) {
-  console.log(JSON.stringify(localStream, null, 2));
+for await (const localDataset of localDatasets.sample({ limit: Infinity })) {
+  console.log(JSON.stringify(localDataset, null, 2));
 }
 /* Output:
 [
