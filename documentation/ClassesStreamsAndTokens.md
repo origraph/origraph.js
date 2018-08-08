@@ -38,12 +38,17 @@ Classes need a way to describe their items, without loading or traversing any da
 }
 ```
 
-An "Actors" class that refers to the contents of the `actors.csv` array would need to use a selector like this: `root.values('actors.csv').values()`
-Alternatively, if we didn't have an `actors.csv` array, we could still refer to "Actor" entities using this selector (promoting the keys inside `movies.json` as distinct entities): `root.values('movies.json').values('cast').keys().promote()`
+An "Actors" class that refers to the contents of the `actors.csv` array would need to use a selector like this:
+
+`root.values('actors.csv').values()`
+
+Alternatively, if we didn't have an `actors.csv` array, we could still refer to "Actor" entities using this selector (promoting the keys inside `movies.json` as distinct entities):
+
+`root.values('movies.json').values('cast').keys().promote()`
 
 The selector defines a location in the data, that the stream uses to extract a series of items (keys, values, objects, or arrays). The series of characters in the selector are called _tokens_—these indicate where and how items should be extracted from the raw data that has been loaded or linked.
 
-This snippet should give you a feel for what this is trying to enable:
+Ultimately, we want streams to be able to do things like:
 ```javascript
 // Streams reinterpret a "root" object that can contain all kinds of things
 const root = {
@@ -56,15 +61,17 @@ const root = {
 // Initializing a stream
 const stream = mure.stream({
   root,
-  selector: '[a series of tokens goes here]',
+  selector: 'root', // root would normally be followed by a series of tokens, described in the next section
   functions: {
-    /* ... named functions go here (some tokens refer to functions by name) ... */
+    // named functions go here (some tokens refer to functions by name)
   },
   streams: {
-    /* ... named, connecting streams go here (some tokens refer to other streams by name) ... */
+    // named, connecting streams go here (some tokens refer to other streams by name)
   },
   mode: 'permissive'
-  /* Default mode is permissive. Errors thrown by tokens are ignored, and the stream continues to attempt to extract items. The alternative is 'debug,' where all token errors are thrown, and the stream terminates immediately. */
+  /* Default mode is permissive. Errors thrown by tokens are ignored, and the
+     stream continues to attempt to extract items. The alternative is 'debug,'
+     where all token errors are thrown, and the stream terminates immediately. */
 });
 
 // What sampling might look like (would be used by our interactive interface)
