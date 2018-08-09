@@ -1,65 +1,58 @@
 import md5 from 'blueimp-md5';
 
-class Selection {
-  constructor (mure, selectorList = ['@']) {
+const DEFAULT_FUNCTIONS = {
+  identity: function * (item, path) { yield item; },
+  md5: (item, path) => md5(item),
+  noop: () => {}
+};
+
+class Stream {
+  constructor ({ mure, selector = 'root', functions = {}, streams = {}, mode = 'permissive' }) {
     this.mure = mure;
 
-    if (!(selectorList instanceof Array)) {
-      selectorList = [ selectorList ];
-    }
+    this.tokenList = this.parseSelector(selector);
 
-    // Parse the selectors
-    this.tokenLists = selectorList.map(selectorString => {
-      const tokenList = mure.parseSelector(selectorString);
-      if (tokenList === null) {
-        throw new SyntaxError(`Invalid selector: ${selectorString}`);
-      }
-      return tokenList;
-    });
-
-    // Quick merge / optimize this.tokenLists (not exhaustive on purpose):
-    let i = 0;
-    while (i < this.tokenLists.length - 1) {
-      const merged = this.mergeTokenLists(this.tokenLists[i], this.tokenLists[i + 1]);
-      if (merged) {
-        this.tokenLists.splice(1);
-        this.tokenLists[i] = merged;
-      } else {
-        i++;
-      }
-    }
+    this.functions = Object.assign({}, DEFAULT_FUNCTIONS, functions);
+    this.streams = streams;
+    this.mode = mode;
   }
-  mergeTokenLists (a, b) {
-    if (a.length !== b.length) {
+  get selector () {
+    return this.tokenList.join('');
+  }
+  parseSelector (selectorString) {
+    if (!selectorString.startsWith('root')) {
       return null;
-    } else {
-      const result = [];
-      if (!a.every((aToken, i) => {
-        const temp = a.merge(b[i]);
-        result.push(temp);
-        return temp;
-      })) { return null; }
-      return result;
     }
-  }
-  get hash () {
-    if (!this._hash) {
-      this._hash = md5(JSON.stringify(this.selectorList));
+    const tokenStrings = selectorString.match(/\.([^(]*)\(([^)]*)\)/g);
+    if (!tokenStrings) {
+      throw new SyntaxError(`Invalid selector string: ${selectorString}`);
     }
-    return this._hash;
+    const tokenList = [];
+    tokenStrings.forEach(chunk => {
+      const temp = chunk.match(/^.([^(]*)\(([^)]*)\)/);
+      if (!temp) {
+        throw new SyntaxError(`Invalid token: ${chunk}`);
+      }
+      const tokenClassName = temp[1][0].toUpperCase() + temp[1].slice(1) + 'Token';
+      const argList = temp[2].split(/(?<!\\),/).map(d => d.trim());
+      if (tokenClassName === 'ValuesToken') {
+        tokenList.push(new this.mure.TOKENS.KeysToken(this, argList));
+        tokenList.push(new this.mure.TOKENS.ValueToken(this, []));
+      } else if (this.mure.TOKENS[tokenClassName]) {
+        tokenList.push(new this.mure.TOKENS[tokenClassName](this, argList));
+      } else {
+        throw new SyntaxError(`Unknown token: ${temp[1]}`);
+      }
+    });
+    return tokenList;
   }
-  get selectorList () {
-    return this.tokenLists.map(tokenList => tokenList.join(''));
-  }
-  async * iterate ({ startWithPath = [this.mure.root], mode = 'DFS' }) {
+  async * iterate ({ mode = 'DFS' }) {
     if (mode === 'BFS') {
       throw new Error(`Breadth-first iteration is not yet implemented.`);
     } else if (mode === 'DFS') {
-      for (let tokenList of this.tokenLists) {
-        const deepHelper = this.deepHelper(tokenList, startWithPath, mode, tokenList.length - 1);
-        for await (let finishedPath of deepHelper) {
-          yield finishedPath;
-        }
+      const deepHelper = this.deepHelper(this.tokenList, mode, [this.mure.root], this.tokenList.length - 1);
+      for await (const finishedPath of deepHelper) {
+        yield finishedPath;
       }
     }
   }
@@ -68,7 +61,7 @@ class Selection {
    * it lazily asks for them one at a time from the *final* token, recursively
    * asking each preceding token to yield dependent paths only as needed)
    */
-  async * deepHelper (tokenList, path0, mode, i) {
+  async * deepHelper (tokenList, mode, path0, i) {
     if (i === 0) {
       yield * await tokenList[0].navigate(path0);
     } else {
@@ -77,65 +70,8 @@ class Selection {
       }
     }
   }
-  async * sample ({ limit = Infinity, mode = 'BFS', aggressive }) {
-    let count = 0;
-    let metaSelection = this.subSelectAll('⌘');
-    for await (let path of this.iterate({ mode })) {
-      if (count >= limit) {
-        return;
-      }
-      count++;
-      let value = path[path.length - 1];
-      let metaData = {};
-      for await (let metaPath of metaSelection.iterate()) {
-        this.augmentMetaDataObject(metaData, metaPath);
-      }
-      yield this.mure.wrap({ value, path, metaData, aggressive });
-    }
-  }
-  augmentMetaDataObject (obj, path) {
-    let currentObj = obj;
-    for (let i = 0; i < path.length - 2; i++) {
-      if (i % 2 === 0) {
-        if (typeof path[i] !== 'object') {
-          throw new Error(`Bad meta path: ${path}`);
-        }
-      } else {
-        if (typeof path[i] !== 'string' && typeof path[i] !== 'number') {
-          throw new Error(`Bad meta path: ${path}`);
-        }
-        if (i === path.length - 3) {
-          // Skip the target path selector key; instead, strap the final object
-          // on directly
-          currentObj[path[i]] = path[path.length - 1];
-        } else {
-          currentObj[path[i]] = currentObj[path[i]] || {};
-          currentObj = currentObj[path[i]];
-        }
-      }
-    }
-  }
 
-  async execute (operation, inputOptions) {
-    let outputSpec = await operation.executeOnSelection(this, inputOptions);
-
-    // Return this selection, or a new selection, depending on the operation
-    if (outputSpec.newSelectors !== null) {
-      return new Selection(this.mure, outputSpec.newSelectors);
-    } else {
-      return this;
-    }
-  }
-
-  /*
-   Shortcuts for selection manipulation
-   */
-  subSelectAll (append, mode = 'Replace') {
-    return this.selectAll({ context: 'Selector', append, mode });
-  }
-  merge (otherSelection) {
-    return this.selectAll({ context: 'Selection', otherSelection, mode: 'Union' });
-  }
+  // TODO: continue here!
 
   /*
    These functions provide statistics / summaries of the selection:

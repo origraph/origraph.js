@@ -569,7 +569,9 @@ const roles = mure.stream({
       const movieObject = thisPath[thisPath.length - 4];
       yield {
         // thisItem is a key of the cast object, e.g. "Harrison Ford" or "Carrie Fisher"
-        characterName: castObject[thisItem],
+        characterName: c### `commaDelimitedAttribute`
+
+### ``astObject[thisItem],
         movieTitle: movieObject.title,
         // otherItem is the actor object
         reversedActorName: otherItem['Last Name'] + ', ' + otherItem['First Name'],
@@ -594,7 +596,7 @@ Fisher, Carrie Leia Organa Star Wars
 ```
 
 # About Named Functions and Streams
-The name of each function should correspond to a key in the `functions` argument. For example:
+The library includes a set of <a href="#predefined-function-library">predefined named functions</a> that you can choose from, or you can provide your own custom logic via the `functions` argument. For example:
 ```js
 const localDatasets = mure.stream({
   root: {
@@ -654,3 +656,8 @@ const forceUsersStream = mure.stream({
   }
 });
 ```
+
+## Predefined Function Library
+
+### `attribute`
+(TODO)

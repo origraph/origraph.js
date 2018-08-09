@@ -3,7 +3,6 @@ import datalib from 'datalib';
 import { Model } from 'uki';
 import Selection from './Selection.js';
 import * as TOKENS from './Tokens/Tokens.js';
-import * as WRAPPERS from './Wrappers/Wrappers.js';
 import * as OPERATIONS from './Operations/Operations.js';
 
 class Mure extends Model {
@@ -15,13 +14,7 @@ class Mure extends Model {
     // Object containing each of our data sources, as well as metadata that
     // guides its interpretation
     this.root = {
-      '⌘edits': [],
-      '⌘overrides': {},
-      '⌘mixins': {
-        '⌘nodes': {},
-        '⌘edges': {},
-        '⌘classes': {}
-      }
+      '⌘classes': {}
     };
 
     // extensions that we want datalib to handle
@@ -48,7 +41,6 @@ class Mure extends Model {
     // circular imports, as well as enabling external tools to do things like
     // instanceof
     this.TOKENS = TOKENS;
-    this.WRAPPERS = WRAPPERS;
 
     // Auto-mappings from native javascript types to Wrappers
     this.JSTYPES = {
@@ -85,28 +77,7 @@ class Mure extends Model {
   selectAll (selectorList) {
     return new Selection(this, selectorList);
   }
-  parseSelector (selectorString) {
-    if (selectorString[0] !== '@') {
-      return null;
-    }
-    selectorString = selectorString.slice(1);
-    const tokenList = [];
-    while (selectorString.length > 0) {
-      const initialLength = selectorString.length;
-      for (let Token in this.TOKENS) {
-        const temp = selectorString.match(Token.REGEX);
-        if (temp) {
-          tokenList.push(new Token(temp[1]));
-          selectorString = selectorString.slice(temp[0].length);
-          break;
-        }
-      }
-      if (selectorString.length >= initialLength) {
-        return null;
-      }
-    }
-    return tokenList;
-  }
+
   pathToSelector (path) {
     if (!path[0] === this.root) {
       throw new Error('Path does not begin with root');

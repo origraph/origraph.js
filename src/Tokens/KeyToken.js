@@ -1,16 +1,19 @@
-import Token from './Token.js';
+import BaseToken from './BaseToken.js';
 
-class KeyToken extends Token {
-  constructor (mure, matchedChunk = '', { matchAll, keys, ranges }) {
-    super(mure);
+class KeyToken extends BaseToken {
+  constructor (stream, argList, { matchAll, keys, ranges }) {
+    super(stream);
     if (keys || ranges) {
       this.keys = keys;
       this.ranges = ranges;
-    } else if (matchedChunk === '*' || matchAll) {
+    } else if ((argList && argList.length === 0) || matchAll) {
       this.matchAll = true;
     } else {
-      matchedChunk.split(',').forEach(key => {
-        let temp = key.match(/(\d+)-(\d+)/);
+      argList.forEach(arg => {
+        let temp = arg.match(/(\d+)-([\d∞]+)/);
+        if (temp && temp[2] === '∞') {
+          temp[2] = Infinity;
+        }
         temp = temp ? temp.map(d => d.parseInt(d)) : null;
         if (temp && !isNaN(temp[1]) && !isNaN(temp[2])) {
           for (let i = temp[1]; i <= temp[2]; i++) {
@@ -19,8 +22,8 @@ class KeyToken extends Token {
           }
           return;
         }
-        temp = key.match(/'(.*)'/);
-        temp = temp && temp[1] ? temp[1] : key;
+        temp = arg.match(/'(.*)'/);
+        temp = temp && temp[1] ? temp[1] : arg;
         let num = Number(temp);
         if (isNaN(num) || num !== parseInt(temp)) { // leave non-integer numbers as strings
           this.keys = this.keys || {};
@@ -31,7 +34,7 @@ class KeyToken extends Token {
         }
       });
       if (!this.keys && !this.ranges) {
-        throw new SyntaxError(`Bad token key(s) / range(s): ${matchedChunk}`);
+        throw new SyntaxError(`Bad token key(s) / range(s): ${JSON.stringify(argList)}`);
       }
     }
     if (this.ranges) {
@@ -146,21 +149,22 @@ class KeyToken extends Token {
     }
   }
   toString () {
-    if (this.matchAll) { return '[*]'; }
-    return '[' + this.ranges.map(({low, high}) => `${low}-${high}`)
+    if (this.matchAll) { return '.keys()'; }
+    return '.keys(' + this.ranges.map(({low, high}) => `${low}-${high}`)
       .concat(Object.keys(this.keys).map(key => `'${key}'`))
-      .join(',') + ']';
+      .join(',') + ')';
   }
-  * navigate (path) {
+  async * navigate (path) {
     const lastElement = path[path.length - 1];
     if (typeof lastElement !== 'object') { return; }
     if (this.matchAll) {
       for (let key in lastElement) {
-        if (key[0] === '⌘') { continue; }
         yield path.concat([key]);
       }
     } else {
       for (let {low, high} of this.ranges || []) {
+        low = Math.max(0, low);
+        high = Math.min(lastElement.length - 1, high);
         for (let i = low; i <= high; i++) {
           yield path.concat([i]);
         }
@@ -173,5 +177,4 @@ class KeyToken extends Token {
     }
   }
 }
-KeyToken.REGEX = /^\[([^\]]*)\]/;
 export default KeyToken;

@@ -1,9 +1,11 @@
-import Token from './Token.js';
+import BaseToken from './BaseToken.js';
 
-class RootToken extends Token {
+class RootToken extends BaseToken {
   * navigate (path) {
     yield [path[0]];
   }
+  toString () {
+    return `root`;
+  }
 }
-RootToken.REGEX = /^\$/;
 export default RootToken;
