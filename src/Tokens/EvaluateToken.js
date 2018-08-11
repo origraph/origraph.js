@@ -1,25 +1,16 @@
 import BaseToken from './BaseToken.js';
 
 class EvaluateToken extends BaseToken {
-  async * navigate (path, mode) {
-    let newStream = path[path.length - 1];
-    if (typeof newStream !== 'string') {
+  async * navigate (wrappedParent, mode) {
+    if (typeof wrappedParent.value !== 'string') {
       throw new TypeError(`Input to EvaluateToken is not a string`);
     }
-    try {
-      newStream = this.stream.mure.stream({
-        stream: this.stream,
-        selector: newStream,
-        functions: this.stream.functions,
-        streams: this.stream.streams
-      });
-    } catch (err) {
-      if (err instanceof SyntaxError) {
-        return;
-      } else {
-        throw err;
-      }
-    }
+    let newStream = this.stream.mure.stream({
+      stream: this.stream,
+      selector: wrappedParent.value,
+      functions: this.stream.functions,
+      streams: this.stream.streams
+    });
     yield * await newStream.iterate({ mode });
   }
 }

@@ -11,10 +11,16 @@ class MapToken extends BaseToken {
   toString () {
     return `.map(${this.generator})`;
   }
-  async * navigate (path) {
-    const item = path[path.length - 1];
-    for await (const mappedItem of this.generator(item, path)) {
-      yield path.concat([mappedItem]);
+  isSuperSetOf (otherToken) {
+    return otherToken.constructor === MapToken && otherToken.generator === this.generator;
+  }
+  async * navigate (wrappedParent, mode) {
+    for await (const mappedRawItem of this.generator(wrappedParent)) {
+      yield this.stream.mure.wrap({
+        wrappedParent,
+        token: this,
+        rawItem: mappedRawItem
+      });
     }
   }
 }

@@ -1,5 +1,5 @@
 import RootToken from './RootToken.js';
-import KeyToken from './KeyToken.js';
+import KeysToken from './KeysToken.js';
 import ValueToken from './ValueToken.js';
 import EvaluateToken from './EvaluateToken.js';
 // TODO: import LinkToken from './LinkToken.js';
@@ -8,7 +8,7 @@ import PromoteToken from './PromoteToken.js';
 
 export {
   RootToken,
-  KeyToken,
+  KeysToken,
   ValueToken,
   EvaluateToken,
   MapToken,

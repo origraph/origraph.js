@@ -2,12 +2,25 @@
 
 Classes are stored in memory like this:
 ```js
-const allClasses = [
+mure.classes = [
   {
-    names: ['My Class'], // if undefined, auto-inferred from the stream
+    names: ['My Node Class'], // if undefined, auto-inferred from the stream
     annotations: ['This is what I think of these items'],
+    stream: mure.stream({ /* ... more on this below ... */ }),
     interpretation: 'Node', // can be 'Node', 'Edge', or undefined
-    stream: mure.stream({ /* ... more on this below ... */ })
+    connections: {}
+  },
+  {
+    names: ['My Edge Class', 'Some other class name'],
+    stream: mure.stream({ /* ... more on this below ... */ }),
+    interpretation: 'Edge', // can be 'Node', 'Edge', or undefined
+    connections: {
+      'My Node Class': {
+        'source': true,
+        'target': true
+      }
+    },
+    direction: 
   }
 ];
 ```

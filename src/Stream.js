@@ -71,131 +71,20 @@ class Stream {
     }
   }
 
-  // TODO: continue here!
-
-  /*
-   These functions provide statistics / summaries of the selection:
-   */
-  async getPopulatedInputSpec (operation) {
-    const inputSpec = operation.getInputSpec();
-    await inputSpec.populateChoicesFromSelection(this);
-    return inputSpec;
+  extend (TokenClass, argList, functions = {}, streams = {}) {
+    const newStream = new Stream({
+      mure: this.mure,
+      functions: Object.assign({}, this.functions, functions),
+      streams: Object.assign({}, this.streams, streams),
+      mode: this.mode
+    });
+    newStream.tokenList = this.tokenList.concat([ new TokenClass(newStream, argList) ]);
+    return newStream;
   }
-  async histograms ({ numBins = 20, limit, mode, aggressive }) {
-    let result = {
-      raw: {
-        typeBins: {},
-        categoricalBins: {},
-        quantitativeBins: []
-      },
-      attributes: {}
-    };
 
-    const countPrimitive = (counters, item) => {
-      // Attempt to count the value categorically
-      if (counters.categoricalBins !== null) {
-        counters.categoricalBins[item.value] = (counters.categoricalBins[item.value] || 0) + 1;
-        if (Object.keys(counters.categoricalBins).length > numBins) {
-          // We've encountered too many categorical bins; this likely isn't a categorical attribute
-          counters.categoricalBins = null;
-        }
-      }
-      // Attempt to bin the value quantitatively
-      if (counters.quantitativeBins !== null) {
-        if (counters.quantitativeBins.length === 0) {
-          // Init the counters with some temporary placeholders
-          counters.quantitativeWrappers = [];
-          counters.quantitativeType = item.type;
-          if (item instanceof this.mure.WRAPPERS.NumberWrapper) {
-            counters.quantitativeScale = this.mure.d3.scaleLinear()
-              .domain([item.value, item.value]);
-          } else if (item instanceof this.mure.WRAPPERS.DateWrapper) {
-            counters.quantitativeScale = this.mure.d3.scaleTime()
-              .domain([item.value, item.value]);
-          } else {
-            // The first value is non-quantitative; this likely isn't a quantitative attribute
-            counters.quantitativeBins = null;
-            delete counters.quantitativeWrappers;
-            delete counters.quantitativeType;
-            delete counters.quantitativeScale;
-          }
-        } else if (counters.quantitativeType !== item.type) {
-          // Encountered an item of a different type; this likely isn't a quantitative attribute
-          counters.quantitativeBins = null;
-          delete counters.quantitativeWrappers;
-          delete counters.quantitativeType;
-          delete counters.quantitativeScale;
-        } else {
-          // Update the scale's domain (we'll determine bins later)
-          let domain = counters.quantitativeScale.domain();
-          if (item.value < domain[0]) {
-            domain[0] = item.value;
-          }
-          if (item.value > domain[1]) {
-            domain[1] = item.value;
-          }
-          counters.quantitativeScale.domain(domain);
-        }
-      }
-    };
-
-    for await (let item of this.sample({ limit, mode, aggressive })) {
-      result.raw.typeBins[item.type] = (result.raw.typeBins[item.type] || 0) + 1;
-      if (item instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
-        countPrimitive(result.raw, item);
-      } else if (item instanceof this.mure.WRAPPERS.ContainerMixin) {
-        for await (let childItem of item.iterateContents()) {
-          const counters = result.attributes[childItem.key] = result.attributes[childItem.key] || {
-            typeBins: {},
-            categoricalBins: {},
-            quantitativeBins: []
-          };
-          counters.typeBins[childItem.type] = (counters.typeBins[childItem.type] || 0) + 1;
-          if (childItem instanceof this.mure.WRAPPERS.PrimitiveWrapper) {
-            countPrimitive(counters, childItem);
-          }
-        }
-        // TODO: collect more statistics, such as node degree, set size
-        // (and a set's members' attributes, similar to getContents?)
-      } // TODO: else if (item instanceof this.mure.WRAPPERS.SetMixin) {}
-    }
-
-    const finalizeBins = counters => {
-      // Clear out anything that didn't see any values
-      if (counters.typeBins && Object.keys(counters.typeBins).length === 0) {
-        counters.typeBins = null;
-      }
-      if (counters.categoricalBins &&
-          Object.keys(counters.categoricalBins).length === 0) {
-        counters.categoricalBins = null;
-      }
-      if (counters.quantitativeBins) {
-        if (!counters.quantitativeWrappers ||
-             counters.quantitativeWrappers.length === 0) {
-          counters.quantitativeBins = null;
-          delete counters.quantitativeWrappers;
-          delete counters.quantitativeType;
-          delete counters.quantitativeScale;
-        } else {
-          // Calculate quantitative bin sizes and their counts
-          // Clean up the scale a bit
-          counters.quantitativeScale.nice();
-          // Histogram generator
-          const histogramGenerator = this.mure.d3.histogram()
-            .domain(counters.quantitativeScale.domain())
-            .thresholds(counters.quantitativeScale.ticks(numBins))
-            .value(d => d.value);
-          counters.quantitativeBins = histogramGenerator(counters.quantitativeWrappers);
-          // Clean up some of the temporary placeholders
-          delete counters.quantitativeWrappers;
-          delete counters.quantitativeType;
-        }
-      }
-    };
-    finalizeBins(result.raw);
-    Object.values(result.attributes).forEach(finalizeBins);
-
-    return result;
+  isSuperSetOfTokenList (tokenList) {
+    if (tokenList.length !== this.tokenList.length) { return false; }
+    return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
   }
 }
-export default Selection;
+export default Stream;

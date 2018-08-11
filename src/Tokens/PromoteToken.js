@@ -17,16 +17,18 @@ class PromoteToken extends BaseToken {
   toString () {
     return `.promote(${this.map}, ${this.hash}, ${this.reduceInstances})`;
   }
-  async * navigate (path) {
-    const item = path[path.length - 1];
-    for await (const mappedItem of this.map(item, path)) {
-      const mappedPath = path.concat([ mappedItem ]);
-      const hash = this.hash(mappedItem, mappedPath);
+  async * navigate (wrappedParent, mode) {
+    for await (const mappedRawItem of this.map(wrappedParent)) {
+      const hash = this.hash(mappedRawItem);
       if (this.seenItems[hash]) {
-        this.reduceInstances(this.seenItems[hash], mappedItem, mappedPath);
+        this.reduceInstances(this.seenItems[hash], mappedRawItem);
+        this.seenItems[hash].trigger('update');
       } else {
-        this.seenItems[hash] = mappedItem;
-        yield mappedPath;
+        this.seenItems[hash] = this.stream.mure.wrap({
+          wrappedParent,
+          token: this,
+          rawItem: mappedRawItem
+        });
       }
     }
   }
