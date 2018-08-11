@@ -1,27 +1,35 @@
 import md5 from 'blueimp-md5';
 
 const DEFAULT_FUNCTIONS = {
-  identity: function * (item, path) { yield item; },
-  md5: (item, path) => md5(item),
+  identity: function * (wrappedParent) { yield wrappedParent.rawItem; },
+  md5: (wrappedParent) => md5(wrappedParent.rawItem),
   noop: () => {}
 };
 
 class Stream {
-  constructor ({ mure, selector = 'root', functions = {}, streams = {}, mode = 'permissive' }) {
+  constructor ({
+    mure,
+    selector = 'root',
+    functions = {},
+    streams = {},
+    errorMode = 'permissive',
+    traversalMode = 'DFS'
+  }) {
     this.mure = mure;
 
     this.tokenList = this.parseSelector(selector);
 
     this.functions = Object.assign({}, DEFAULT_FUNCTIONS, functions);
     this.streams = streams;
-    this.mode = mode;
+    this.errorMode = errorMode;
+    this.traversalMode = traversalMode;
   }
   get selector () {
     return this.tokenList.join('');
   }
   parseSelector (selectorString) {
     if (!selectorString.startsWith('root')) {
-      return null;
+      throw new SyntaxError(`Selectors must start with 'root'`);
     }
     const tokenStrings = selectorString.match(/\.([^(]*)\(([^)]*)\)/g);
     if (!tokenStrings) {
@@ -46,14 +54,16 @@ class Stream {
     });
     return tokenList;
   }
-  async * iterate ({ mode = 'DFS' }) {
-    if (mode === 'BFS') {
+  async * iterate () {
+    if (this.traversalMode === 'BFS') {
       throw new Error(`Breadth-first iteration is not yet implemented.`);
-    } else if (mode === 'DFS') {
-      const deepHelper = this.deepHelper(this.tokenList, mode, [this.mure.root], this.tokenList.length - 1);
+    } else if (this.traversalMode === 'DFS') {
+      const deepHelper = this.deepHelper(this.tokenList, this.tokenList.length - 1);
       for await (const finishedPath of deepHelper) {
         yield finishedPath;
       }
+    } else {
+      throw new Error(`Unknown traversalMode: ${this.traversalMode}`);
     }
   }
   /**
@@ -61,13 +71,27 @@ class Stream {
    * it lazily asks for them one at a time from the *final* token, recursively
    * asking each preceding token to yield dependent paths only as needed)
    */
-  async * deepHelper (tokenList, mode, path0, i) {
+  async * deepHelper (tokenList, i) {
     if (i === 0) {
-      yield * await tokenList[0].navigate(path0);
+      yield * await tokenList[0].navigate(); // The first token is always the root
     } else {
-      for await (let pathI of this.deepHelper(tokenList, path0, mode, i - 1)) {
-        yield * await tokenList[i].navigate(pathI);
+      for await (let wrappedParent of this.deepHelper(tokenList, i - 1)) {
+        try {
+          yield * await tokenList[i].navigate(wrappedParent);
+        } catch (err) {
+          if (this.errorMode !== 'permissive' ||
+            !(err instanceof TypeError && err instanceof SyntaxError)) {
+            throw err;
+          }
+        }
       }
+    }
+  }
+
+  async * sample ({ limit = 10 }) {
+    const iterator = await this.iterate();
+    for (let i = 0; i < limit; i++) {
+      yield iterator.next().value;
     }
   }
 

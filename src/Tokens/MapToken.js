@@ -14,7 +14,7 @@ class MapToken extends BaseToken {
   isSuperSetOf (otherToken) {
     return otherToken.constructor === MapToken && otherToken.generator === this.generator;
   }
-  async * navigate (wrappedParent, mode) {
+  async * navigate (wrappedParent) {
     for await (const mappedRawItem of this.generator(wrappedParent)) {
       yield this.stream.mure.wrap({
         wrappedParent,

@@ -1,7 +1,7 @@
 import BaseToken from './BaseToken.js';
 
 class ValueToken extends BaseToken {
-  async * navigate (wrappedParent, mode) {
+  async * navigate (wrappedParent) {
     const obj = wrappedParent && wrappedParent.wrappedParent && wrappedParent.wrappedParent.rawItem;
     const key = wrappedParent && wrappedParent.rawItem;
     const keyType = typeof key;

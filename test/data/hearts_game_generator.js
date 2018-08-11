@@ -112,7 +112,7 @@ for (let trickNo = 0; trickNo < nTricks; trickNo++) {
 console.log('reshaping tricks...');
 output.tricks.forEach(trick => {
   trick.wrappers.forEach(wrapper => {
-    trick[wrapper.player] = `@$.contents.hands['${wrapper.player}']['${wrapper.index}']`;
+    trick[wrapper.player] = `root.values(hands).values('${wrapper.player}').values('${wrapper.index})']`;
   });
   delete trick.wrappers;
 });

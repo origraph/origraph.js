@@ -11,6 +11,10 @@ class GenericConstruct extends Introspectable {
   wrap ({ parent, token, rawItem }) {
     return new this.mure.WRAPPERS.GenericWrapper({ parent, token, rawItem });
   }
+  stream (options = {}) {
+    options.selector = this.selector;
+    return this.mure.stream(options);
+  }
 }
 Object.defineProperty(GenericConstruct, 'type', {
   get () {

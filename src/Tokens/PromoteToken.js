@@ -17,7 +17,7 @@ class PromoteToken extends BaseToken {
   toString () {
     return `.promote(${this.map}, ${this.hash}, ${this.reduceInstances})`;
   }
-  async * navigate (wrappedParent, mode) {
+  async * navigate (wrappedParent) {
     for await (const mappedRawItem of this.map(wrappedParent)) {
       const hash = this.hash(mappedRawItem);
       if (this.seenItems[hash]) {

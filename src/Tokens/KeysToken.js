@@ -79,7 +79,7 @@ class KeysToken extends BaseToken {
       .concat(Object.keys(this.keys).map(key => `'${key}'`))
       .join(',') + ')';
   }
-  async * navigate (wrappedParent, mode) {
+  async * navigate (wrappedParent) {
     if (typeof wrappedParent.rawItem !== 'object') {
       throw new TypeError(`Input to KeysToken is not an object`);
     }

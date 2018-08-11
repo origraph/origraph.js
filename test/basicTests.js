@@ -6,15 +6,6 @@ describe('Basic Tests', () => {
     expect(pkg.version).toBe(mure.version);
   });
 
-  test('DB Status', async () => {
-    expect.assertions(4);
-    const dbStatus = await mure.dbStatus;
-    expect(dbStatus.synced).toBe(false);
-    expect(dbStatus.indexed).toBe(true);
-    expect(dbStatus.linkedUserSelection).toBe(true);
-    expect(dbStatus.linkedViewSettings).toBe(true);
-  });
-
   test('Simple d3n test', () => {
     let svg = mure.d3n.createSVG(500, 500);
     svg.append('g');

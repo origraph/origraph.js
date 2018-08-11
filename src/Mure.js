@@ -50,6 +50,10 @@ class Mure extends TriggerableMixin(class {}) {
     }
   }
 
+  stream (options = {}) {
+    options.mure = this;
+    return new Stream(options);
+  }
   wrap ({ wrappedParent, token, rawItem }) {
     const tokenList = [token];
     let temp = wrappedParent;
@@ -123,7 +127,7 @@ class Mure extends TriggerableMixin(class {}) {
   async addStaticDataSource (key, obj) {
     this.root[key] = obj;
     return this.newClass({
-      selector: `root.values(${key})`,
+      selector: `root.values('${key}')`,
       ClassType: this.CONSTRUCTS.GenericConstruct,
       classNames: [ key ]
     });

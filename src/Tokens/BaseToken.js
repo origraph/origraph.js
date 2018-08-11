@@ -12,7 +12,7 @@ class BaseToken extends Introspectable {
   isSuperSetOf (otherToken) {
     return otherToken.constructor === this.constructor;
   }
-  async * navigate (wrappedParent, mode) {
+  async * navigate (wrappedParent) {
     throw new Error(`This function should be overridden`);
   }
 }
