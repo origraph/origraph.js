@@ -115,6 +115,9 @@ class Mure extends TriggerableMixin(class {}) {
     let obj;
     if (this.DATALIB_FORMATS[extension]) {
       obj = datalib.read(text, { type: extension });
+      if (extension === 'csv' || extension === 'tsv') {
+        delete obj.columns;
+      }
     } else if (extension === 'xml') {
       throw new Error('unimplemented');
     } else if (extension === 'txt') {
