@@ -2,9 +2,9 @@ import TriggerableMixin from '../Common/TriggerableMixin.js';
 import Introspectable from '../Common/Introspectable.js';
 
 class GenericWrapper extends TriggerableMixin(Introspectable) {
-  constructor ({ parent, token, rawItem }) {
+  constructor ({ wrappedParent, token, rawItem }) {
     super();
-    this.parent = parent;
+    this.wrappedParent = wrappedParent;
     this.token = token;
     this.rawItem = rawItem;
   }

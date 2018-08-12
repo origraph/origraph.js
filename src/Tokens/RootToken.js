@@ -5,7 +5,7 @@ class RootToken extends BaseToken {
     yield this.stream.mure.wrap({
       wrappedParent: null,
       token: this,
-      value: this.stream.mure.root
+      rawItem: this.stream.mure.root
     });
   }
   toString () {

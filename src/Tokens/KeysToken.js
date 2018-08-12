@@ -6,7 +6,7 @@ class KeysToken extends BaseToken {
     if (keys || ranges) {
       this.keys = keys;
       this.ranges = ranges;
-    } else if ((argList && argList.length === 0) || matchAll) {
+    } else if ((argList && argList.length === 1 && argList[0] === '') || matchAll) {
       this.matchAll = true;
     } else {
       argList.forEach(arg => {
@@ -64,6 +64,68 @@ class KeysToken extends BaseToken {
       newRanges.push(currentRange);
     }
     return newRanges.length > 0 ? newRanges : undefined;
+  }
+  difference (otherToken) {
+    // Compute what is left of this after subtracting out everything in otherToken
+    if (!(otherToken instanceof KeysToken)) {
+      throw new Error(`Can't compute the difference of two different token types`);
+    } else if (otherToken.matchAll) {
+      return null;
+    } else if (this.matchAll) {
+      console.warn(`Inaccurate difference computed! TODO: need to figure out how to invert categorical keys!`);
+      return this;
+    } else {
+      const newKeys = {};
+      for (let key in (this.keys || {})) {
+        if (!otherToken.keys || !otherToken.keys[key]) {
+          newKeys[key] = true;
+        }
+      }
+      let newRanges = [];
+      if (this.ranges) {
+        if (otherToken.ranges) {
+          let allPoints = this.ranges.reduce((agg, range) => {
+            return agg.concat([
+              { include: true, low: true, value: range.low },
+              { include: true, high: true, value: range.high }
+            ]);
+          }, []);
+          allPoints = allPoints.concat(otherToken.ranges.reduce((agg, range) => {
+            return agg.concat([
+              { exclude: true, low: true, value: range.low },
+              { exclude: true, high: true, value: range.high }
+            ]);
+          }, [])).sort();
+          let currentRange = null;
+          for (let i = 0; i < allPoints.length; i++) {
+            if (currentRange === null) {
+              if (allPoints[i].include && allPoints[i].low) {
+                currentRange = { low: allPoints[i].value };
+              }
+            } else if (allPoints[i].include && allPoints[i].high) {
+              currentRange.high = allPoints[i].value;
+              if (currentRange.high >= currentRange.low) {
+                newRanges.push(currentRange);
+              }
+              currentRange = null;
+            } else if (allPoints[i].exclude) {
+              if (allPoints[i].low) {
+                currentRange.high = allPoints[i].low - 1;
+                if (currentRange.high >= currentRange.low) {
+                  newRanges.push(currentRange);
+                }
+                currentRange = null;
+              } else if (allPoints[i].high) {
+                currentRange.low = allPoints[i].high + 1;
+              }
+            }
+          }
+        } else {
+          newRanges = this.ranges;
+        }
+      }
+      return new KeysToken(this.mure, null, { keys: newKeys, ranges: newRanges });
+    }
   }
   isSuperSetOf (otherToken) {
     if (!(otherToken instanceof KeysToken)) {

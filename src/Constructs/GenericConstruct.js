@@ -5,15 +5,12 @@ class GenericConstruct extends Introspectable {
     super();
     this.mure = mure;
     this.selector = selector;
+    this.stream = this.mure.stream({ selector: selector });
     this.classNames = classNames;
     this.annotations = [];
   }
-  wrap ({ parent, token, rawItem }) {
-    return new this.mure.WRAPPERS.GenericWrapper({ parent, token, rawItem });
-  }
-  stream (options = {}) {
-    options.selector = this.selector;
-    return this.mure.stream(options);
+  wrap (options) {
+    return new this.mure.WRAPPERS.GenericWrapper(options);
   }
 }
 Object.defineProperty(GenericConstruct, 'type', {

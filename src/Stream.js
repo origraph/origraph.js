@@ -35,7 +35,7 @@ class Stream {
     if (!tokenStrings) {
       throw new SyntaxError(`Invalid selector string: ${selectorString}`);
     }
-    const tokenList = [];
+    const tokenList = [new this.mure.TOKENS.RootToken(this)];
     tokenStrings.forEach(chunk => {
       const temp = chunk.match(/^.([^(]*)\(([^)]*)\)/);
       if (!temp) {
@@ -59,8 +59,8 @@ class Stream {
       throw new Error(`Breadth-first iteration is not yet implemented.`);
     } else if (this.traversalMode === 'DFS') {
       const deepHelper = this.deepHelper(this.tokenList, this.tokenList.length - 1);
-      for await (const finishedPath of deepHelper) {
-        yield finishedPath;
+      for await (const wrappedItem of deepHelper) {
+        yield wrappedItem;
       }
     } else {
       throw new Error(`Unknown traversalMode: ${this.traversalMode}`);
@@ -89,9 +89,13 @@ class Stream {
   }
 
   async * sample ({ limit = 10 }) {
-    const iterator = await this.iterate();
+    const iterator = this.iterate();
     for (let i = 0; i < limit; i++) {
-      yield iterator.next().value;
+      const temp = await iterator.next();
+      if (temp.done) {
+        break;
+      }
+      yield temp.value;
     }
   }
 

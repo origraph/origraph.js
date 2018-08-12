@@ -59,15 +59,15 @@ class Mure extends TriggerableMixin(class {}) {
     let temp = wrappedParent;
     while (temp !== null) {
       tokenList.unshift(temp.token);
-      temp = temp.parent;
+      temp = temp.wrappedParent;
     }
-    for (let classSelector of this.classes) {
+    for (let classSelector in this.classes) {
       const construct = this.classes[classSelector];
       if (construct.stream.isSuperSetOfTokenList(tokenList)) {
-        return construct.wrap({ parent: wrappedParent, token, rawItem });
+        return construct.wrap({ wrappedParent, token, rawItem });
       }
     }
-    return new this.WRAPPERS.GenericWrapper({ parent: wrappedParent, token, rawItem });
+    return new this.WRAPPERS.GenericWrapper({ wrappedParent, token, rawItem });
   }
 
   newClass ({ ClassType, selector, classNames }) {
@@ -127,7 +127,7 @@ class Mure extends TriggerableMixin(class {}) {
   async addStaticDataSource (key, obj) {
     this.root[key] = obj;
     return this.newClass({
-      selector: `root.values('${key}')`,
+      selector: `root.values('${key}').values()`,
       ClassType: this.CONSTRUCTS.GenericConstruct,
       classNames: [ key ]
     });
