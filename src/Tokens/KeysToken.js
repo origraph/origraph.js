@@ -137,13 +137,18 @@ class KeysToken extends BaseToken {
   }
   toString () {
     if (this.matchAll) { return '.keys()'; }
-    return '.keys(' + this.ranges.map(({low, high}) => `${low}-${high}`)
-      .concat(Object.keys(this.keys).map(key => `'${key}'`))
+    return '.keys(' + (this.ranges || []).map(({low, high}) => {
+      return low === high ? low : `${low}-${high}`;
+    }).concat(Object.keys(this.keys || {}).map(key => `'${key}'`))
       .join(',') + ')';
   }
   async * navigate (wrappedParent) {
     if (typeof wrappedParent.rawItem !== 'object') {
-      throw new TypeError(`Input to KeysToken is not an object`);
+      if (!this.stream.mure.debug) {
+        throw new TypeError(`Input to KeysToken is not an object`);
+      } else {
+        return;
+      }
     }
     if (this.matchAll) {
       for (let key in wrappedParent.rawItem) {

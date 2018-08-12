@@ -6,7 +6,11 @@ class ValueToken extends BaseToken {
     const key = wrappedParent && wrappedParent.rawItem;
     const keyType = typeof key;
     if (typeof obj !== 'object' || (keyType !== 'string' && keyType !== 'number')) {
-      throw new TypeError(`ValueToken used on a non-object, or without a string / numeric key`);
+      if (!this.stream.mure.debug) {
+        throw new TypeError(`ValueToken used on a non-object, or without a string / numeric key`);
+      } else {
+        return;
+      }
     }
     yield this.stream.mure.wrap({
       wrappedParent,

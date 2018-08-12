@@ -12,6 +12,8 @@ class Mure extends TriggerableMixin(class {}) {
     this.FileReader = FileReader; // either window.FileReader or one from Node
     this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
+    this.debug = false; // Set mure.debug to true to debug streams
+
     // Object containing each of our data sources
     this.root = {};
     this.classes = {};
@@ -134,6 +136,10 @@ class Mure extends TriggerableMixin(class {}) {
       ClassType: this.CONSTRUCTS.GenericConstruct,
       classNames: [ key ]
     });
+  }
+
+  removeDataSource (key) {
+    delete this.root[key];
   }
 }
 

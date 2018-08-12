@@ -12,7 +12,6 @@ class Stream {
     selector = 'root',
     functions = {},
     streams = {},
-    errorMode = 'permissive',
     traversalMode = 'DFS'
   }) {
     this.mure = mure;
@@ -21,7 +20,6 @@ class Stream {
 
     this.functions = Object.assign({}, DEFAULT_FUNCTIONS, functions);
     this.streams = streams;
-    this.errorMode = errorMode;
     this.traversalMode = traversalMode;
   }
   get selector () {
@@ -60,7 +58,13 @@ class Stream {
     } else if (this.traversalMode === 'DFS') {
       const deepHelper = this.deepHelper(this.tokenList, this.tokenList.length - 1);
       for await (const wrappedItem of deepHelper) {
-        yield wrappedItem;
+        if (!(wrappedItem instanceof this.mure.WRAPPERS.GenericWrapper)) {
+          if (this.mure.debug) {
+            console.warn(wrappedItem);
+          }
+        } else {
+          yield wrappedItem;
+        }
       }
     } else {
       throw new Error(`Unknown traversalMode: ${this.traversalMode}`);
@@ -75,15 +79,17 @@ class Stream {
     if (i === 0) {
       yield * await tokenList[0].navigate(); // The first token is always the root
     } else {
+      let parentYieldedSomething = false;
       for await (let wrappedParent of this.deepHelper(tokenList, i - 1)) {
-        try {
+        parentYieldedSomething = true;
+        if (wrappedParent instanceof this.mure.WRAPPERS.GenericWrapper) {
           yield * await tokenList[i].navigate(wrappedParent);
-        } catch (err) {
-          if (this.errorMode !== 'permissive' ||
-            !(err instanceof TypeError && err instanceof SyntaxError)) {
-            throw err;
-          }
+        } else {
+          yield wrappedParent;
         }
+      }
+      if (this.mure.debug && !parentYieldedSomething) {
+        yield `Token yielded nothing: ${tokenList[i - 1]}`;
       }
     }
   }
