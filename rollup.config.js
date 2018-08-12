@@ -17,7 +17,10 @@ const allExternals = peerDependencies.concat(
 const commonPlugins = [
   string({ include: '**/*.text.*' }), // allow us to import files as strings
   json(), // import json files as modules
-  babel({ exclude: ['node_modules/**'] }) // let us use fancy new things like async in our code
+  babel({
+    exclude: ['node_modules/**'],
+    plugins: ['external-helpers']
+  })
 ];
 
 let targets = {

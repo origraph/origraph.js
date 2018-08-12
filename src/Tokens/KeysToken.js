@@ -1,7 +1,7 @@
 import BaseToken from './BaseToken.js';
 
 class KeysToken extends BaseToken {
-  constructor (stream, argList, { matchAll, keys, ranges }) {
+  constructor (stream, argList, { matchAll, keys, ranges } = {}) {
     super(stream);
     if (keys || ranges) {
       this.keys = keys;

@@ -5,7 +5,7 @@ const expectedCsv = require('./data/expectedCsv.json');
 
 describe('Document Tests', () => {
   test('load and read a CSV file', async () => {
-    expect.assertions(3);
+    expect.assertions(1);
 
     const csvString = await new Promise((resolve, reject) => {
       fs.readFile('test/data/csvTest.csv', 'utf8', (err, data) => {

@@ -1,7 +1,7 @@
 import Introspectable from '../Common/Introspectable.js';
 
 class GenericConstruct extends Introspectable {
-  constructor (mure, selector, classNames = []) {
+  constructor ({ mure, selector, classNames = [] }) {
     super();
     this.mure = mure;
     this.selector = selector;
