@@ -64,9 +64,8 @@ describe('Interpretation Tests', () => {
       // TODO
     ]);
 
-    // Validate that roles is now an orphan class, with its associated movie-nodes
-    // (but still can be sampled the same way as before)
-    // TODO
+    // TODO: what happened to the roles edges / its associated movie-nodes? Are
+    // they still canonical?
 
     // Reinstate the roles class
     roles.reinstate();

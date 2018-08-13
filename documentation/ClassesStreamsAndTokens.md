@@ -194,17 +194,25 @@ outputFile.end();
 ```
 
 ## Interpretation
-TODO
-```js
-// Store them all in a global like this, keyed by their stream selector:
-mure.classes = {};
-```
+Classes represent the canonical **interpretation** of a graph—specifically, given an item from a stream, what role does it play? Is it a node? An edge?
+
+Unless otherwise specified by the user, all items are considered <a href="#generic-classes">generic</a>.
 
 ### Generic Classes
-TODO
+Generic classes describe merely a tabular interpretation of items.
+They can be <a href="#class-names">named</a> and <a href="#annotation">annotated</a>.
+As they will usually have a common set of attributes, they could be displayed in a table.
+
+As generic classes can not be connected to anything else, they can be trivially converted to isolated <a href="#node-classes">nodes</a> or <a href="#edge-classes">edges</a>.
+
+#### `interpretAsNodes()`
+Creates a new class definition ... (TODO: replaces existing definition if it existed?)
 
 ### Node Classes
-TODO
+(inherits from <a href="#generic-classes">Generic class</a>)
+
+A node class can be connected to existing <a href="#edge-classes">edge</a> classes.
+Additionally, node classes can be connected to other node classes, creating a _new_ edge class.
 
 ### Edge Classes
 TODO
