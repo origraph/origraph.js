@@ -6,7 +6,7 @@ class MapToken extends BaseToken {
     if (!stream.functions[generator]) {
       throw new SyntaxError(`Unknown function: ${generator}`);
     }
-    this.generator = stream.functions[generator];
+    this.generator = generator;
   }
   toString () {
     return `.map(${this.generator})`;
@@ -15,7 +15,7 @@ class MapToken extends BaseToken {
     return otherToken.constructor === MapToken && otherToken.generator === this.generator;
   }
   async * navigate (wrappedParent) {
-    for await (const mappedRawItem of this.generator(wrappedParent)) {
+    for await (const mappedRawItem of this.stream.functions[this.generator](wrappedParent)) {
       yield this.stream.mure.wrap({
         wrappedParent,
         token: this,

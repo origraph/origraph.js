@@ -18,11 +18,13 @@ class PromoteToken extends BaseToken {
     return `.promote(${this.map}, ${this.hash}, ${this.reduceInstances})`;
   }
   async * navigate (wrappedParent) {
-    for await (const mappedRawItem of this.map(wrappedParent)) {
-      const hash = this.hash(mappedRawItem);
+    for await (const mappedRawItem of this.stream.functions[this.map](wrappedParent)) {
+      const hash = this.stream.functions[this.hash](mappedRawItem);
       if (this.seenItems[hash]) {
-        this.reduceInstances(this.seenItems[hash], mappedRawItem);
-        this.seenItems[hash].trigger('update');
+        if (this.reduceInstances !== 'noop') {
+          this.stream.functions[this.reduceInstances](this.seenItems[hash], mappedRawItem);
+          this.seenItems[hash].trigger('update');
+        }
       } else {
         this.seenItems[hash] = this.stream.mure.wrap({
           wrappedParent,
