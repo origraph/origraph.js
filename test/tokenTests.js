@@ -25,10 +25,10 @@ describe('Token Tests', () => {
     }
     expect(result).toEqual([
       {'suit': '♣', 'value': 2},
+      {'suit': '♦', 'value': 4},
       {'suit': '♣', 'value': 5},
       {'suit': '♣', 'value': 3},
-      {'suit': '♣', 'value': 4},
-      {'suit': '♣', 'value': 6}
+      {'suit': '♣', 'value': 'J'}
     ]);
   });
 
@@ -58,20 +58,20 @@ describe('Token Tests', () => {
       });
     }
 
-    // We expect 12 cards of each suit
+    // We expect 13 cards of each suit
     expect(suits).toEqual([
-      {'count': 12, 'suit': '♥'},
-      {'count': 12, 'suit': '♦'},
-      {'count': 12, 'suit': '♠'},
-      {'count': 12, 'suit': '♣'}
+      {'count': 13, 'suit': '♣'},
+      {'count': 13, 'suit': '♠'},
+      {'count': 13, 'suit': '♦'},
+      {'count': 13, 'suit': '♥'}
     ]);
     jest.runAllTimers();
-    // We expect 11 callbacks (the first seen card doesn't have a callback)
+    // We expect 12 callbacks (the first seen card doesn't have a callback)
     expect(notificationCounts).toEqual({
-      '♠': 11,
-      '♣': 11,
-      '♥': 11,
-      '♦': 11
+      '♠': 12,
+      '♣': 12,
+      '♥': 12,
+      '♦': 12
     });
   });
 });
