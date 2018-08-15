@@ -32,7 +32,7 @@ const TriggerableMixin = function (superclass) {
     trigger (eventName, ...args) {
       if (this.eventHandlers[eventName]) {
         this.eventHandlers[eventName].forEach(callback => {
-          window.setTimeout(() => { // Add timeout to prevent blocking
+          setTimeout(() => { // Add timeout to prevent blocking
             callback.apply(this, args);
           }, 0);
         });

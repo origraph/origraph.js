@@ -1,7 +1,7 @@
 import BaseToken from './BaseToken.js';
 
 class PromoteToken extends BaseToken {
-  constructor (stream, [ map = 'identity', hash = 'md5', reduceInstances = 'noop' ]) {
+  constructor (stream, [ map = 'identity', hash = 'sha1', reduceInstances = 'noop' ]) {
     super(stream);
     for (const func of [ map, hash, reduceInstances ]) {
       if (!stream.functions[func]) {
@@ -31,6 +31,7 @@ class PromoteToken extends BaseToken {
           token: this,
           rawItem: mappedRawItem
         });
+        yield this.seenItems[hash];
       }
     }
   }

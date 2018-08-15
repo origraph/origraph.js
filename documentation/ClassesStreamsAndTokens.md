@@ -519,7 +519,7 @@ Only yields unique values the first time they're encountered.
 `map` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s the raw, unique, promoted items. This is useful, for example, in cases where we would want to wrap a promoted string value inside an object, in order to add attributes (via `reduceInstances`). If omitted, the first unique item is yielded as-is. It will be called with these parameters:
 - `wrappedItem` The wrapped item yielded by the previous token
 
-`hash` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that returns a raw, unique string that represents the item, so that the algorithm can tell if it has already been seen. Default behavior is to use [md5](https://www.npmjs.com/package/blueimp-md5). It will be called once for each raw item yielded by `map`:
+`hash` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that returns a raw, unique string that represents the item, so that the algorithm can tell if it has already been seen. Default behavior is to use [sha1](https://www.npmjs.com/package/sha1). It will be called once for each raw item yielded by `map`:
 - `rawItem` The not-yet-wrapped result of `map`
 
 `reduceInstances` is optional; if included, it should be the <a href="#about-named-functions-and-streams">name</a> of a function that adds some kind of aggregate information, like a count, to the originally yielded, wrapped item. This function is called every time an additional match is encountered, with these parameters:
@@ -759,7 +759,7 @@ const forceUsersStream = mure.stream({
 
 ### `identity`
 
-### `md5`
+### `sha1`
 
 ### `noop`
 

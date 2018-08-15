@@ -1,8 +1,8 @@
-import md5 from 'blueimp-md5';
+import sha1 from 'sha1';
 
 const DEFAULT_FUNCTIONS = {
   identity: function * (wrappedParent) { yield wrappedParent.rawItem; },
-  md5: (wrappedParent) => md5(wrappedParent.rawItem),
+  sha1: rawItem => sha1(JSON.stringify(rawItem)),
   noop: () => {}
 };
 
@@ -15,12 +15,10 @@ class Stream {
     traversalMode = 'DFS'
   }) {
     this.mure = mure;
-
-    this.tokenList = this.parseSelector(selector);
-
     this.functions = Object.assign({}, DEFAULT_FUNCTIONS, functions);
     this.streams = streams;
     this.traversalMode = traversalMode;
+    this.tokenList = this.parseSelector(selector);
   }
   get selector () {
     return this.tokenList.join('');
@@ -40,7 +38,10 @@ class Stream {
         throw new SyntaxError(`Invalid token: ${chunk}`);
       }
       const tokenClassName = temp[1][0].toUpperCase() + temp[1].slice(1) + 'Token';
-      const argList = temp[2].split(/(?<!\\),/).map(d => d.trim());
+      const argList = temp[2].split(/(?<!\\),/).map(d => {
+        d = d.trim();
+        return d === '' ? undefined : d;
+      });
       if (tokenClassName === 'ValuesToken') {
         tokenList.push(new this.mure.TOKENS.KeysToken(this, argList));
         tokenList.push(new this.mure.TOKENS.ValueToken(this, []));
@@ -83,7 +84,8 @@ class Stream {
       for await (let wrappedParent of this.deepHelper(tokenList, i - 1)) {
         parentYieldedSomething = true;
         if (wrappedParent instanceof this.mure.WRAPPERS.GenericWrapper) {
-          yield * await tokenList[i].navigate(wrappedParent);
+          const iterator = await tokenList[i].navigate(wrappedParent);
+          yield * iterator;
         } else {
           yield wrappedParent;
         }

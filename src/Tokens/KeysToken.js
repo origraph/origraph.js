@@ -6,7 +6,7 @@ class KeysToken extends BaseToken {
     if (keys || ranges) {
       this.keys = keys;
       this.ranges = ranges;
-    } else if ((argList && argList.length === 1 && argList[0] === '') || matchAll) {
+    } else if ((argList && argList.length === 1 && argList[0] === undefined) || matchAll) {
       this.matchAll = true;
     } else {
       argList.forEach(arg => {

@@ -49,9 +49,9 @@
     "rollup-plugin-string": "^2.0.2"
   },
   "dependencies": {
-    "blueimp-md5": "^2.10.0",
     "datalib": "^1.9.1",
-    "mime-types": "^2.1.19"
+    "mime-types": "^2.1.19",
+    "sha1": "^1.1.1"
   },
   "peerDependencies": {
     "d3": "^5.4.0"
