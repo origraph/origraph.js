@@ -9,8 +9,10 @@ class BaseToken extends Introspectable {
     // The string version of most tokens can just be derived from the class type
     return `.${this.type.toLowerCase()}()`;
   }
-  isSuperSetOf (otherToken) {
-    return otherToken.constructor === this.constructor;
+  isSubSetOf () {
+    // By default (without any arguments), tokens of the same class are subsets
+    // of each other
+    return true;
   }
   async * navigate (wrappedParent) {
     throw new Error(`This function should be overridden`);

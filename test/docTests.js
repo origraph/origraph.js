@@ -26,7 +26,7 @@ describe('Document Tests', () => {
 
     // Stream the data
     const result = [];
-    for await (const wrappedItem of genericClass.stream.sample({ limit: Infinity })) {
+    for await (const wrappedItem of genericClass.getStream().sample({ limit: Infinity })) {
       result.push(wrappedItem.rawItem);
     }
 

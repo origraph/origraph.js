@@ -127,13 +127,10 @@ class KeysToken extends BaseToken {
       return new KeysToken(this.mure, null, { keys: newKeys, ranges: newRanges });
     }
   }
-  isSuperSetOf (otherToken) {
-    if (!(otherToken instanceof KeysToken)) {
-      return false;
-    } else {
-      const diff = otherToken.difference(this);
-      return diff === null || diff.selectsNothing;
-    }
+  isSubSetOf (argList) {
+    const otherToken = new KeysToken(this.stream, argList);
+    const diff = otherToken.difference(this);
+    return diff === null || diff.selectsNothing;
   }
   toString () {
     if (this.matchAll) { return '.keys()'; }
@@ -152,7 +149,7 @@ class KeysToken extends BaseToken {
     }
     if (this.matchAll) {
       for (let key in wrappedParent.rawItem) {
-        yield this.stream.mure.wrap({
+        yield this.stream.wrap({
           wrappedParent,
           token: this,
           rawItem: key
@@ -164,7 +161,7 @@ class KeysToken extends BaseToken {
         high = Math.min(wrappedParent.rawItem.length - 1, high);
         for (let i = low; i <= high; i++) {
           if (wrappedParent.rawItem[i] !== undefined) {
-            yield this.stream.mure.wrap({
+            yield this.stream.wrap({
               wrappedParent,
               token: this,
               rawItem: i
@@ -174,7 +171,7 @@ class KeysToken extends BaseToken {
       }
       for (let key in this.keys || {}) {
         if (wrappedParent.rawItem.hasOwnProperty(key)) {
-          yield this.stream.mure.wrap({
+          yield this.stream.wrap({
             wrappedParent,
             token: this,
             rawItem: key

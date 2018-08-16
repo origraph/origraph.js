@@ -1,9 +1,10 @@
 import mime from 'mime-types';
 import datalib from 'datalib';
+import sha1 from 'sha1';
 import TriggerableMixin from './Common/TriggerableMixin.js';
 import Stream from './Stream.js';
 import * as TOKENS from './Tokens/Tokens.js';
-import * as CONSTRUCTS from './Constructs/Constructs.js';
+import * as CLASSES from './Classes/Classes.js';
 import * as WRAPPERS from './Wrappers/Wrappers.js';
 
 class Mure extends TriggerableMixin(class {}) {
@@ -40,44 +41,86 @@ class Mure extends TriggerableMixin(class {}) {
 
     // Access to core classes via the main library helps avoid circular imports
     this.TOKENS = TOKENS;
-    this.CONSTRUCTS = CONSTRUCTS;
+    this.CLASSES = CLASSES;
     this.WRAPPERS = WRAPPERS;
 
     // Monkey-patch available tokens as functions onto the Stream class
     for (const tokenClassName in this.TOKENS) {
       const TokenClass = this.TOKENS[tokenClassName];
-      Stream.prototype[TokenClass.lowerCamelCaseType] = function (argList, functions, streams) {
-        return this.extend(TokenClass, argList, functions, streams);
+      Stream.prototype[TokenClass.lowerCamelCaseType] = function (argList, options) {
+        return this.extend(TokenClass, argList, options);
       };
     }
+
+    // Default named functions
+    this.NAMED_FUNCTIONS = {
+      identity: function * (wrappedParent) { yield wrappedParent.rawItem; },
+      key: function * (wrappedParent) {
+        yield wrappedParent.wrappedParent.rawItem;
+      },
+      sha1: rawItem => sha1(JSON.stringify(rawItem)),
+      noop: () => {}
+    };
   }
 
-  stream (options = {}) {
-    options.mure = this;
-    return new Stream(options);
-  }
-  wrap ({ wrappedParent, token, rawItem }) {
-    const tokenList = [token];
-    let temp = wrappedParent;
-    while (temp !== null) {
-      tokenList.unshift(temp.token);
-      temp = temp.wrappedParent;
+  parseSelector (selectorString) {
+    if (!selectorString.startsWith('root')) {
+      throw new SyntaxError(`Selectors must start with 'root'`);
     }
-    for (let classSelector in this.classes) {
-      const construct = this.classes[classSelector];
-      if (construct.stream.isSuperSetOfTokenList(tokenList)) {
-        return construct.wrap({ wrappedParent, token, rawItem });
+    const tokenStrings = selectorString.match(/\.([^(]*)\(([^)]*)\)/g);
+    if (!tokenStrings) {
+      throw new SyntaxError(`Invalid selector string: ${selectorString}`);
+    }
+    const tokenClassList = [{
+      TokenClass: this.TOKENS.RootToken
+    }];
+    tokenStrings.forEach(chunk => {
+      const temp = chunk.match(/^.([^(]*)\(([^)]*)\)/);
+      if (!temp) {
+        throw new SyntaxError(`Invalid token: ${chunk}`);
       }
-    }
-    return new this.WRAPPERS.GenericWrapper({ wrappedParent, token, rawItem });
+      const tokenClassName = temp[1][0].toUpperCase() + temp[1].slice(1) + 'Token';
+      const argList = temp[2].split(/(?<!\\),/).map(d => {
+        d = d.trim();
+        return d === '' ? undefined : d;
+      });
+      if (tokenClassName === 'ValuesToken') {
+        tokenClassList.push({
+          TokenClass: this.TOKENS.KeysToken,
+          argList
+        });
+        tokenClassList.push({
+          TokenClass: this.TOKENS.ValueToken
+        });
+      } else if (this.TOKENS[tokenClassName]) {
+        tokenClassList.push({
+          TokenClass: this.TOKENS[tokenClassName],
+          argList
+        });
+      } else {
+        throw new SyntaxError(`Unknown token: ${temp[1]}`);
+      }
+    });
+    return tokenClassList;
   }
 
-  newClass ({ ClassType, selector, classNames }) {
-    if (this.classes[selector]) {
-      return this.classes[selector];
+  stream (options) {
+    return new Stream({
+      mure: this,
+      namedFunctions: Object.assign({}, this.NAMED_FUNCTIONS, options.namedFunctions || {}),
+      tokenClassList: this.parseSelector(options.selector || `root.values()`)
+    });
+  }
+
+  newClass (options = { selector: `root.values()` }) {
+    if (this.classes[options.selector]) {
+      return this.classes[options.selector];
     }
-    this.classes[selector] = new ClassType({ mure: this, selector, classNames });
-    return this.classes[selector];
+    const ClassType = options.ClassType || this.CLASSES.GenericClass;
+    delete options.ClassType;
+    options.mure = this;
+    this.classes[options.selector] = new ClassType(options);
+    return this.classes[options.selector];
   }
 
   async addFileAsStaticDataSource ({
@@ -132,9 +175,7 @@ class Mure extends TriggerableMixin(class {}) {
   async addStaticDataSource (key, obj) {
     this.root[key] = obj;
     return this.newClass({
-      selector: `root.values('${key}').values()`,
-      ClassType: this.CONSTRUCTS.GenericConstruct,
-      classNames: [ key ]
+      selector: `root.values('${key}').values()`
     });
   }
 

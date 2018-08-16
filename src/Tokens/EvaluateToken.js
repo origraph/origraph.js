@@ -11,12 +11,7 @@ class EvaluateToken extends BaseToken {
     }
     let newStream;
     try {
-      newStream = this.stream.mure.stream({
-        selector: wrappedParent.rawItem,
-        functions: this.stream.functions,
-        streams: this.stream.streams,
-        traversalMode: this.stream.traversalMode
-      });
+      newStream = this.stream.fork(wrappedParent.rawItem);
     } catch (err) {
       if (!this.stream.mure.debug || !(err instanceof SyntaxError)) {
         throw err;
@@ -24,8 +19,7 @@ class EvaluateToken extends BaseToken {
         return;
       }
     }
-    const iterator = await newStream.iterate();
-    yield * iterator;
+    yield * await newStream.iterate();
   }
 }
 export default EvaluateToken;

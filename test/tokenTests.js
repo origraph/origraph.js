@@ -38,7 +38,7 @@ describe('Token Tests', () => {
     const stream = mure.stream({
       selector: `root.values('hearts.json').values('hands').values().values()
                  .values('suit').promote(wrapSuit,,addToSuitCount)`,
-      functions: {
+      namedFunctions: {
         wrapSuit: function * (wrappedItem) {
           yield { suit: wrappedItem.rawItem, count: 1 };
         },
