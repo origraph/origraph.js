@@ -6,6 +6,7 @@ import Stream from './Stream.js';
 import * as TOKENS from './Tokens/Tokens.js';
 import * as CLASSES from './Classes/Classes.js';
 import * as WRAPPERS from './Wrappers/Wrappers.js';
+import * as INDEXES from './Indexes/Indexes.js';
 
 class Mure extends TriggerableMixin(class {}) {
   constructor (FileReader) {
@@ -43,6 +44,7 @@ class Mure extends TriggerableMixin(class {}) {
     this.TOKENS = TOKENS;
     this.CLASSES = CLASSES;
     this.WRAPPERS = WRAPPERS;
+    this.INDEXES = INDEXES;
 
     // Monkey-patch available tokens as functions onto the Stream class
     for (const tokenClassName in this.TOKENS) {
@@ -56,7 +58,15 @@ class Mure extends TriggerableMixin(class {}) {
     this.NAMED_FUNCTIONS = {
       identity: function * (wrappedParent) { yield wrappedParent.rawItem; },
       key: function * (wrappedParent) {
-        yield wrappedParent.wrappedParent.rawItem;
+        const parentType = typeof wrappedParent.rawItem;
+        if (!(parentType === 'number' || parentType === 'string')) {
+          throw new TypeError(`Parent isn't a key / index`);
+        } else if (!wrappedParent.wrappedParent ||
+            typeof wrappedParent.wrappedParent.rawItem !== 'object') {
+          throw new TypeError(`Parent is not an object / array`);
+        } else {
+          yield wrappedParent.rawItem;
+        }
       },
       sha1: rawItem => sha1(JSON.stringify(rawItem)),
       noop: () => {}
@@ -105,11 +115,9 @@ class Mure extends TriggerableMixin(class {}) {
   }
 
   stream (options) {
-    return new Stream({
-      mure: this,
-      namedFunctions: Object.assign({}, this.NAMED_FUNCTIONS, options.namedFunctions || {}),
-      tokenClassList: this.parseSelector(options.selector || `root.values()`)
-    });
+    options.mure = this;
+    options.tokenClassList = this.parseSelector(options.selector || `root.values()`);
+    return new Stream(options);
   }
 
   newClass (options = { selector: `root.values()` }) {

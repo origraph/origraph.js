@@ -14,13 +14,15 @@ class MapToken extends BaseToken {
   isSubSetOf ([ generator = 'identity' ]) {
     return generator === this.generator;
   }
-  async * navigate (wrappedParent) {
-    for await (const mappedRawItem of this.stream.namedFunctions[this.generator](wrappedParent)) {
-      yield this.stream.wrap({
-        wrappedParent,
-        token: this,
-        rawItem: mappedRawItem
-      });
+  async * iterate (ancestorTokens) {
+    for await (const wrappedParent of this.iterateParent(ancestorTokens)) {
+      for await (const mappedRawItem of this.stream.namedFunctions[this.generator](wrappedParent)) {
+        yield this.stream.wrap({
+          wrappedParent,
+          token: this,
+          rawItem: mappedRawItem
+        });
+      }
     }
   }
 }

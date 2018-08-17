@@ -139,43 +139,45 @@ class KeysToken extends BaseToken {
     }).concat(Object.keys(this.keys || {}).map(key => `'${key}'`))
       .join(',') + ')';
   }
-  async * navigate (wrappedParent) {
-    if (typeof wrappedParent.rawItem !== 'object') {
-      if (!this.stream.mure.debug) {
-        throw new TypeError(`Input to KeysToken is not an object`);
-      } else {
-        return;
-      }
-    }
-    if (this.matchAll) {
-      for (let key in wrappedParent.rawItem) {
-        yield this.stream.wrap({
-          wrappedParent,
-          token: this,
-          rawItem: key
-        });
-      }
-    } else {
-      for (let {low, high} of this.ranges || []) {
-        low = Math.max(0, low);
-        high = Math.min(wrappedParent.rawItem.length - 1, high);
-        for (let i = low; i <= high; i++) {
-          if (wrappedParent.rawItem[i] !== undefined) {
-            yield this.stream.wrap({
-              wrappedParent,
-              token: this,
-              rawItem: i
-            });
-          }
+  async * iterate (ancestorTokens) {
+    for await (const wrappedParent of this.iterateParent(ancestorTokens)) {
+      if (typeof wrappedParent.rawItem !== 'object') {
+        if (!this.stream.mure.debug) {
+          throw new TypeError(`Input to KeysToken is not an object`);
+        } else {
+          continue;
         }
       }
-      for (let key in this.keys || {}) {
-        if (wrappedParent.rawItem.hasOwnProperty(key)) {
+      if (this.matchAll) {
+        for (let key in wrappedParent.rawItem) {
           yield this.stream.wrap({
             wrappedParent,
             token: this,
             rawItem: key
           });
+        }
+      } else {
+        for (let {low, high} of this.ranges || []) {
+          low = Math.max(0, low);
+          high = Math.min(wrappedParent.rawItem.length - 1, high);
+          for (let i = low; i <= high; i++) {
+            if (wrappedParent.rawItem[i] !== undefined) {
+              yield this.stream.wrap({
+                wrappedParent,
+                token: this,
+                rawItem: i
+              });
+            }
+          }
+        }
+        for (let key in this.keys || {}) {
+          if (wrappedParent.rawItem.hasOwnProperty(key)) {
+            yield this.stream.wrap({
+              wrappedParent,
+              token: this,
+              rawItem: key
+            });
+          }
         }
       }
     }

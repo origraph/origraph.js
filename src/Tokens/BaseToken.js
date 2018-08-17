@@ -14,8 +14,20 @@ class BaseToken extends Introspectable {
     // of each other
     return true;
   }
-  async * navigate (wrappedParent) {
+  async * iterate (ancestorTokens) {
     throw new Error(`This function should be overridden`);
+  }
+  async * iterateParent (ancestorTokens) {
+    const parentToken = ancestorTokens[ancestorTokens.length - 1];
+    const temp = ancestorTokens.slice(0, ancestorTokens.length - 1);
+    let yieldedSomething = false;
+    for await (const wrappedParent of parentToken.iterate(temp)) {
+      yieldedSomething = true;
+      yield wrappedParent;
+    }
+    if (!yieldedSomething && this.mure.debug) {
+      throw new TypeError(`Token yielded no results: ${parentToken}`);
+    }
   }
 }
 Object.defineProperty(BaseToken, 'type', {

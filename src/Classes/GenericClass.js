@@ -13,13 +13,15 @@ class GenericClass extends Introspectable {
   wrap (options) {
     return new this.mure.WRAPPERS.GenericWrapper(options);
   }
-  getStream () {
-    return new Stream({
-      mure: this.mure,
-      tokenClassList: this.tokenClassList,
-      namedFunctions: this.namedFunctions,
-      launchedFromClass: this
-    });
+  getStream (options = {}) {
+    if (options.reset || !this._stream) {
+      options.mure = this.mure;
+      options.tokenClassList = this.tokenClassList;
+      options.namedFunctions = this.namedFunctions;
+      options.launchedFromClass = this;
+      this._stream = new Stream(options);
+    }
+    return this._stream;
   }
   isSuperSetOfTokenList (tokenList) {
     if (tokenList.length !== this.tokenList.length) { return false; }

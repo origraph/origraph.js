@@ -1,18 +1,19 @@
 class Stream {
-  constructor ({
-    mure,
-    tokenClassList,
-    namedFunctions = {},
-    traversalMode = 'DFS',
-    launchedFromClass = null
-  }) {
-    this.mure = mure;
-    this.namedFunctions = namedFunctions;
-    this.traversalMode = traversalMode;
-    this.tokenList = tokenClassList.map(({ TokenClass, argList }) => {
+  constructor (options) {
+    this.mure = options.mure;
+    this.namedFunctions = Object.assign({},
+      this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
+    this.namedStreams = options.namedStreams || {};
+    this.traversalMode = options.traversalMode || 'DFS';
+    this.launchedFromClass = options.launchedFromClass || null;
+    this.indexes = options.indexes || {};
+
+    // Reminder: this always needs to be after initializing this.namedFunctions
+    // and this.namedStreams
+    this.tokenList = options.tokenClassList.map(({ TokenClass, argList }) => {
       return new TokenClass(this, argList);
     });
-    this.launchedFromClass = launchedFromClass;
+    // Reminder: this always needs to be after initializing this.tokenList
     this.Wrappers = this.getWrapperList();
   }
 
@@ -73,64 +74,52 @@ class Stream {
     return new Stream(options);
   }
 
-  wrap ({ wrappedParent, token, rawItem }) {
+  wrap ({ wrappedParent, token, rawItem, hashes = {} }) {
     let wrapperIndex = 0;
     let temp = wrappedParent;
     while (temp !== null) {
       wrapperIndex += 1;
       temp = temp.wrappedParent;
     }
-    return new this.Wrappers[wrapperIndex]({ wrappedParent, token, rawItem });
+    const wrappedItem = new this.Wrappers[wrapperIndex]({ wrappedParent, token, rawItem });
+    Object.entries(hashes).forEach(([hashFunctionName, hash]) => {
+      const index = this.getIndex(hashFunctionName);
+      if (!index.complete) {
+        index.addValue(hash, wrappedItem);
+      }
+    });
+    return wrappedItem;
   }
 
   async * iterate () {
-    if (this.traversalMode === 'BFS') {
-      throw new Error(`Breadth-first iteration is not yet implemented.`);
-    } else if (this.traversalMode === 'DFS') {
-      const deepHelper = this.deepHelper(this.tokenList, this.tokenList.length - 1);
-      for await (const wrappedItem of deepHelper) {
-        if (!(wrappedItem instanceof this.mure.WRAPPERS.GenericWrapper)) {
-          if (this.mure.debug) {
-            console.warn(wrappedItem);
-          }
-        } else {
-          yield wrappedItem;
-        }
-      }
-    } else {
-      throw new Error(`Unknown traversalMode: ${this.traversalMode}`);
-    }
-  }
-  /**
-   * This helps depth-first iteration (we only want to yield finished paths, so
-   * it lazily asks for them one at a time from the *final* token, recursively
-   * asking each preceding token to yield dependent paths only as needed)
-   */
-  async * deepHelper (tokenList, i) {
-    if (i === 0) {
-      yield * await tokenList[0].navigate(); // The first token is always the root
-    } else {
-      let parentYieldedSomething = false;
-      for await (let wrappedParent of this.deepHelper(tokenList, i - 1)) {
-        parentYieldedSomething = true;
-        if (wrappedParent instanceof this.mure.WRAPPERS.GenericWrapper) {
-          const iterator = await tokenList[i].navigate(wrappedParent);
-          yield * iterator;
-        } else {
-          yield wrappedParent;
-        }
-      }
-      if (this.mure.debug && !parentYieldedSomething) {
-        yield `Token yielded nothing: ${tokenList[i - 1]}`;
-      }
-    }
+    const lastToken = this.tokenList[this.tokenList.length - 1];
+    const temp = this.tokenList.slice(0, this.tokenList.length - 1);
+    yield * await lastToken.iterate(temp);
   }
 
-  async * sample ({ limit = 10 }) {
+  getIndex (hashFunctionName) {
+    if (!this.indexes[hashFunctionName]) {
+      // TODO: if using node.js, start with external / more scalable indexes
+      this.indexes[hashFunctionName] = new this.mure.INDEXES.InMemoryIndex();
+    }
+    return this.indexes[hashFunctionName];
+  }
+
+  async * sample ({ limit = 10, rebuildIndexes = false }) {
+    // Before we start, clean out any old indexes that were never finished
+    Object.entries(this.indexes).forEach(([hashFunctionName, index]) => {
+      if (rebuildIndexes || !index.complete) {
+        delete this.indexes[hashFunctionName];
+      }
+    });
     const iterator = this.iterate();
     for (let i = 0; i < limit; i++) {
       const temp = await iterator.next();
       if (temp.done) {
+        // We actually finished a full pass; flag all of our indexes as complete
+        Object.values(this.indexes).forEach(index => {
+          index.complete = true;
+        });
         break;
       }
       yield temp.value;

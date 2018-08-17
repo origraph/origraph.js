@@ -11,30 +11,39 @@ class PromoteToken extends BaseToken {
     this.map = map;
     this.hash = hash;
     this.reduceInstances = reduceInstances;
-
-    this.seenItems = {};
   }
   toString () {
     return `.promote(${this.map}, ${this.hash}, ${this.reduceInstances})`;
   }
   isSubSetOf ([ map = 'identity', hash = 'sha1', reduceInstances = 'noop' ]) {
-    return this.map === map && this.hash === hash && this.reduceInstances === 'noop';
+    return this.map === map &&
+      this.hash === hash &&
+      this.reduceInstances === reduceInstances;
   }
-  async * navigate (wrappedParent) {
-    for await (const mappedRawItem of this.stream.namedFunctions[this.map](wrappedParent)) {
-      const hash = this.stream.namedFunctions[this.hash](mappedRawItem);
-      if (this.seenItems[hash]) {
-        if (this.reduceInstances !== 'noop') {
-          this.stream.namedFunctions[this.reduceInstances](this.seenItems[hash], mappedRawItem);
-          this.seenItems[hash].trigger('update');
+  async * iterate (ancestorTokens) {
+    for await (const wrappedParent of this.iterateParent(ancestorTokens)) {
+      const mapFunction = this.stream.namedFunctions[this.map];
+      const hashFunction = this.stream.namedFunctions[this.hash];
+      const reduceInstancesFunction = this.stream.namedFunctions[this.reduceInstances];
+      const hashIndex = this.stream.getIndex(this.hash);
+      for await (const mappedRawItem of mapFunction(wrappedParent)) {
+        const hashValue = hashFunction(mappedRawItem);
+        let originalWrappedItem = hashIndex.getValues(hashValue)[0];
+        if (originalWrappedItem) {
+          if (this.reduceInstances !== 'noop') {
+            reduceInstancesFunction(originalWrappedItem, mappedRawItem);
+            originalWrappedItem.trigger('update');
+          }
+        } else {
+          const hashes = {};
+          hashes[this.hash] = hashValue;
+          yield this.stream.wrap({
+            wrappedParent,
+            token: this,
+            rawItem: mappedRawItem,
+            hashes
+          });
         }
-      } else {
-        this.seenItems[hash] = this.stream.wrap({
-          wrappedParent,
-          token: this,
-          rawItem: mappedRawItem
-        });
-        yield this.seenItems[hash];
       }
     }
   }
