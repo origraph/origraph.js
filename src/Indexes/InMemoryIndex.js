@@ -3,18 +3,28 @@ class InMemoryIndex {
     this.entries = {};
     this.complete = false;
   }
-  * iterValues (key) {
-    for (let value of (this.entries[key] || [])) {
-      yield value;
+  async * iterEntries () {
+    for (const [hash, valueList] of Object.entries(this.entries)) {
+      yield { hash, valueList };
     }
   }
-  getValues (key) {
-    return this.entries[key] || [];
+  async * iterHashes () {
+    for (const hash of Object.keys(this.entries)) {
+      yield hash;
+    }
   }
-  addValue (key, value) {
+  async * iterValueLists () {
+    for (const valueList of Object.values(this.entries)) {
+      yield valueList;
+    }
+  }
+  async getValueList (hash) {
+    return this.entries[hash] || [];
+  }
+  async addValue (hash, value) {
     // TODO: add some kind of warning if this is getting big?
-    this.entries[key] = this.getValues(key);
-    this.entries[key].push(value);
+    this.entries[hash] = await this.getValueList(hash);
+    this.entries[hash].push(value);
   }
 }
 export default InMemoryIndex;

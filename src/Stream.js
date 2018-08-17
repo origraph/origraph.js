@@ -74,7 +74,7 @@ class Stream {
     return new Stream(options);
   }
 
-  wrap ({ wrappedParent, token, rawItem, hashes = {} }) {
+  async wrap ({ wrappedParent, token, rawItem, hashes = {} }) {
     let wrapperIndex = 0;
     let temp = wrappedParent;
     while (temp !== null) {
@@ -82,12 +82,12 @@ class Stream {
       temp = temp.wrappedParent;
     }
     const wrappedItem = new this.Wrappers[wrapperIndex]({ wrappedParent, token, rawItem });
-    Object.entries(hashes).forEach(([hashFunctionName, hash]) => {
+    await Promise.all(Object.entries(hashes).reduce((promiseList, [hashFunctionName, hash]) => {
       const index = this.getIndex(hashFunctionName);
       if (!index.complete) {
-        index.addValue(hash, wrappedItem);
+        return promiseList.concat([ index.addValue(hash, wrappedItem) ]);
       }
-    });
+    }, []));
     return wrappedItem;
   }
 

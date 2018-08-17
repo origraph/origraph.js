@@ -1,7 +1,7 @@
 import BaseToken from './BaseToken.js';
 
 class RootToken extends BaseToken {
-  * iterate () {
+  async * iterate () {
     yield this.stream.wrap({
       wrappedParent: null,
       token: this,

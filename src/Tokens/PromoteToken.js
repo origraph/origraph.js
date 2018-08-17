@@ -27,8 +27,8 @@ class PromoteToken extends BaseToken {
       const reduceInstancesFunction = this.stream.namedFunctions[this.reduceInstances];
       const hashIndex = this.stream.getIndex(this.hash);
       for await (const mappedRawItem of mapFunction(wrappedParent)) {
-        const hashValue = hashFunction(mappedRawItem);
-        let originalWrappedItem = hashIndex.getValues(hashValue)[0];
+        const hash = hashFunction(mappedRawItem);
+        let originalWrappedItem = (await hashIndex.getValueList(hash))[0];
         if (originalWrappedItem) {
           if (this.reduceInstances !== 'noop') {
             reduceInstancesFunction(originalWrappedItem, mappedRawItem);
@@ -36,7 +36,7 @@ class PromoteToken extends BaseToken {
           }
         } else {
           const hashes = {};
-          hashes[this.hash] = hashValue;
+          hashes[this.hash] = hash;
           yield this.stream.wrap({
             wrappedParent,
             token: this,
