@@ -8,7 +8,9 @@ class GenericClass extends Introspectable {
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
-    this.tokenClassList = this.mure.parseSelector(options.selector || `root.values()`);
+    this.selector = options.selector || `root.values()`;
+    this.tokenClassList = this.mure.parseSelector(options.selector);
+    this.indexes = options.indexes || {};
   }
   wrap (options) {
     return new this.mure.WRAPPERS.GenericWrapper(options);
@@ -19,6 +21,7 @@ class GenericClass extends Introspectable {
       options.tokenClassList = this.tokenClassList;
       options.namedFunctions = this.namedFunctions;
       options.launchedFromClass = this;
+      options.indexes = this.indexes;
       this._stream = new Stream(options);
     }
     return this._stream;
