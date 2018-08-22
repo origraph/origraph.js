@@ -4,7 +4,7 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
-    this._connections = {};
+    this.edgeSelectors = {};
   }
   connectToNodeClass ({ nodeClass, thisHash, otherHash }) {
     throw new Error(`unimplemented`);

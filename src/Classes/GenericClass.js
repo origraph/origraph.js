@@ -9,11 +9,15 @@ class GenericClass extends Introspectable {
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     this.selector = options.selector || `root.values()`;
+    this._customClassName = null;
     this.tokenClassList = this.mure.parseSelector(options.selector);
     this.indexes = options.indexes || {};
   }
   wrap (options) {
     return new this.mure.WRAPPERS.GenericWrapper(options);
+  }
+  get className () {
+    return this._customClassName || 'class name auto-inference not implemented';
   }
   getStream (options = {}) {
     if (options.reset || !this._stream) {
@@ -29,6 +33,12 @@ class GenericClass extends Introspectable {
   isSuperSetOfTokenList (tokenList) {
     if (tokenList.length !== this.tokenList.length) { return false; }
     return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
+  }
+  interpretAsNodes () {
+    throw new Error(`unimplemented`);
+  }
+  interpretAsEdges () {
+    throw new Error(`unimplemented`);
   }
 }
 Object.defineProperty(GenericClass, 'type', {

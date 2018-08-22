@@ -4,31 +4,31 @@ class EdgeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.EdgeWrapper;
-    this._sourceSelector = null;
-    this._targetSelector = null;
+    this.sourceSelector = null;
+    this.targetSelector = null;
     this.directed = false;
   }
   connectToNodeClass ({ nodeClass, direction, nodeHash, edgeHash }) {
     if (direction === 'source') {
-      if (this._sourceSelector) {
-        delete this.mure.classes[this._sourceSelector]._connections[this.selector];
+      if (this.sourceSelector) {
+        delete this.mure.classes[this.sourceSelector].edgeSelectors[this.selector];
       }
-      this._sourceSelector = nodeClass.selector;
+      this.sourceSelector = nodeClass.selector;
     } else if (direction === 'target') {
-      if (this._targetSelector) {
-        delete this.mure.classes[this._targetSelector]._connections[this.selector];
+      if (this.targetSelector) {
+        delete this.mure.classes[this.targetSelector].edgeSelectors[this.selector];
       }
-      this._targetSelector = nodeClass.selector;
+      this.targetSelector = nodeClass.selector;
     } else {
-      if (!this._sourceSelector) {
-        this._sourceSelector = nodeClass.selector;
-      } else if (!this._targetSelector) {
-        this._targetSelector = nodeClass.selector;
+      if (!this.sourceSelector) {
+        this.sourceSelector = nodeClass.selector;
+      } else if (!this.targetSelector) {
+        this.targetSelector = nodeClass.selector;
       } else {
         throw new Error(`Source and target are already defined; please specify a direction to override`);
       }
     }
-    nodeClass._connections[this.selector] = { nodeHash, edgeHash };
+    nodeClass.edgeSelectors[this.selector] = { nodeHash, edgeHash };
   }
   getStream (options) {
     throw new Error(`unimplemented`);
