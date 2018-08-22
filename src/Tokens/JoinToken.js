@@ -1,16 +1,16 @@
 import BaseToken from './BaseToken.js';
 
 class JoinToken extends BaseToken {
-  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', map = 'identity' ]) {
+  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish' ]) {
     super(stream);
-    for (const func of [ map, thisHash, map ]) {
+    for (const func of [ finish, thisHash, finish ]) {
       if (!stream.namedFunctions[func]) {
         throw new SyntaxError(`Unknown named function: ${func}`);
       }
     }
 
     const temp = stream.namedStreams[otherStream];
-    if (temp) {
+    if (!temp) {
       throw new SyntaxError(`Unknown named stream: ${otherStream}`);
     }
     // Require otherHash on the other stream, or copy ours over if it isn't
@@ -26,24 +26,24 @@ class JoinToken extends BaseToken {
     this.otherStream = otherStream;
     this.thisHash = thisHash;
     this.otherHash = otherHash;
-    this.map = map;
+    this.finish = finish;
   }
   toString () {
-    return `.join(${this.otherStream}, ${this.thisHash}, ${this.otherHash}, ${this.map})`;
+    return `.join(${this.otherStream}, ${this.thisHash}, ${this.otherHash}, ${this.finish})`;
   }
-  isSubSetOf ([ otherStream, thisHash = 'key', otherHash = 'key', map = 'identity' ]) {
+  isSubSetOf ([ otherStream, thisHash = 'key', otherHash = 'key', finish = 'identity' ]) {
     return this.otherStream === otherStream &&
       this.thisHash === thisHash &&
       this.otherHash === otherHash &&
-      this.map === map;
+      this.finish === finish;
   }
   async * iterate (ancestorTokens) {
     const otherStream = this.stream.namedStreams[this.otherStream];
     const thisHashFunction = this.stream.namedFunctions[this.thisHash];
     const otherHashFunction = otherStream.namedFunctions[this.otherHash];
-    const mapFunction = this.stream.namedFunctions[this.map];
+    const finishFunction = this.stream.namedFunctions[this.finish];
 
-    // const thisIterator = this.iterateParents(ancestorTokens);
+    // const thisIterator = this.iterateParent(ancestorTokens);
     // const otherIterator = otherStream.iterate();
 
     const thisIndex = this.stream.getIndex(this.thisHash);
@@ -53,16 +53,16 @@ class JoinToken extends BaseToken {
       if (otherIndex.complete) {
         // Best of all worlds; we can just join the indexes
         for await (const { hash, valueList } of thisIndex.iterValues()) {
-          for (const otherWrappedItem of await otherIndex.getValueSet(hash)) {
+          const otherList = await otherIndex.getValueList(hash);
+          for (const otherWrappedItem of otherList) {
             for (const thisWrappedItem of valueList) {
-              yield this.stream.wrap({
-                wrappedParent: thisWrappedItem,
-                token: this,
-                rawItem: mapFunction({
-                  thisItem: thisWrappedItem.rawItem,
-                  otherItem: otherWrappedItem.rawItem
-                })
-              });
+              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                yield this.stream.wrap({
+                  wrappedParent: thisWrappedItem,
+                  token: this,
+                  rawItem
+                });
+              }
             }
           }
         }
@@ -73,15 +73,15 @@ class JoinToken extends BaseToken {
           const hash = otherHashFunction(otherWrappedItem);
           // Add otherWrappedItem to otherIndex:
           await otherIndex.addValue(hash, otherWrappedItem);
-          for (const thisWrappedItem of thisIndex.getValueSet(hash)) {
-            yield this.stream.wrap({
-              wrappedParent: thisWrappedItem,
-              token: this,
-              rawItem: mapFunction({
-                thisItem: thisWrappedItem.rawItem,
-                otherItem: otherWrappedItem.rawItem
-              })
-            });
+          const thisList = await thisIndex.getValueList(hash);
+          for (const thisWrappedItem of thisList) {
+            for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+              yield this.stream.wrap({
+                wrappedParent: thisWrappedItem,
+                token: this,
+                rawItem
+              });
+            }
           }
         }
       }
@@ -89,69 +89,69 @@ class JoinToken extends BaseToken {
       if (otherIndex.complete) {
         // Need to iterate our items, and take advantage of the other complete
         // index
-        for await (const thisWrappedItem of this.iterateParents(ancestorTokens)) {
+        for await (const thisWrappedItem of this.iterateParent(ancestorTokens)) {
           const hash = thisHashFunction(thisWrappedItem);
           // add thisWrappedItem to thisIndex
           await thisIndex.addValue(hash, thisWrappedItem);
-          for (const otherWrappedItem of otherIndex.getValueSet(hash)) {
-            yield this.stream.wrap({
-              wrappedParent: thisWrappedItem,
-              token: this,
-              rawItem: mapFunction({
-                thisItem: thisWrappedItem.rawItem,
-                otherItem: otherWrappedItem.rawItem
-              })
-            });
+          const otherList = await otherIndex.getValueList(hash);
+          for (const otherWrappedItem of otherList) {
+            for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+              yield this.stream.wrap({
+                wrappedParent: thisWrappedItem,
+                token: this,
+                rawItem
+              });
+            }
           }
         }
       } else {
         // Neither stream is fully indexed; for more distributed sampling, grab
         // one item from each stream at a time, and use the partial indexes
-        const thisIterator = this.iterateParents(ancestorTokens);
+        const thisIterator = this.iterateParent(ancestorTokens);
         let thisIsDone = false;
         const otherIterator = otherStream.iterate();
         let otherIsDone = false;
 
         while (!thisIsDone || !otherIsDone) {
           // Take one sample from this stream
-          let temp = thisIterator.next();
+          let temp = await thisIterator.next();
           if (temp.done) {
             thisIsDone = true;
           } else {
-            const thisWrappedItem = temp.value;
+            const thisWrappedItem = await temp.value;
             const hash = thisHashFunction(thisWrappedItem);
             // add thisWrappedItem to thisIndex
             thisIndex.addValue(hash, thisWrappedItem);
-            for (const otherWrappedItem of otherIndex.getValueSet(hash)) {
-              yield this.stream.wrap({
-                wrappedParent: thisWrappedItem,
-                token: this,
-                rawItem: mapFunction({
-                  thisItem: thisWrappedItem.rawItem,
-                  otherItem: otherWrappedItem.rawItem
-                })
-              });
+            const otherList = await otherIndex.getValueList(hash);
+            for (const otherWrappedItem of otherList) {
+              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                yield this.stream.wrap({
+                  wrappedParent: thisWrappedItem,
+                  token: this,
+                  rawItem
+                });
+              }
             }
           }
 
           // Now for a sample from the other stream
-          temp = otherIterator.next();
+          temp = await otherIterator.next();
           if (temp.done) {
             otherIsDone = true;
           } else {
-            const otherWrappedItem = temp.value;
+            const otherWrappedItem = await temp.value;
             const hash = otherHashFunction(otherWrappedItem);
             // add otherWrappedItem to otherIndex
             otherIndex.addValue(hash, otherWrappedItem);
-            for (const thisWrappedItem of thisIndex.getValueSet(hash)) {
-              yield this.stream.wrap({
-                wrappedParent: thisWrappedItem,
-                token: this,
-                rawItem: mapFunction({
-                  thisItem: thisWrappedItem.rawItem,
-                  otherItem: otherWrappedItem.rawItem
-                })
-              });
+            const thisList = await thisIndex.getValueList(hash);
+            for (const thisWrappedItem of thisList) {
+              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                yield this.stream.wrap({
+                  wrappedParent: thisWrappedItem,
+                  token: this,
+                  rawItem
+                });
+              }
             }
           }
         }

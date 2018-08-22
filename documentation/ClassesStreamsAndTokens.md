@@ -611,7 +611,7 @@ const forceUsersStream = mure.stream({
 ```
 
 ### Join
-Syntax: `.join( otherStream, thisKeys, otherKeys, map )`
+Syntax: `.join( otherStream, thisKeys, otherKeys, combine )`
 
 Yields an item for every match between the input item and every item in `otherStream`
 
@@ -619,7 +619,7 @@ Yields an item for every match between the input item and every item in `otherSt
 
 `thisKeys` and `otherKeys` are optional <a href="#about-named-functions-and-streams">named</a> [generator functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) that should yield strings that will be used for indexing and matching. Default behavior, when omitted, is to return the item's key or index (or the key or index itself if one has been selected). (TODO: these arguments probably require their own section for what they do / why they're important)
 
-`map` is optional; when omitted, default behavior is to yield an array containing both items, with the item from this stream as the first element, and the item from the other stream as the second. If included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s a new, raw item. It will be called for each match with these parameters:
+`combine` is optional; when omitted, default behavior is to yield an array containing both items, with the item from this stream as the first element, and the item from the other stream as the second. If included, it should be the <a href="#about-named-functions-and-streams">name</a> of a [generator function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*) (may be `async`) that `yield`s a new, raw item. It will be called for each match with these parameters:
 - `thisWrappedItem` The wrapped item from this selection that matched
 - `otherWrappedItem` The wrapped item from `otherStream` that matched
 

@@ -68,6 +68,12 @@ class Mure extends TriggerableMixin(class {}) {
           yield wrappedParent.rawItem;
         }
       },
+      defaultFinish: function * (thisWrappedItem, otherWrappedItem) {
+        yield [
+          thisWrappedItem.rawItem,
+          otherWrappedItem.rawItem
+        ];
+      },
       sha1: rawItem => sha1(JSON.stringify(rawItem)),
       noop: () => {}
     };

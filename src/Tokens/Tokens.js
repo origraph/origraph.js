@@ -4,6 +4,7 @@ import ValueToken from './ValueToken.js';
 import EvaluateToken from './EvaluateToken.js';
 import MapToken from './MapToken.js';
 import PromoteToken from './PromoteToken.js';
+import JoinToken from './JoinToken.js';
 
 export {
   RootToken,
@@ -11,5 +12,6 @@ export {
   ValueToken,
   EvaluateToken,
   MapToken,
-  PromoteToken
+  PromoteToken,
+  JoinToken
 };

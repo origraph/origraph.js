@@ -74,4 +74,29 @@ describe('Token Tests', () => {
       '♦': 12
     });
   });
+
+  test('JoinToken (no indexes)', async () => {
+    expect.assertions(1);
+
+    const winnerStream = mure.stream({
+      selector: `root.values('hearts.json').values('tricks').values()`
+    });
+    const joinedStream = mure.stream({
+      selector: `root.values('hearts.json').values('hands').join(winnerStream,identity,getWinner,finish)`,
+      namedStreams: { winnerStream },
+      namedFunctions: {
+        getWinner: trick => trick.winner,
+        finish: (hand, trick) => `${hand.wrappedParent.value} won Trick ${trick.wrappedParent.value}`
+      }
+    });
+
+    const joinedResults = [];
+    for await (const winningPlayer of joinedStream.sample({ limit: 10 })) {
+      joinedResults.push(winningPlayer.rawItem);
+    }
+
+    expect(joinedResults).toEqual([
+
+    ]);
+  });
 });
