@@ -5,7 +5,7 @@ let nPlayers = process.argv[2] || 4;
 let outFile = process.argv[3] || 'hearts.json';
 
 let suits = ['♣', '♦', '♠', '♥'];
-let values = [2, 3, 4, 5, 6, 7, 8, 9, 'J', 'Q', 'K', 'A'];
+let values = [2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A'];
 
 let allCards = [];
 suits.forEach(suit => {
@@ -112,7 +112,7 @@ for (let trickNo = 0; trickNo < nTricks; trickNo++) {
 console.log('reshaping tricks...');
 output.tricks.forEach(trick => {
   trick.wrappers.forEach(wrapper => {
-    trick[wrapper.player] = `@$.contents.hands['${wrapper.player}']['${wrapper.index}']`;
+    trick[wrapper.player] = `root.values('${outFile}').values('hands').values('${wrapper.player}').values(${wrapper.index})`;
   });
   delete trick.wrappers;
 });

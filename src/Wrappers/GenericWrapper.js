@@ -1,61 +1,17 @@
-import jsonPath from 'jsonpath';
-import ContainerWrapper from './ContainerWrapper.js';
+import TriggerableMixin from '../Common/TriggerableMixin.js';
+import Introspectable from '../Common/Introspectable.js';
 
-class GenericWrapper extends ContainerWrapper {
-  constructor ({ mure, value, path, doc }) {
-    super({ mure, value, path, doc });
-    if (!value.$tags) {
-      throw new TypeError(`GenericWrapper requires a $tags object`);
-    }
-  }
-  addClass (className) {
-    if (!this.doc.classes[className]) {
-      this.doc.classes[className] = this.mure.WRAPPERS.SetWrapper.getBoilerplateValue();
-      this.doc.classes[className]._id = '@' + jsonPath.stringify(['$', 'classes', className]);
-    }
-    const classItem = new this.mure.WRAPPERS.SetWrapper({
-      mure: this.mure,
-      path: [this.path[0], '$', 'classes', className],
-      value: this.doc.classes[className],
-      doc: this.doc
-    });
-    classItem.addWrapper(this);
-  }
-  getClasses () {
-    if (!this.value || !this.value.$tags) {
-      return [];
-    }
-    return Object.keys(this.value.$tags).reduce((agg, setId) => {
-      const temp = this.mure.extractClassInfoFromId(setId);
-      if (temp) {
-        agg.push(temp.className);
-      }
-      return agg;
-    }, []).sort();
+class GenericWrapper extends TriggerableMixin(Introspectable) {
+  constructor ({ wrappedParent, token, rawItem }) {
+    super();
+    this.wrappedParent = wrappedParent;
+    this.token = token;
+    this.rawItem = rawItem;
   }
 }
-GenericWrapper.getBoilerplateValue = () => {
-  return { $tags: {} };
-};
-GenericWrapper.standardize = ({ mure, value, path, doc, aggressive }) => {
-  // Do the regular ContainerWrapper standardization
-  value = ContainerWrapper.standardize({ mure, value, path, doc, aggressive });
-  // Ensure the existence of a $tags object
-  value.$tags = value.$tags || {};
-  // Move any existing class definitions to this document
-  Object.keys(value.$tags).forEach(setId => {
-    const temp = mure.extractClassInfoFromId(setId);
-    if (temp) {
-      delete value.$tags[setId];
-
-      setId = doc.classes._id + temp.classPathChunk;
-      value.$tags[setId] = true;
-
-      doc.classes[temp.className] = doc.classes[temp.className] || { _id: setId, $members: {} };
-      doc.classes[temp.className].$members[value._id] = true;
-    }
-  });
-  return value;
-};
-
+Object.defineProperty(GenericWrapper, 'type', {
+  get () {
+    return /(.*)Wrapper/.exec(this.name)[1];
+  }
+});
 export default GenericWrapper;

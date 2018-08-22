@@ -1,7 +1,7 @@
 {
   "name": "mure",
-  "version": "0.4.2",
-  "description": "An integration library for the mure ecosystem of apps",
+  "version": "0.4.3",
+  "description": "A library for flexible graph reshaping",
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
   "jsnext:main": "dist/mure.esm.js",
@@ -12,10 +12,9 @@
     "watchcjs": "rollup -c -w --environment TARGET:cjs",
     "watchumd": "rollup -c -w --environment TARGET:umd",
     "watchesm": "rollup -c -w --environment TARGET:esm",
-    "test": "jest",
-    "pretest": "rollup -c --environment TARGET:cjs && rm -rf mure mure-mrview*",
-    "posttest": "rm -rf mure mure-mrview*",
-    "debug": "rollup -c --environment TARGET:cjs,SOURCEMAP:false && rm -rf mure mure-mrview* && node --inspect-brk node_modules/.bin/jest --runInBand -t",
+    "test": "jest --runInBand",
+    "pretest": "rollup -c --environment TARGET:cjs",
+    "debug": "rollup -c --environment TARGET:cjs,SOURCEMAP:false && node --inspect-brk node_modules/.bin/jest --runInBand -t",
     "coveralls": "cat ./coverage/lcov.info | node node_modules/.bin/coveralls"
   },
   "files": [
@@ -35,13 +34,14 @@
     "babel-core": "^6.26.3",
     "babel-plugin-external-helpers": "^6.22.0",
     "babel-preset-env": "^1.7.0",
+    "babel-preset-stage-3": "^6.24.1",
     "coveralls": "^3.0.2",
-    "d3-node": "^2.0.1",
-    "jest": "^23.4.1",
+    "filereader": "^0.10.3",
+    "jest": "^23.5.0",
     "pouchdb-node": "^7.0.0",
-    "rollup": "^0.63.4",
+    "rollup": "^0.64.1",
     "rollup-plugin-babel": "^3.0.7",
-    "rollup-plugin-commonjs": "^9.1.3",
+    "rollup-plugin-commonjs": "^9.1.5",
     "rollup-plugin-json": "^3.0.0",
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-globals": "^1.2.1",
@@ -49,14 +49,9 @@
     "rollup-plugin-string": "^2.0.2"
   },
   "dependencies": {
-    "blueimp-md5": "^2.10.0",
     "datalib": "^1.9.1",
-    "jsonpath": "^1.0.0",
     "mime-types": "^2.1.19",
-    "pouchdb-authentication": "^1.1.3",
-    "pouchdb-browser": "^7.0.0",
-    "pouchdb-find": "^7.0.0",
-    "uki": "^0.2.4"
+    "sha1": "^1.1.1"
   },
   "peerDependencies": {
     "d3": "^5.4.0"

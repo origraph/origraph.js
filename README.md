@@ -3,21 +3,19 @@ mure.js
 [![Build Status](https://travis-ci.org/mure-apps/mure-library.svg?branch=master)](https://travis-ci.org/mure-apps/mure-library)
 [![Coverage Status](https://coveralls.io/repos/github/mure-apps/mure-library/badge.svg?branch=master)](https://coveralls.io/github/mure-apps/mure-library?branch=master)
 
-`mure.js` is a library for wrangling graph data inside PouchDB. Graph constructs (like node, edge, supernode, hyperedge, class, etc) are deliberately lightweight, so that they are easy to map (and re-map) to data items, regardless of how the PouchDB documents are structured.
-
-Its main technical strength lies in its [d3.js](https://d3js.org/)-esque selection mechanisms, that take advantage of whatever structures already exist in a document (e.g. rows in a CSV file), but also any graph metadata attached to items. Consequently, a `mure.selectAll()` command provides a unified mechanism for operations like pivoting from one selection to another, connecting nodes, assigning node or edge classes, converting from one construct to another, grouping items, promoting and piping values, merging and dissolving supernodes or hyperedges, and toggling edge direction.
+`mure.js` is a library for wrangling graph data. Graph constructs (like what is a node, and what is an edge) are deliberately lightweight, so that they are easy to map (and re-map) to data items, regardless of how the raw data is structured.
 
 ![Operations](documentation/teaser.svg)
 
-Be advised that this is project is *very* work-in-progress, and is being implemented in parallel with [Origraph](https://github.com/mure-apps/origraph), the non-programmer's visual interface for using this library.
-Expect frequent sweeping changes and poor documentation for now, especially as we explore and refine what constructs and operations are even important for this graph data wrangling.
+Be advised that this is project is *very* work-in-progress, and is being implemented in parallel with [Origraph](https://github.com/mure-apps/origraph), a non-programmer's visual interface for using this library.
+Expect frequent sweeping changes and poor [documentation](https://github.com/mure-apps/mure-library/blob/master/documentation/designDoc.md) for now, especially as we explore and refine what constructs and operations are even important for this graph data wrangling.
 
 Installation
 ============
 For basic use in the browser:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/mure@0.4.2/dist/mure.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mure@0.4.3/dist/mure.umd.min.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:

@@ -1,4 +1,6 @@
+jest.setTimeout(10000);
+
 require('./basicTests.js');
 require('./docTests.js');
-require('./selectorTests.js');
-require('./schemaTests.js');
+require('./tokenTests.js');
+// require('./interpretationTests.js');
