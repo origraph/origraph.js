@@ -52,7 +52,7 @@ class JoinToken extends BaseToken {
     if (thisIndex.complete) {
       if (otherIndex.complete) {
         // Best of all worlds; we can just join the indexes
-        for await (const { hash, valueList } of thisIndex.iterValues()) {
+        for await (const { hash, valueList } of thisIndex.iterEntries()) {
           const otherList = await otherIndex.getValueList(hash);
           for await (const otherWrappedItem of otherList) {
             for await (const thisWrappedItem of valueList) {
