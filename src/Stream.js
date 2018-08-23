@@ -4,9 +4,9 @@ class Stream {
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     this.namedStreams = options.namedStreams || {};
-    this.traversalMode = options.traversalMode || 'DFS';
     this.launchedFromClass = options.launchedFromClass || null;
     this.indexes = options.indexes || {};
+    this.tokenClassList = options.tokenClassList || [];
 
     // Reminder: this always needs to be after initializing this.namedFunctions
     // and this.namedStreams
@@ -59,18 +59,20 @@ class Stream {
     return new Stream({
       mure: this.mure,
       namedFunctions: this.namedFunctions,
-      traversalMode: this.traversalMode,
+      namedStreams: this.namedStreams,
       tokenClassList: this.mure.parseSelector(selector),
-      launchedFromClass: this.launchedFromClass
+      launchedFromClass: this.launchedFromClass,
+      indexes: this.indexes
     });
   }
 
   extend (TokenClass, argList, options = {}) {
     options.mure = this.mure;
     options.namedFunctions = Object.assign({}, this.namedFunctions, options.namedFunctions || {});
-    options.tokenClassList = this.tokenClassList.concat({ TokenClass, argList });
+    options.namedStreams = Object.assign({}, this.namedStreams, options.namedStreams || {});
+    options.tokenClassList = this.tokenClassList.concat([{ TokenClass, argList }]);
     options.launchedFromClass = options.launchedFromClass || this.launchedFromClass;
-    options.traversalMode = options.traversalMode || this.traversalMode;
+    options.indexes = Object.assign({}, this.indexes, options.indexes || {});
     return new Stream(options);
   }
 
@@ -103,6 +105,23 @@ class Stream {
       this.indexes[hashFunctionName] = new this.mure.INDEXES.InMemoryIndex();
     }
     return this.indexes[hashFunctionName];
+  }
+
+  async buildIndex (hashFunctionName) {
+    const hashFunction = this.namedFunctions[hashFunctionName];
+    if (!hashFunction) {
+      throw new Error(`Unknown named function: ${hashFunctionName}`);
+    }
+    const index = this.getIndex(hashFunctionName);
+    if (index.complete) {
+      return;
+    }
+    for await (const wrappedItem of this.iterate()) {
+      for await (const hash of hashFunction(wrappedItem)) {
+        index.addValue(hash, wrappedItem);
+      }
+    }
+    index.complete = true;
   }
 
   async * sample ({ limit = 10, rebuildIndexes = false }) {

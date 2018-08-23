@@ -76,7 +76,7 @@ describe('Token Tests', () => {
   });
 
   test('JoinToken (no indexes)', async () => {
-    expect.assertions(1);
+    expect.assertions(3);
 
     const winnerStream = mure.stream({
       selector: `root.values('hearts.json').values('tricks').values()`
@@ -93,6 +93,8 @@ describe('Token Tests', () => {
         }
       }
     });
+    expect(joinedStream.getIndex('key').complete).toEqual(false);
+    expect(joinedStream.getIndex('getWinner').complete).toEqual(false);
 
     const joinedResults = [];
     for await (const winningPlayer of joinedStream.sample({ limit: 10 })) {
@@ -108,6 +110,52 @@ describe('Token Tests', () => {
       'Player 1 won Trick 5',
       'Player 4 won Trick 6',
       'Player 4 won Trick 7',
+      'Player 3 won Trick 8',
+      'Player 3 won Trick 9'
+    ]);
+  });
+
+  test('JoinToken (other index)', async () => {
+    expect.assertions(3);
+
+    const winnerStream = mure.stream({
+      selector: `root.values('hearts.json').values('tricks').values()`,
+      namedFunctions: {
+        getWinner: function * (trick) {
+          yield trick.rawItem.winner;
+        }
+      }
+    });
+    await winnerStream.buildIndex('getWinner');
+    const handStream = mure.stream({
+      selector: `root.values('hearts.json').values('hands').values()`
+    });
+    const joinedStream = handStream.join(['winnerStream', 'key', 'getWinner', 'finish'], {
+      namedStreams: { winnerStream },
+      namedFunctions: {
+        finish: function * (hand, trick) {
+          yield `${hand.wrappedParent.rawItem} won Trick ${trick.wrappedParent.rawItem}`;
+        }
+      }
+    });
+
+    expect(joinedStream.getIndex('key').complete).toEqual(false);
+    expect(winnerStream.getIndex('getWinner').complete).toEqual(true);
+
+    const joinedResults = [];
+    for await (const winningPlayer of joinedStream.sample({ limit: 10 })) {
+      joinedResults.push(winningPlayer.rawItem);
+    }
+
+    expect(joinedResults).toEqual([
+      'Player 1 won Trick 0',
+      'Player 1 won Trick 1',
+      'Player 1 won Trick 2',
+      'Player 1 won Trick 4',
+      'Player 1 won Trick 5',
+      'Player 2 won Trick 10',
+      'Player 2 won Trick 11',
+      'Player 2 won Trick 12',
       'Player 3 won Trick 8',
       'Player 3 won Trick 9'
     ]);

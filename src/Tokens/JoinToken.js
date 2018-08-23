@@ -54,8 +54,8 @@ class JoinToken extends BaseToken {
         // Best of all worlds; we can just join the indexes
         for await (const { hash, valueList } of thisIndex.iterValues()) {
           const otherList = await otherIndex.getValueList(hash);
-          for (const otherWrappedItem of otherList) {
-            for (const thisWrappedItem of valueList) {
+          for await (const otherWrappedItem of otherList) {
+            for await (const thisWrappedItem of valueList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
                 yield this.stream.wrap({
                   wrappedParent: thisWrappedItem,
@@ -70,11 +70,11 @@ class JoinToken extends BaseToken {
         // Need to iterate the other items, and take advantage of our complete
         // index
         for await (const otherWrappedItem of otherStream.iterate()) {
-          for (const hash of otherHashFunction(otherWrappedItem)) {
+          for await (const hash of otherHashFunction(otherWrappedItem)) {
             // Add otherWrappedItem to otherIndex:
             await otherIndex.addValue(hash, otherWrappedItem);
             const thisList = await thisIndex.getValueList(hash);
-            for (const thisWrappedItem of thisList) {
+            for await (const thisWrappedItem of thisList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
                 yield this.stream.wrap({
                   wrappedParent: thisWrappedItem,
@@ -91,11 +91,11 @@ class JoinToken extends BaseToken {
         // Need to iterate our items, and take advantage of the other complete
         // index
         for await (const thisWrappedItem of this.iterateParent(ancestorTokens)) {
-          for (const hash of thisHashFunction(thisWrappedItem)) {
+          for await (const hash of thisHashFunction(thisWrappedItem)) {
             // add thisWrappedItem to thisIndex
             await thisIndex.addValue(hash, thisWrappedItem);
             const otherList = await otherIndex.getValueList(hash);
-            for (const otherWrappedItem of otherList) {
+            for await (const otherWrappedItem of otherList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
                 yield this.stream.wrap({
                   wrappedParent: thisWrappedItem,
@@ -121,11 +121,11 @@ class JoinToken extends BaseToken {
             thisIsDone = true;
           } else {
             const thisWrappedItem = await temp.value;
-            for (const hash of thisHashFunction(thisWrappedItem)) {
+            for await (const hash of thisHashFunction(thisWrappedItem)) {
               // add thisWrappedItem to thisIndex
               thisIndex.addValue(hash, thisWrappedItem);
               const otherList = await otherIndex.getValueList(hash);
-              for (const otherWrappedItem of otherList) {
+              for await (const otherWrappedItem of otherList) {
                 for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
                   yield this.stream.wrap({
                     wrappedParent: thisWrappedItem,
@@ -143,11 +143,11 @@ class JoinToken extends BaseToken {
             otherIsDone = true;
           } else {
             const otherWrappedItem = await temp.value;
-            for (const hash of otherHashFunction(otherWrappedItem)) {
+            for await (const hash of otherHashFunction(otherWrappedItem)) {
               // add otherWrappedItem to otherIndex
               otherIndex.addValue(hash, otherWrappedItem);
               const thisList = await thisIndex.getValueList(hash);
-              for (const thisWrappedItem of thisList) {
+              for await (const thisWrappedItem of thisList) {
                 for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
                   yield this.stream.wrap({
                     wrappedParent: thisWrappedItem,
