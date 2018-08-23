@@ -28,7 +28,7 @@ class GenericClass extends Introspectable {
     return result;
   }
   wrap (options) {
-    return new this.mure.WRAPPERS.GenericWrapper(options);
+    return new this.Wrapper(options);
   }
   get className () {
     return this._customClassName || 'class name auto-inference not implemented';
@@ -49,12 +49,16 @@ class GenericClass extends Introspectable {
     return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
   }
   async interpretAsNodes () {
-    this.mure.classes[this.selector] = new this.mure.CLASSES.NodeClass(this.toRawObject());
+    const options = await this.toRawObject();
+    options.mure = this.mure;
+    this.mure.classes[this.selector] = new this.mure.CLASSES.NodeClass(options);
     await this.mure.saveClasses();
     return this.mure.classes[this.selector];
   }
   async interpretAsEdges () {
-    this.mure.classes[this.selector] = new this.mure.CLASSES.EdgeClass(this.toRawObject());
+    const options = await this.toRawObject();
+    options.mure = this.mure;
+    this.mure.classes[this.selector] = new this.mure.CLASSES.EdgeClass(options);
     await this.mure.saveClasses();
     return this.mure.classes[this.selector];
   }

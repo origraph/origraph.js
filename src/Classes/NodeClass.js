@@ -18,7 +18,7 @@ class NodeClass extends GenericClass {
   async toRawObject () {
     // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
     // prevents `await super`; this is a workaround:
-    const result = await GenericClass.prototype.toRawObject();
+    const result = await GenericClass.prototype.toRawObject.call(this);
     result.edgeSelectors = {};
     Object.entries(this.edgeSelectors).forEach(([selector, { nodeHash, edgeHash }]) => {
       nodeHash = nodeHash.toString();

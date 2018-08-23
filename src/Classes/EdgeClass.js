@@ -11,7 +11,7 @@ class EdgeClass extends GenericClass {
   async toRawObject () {
     // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
     // prevents `await super`; this is a workaround:
-    const result = await GenericClass.prototype.toRawObject();
+    const result = await GenericClass.prototype.toRawObject.call(this);
     result.sourceSelector = this.sourceSelector;
     result.targetSelector = this.targetSelector;
     result.directed = this.directed;
