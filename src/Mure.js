@@ -9,16 +9,13 @@ import * as WRAPPERS from './Wrappers/Wrappers.js';
 import * as INDEXES from './Indexes/Indexes.js';
 
 class Mure extends TriggerableMixin(class {}) {
-  constructor (FileReader) {
+  constructor (FileReader, localStorage) {
     super();
     this.FileReader = FileReader; // either window.FileReader or one from Node
+    this.localStorage = localStorage; // either window.localStorage or null
     this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
     this.debug = false; // Set mure.debug to true to debug streams
-
-    // Object containing each of our data sources
-    this.root = {};
-    this.classes = {};
 
     // extensions that we want datalib to handle
     this.DATALIB_FORMATS = {
@@ -77,6 +74,48 @@ class Mure extends TriggerableMixin(class {}) {
       sha1: rawItem => sha1(JSON.stringify(rawItem)),
       noop: () => {}
     };
+
+    // Object containing each of our data sources
+    this.root = this.loadRoot();
+
+    // Object containing our class specifications
+    this.classes = this.loadClasses();
+  }
+
+  loadRoot () {
+    let root = this.localStorage && this.localStorage.getItem('mure_root');
+    root = root ? JSON.parse(root) : {};
+    return root;
+  }
+  async saveRoot () {
+    if (this.localStorage) {
+      this.localStorage.setItem('mure_root', JSON.stringify(this.root));
+    }
+  }
+  loadClasses () {
+    let classes = this.localStorage && this.localStorage.getItem('mure_classes');
+    classes = classes ? JSON.parse(classes) : {};
+    Object.entries(classes).forEach(([ classSelector, rawClassObj ]) => {
+      Object.entries(rawClassObj.indexes).forEach(([funcName, rawIndexObj]) => {
+        rawClassObj.indexes[funcName] = new this.INDEXES.InMemoryIndex({
+          entries: rawIndexObj, complete: true });
+      });
+      const classType = rawClassObj.classType;
+      delete rawClassObj.classType;
+      rawClassObj.mure = this;
+      classes[classSelector] = new this.CLASSES[classType](rawClassObj);
+    });
+    return classes;
+  }
+  async saveClasses () {
+    if (this.localStorage) {
+      const rawClasses = {};
+      await Promise.all(Object.entries(this.classes)
+        .map(async ([ classSelector, classObj ]) => {
+          rawClasses[classSelector] = await classObj.toRawObject();
+        }));
+      this.localStorage.setItem('mure_classes', JSON.stringify(rawClasses));
+    }
   }
 
   parseSelector (selectorString) {
@@ -126,7 +165,7 @@ class Mure extends TriggerableMixin(class {}) {
     return new Stream(options);
   }
 
-  newClass (options = { selector: `root.values()` }) {
+  async newClass (options = { selector: `root.values()` }) {
     if (this.classes[options.selector]) {
       return this.classes[options.selector];
     }
@@ -134,6 +173,7 @@ class Mure extends TriggerableMixin(class {}) {
     delete options.ClassType;
     options.mure = this;
     this.classes[options.selector] = new ClassType(options);
+    await this.saveClasses();
     return this.classes[options.selector];
   }
 
@@ -188,13 +228,14 @@ class Mure extends TriggerableMixin(class {}) {
   }
   async addStaticDataSource (key, obj) {
     this.root[key] = obj;
-    return this.newClass({
+    const temp = await Promise.all([this.saveRoot(), this.newClass({
       selector: `root.values('${key}').values()`
-    });
+    })]);
+    return temp[1];
   }
-
-  removeDataSource (key) {
+  async removeDataSource (key) {
     delete this.root[key];
+    await this.saveRoot();
   }
 }
 

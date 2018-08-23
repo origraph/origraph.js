@@ -1,7 +1,10 @@
 class InMemoryIndex {
-  constructor () {
-    this.entries = {};
-    this.complete = false;
+  constructor ({ entries = {}, complete = false }) {
+    this.entries = entries;
+    this.complete = complete;
+  }
+  async toRawObject () {
+    return this.entries;
   }
   async * iterEntries () {
     for (const [hash, valueList] of Object.entries(this.entries)) {

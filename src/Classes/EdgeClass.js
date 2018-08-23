@@ -4,9 +4,17 @@ class EdgeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.EdgeWrapper;
-    this.sourceSelector = null;
-    this.targetSelector = null;
-    this.directed = false;
+    this.sourceSelector = options.sourceSelector || null;
+    this.targetSelector = options.targetSelector || null;
+    this.directed = options.directed || false;
+  }
+  async toRawObject () {
+    // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
+    // prevents `await super`; this is a workaround:
+    const result = await GenericClass.prototype.toRawObject();
+    result.sourceSelector = this.sourceSelector;
+    result.targetSelector = this.targetSelector;
+    result.directed = this.directed;
   }
   connectToNodeClass ({ nodeClass, direction, nodeHash, edgeHash }) {
     if (direction === 'source') {

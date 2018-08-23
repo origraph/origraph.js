@@ -9,9 +9,23 @@ class GenericClass extends Introspectable {
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     this.selector = options.selector || `root.values()`;
-    this._customClassName = null;
+    this._customClassName = options.customName || null;
     this.tokenClassList = this.mure.parseSelector(options.selector);
     this.indexes = options.indexes || {};
+  }
+  async toRawObject () {
+    const result = {
+      classType: this.constructor.name,
+      selector: this.selector,
+      customName: this._customClassName,
+      indexes: {}
+    };
+    await Promise.all(Object.entries(this.indexes).map(async ([funcName, index]) => {
+      if (index.complete) {
+        result.indexes[funcName] = await index.toRawObject();
+      }
+    }));
+    return result;
   }
   wrap (options) {
     return new this.mure.WRAPPERS.GenericWrapper(options);
