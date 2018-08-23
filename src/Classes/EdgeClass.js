@@ -16,6 +16,12 @@ class EdgeClass extends GenericClass {
     result.targetSelector = this.targetSelector;
     result.directed = this.directed;
   }
+  async interpretAsNodes () {
+    throw new Error(`unimplemented`);
+  }
+  async interpretAsEdges () {
+    return this;
+  }
   connectToNodeClass ({ nodeClass, direction, nodeHash, edgeHash }) {
     if (direction === 'source') {
       if (this.sourceSelector) {

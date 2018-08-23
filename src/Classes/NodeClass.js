@@ -27,6 +27,12 @@ class NodeClass extends GenericClass {
     });
     return result;
   }
+  async interpretAsNodes () {
+    return this;
+  }
+  async interpretAsEdges () {
+    throw new Error(`unimplemented`);
+  }
   connectToNodeClass ({ nodeClass, thisHash, otherHash }) {
     throw new Error(`unimplemented`);
   }

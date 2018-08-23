@@ -48,11 +48,15 @@ class GenericClass extends Introspectable {
     if (tokenList.length !== this.tokenList.length) { return false; }
     return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
   }
-  interpretAsNodes () {
-    throw new Error(`unimplemented`);
+  async interpretAsNodes () {
+    this.mure.classes[this.selector] = new this.mure.CLASSES.NodeClass(this.toRawObject());
+    await this.mure.saveClasses();
+    return this.mure.classes[this.selector];
   }
-  interpretAsEdges () {
-    throw new Error(`unimplemented`);
+  async interpretAsEdges () {
+    this.mure.classes[this.selector] = new this.mure.CLASSES.EdgeClass(this.toRawObject());
+    await this.mure.saveClasses();
+    return this.mure.classes[this.selector];
   }
 }
 Object.defineProperty(GenericClass, 'type', {
