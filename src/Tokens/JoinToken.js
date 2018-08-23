@@ -70,17 +70,18 @@ class JoinToken extends BaseToken {
         // Need to iterate the other items, and take advantage of our complete
         // index
         for await (const otherWrappedItem of otherStream.iterate()) {
-          const hash = otherHashFunction(otherWrappedItem);
-          // Add otherWrappedItem to otherIndex:
-          await otherIndex.addValue(hash, otherWrappedItem);
-          const thisList = await thisIndex.getValueList(hash);
-          for (const thisWrappedItem of thisList) {
-            for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-              yield this.stream.wrap({
-                wrappedParent: thisWrappedItem,
-                token: this,
-                rawItem
-              });
+          for (const hash of otherHashFunction(otherWrappedItem)) {
+            // Add otherWrappedItem to otherIndex:
+            await otherIndex.addValue(hash, otherWrappedItem);
+            const thisList = await thisIndex.getValueList(hash);
+            for (const thisWrappedItem of thisList) {
+              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                yield this.stream.wrap({
+                  wrappedParent: thisWrappedItem,
+                  token: this,
+                  rawItem
+                });
+              }
             }
           }
         }
@@ -90,17 +91,18 @@ class JoinToken extends BaseToken {
         // Need to iterate our items, and take advantage of the other complete
         // index
         for await (const thisWrappedItem of this.iterateParent(ancestorTokens)) {
-          const hash = thisHashFunction(thisWrappedItem);
-          // add thisWrappedItem to thisIndex
-          await thisIndex.addValue(hash, thisWrappedItem);
-          const otherList = await otherIndex.getValueList(hash);
-          for (const otherWrappedItem of otherList) {
-            for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-              yield this.stream.wrap({
-                wrappedParent: thisWrappedItem,
-                token: this,
-                rawItem
-              });
+          for (const hash of thisHashFunction(thisWrappedItem)) {
+            // add thisWrappedItem to thisIndex
+            await thisIndex.addValue(hash, thisWrappedItem);
+            const otherList = await otherIndex.getValueList(hash);
+            for (const otherWrappedItem of otherList) {
+              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                yield this.stream.wrap({
+                  wrappedParent: thisWrappedItem,
+                  token: this,
+                  rawItem
+                });
+              }
             }
           }
         }
@@ -119,17 +121,18 @@ class JoinToken extends BaseToken {
             thisIsDone = true;
           } else {
             const thisWrappedItem = await temp.value;
-            const hash = thisHashFunction(thisWrappedItem);
-            // add thisWrappedItem to thisIndex
-            thisIndex.addValue(hash, thisWrappedItem);
-            const otherList = await otherIndex.getValueList(hash);
-            for (const otherWrappedItem of otherList) {
-              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                yield this.stream.wrap({
-                  wrappedParent: thisWrappedItem,
-                  token: this,
-                  rawItem
-                });
+            for (const hash of thisHashFunction(thisWrappedItem)) {
+              // add thisWrappedItem to thisIndex
+              thisIndex.addValue(hash, thisWrappedItem);
+              const otherList = await otherIndex.getValueList(hash);
+              for (const otherWrappedItem of otherList) {
+                for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                  yield this.stream.wrap({
+                    wrappedParent: thisWrappedItem,
+                    token: this,
+                    rawItem
+                  });
+                }
               }
             }
           }
@@ -140,17 +143,18 @@ class JoinToken extends BaseToken {
             otherIsDone = true;
           } else {
             const otherWrappedItem = await temp.value;
-            const hash = otherHashFunction(otherWrappedItem);
-            // add otherWrappedItem to otherIndex
-            otherIndex.addValue(hash, otherWrappedItem);
-            const thisList = await thisIndex.getValueList(hash);
-            for (const thisWrappedItem of thisList) {
-              for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                yield this.stream.wrap({
-                  wrappedParent: thisWrappedItem,
-                  token: this,
-                  rawItem
-                });
+            for (const hash of otherHashFunction(otherWrappedItem)) {
+              // add otherWrappedItem to otherIndex
+              otherIndex.addValue(hash, otherWrappedItem);
+              const thisList = await thisIndex.getValueList(hash);
+              for (const thisWrappedItem of thisList) {
+                for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
+                  yield this.stream.wrap({
+                    wrappedParent: thisWrappedItem,
+                    token: this,
+                    rawItem
+                  });
+                }
               }
             }
           }

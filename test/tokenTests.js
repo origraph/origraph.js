@@ -82,11 +82,15 @@ describe('Token Tests', () => {
       selector: `root.values('hearts.json').values('tricks').values()`
     });
     const joinedStream = mure.stream({
-      selector: `root.values('hearts.json').values('hands').join(winnerStream,identity,getWinner,finish)`,
+      selector: `root.values('hearts.json').values('hands').values().join(winnerStream,key,getWinner,finish)`,
       namedStreams: { winnerStream },
       namedFunctions: {
-        getWinner: trick => trick.winner,
-        finish: (hand, trick) => `${hand.wrappedParent.value} won Trick ${trick.wrappedParent.value}`
+        getWinner: function * (trick) {
+          yield trick.rawItem.winner;
+        },
+        finish: function * (hand, trick) {
+          yield `${hand.wrappedParent.rawItem} won Trick ${trick.wrappedParent.rawItem}`;
+        }
       }
     });
 
@@ -96,7 +100,16 @@ describe('Token Tests', () => {
     }
 
     expect(joinedResults).toEqual([
-
+      'Player 1 won Trick 0',
+      'Player 1 won Trick 1',
+      'Player 1 won Trick 2',
+      'Player 4 won Trick 3',
+      'Player 1 won Trick 4',
+      'Player 1 won Trick 5',
+      'Player 4 won Trick 6',
+      'Player 4 won Trick 7',
+      'Player 3 won Trick 8',
+      'Player 3 won Trick 9'
     ]);
   });
 });

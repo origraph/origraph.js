@@ -1,5 +1,5 @@
 class InMemoryIndex {
-  constructor ({ entries = {}, complete = false }) {
+  constructor ({ entries = {}, complete = false } = {}) {
     this.entries = entries;
     this.complete = complete;
   }

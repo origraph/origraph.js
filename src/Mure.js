@@ -53,16 +53,18 @@ class Mure extends TriggerableMixin(class {}) {
 
     // Default named functions
     this.NAMED_FUNCTIONS = {
-      identity: function * (wrappedParent) { yield wrappedParent.rawItem; },
-      key: function * (wrappedParent) {
-        const parentType = typeof wrappedParent.rawItem;
+      identity: function * (wrappedItem) { yield wrappedItem.rawItem; },
+      key: function * (wrappedItem) {
+        if (!wrappedItem.wrappedParent ||
+            !wrappedItem.wrappedParent.wrappedParent ||
+            typeof wrappedItem.wrappedParent.wrappedParent.rawItem !== 'object') {
+          throw new TypeError(`Grandparent is not an object / array`);
+        }
+        const parentType = typeof wrappedItem.wrappedParent.rawItem;
         if (!(parentType === 'number' || parentType === 'string')) {
           throw new TypeError(`Parent isn't a key / index`);
-        } else if (!wrappedParent.wrappedParent ||
-            typeof wrappedParent.wrappedParent.rawItem !== 'object') {
-          throw new TypeError(`Parent is not an object / array`);
         } else {
-          yield wrappedParent.rawItem;
+          yield wrappedItem.wrappedParent.rawItem;
         }
       },
       defaultFinish: function * (thisWrappedItem, otherWrappedItem) {
@@ -98,7 +100,8 @@ class Mure extends TriggerableMixin(class {}) {
     Object.entries(classes).forEach(([ classSelector, rawClassObj ]) => {
       Object.entries(rawClassObj.indexes).forEach(([funcName, rawIndexObj]) => {
         rawClassObj.indexes[funcName] = new this.INDEXES.InMemoryIndex({
-          entries: rawIndexObj, complete: true });
+          entries: rawIndexObj, complete: true
+        });
       });
       const classType = rawClassObj.classType;
       delete rawClassObj.classType;
