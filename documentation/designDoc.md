@@ -203,10 +203,16 @@ Generic classes describe merely a tabular interpretation of items.
 They can be <a href="#class-names">named</a> and <a href="#annotation">annotated</a>.
 As they will usually have a common set of attributes, they could be displayed in a table.
 
-As generic classes can not be connected to anything else, they can be trivially converted to isolated <a href="#node-classes">nodes</a> or <a href="#edge-classes">edges</a>.
+As generic classes can not be connected to anything else, they can be converted to isolated <a href="#node-classes">nodes</a> or <a href="#edge-classes">edges</a>.
 
-#### `interpretAsNodes()`
-Creates a new class definition ... (TODO: replaces existing definition if it existed?)
+#### `async mure.newClass()`
+TODO
+
+#### `async mure.classes[' ... some selector ... '].interpretAsNodes()`
+Overrides an existing class definition, and interprets it as a set of nodes.
+
+#### `async mure.classes[' ... some selector ... '].interpretAsEdges()`
+Overrides an existing class definition, and interprets it as a set of edges.
 
 ### Node Classes
 (inherits from <a href="#generic-classes">Generic class</a>)
