@@ -15,6 +15,7 @@ class EdgeClass extends GenericClass {
     result.sourceSelector = this.sourceSelector;
     result.targetSelector = this.targetSelector;
     result.directed = this.directed;
+    return result;
   }
   async interpretAsNodes () {
     throw new Error(`unimplemented`);
