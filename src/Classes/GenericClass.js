@@ -30,6 +30,9 @@ class GenericClass extends Introspectable {
   wrap (options) {
     return new this.mure.WRAPPERS.GenericWrapper(options);
   }
+  set className (value) {
+    this._customClassName = value;
+  }
   get className () {
     return this._customClassName || 'class name auto-inference not implemented';
   }
@@ -57,6 +60,18 @@ class GenericClass extends Introspectable {
     this.mure.classes[this.selector] = new this.mure.CLASSES.EdgeClass(this.toRawObject());
     await this.mure.saveClasses();
     return this.mure.classes[this.selector];
+  }
+  aggregate (hash, reduce) {
+    throw new Error(`unimplemented`);
+  }
+  expand (map) {
+    throw new Error(`unimplemented`);
+  }
+  filter (filter) {
+    throw new Error(`unimplemented`);
+  }
+  split (hash) {
+    throw new Error(`unimplemented`);
   }
 }
 Object.defineProperty(GenericClass, 'type', {
