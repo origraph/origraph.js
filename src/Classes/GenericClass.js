@@ -34,7 +34,11 @@ class GenericClass extends Introspectable {
     this._customClassName = value;
   }
   get className () {
-    return this._customClassName || 'class name auto-inference not implemented';
+    if (this._customClassName) {
+      return this._customClassName;
+    }
+    // const { lastToken, lastArgList } = this.tokenClassList[this.tokenClassList.length - 1];
+    return 'todo: auto class name';
   }
   getStream (options = {}) {
     if (options.reset || !this._stream) {
