@@ -33,10 +33,10 @@ class NodeClass extends GenericClass {
   async interpretAsEdges () {
     throw new Error(`unimplemented`);
   }
-  connectToNodeClass ({ nodeClass, thisHash, otherHash }) {
+  async connectToNodeClass ({ nodeClass, thisHash, otherHash }) {
     throw new Error(`unimplemented`);
   }
-  connectToEdgeClass (options) {
+  async connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;
     delete options.edgeClass;
     options.nodeClass = this;

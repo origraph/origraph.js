@@ -69,16 +69,16 @@ class GenericClass extends Introspectable {
     await this.mure.saveClasses();
     return this.mure.classes[this.selector];
   }
-  aggregate (hash, reduce) {
+  async aggregate (hash, reduce) {
     throw new Error(`unimplemented`);
   }
-  expand (map) {
+  async expand (map) {
     throw new Error(`unimplemented`);
   }
-  filter (filter) {
+  async filter (filter) {
     throw new Error(`unimplemented`);
   }
-  split (hash) {
+  async * split (hash) {
     throw new Error(`unimplemented`);
   }
 }

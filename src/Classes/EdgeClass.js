@@ -23,7 +23,7 @@ class EdgeClass extends GenericClass {
   async interpretAsEdges () {
     return this;
   }
-  connectToNodeClass ({ nodeClass, direction, nodeHash, edgeHash }) {
+  async connectToNodeClass ({ nodeClass, direction, nodeHash, edgeHash }) {
     if (direction === 'source') {
       if (this.sourceSelector) {
         delete this.mure.classes[this.sourceSelector].edgeSelectors[this.selector];
@@ -44,6 +44,7 @@ class EdgeClass extends GenericClass {
       }
     }
     nodeClass.edgeSelectors[this.selector] = { nodeHash, edgeHash };
+    await this.mure.saveClasses();
   }
   getStream (options) {
     throw new Error(`unimplemented`);
