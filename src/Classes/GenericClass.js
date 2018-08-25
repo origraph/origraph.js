@@ -5,19 +5,21 @@ class GenericClass extends Introspectable {
   constructor (options) {
     super();
     this.mure = options.mure;
+    this.classId = options.classId;
+    this.selector = options.selector;
+    this._customClassName = options.customName || null;
+    this.indexes = options.indexes || {};
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
-    this.selector = options.selector || `root.values()`;
-    this._customClassName = options.customName || null;
     this.tokenClassList = this.mure.parseSelector(options.selector);
-    this.indexes = options.indexes || {};
   }
   async toRawObject () {
     const result = {
       classType: this.constructor.name,
       selector: this.selector,
       customName: this._customClassName,
+      classId: this.classId,
       indexes: {}
     };
     await Promise.all(Object.entries(this.indexes).map(async ([funcName, index]) => {
@@ -58,16 +60,16 @@ class GenericClass extends Introspectable {
   async interpretAsNodes () {
     const options = await this.toRawObject();
     options.mure = this.mure;
-    this.mure.classes[this.selector] = new this.mure.CLASSES.NodeClass(options);
+    this.mure.classes[this.classId] = new this.mure.CLASSES.NodeClass(options);
     await this.mure.saveClasses();
-    return this.mure.classes[this.selector];
+    return this.mure.classes[this.classId];
   }
   async interpretAsEdges () {
     const options = await this.toRawObject();
     options.mure = this.mure;
-    this.mure.classes[this.selector] = new this.mure.CLASSES.EdgeClass(options);
+    this.mure.classes[this.classId] = new this.mure.CLASSES.EdgeClass(options);
     await this.mure.saveClasses();
-    return this.mure.classes[this.selector];
+    return this.mure.classes[this.classId];
   }
   async aggregate (hash, reduce) {
     throw new Error(`unimplemented`);

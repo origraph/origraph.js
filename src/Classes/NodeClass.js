@@ -4,26 +4,26 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
-    this.edgeSelectors = options.edgeSelectors || {};
-    Object.entries(this.edgeSelectors).forEach(([selector, { nodeHash, edgeHash }]) => {
+    this.edgeIds = options.edgeIds || {};
+    Object.entries(this.edgeIds).forEach(([classId, { nodeHash, edgeHash }]) => {
       if (typeof nodeHash === 'string') {
         nodeHash = new Function(nodeHash); // eslint-disable-line no-new-func
       }
       if (typeof edgeHash === 'string') {
         edgeHash = new Function(edgeHash); // eslint-disable-line no-new-func
       }
-      this.edgeSelectors[selector] = { nodeHash, edgeHash };
+      this.edgeIds[classId] = { nodeHash, edgeHash };
     });
   }
   async toRawObject () {
     // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
     // prevents `await super`; this is a workaround:
     const result = await GenericClass.prototype.toRawObject.call(this);
-    result.edgeSelectors = {};
-    Object.entries(this.edgeSelectors).forEach(([selector, { nodeHash, edgeHash }]) => {
+    result.edgeIds = {};
+    Object.entries(this.edgeIds).forEach(([classId, { nodeHash, edgeHash }]) => {
       nodeHash = nodeHash.toString();
       edgeHash = edgeHash.toString();
-      result.edgeSelectors[selector] = { nodeHash, edgeHash };
+      result.edgeIds[classId] = { nodeHash, edgeHash };
     });
     return result;
   }

@@ -8,6 +8,8 @@ import * as CLASSES from './Classes/Classes.js';
 import * as WRAPPERS from './Wrappers/Wrappers.js';
 import * as INDEXES from './Indexes/Indexes.js';
 
+let NEXT_CLASS_ID = 1;
+
 class Mure extends TriggerableMixin(class {}) {
   constructor (FileReader, localStorage) {
     super();
@@ -24,17 +26,6 @@ class Mure extends TriggerableMixin(class {}) {
       'tsv': 'tsv',
       'topojson': 'topojson',
       'treejson': 'treejson'
-    };
-
-    this.TRUTHY_STRINGS = {
-      'true': true,
-      'yes': true,
-      'y': true
-    };
-    this.FALSEY_STRINGS = {
-      'false': true,
-      'no': true,
-      'n': true
     };
 
     // Access to core classes via the main library helps avoid circular imports
@@ -97,7 +88,7 @@ class Mure extends TriggerableMixin(class {}) {
   loadClasses () {
     let classes = this.localStorage && this.localStorage.getItem('mure_classes');
     classes = classes ? JSON.parse(classes) : {};
-    Object.entries(classes).forEach(([ classSelector, rawClassObj ]) => {
+    Object.entries(classes).forEach(([ classId, rawClassObj ]) => {
       Object.entries(rawClassObj.indexes).forEach(([funcName, rawIndexObj]) => {
         rawClassObj.indexes[funcName] = new this.INDEXES.InMemoryIndex({
           entries: rawIndexObj, complete: true
@@ -106,7 +97,7 @@ class Mure extends TriggerableMixin(class {}) {
       const classType = rawClassObj.classType;
       delete rawClassObj.classType;
       rawClassObj.mure = this;
-      classes[classSelector] = new this.CLASSES[classType](rawClassObj);
+      classes[classId] = new this.CLASSES[classType](rawClassObj);
     });
     return classes;
   }
@@ -114,8 +105,8 @@ class Mure extends TriggerableMixin(class {}) {
     if (this.localStorage) {
       const rawClasses = {};
       await Promise.all(Object.entries(this.classes)
-        .map(async ([ classSelector, classObj ]) => {
-          rawClasses[classSelector] = await classObj.toRawObject();
+        .map(async ([ classId, classObj ]) => {
+          rawClasses[classId] = await classObj.toRawObject();
         }));
       this.localStorage.setItem('mure_classes', JSON.stringify(rawClasses));
     }
@@ -168,16 +159,15 @@ class Mure extends TriggerableMixin(class {}) {
     return new Stream(options);
   }
 
-  async newClass (options = { selector: `root.values()` }) {
-    if (this.classes[options.selector]) {
-      return this.classes[options.selector];
-    }
+  async newClass (options = { selector: `root` }) {
+    options.classId = `class${NEXT_CLASS_ID}`;
+    NEXT_CLASS_ID += 1;
     const ClassType = options.ClassType || this.CLASSES.GenericClass;
     delete options.ClassType;
     options.mure = this;
-    this.classes[options.selector] = new ClassType(options);
+    this.classes[options.classId] = new ClassType(options);
     await this.saveClasses();
-    return this.classes[options.selector];
+    return this.classes[options.classId];
   }
 
   async addFileAsStaticDataSource ({
