@@ -68,14 +68,17 @@ class GenericClass extends Introspectable {
   setNamedFunction (funcName, func) {
     this.namedFunctions[funcName] = func;
   }
+  populateStreamOptions (options = {}) {
+    options.mure = this.mure;
+    options.tokenClassList = this.tokenClassList;
+    options.namedFunctions = this.namedFunctions;
+    options.launchedFromClass = this;
+    options.indexes = this.indexes;
+    return options;
+  }
   getStream (options = {}) {
     if (options.reset || !this._stream) {
-      options.mure = this.mure;
-      options.tokenClassList = this.tokenClassList;
-      options.namedFunctions = this.namedFunctions;
-      options.launchedFromClass = this;
-      options.indexes = this.indexes;
-      this._stream = new Stream(options);
+      this._stream = new Stream(this.populateStreamOptions(options));
     }
     return this._stream;
   }

@@ -22,29 +22,48 @@ class EdgeClass extends GenericClass {
         return sourceClass.selector + `.join(target, ${sourceHash}, ${targetHash}, defaultFinish)`;
       }
     } else {
+      let result = this._selector;
       if (!sourceClass) {
         if (!targetClass) {
           // No connections yet; just yield the raw edge table
-          return this._selector;
+          return result;
         } else {
           // Partial edge-target connections
           const { edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId];
-          return this._selector + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
+          return result + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
         }
       } else if (!targetClass) {
         // Partial source-edge connections
         const { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
-        return sourceClass.selector + `.join(edge, ${nodeHashName}, ${edgeHashName}, defaultFinish)`;
+        return result + `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
       } else {
         // Full connections
-        let result = sourceClass.selector;
         let { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
-        result += `.join(edge, ${nodeHashName}, ${edgeHashName}, defaultFinish)`;
+        result += `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
         ({ edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId]);
-        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
+        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, 1)`;
         return result;
       }
     }
+  }
+  populateStreamOptions (options = {}) {
+    const sourceClass = this.mure.classes[this.sourceClassId];
+    const targetClass = this.mure.classes[this.targetClassId];
+    options.namedStreams = {};
+    if (!this._selector) {
+      // Use the options from the source stream instead of our class
+      options = sourceClass.populateStreamOptions(options);
+      options.namedStreams.target = targetClass.getStream();
+    } else {
+      options = super.populateStreamOptions(options);
+      if (sourceClass) {
+        options.namedStreams.source = sourceClass.getStream();
+      }
+      if (targetClass) {
+        options.namedStreams.target = targetClass.getStream();
+      }
+    }
+    return options;
   }
   async toRawObject () {
     // TODO: a babel bug (https://github.com/babel/babel/issues/3930)

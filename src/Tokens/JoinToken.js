@@ -1,9 +1,9 @@
 import BaseToken from './BaseToken.js';
 
 class JoinToken extends BaseToken {
-  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish' ]) {
+  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish', nthJoin = 0 ]) {
     super(stream);
-    for (const func of [ finish, thisHash, finish ]) {
+    for (const func of [ thisHash, finish ]) {
       if (!stream.namedFunctions[func]) {
         throw new SyntaxError(`Unknown named function: ${func}`);
       }
@@ -27,6 +27,7 @@ class JoinToken extends BaseToken {
     this.thisHash = thisHash;
     this.otherHash = otherHash;
     this.finish = finish;
+    this.nthJoin = nthJoin;
   }
   toString () {
     return `.join(${this.otherStream}, ${this.thisHash}, ${this.otherHash}, ${this.finish})`;
