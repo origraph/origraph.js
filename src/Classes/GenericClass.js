@@ -6,22 +6,38 @@ class GenericClass extends Introspectable {
     super();
     this.mure = options.mure;
     this.classId = options.classId;
-    this.selector = options.selector;
-    this._customClassName = options.customName || null;
-    this.indexes = options.indexes || {};
+    this._selector = options.selector;
+    this.customClassName = options.customClassName || null;
+    this.opsSinceCustomName = options.opsSinceCustomName || null;
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
+    this.indexes = options.indexes || {};
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
-    this.tokenClassList = this.mure.parseSelector(options.selector);
+    for (let [funcName, func] of Object.entries(this.namedFunctions)) {
+      if (typeof func === 'string') {
+        this.namedFunctions[funcName] = new Function(func); // eslint-disable-line no-new-func
+      }
+    }
+  }
+  get selector () {
+    return this._selector;
+  }
+  get tokenClassList () {
+    return this.mure.parseSelector(this.selector);
   }
   async toRawObject () {
     const result = {
       classType: this.constructor.name,
-      selector: this.selector,
-      customName: this._customClassName,
+      selector: this._selector,
+      customClassName: this.customClassName,
+      opsSinceCustomName: this.opsSinceCustomName,
       classId: this.classId,
-      indexes: {}
+      indexes: {},
+      namedFunctions: {}
     };
+    for (let [funcName, func] of Object.entries(this.namedFunctions)) {
+      result.namedFunctions[funcName] = func.toString();
+    }
     await Promise.all(Object.entries(this.indexes).map(async ([funcName, index]) => {
       if (index.complete) {
         result.indexes[funcName] = await index.toRawObject();
@@ -33,14 +49,24 @@ class GenericClass extends Introspectable {
     return new this.Wrapper(options);
   }
   set className (value) {
-    this._customClassName = value;
+    this.customClassName = value;
+    this.opsSinceCustomName = 0;
   }
   get className () {
-    if (this._customClassName) {
-      return this._customClassName;
+    if (this.opsSinceCustomName === null) {
+      return this.selector;
+    } else {
+      const tokenStrings = this.selector.match(/\.([^(]*)\(([^)]*)\)/g);
+      if (this.opsSinceCustomName > tokenStrings.length) {
+        return this.selector;
+      } else {
+        const sliceIndex = tokenStrings.length - this.opsSinceCustomName;
+        return `${this.customClassName}.${tokenStrings.slice(sliceIndex).join('.')}`;
+      }
     }
-    // const { lastToken, lastArgList } = this.tokenClassList[this.tokenClassList.length - 1];
-    return 'todo: auto class name';
+  }
+  setNamedFunction (funcName, func) {
+    this.namedFunctions[funcName] = func;
   }
   getStream (options = {}) {
     if (options.reset || !this._stream) {

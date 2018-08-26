@@ -4,27 +4,14 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
-    this.edgeIds = options.edgeIds || {};
-    Object.entries(this.edgeIds).forEach(([classId, { nodeHash, edgeHash }]) => {
-      if (typeof nodeHash === 'string') {
-        nodeHash = new Function(nodeHash); // eslint-disable-line no-new-func
-      }
-      if (typeof edgeHash === 'string') {
-        edgeHash = new Function(edgeHash); // eslint-disable-line no-new-func
-      }
-      this.edgeIds[classId] = { nodeHash, edgeHash };
-    });
+    this.edgeConnections = options.edgeConnections || {};
   }
   async toRawObject () {
     // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
     // prevents `await super`; this is a workaround:
     const result = await GenericClass.prototype.toRawObject.call(this);
-    result.edgeIds = {};
-    Object.entries(this.edgeIds).forEach(([classId, { nodeHash, edgeHash }]) => {
-      nodeHash = nodeHash.toString();
-      edgeHash = edgeHash.toString();
-      result.edgeIds[classId] = { nodeHash, edgeHash };
-    });
+    // TODO: need to deep copy edgeConnections?
+    result.edgeConnections = this.edgeConnections;
     return result;
   }
   async interpretAsNodes () {
@@ -33,7 +20,7 @@ class NodeClass extends GenericClass {
   async interpretAsEdges () {
     throw new Error(`unimplemented`);
   }
-  async connectToNodeClass ({ nodeClass, thisHash, otherHash }) {
+  async connectToNodeClass ({ nodeClass, thisHashName, otherHashName }) {
     throw new Error(`unimplemented`);
   }
   async connectToEdgeClass (options) {

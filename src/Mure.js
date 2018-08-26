@@ -59,10 +59,17 @@ class Mure extends TriggerableMixin(class {}) {
         }
       },
       defaultFinish: function * (thisWrappedItem, otherWrappedItem) {
-        yield [
-          thisWrappedItem.rawItem,
-          otherWrappedItem.rawItem
-        ];
+        if (thisWrappedItem.rawItem instanceof Array) {
+          // if relevant, merge the results of a series of joins into a single
+          // array
+          yield thisWrappedItem.rawItem.concat([ otherWrappedItem.rawItem ]);
+        } else {
+          // otherwise just yield the two results as an array
+          yield [
+            thisWrappedItem.rawItem,
+            otherWrappedItem.rawItem
+          ];
+        }
       },
       sha1: rawItem => sha1(JSON.stringify(rawItem)),
       noop: () => {}
@@ -113,15 +120,16 @@ class Mure extends TriggerableMixin(class {}) {
   }
 
   parseSelector (selectorString) {
-    if (!selectorString.startsWith('root')) {
-      throw new SyntaxError(`Selectors must start with 'root'`);
+    const startsWithRoot = selectorString.startsWith('root');
+    if (!(startsWithRoot || selectorString.startsWith('empty'))) {
+      throw new SyntaxError(`Selectors must start with 'root' or 'empty'`);
     }
     const tokenStrings = selectorString.match(/\.([^(]*)\(([^)]*)\)/g);
     if (!tokenStrings) {
       throw new SyntaxError(`Invalid selector string: ${selectorString}`);
     }
     const tokenClassList = [{
-      TokenClass: this.TOKENS.RootToken
+      TokenClass: startsWithRoot ? this.TOKENS.RootToken : this.TOKENS.EmptyToken
     }];
     tokenStrings.forEach(chunk => {
       const temp = chunk.match(/^.([^(]*)\(([^)]*)\)/);
