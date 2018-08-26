@@ -91,6 +91,7 @@ class Mure extends TriggerableMixin(class {}) {
     if (this.localStorage) {
       this.localStorage.setItem('mure_root', JSON.stringify(this.root));
     }
+    this.trigger('rootUpdate');
   }
   loadClasses () {
     let classes = this.localStorage && this.localStorage.getItem('mure_classes');
@@ -117,6 +118,7 @@ class Mure extends TriggerableMixin(class {}) {
         }));
       this.localStorage.setItem('mure_classes', JSON.stringify(rawClasses));
     }
+    this.trigger('classUpdate');
   }
 
   parseSelector (selectorString) {

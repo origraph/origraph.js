@@ -109,6 +109,9 @@ class GenericClass extends Introspectable {
   async * split (hash) {
     throw new Error(`unimplemented`);
   }
+  async delete () {
+    throw new Error(`unimplemented`);
+  }
 }
 Object.defineProperty(GenericClass, 'type', {
   get () {
