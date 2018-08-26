@@ -2,6 +2,9 @@ language: node_js
 node_js:
   - '10'
 notifications:
-    slack: mure-apps:9SXKuestEVdHAevzd5JQf2J1
+    slack:
+      rooms:
+        - mure-apps:9SXKuestEVdHAevzd5JQf2J1
+        - vdl-sci:oZOAsPzSebfD3cmkP87cqRmu
     email: false
 after_success: 'npm run coveralls'
