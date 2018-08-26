@@ -15,7 +15,7 @@ class GenericClass extends Introspectable {
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     for (let [funcName, func] of Object.entries(this.namedFunctions)) {
       if (typeof func === 'string') {
-        this.namedFunctions[funcName] = new Function(func); // eslint-disable-line no-new-func
+        this.namedFunctions[funcName] = new Function(`return ${func}`)(); // eslint-disable-line no-new-func
       }
     }
   }
