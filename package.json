@@ -1,6 +1,6 @@
 {
   "name": "mure",
-  "version": "0.4.8r2",
+  "version": "0.4.8r3",
   "description": "A library for flexible graph reshaping",
   "main": "dist/mure.cjs.js",
   "module": "dist/mure.esm.js",
