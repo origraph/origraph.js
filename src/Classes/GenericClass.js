@@ -57,9 +57,11 @@ class GenericClass extends Introspectable {
     return new this.Wrapper(options);
   }
   async setClassName (value) {
-    this.customClassName = value;
-    this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
-    await this.mure.saveClasses();
+    if (this.customClassName !== value) {
+      this.customClassName = value;
+      this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
+      await this.mure.saveClasses();
+    }
   }
   get hasCustomName () {
     return this.customClassName !== null &&
@@ -70,7 +72,7 @@ class GenericClass extends Introspectable {
     const tokenStrings = selector.match(/\.([^(]*)\(([^)]*)\)/g);
     let result = '';
     for (let i = tokenStrings.length - 1; i >= 0; i--) {
-      if (i <= this.customNameTokenIndex) {
+      if (this.customClassName !== null && i <= this.customNameTokenIndex) {
         return this.customClassName + result;
       }
       const temp = tokenStrings[i].match(/^.([^(]*)\(([^)]*)\)/);
