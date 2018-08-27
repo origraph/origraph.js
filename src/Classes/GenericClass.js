@@ -1,6 +1,14 @@
 import Introspectable from '../Common/Introspectable.js';
 import Stream from '../Stream.js';
 
+const ASTERISKS = {
+  'evaluate': '↬',
+  'join': '⨯',
+  'map': '↦',
+  'promote': '↑',
+  'value': '→'
+};
+
 class GenericClass extends Introspectable {
   constructor (options) {
     super();
@@ -8,7 +16,7 @@ class GenericClass extends Introspectable {
     this.classId = options.classId;
     this._selector = options.selector;
     this.customClassName = options.customClassName || null;
-    this.opsSinceCustomName = options.opsSinceCustomName || null;
+    this.customNameTokenIndex = options.customNameTokenIndex || null;
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
     this.indexes = options.indexes || {};
     this.namedFunctions = Object.assign({},
@@ -30,7 +38,7 @@ class GenericClass extends Introspectable {
       classType: this.constructor.name,
       selector: this._selector,
       customClassName: this.customClassName,
-      opsSinceCustomName: this.opsSinceCustomName,
+      customNameTokenIndex: this.customNameTokenIndex,
       classId: this.classId,
       indexes: {},
       namedFunctions: {}
@@ -48,22 +56,35 @@ class GenericClass extends Introspectable {
   wrap (options) {
     return new this.Wrapper(options);
   }
-  set className (value) {
+  async setClassName (value) {
     this.customClassName = value;
-    this.opsSinceCustomName = 0;
+    this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
+    await this.mure.saveClasses();
+  }
+  get hasCustomName () {
+    return this.customClassName !== null &&
+      this.customNameTokenIndex === this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
   }
   get className () {
-    if (this.opsSinceCustomName === null) {
-      return this.selector;
-    } else {
-      const tokenStrings = this.selector.match(/\.([^(]*)\(([^)]*)\)/g);
-      if (this.opsSinceCustomName > tokenStrings.length) {
-        return this.selector;
+    const selector = this.selector;
+    const tokenStrings = selector.match(/\.([^(]*)\(([^)]*)\)/g);
+    let result = '';
+    for (let i = tokenStrings.length - 1; i >= 0; i--) {
+      if (i <= this.customNameTokenIndex) {
+        return this.customClassName + result;
+      }
+      const temp = tokenStrings[i].match(/^.([^(]*)\(([^)]*)\)/);
+      if (temp[1] === 'keys' || temp[1] === 'values') {
+        if (temp[2] === '') {
+          result = '*' + result;
+        } else {
+          result = temp[2].replace(/'([^']*)'/, '$1') + result;
+        }
       } else {
-        const sliceIndex = tokenStrings.length - this.opsSinceCustomName;
-        return `${this.customClassName}.${tokenStrings.slice(sliceIndex).join('.')}`;
+        result = ASTERISKS[temp[1]] + result;
       }
     }
+    return (selector.startsWith('empty') ? '∅' : '') + result;
   }
   setNamedFunction (funcName, func) {
     this.namedFunctions[funcName] = func;
