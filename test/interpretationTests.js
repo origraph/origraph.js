@@ -47,24 +47,24 @@ describe('Interpretation Tests', () => {
     mure.classes[moviesId].setNamedFunction('id', function * (wrappedItem) {
       yield wrappedItem.rawItem.id;
     });
-    mure.classes[movieEdgesId].setNamedFunction('sourceId', function * (wrappedItem) {
-      yield wrappedItem.rawItem.sourceId;
+    mure.classes[movieEdgesId].setNamedFunction('sourceID', function * (wrappedItem) {
+      yield wrappedItem.rawItem.sourceID;
     });
-    mure.classes[movieEdgesId].setNamedFunction('targetId', function * (wrappedItem) {
-      yield wrappedItem.rawItem.targetId;
+    mure.classes[movieEdgesId].setNamedFunction('targetID', function * (wrappedItem) {
+      yield wrappedItem.rawItem.targetID;
     });
 
     await mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
       direction: 'source',
       nodeHashName: 'id',
-      edgeHashName: 'sourceId'
+      edgeHashName: 'sourceID'
     });
     await mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
       direction: 'target',
       nodeHashName: 'id',
-      edgeHashName: 'targetId'
+      edgeHashName: 'targetID'
     });
 
     // Test that the actors, movies, and edges are what we'd expect

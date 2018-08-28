@@ -30,11 +30,12 @@ class Stream {
       const localTokenList = this.tokenList.slice(0, index + 1);
       const potentialWrappers = Object.values(this.mure.classes)
         .filter(classObj => {
-          if (!classObj.tokenClassList.length !== localTokenList.length) {
+          const classTokenList = classObj.tokenClassList;
+          if (!classTokenList.length !== localTokenList.length) {
             return false;
           }
           return localTokenList.every((localToken, localIndex) => {
-            const tokenClassSpec = classObj.tokenClassList[localIndex];
+            const tokenClassSpec = classTokenList[localIndex];
             return localToken instanceof tokenClassSpec.TokenClass &&
               token.isSubsetOf(tokenClassSpec.argList);
           });

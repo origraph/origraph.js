@@ -44,7 +44,12 @@ class GenericClass extends Introspectable {
       namedFunctions: {}
     };
     for (let [funcName, func] of Object.entries(this.namedFunctions)) {
-      result.namedFunctions[funcName] = func.toString();
+      let stringifiedFunc = func.toString();
+      // Istanbul adds some code to functions for computing coverage, that gets
+      // included in the stringification process during testing. See:
+      // https://github.com/gotwarlost/istanbul/issues/310#issuecomment-274889022
+      stringifiedFunc = stringifiedFunc.replace(/cov_(.+?)\+\+[,;]?/g, '');
+      result.namedFunctions[funcName] = stringifiedFunc;
     }
     await Promise.all(Object.entries(this.indexes).map(async ([funcName, index]) => {
       if (index.complete) {
@@ -52,9 +57,6 @@ class GenericClass extends Introspectable {
       }
     }));
     return result;
-  }
-  wrap (options) {
-    return new this.Wrapper(options);
   }
   async setClassName (value) {
     if (this.customClassName !== value) {

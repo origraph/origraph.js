@@ -59,17 +59,10 @@ class Mure extends TriggerableMixin(class {}) {
         }
       },
       defaultFinish: function * (thisWrappedItem, otherWrappedItem) {
-        if (thisWrappedItem.rawItem instanceof Array) {
-          // if relevant, merge the results of a series of joins into a single
-          // array
-          yield thisWrappedItem.rawItem.concat([ otherWrappedItem.rawItem ]);
-        } else {
-          // otherwise just yield the two results as an array
-          yield [
-            thisWrappedItem.rawItem,
-            otherWrappedItem.rawItem
-          ];
-        }
+        yield {
+          left: thisWrappedItem.rawItem,
+          right: otherWrappedItem.rawItem
+        };
       },
       sha1: rawItem => sha1(JSON.stringify(rawItem)),
       noop: () => {}

@@ -27,7 +27,9 @@ class InMemoryIndex {
   async addValue (hash, value) {
     // TODO: add some kind of warning if this is getting big?
     this.entries[hash] = await this.getValueList(hash);
-    this.entries[hash].push(value);
+    if (this.entries[hash].indexOf(value) === -1) {
+      this.entries[hash].push(value);
+    }
   }
 }
 export default InMemoryIndex;

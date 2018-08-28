@@ -19,7 +19,7 @@ class EdgeClass extends GenericClass {
         // No edge table (simple join between two nodes)
         const sourceHash = sourceClass.edgeConnections[this.classId].nodeHashName;
         const targetHash = targetClass.edgeConnections[this.classId].nodeHashName;
-        return sourceClass.selector + `.join(target, ${sourceHash}, ${targetHash}, defaultFinish)`;
+        return sourceClass.selector + `.join(target, ${sourceHash}, ${targetHash}, defaultFinish, sourceTarget)`;
       }
     } else {
       let result = this._selector;
@@ -30,18 +30,18 @@ class EdgeClass extends GenericClass {
         } else {
           // Partial edge-target connections
           const { edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId];
-          return result + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
+          return result + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, edgeTarget)`;
         }
       } else if (!targetClass) {
         // Partial source-edge connections
         const { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
-        return result + `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
+        return result + `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish, sourceEdge)`;
       } else {
         // Full connections
         let { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
         result += `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
         ({ edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId]);
-        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, 1)`;
+        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, full)`;
         return result;
       }
     }

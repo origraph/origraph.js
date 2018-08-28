@@ -1,7 +1,7 @@
 import BaseToken from './BaseToken.js';
 
 class JoinToken extends BaseToken {
-  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish', nthJoin = 0 ]) {
+  constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish', edgeRole = 'none' ]) {
     super(stream);
     for (const func of [ thisHash, finish ]) {
       if (!stream.namedFunctions[func]) {
@@ -27,7 +27,8 @@ class JoinToken extends BaseToken {
     this.thisHash = thisHash;
     this.otherHash = otherHash;
     this.finish = finish;
-    this.nthJoin = nthJoin;
+    this.edgeRole = edgeRole;
+    this.hashThisGrandparent = edgeRole === 'full';
   }
   toString () {
     return `.join(${this.otherStream}, ${this.thisHash}, ${this.otherHash}, ${this.finish})`;
@@ -92,9 +93,12 @@ class JoinToken extends BaseToken {
         // Need to iterate our items, and take advantage of the other complete
         // index
         for await (const thisWrappedItem of this.iterateParent(ancestorTokens)) {
-          for await (const hash of thisHashFunction(thisWrappedItem)) {
+          // Odd corner case for edges; sometimes we want to hash the grandparent instead of the result of
+          // an intermediate join:
+          const thisHashItem = this.hashThisGrandparent ? thisWrappedItem.wrappedParent : thisWrappedItem;
+          for await (const hash of thisHashFunction(thisHashItem)) {
             // add thisWrappedItem to thisIndex
-            await thisIndex.addValue(hash, thisWrappedItem);
+            await thisIndex.addValue(hash, thisHashItem);
             const otherList = await otherIndex.getValueList(hash);
             for await (const otherWrappedItem of otherList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
@@ -110,7 +114,7 @@ class JoinToken extends BaseToken {
       } else {
         // Neither stream is fully indexed; for more distributed sampling, grab
         // one item from each stream at a time, and use the partial indexes
-        const thisIterator = this.iterateParent(ancestorTokens);
+        const thisIterator = this.iterateParent(ancestorTokens, this.thisIndirectKey);
         let thisIsDone = false;
         const otherIterator = otherStream.iterate();
         let otherIsDone = false;
@@ -122,9 +126,12 @@ class JoinToken extends BaseToken {
             thisIsDone = true;
           } else {
             const thisWrappedItem = await temp.value;
-            for await (const hash of thisHashFunction(thisWrappedItem)) {
+            // Odd corner case for edges; sometimes we want to hash the grandparent instead of the result of
+            // an intermediate join:
+            const thisHashItem = this.hashThisGrandparent ? thisWrappedItem.wrappedParent : thisWrappedItem;
+            for await (const hash of thisHashFunction(thisHashItem)) {
               // add thisWrappedItem to thisIndex
-              thisIndex.addValue(hash, thisWrappedItem);
+              thisIndex.addValue(hash, thisHashItem);
               const otherList = await otherIndex.getValueList(hash);
               for await (const otherWrappedItem of otherList) {
                 for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
