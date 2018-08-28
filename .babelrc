@@ -1,11 +1,17 @@
 {
   "presets": [
-    [ "env", {
-      "modules": false,
-      "targets": {
-        "browsers": ["last 2 Chrome versions"]
+    [
+      "@babel/preset-env",
+      {
+        "modules": false,
+        "targets": {
+          "browsers": ["last 2 Chrome versions"]
+        }
       }
-    } ],
-    [ "stage-3" ]
+    ]
+  ],
+  "plugins": [
+    "@babel/plugin-external-helpers",
+    "@babel/plugin-syntax-async-generators"
   ]
 }

@@ -18,8 +18,8 @@ const commonPlugins = [
   string({ include: '**/*.text.*' }), // allow us to import files as strings
   json(), // import json files as modules
   babel({
-    exclude: ['node_modules/**'],
-    plugins: ['external-helpers']
+    exclude: 'node_modules/**',
+    externalHelpers: true
   })
 ];
 
