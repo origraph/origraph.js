@@ -25,7 +25,7 @@ class BaseToken extends Introspectable {
       yieldedSomething = true;
       yield wrappedParent;
     }
-    if (!yieldedSomething && this.mure.debug) {
+    if (!yieldedSomething && this.stream.mure.debug) {
       throw new TypeError(`Token yielded no results: ${parentToken}`);
     }
   }
