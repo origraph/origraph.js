@@ -90,7 +90,7 @@ class GenericClass extends Introspectable {
     }
     return (selector.startsWith('empty') ? '∅' : '') + result;
   }
-  setNamedFunction (funcName, func) {
+  addHashFunction (funcName, func) {
     this.namedFunctions[funcName] = func;
   }
   populateStreamOptions (options = {}) {

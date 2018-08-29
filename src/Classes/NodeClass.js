@@ -20,8 +20,18 @@ class NodeClass extends GenericClass {
   async interpretAsEdges () {
     throw new Error(`unimplemented`);
   }
-  async connectToNodeClass ({ nodeClass, thisHashName, otherHashName }) {
-    throw new Error(`unimplemented`);
+  async connectToNodeClass ({ otherNodeClass, directed, thisHashName, otherHashName }) {
+    const edgeClass = await this.mure.newClass({
+      selector: null,
+      ClassType: this.mure.CLASSES.EdgeClass,
+      sourceClassId: this.classId,
+      targetClassId: otherNodeClass.classId,
+      directed
+    });
+    this.edgeConnections[edgeClass.classId] = { nodeHashName: thisHashName };
+    otherNodeClass.edgeConnections[edgeClass.classId] = { nodeHashName: otherHashName };
+    delete this._stream;
+    await this.mure.saveClasses();
   }
   async connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;

@@ -41,16 +41,16 @@ describe('Interpretation Tests', () => {
     await mure.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    mure.classes[peopleId].setNamedFunction('id', function * (wrappedItem) {
+    mure.classes[peopleId].addHashFunction('id', function * (wrappedItem) {
       yield wrappedItem.rawItem.id;
     });
-    mure.classes[moviesId].setNamedFunction('id', function * (wrappedItem) {
+    mure.classes[moviesId].addHashFunction('id', function * (wrappedItem) {
       yield wrappedItem.rawItem.id;
     });
-    mure.classes[movieEdgesId].setNamedFunction('sourceID', function * (wrappedItem) {
+    mure.classes[movieEdgesId].addHashFunction('sourceID', function * (wrappedItem) {
       yield wrappedItem.rawItem.sourceID;
     });
-    mure.classes[movieEdgesId].setNamedFunction('targetID', function * (wrappedItem) {
+    mure.classes[movieEdgesId].addHashFunction('targetID', function * (wrappedItem) {
       yield wrappedItem.rawItem.targetID;
     });
 
