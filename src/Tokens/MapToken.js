@@ -17,9 +17,8 @@ class MapToken extends BaseToken {
   async * iterate (ancestorTokens) {
     for await (const wrappedParent of this.iterateParent(ancestorTokens)) {
       for await (const mappedRawItem of this.stream.namedFunctions[this.generator](wrappedParent)) {
-        yield this.stream.wrap({
+        yield this.wrap({
           wrappedParent,
-          token: this,
           rawItem: mappedRawItem
         });
       }

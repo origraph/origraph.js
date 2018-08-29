@@ -29,6 +29,14 @@ class BaseToken extends Introspectable {
       throw new TypeError(`Token yielded no results: ${parentToken}`);
     }
   }
+  async wrap ({ wrappedParent, rawItem }) {
+    // IndexedToken overrides with an async function
+    return this.stream.wrap({
+      wrappedParent,
+      token: this,
+      rawItem
+    });
+  }
 }
 Object.defineProperty(BaseToken, 'type', {
   get () {

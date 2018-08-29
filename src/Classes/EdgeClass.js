@@ -65,22 +65,20 @@ class EdgeClass extends GenericClass {
     }
     return options;
   }
-  async toRawObject () {
-    // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
-    // prevents `await super`; this is a workaround:
-    const result = await GenericClass.prototype.toRawObject.call(this);
+  toRawObject () {
+    const result = super.toRawObject();
     result.sourceClassId = this.sourceClassId;
     result.targetClassId = this.targetClassId;
     result.directed = this.directed;
     return result;
   }
-  async interpretAsNodes () {
+  interpretAsNodes () {
     throw new Error(`unimplemented`);
   }
-  async interpretAsEdges () {
+  interpretAsEdges () {
     return this;
   }
-  async connectToNodeClass ({ nodeClass, direction, nodeHashName, edgeHashName }) {
+  connectToNodeClass ({ nodeClass, direction, nodeHashName, edgeHashName }) {
     if (direction === 'source') {
       if (this.sourceClassId) {
         delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
@@ -102,9 +100,9 @@ class EdgeClass extends GenericClass {
     }
     nodeClass.edgeConnections[this.classId] = { nodeHashName, edgeHashName };
     delete this._stream;
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
   }
-  async toggleNodeDirection (sourceClassId) {
+  toggleNodeDirection (sourceClassId) {
     if (!sourceClassId) {
       this.directed = false;
     } else {
@@ -118,16 +116,16 @@ class EdgeClass extends GenericClass {
       }
     }
     delete this._stream;
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
   }
-  async delete () {
+  delete () {
     if (this.sourceClassId) {
       delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
     }
     if (this.targetClassId) {
       delete this.mure.classes[this.targetClassId].edgeConnections[this.classId];
     }
-    await super.delete();
+    super.delete();
   }
 }
 

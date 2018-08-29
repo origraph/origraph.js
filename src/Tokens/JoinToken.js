@@ -1,6 +1,6 @@
-import BaseToken from './BaseToken.js';
+import IndexedToken from './IndexedToken.js';
 
-class JoinToken extends BaseToken {
+class JoinToken extends IndexedToken {
   constructor (stream, [ otherStream, thisHash = 'key', otherHash = 'key', finish = 'defaultFinish', edgeRole = 'none' ]) {
     super(stream);
     for (const func of [ thisHash, finish ]) {
@@ -45,11 +45,8 @@ class JoinToken extends BaseToken {
     const otherHashFunction = otherStream.namedFunctions[this.otherHash];
     const finishFunction = this.stream.namedFunctions[this.finish];
 
-    // const thisIterator = this.iterateParent(ancestorTokens);
-    // const otherIterator = otherStream.iterate();
-
-    const thisIndex = this.stream.getIndex(this.thisHash);
-    const otherIndex = otherStream.getIndex(this.otherHash);
+    const thisIndex = this.stream.getIndex(this.thisHash, this);
+    const otherIndex = otherStream.getIndex(this.otherHash, this);
 
     if (thisIndex.complete) {
       if (otherIndex.complete) {
@@ -59,9 +56,8 @@ class JoinToken extends BaseToken {
           for await (const otherWrappedItem of otherList) {
             for await (const thisWrappedItem of valueList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                yield this.stream.wrap({
+                yield this.wrap({
                   wrappedParent: thisWrappedItem,
-                  token: this,
                   rawItem
                 });
               }
@@ -78,9 +74,8 @@ class JoinToken extends BaseToken {
             const thisList = await thisIndex.getValueList(hash);
             for await (const thisWrappedItem of thisList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                yield this.stream.wrap({
+                yield this.wrap({
                   wrappedParent: thisWrappedItem,
-                  token: this,
                   rawItem
                 });
               }
@@ -102,9 +97,8 @@ class JoinToken extends BaseToken {
             const otherList = await otherIndex.getValueList(hash);
             for await (const otherWrappedItem of otherList) {
               for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                yield this.stream.wrap({
+                yield this.wrap({
                   wrappedParent: thisWrappedItem,
-                  token: this,
                   rawItem
                 });
               }
@@ -135,9 +129,8 @@ class JoinToken extends BaseToken {
               const otherList = await otherIndex.getValueList(hash);
               for await (const otherWrappedItem of otherList) {
                 for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                  yield this.stream.wrap({
+                  yield this.wrap({
                     wrappedParent: thisWrappedItem,
-                    token: this,
                     rawItem
                   });
                 }
@@ -157,9 +150,8 @@ class JoinToken extends BaseToken {
               const thisList = await thisIndex.getValueList(hash);
               for await (const thisWrappedItem of thisList) {
                 for await (const rawItem of finishFunction(thisWrappedItem, otherWrappedItem)) {
-                  yield this.stream.wrap({
+                  yield this.wrap({
                     wrappedParent: thisWrappedItem,
-                    token: this,
                     rawItem
                   });
                 }

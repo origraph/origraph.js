@@ -1,6 +1,6 @@
-import BaseToken from './BaseToken.js';
+import IndexedToken from './IndexedToken.js';
 
-class PromoteToken extends BaseToken {
+class PromoteToken extends IndexedToken {
   constructor (stream, [ map = 'identity', hash = 'sha1', reduceInstances = 'noop' ]) {
     super(stream);
     for (const func of [ map, hash, reduceInstances ]) {
@@ -25,7 +25,7 @@ class PromoteToken extends BaseToken {
       const mapFunction = this.stream.namedFunctions[this.map];
       const hashFunction = this.stream.namedFunctions[this.hash];
       const reduceInstancesFunction = this.stream.namedFunctions[this.reduceInstances];
-      const hashIndex = this.stream.getIndex(this.hash);
+      const hashIndex = this.stream.getIndex(this.hash, this);
       for await (const mappedRawItem of mapFunction(wrappedParent)) {
         const hash = hashFunction(mappedRawItem);
         let originalWrappedItem = (await hashIndex.getValueList(hash))[0];
@@ -37,9 +37,8 @@ class PromoteToken extends BaseToken {
         } else {
           const hashes = {};
           hashes[this.hash] = hash;
-          yield this.stream.wrap({
+          yield this.wrap({
             wrappedParent,
-            token: this,
             rawItem: mappedRawItem,
             hashes
           });

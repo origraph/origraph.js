@@ -80,7 +80,7 @@ class Mure extends TriggerableMixin(class {}) {
     root = root ? JSON.parse(root) : {};
     return root;
   }
-  async saveRoot () {
+  saveRoot () {
     if (this.localStorage) {
       this.localStorage.setItem('mure_root', JSON.stringify(this.root));
     }
@@ -102,13 +102,12 @@ class Mure extends TriggerableMixin(class {}) {
     });
     return classes;
   }
-  async saveClasses () {
+  saveClasses () {
     if (this.localStorage) {
       const rawClasses = {};
-      await Promise.all(Object.entries(this.classes)
-        .map(async ([ classId, classObj ]) => {
-          rawClasses[classId] = await classObj.toRawObject();
-        }));
+      for (const [ classId, classObj ] of Object.entries(this.classes)) {
+        rawClasses[classId] = classObj.toRawObject();
+      }
       this.localStorage.setItem('mure_classes', JSON.stringify(rawClasses));
     }
     this.trigger('classUpdate');
@@ -162,14 +161,14 @@ class Mure extends TriggerableMixin(class {}) {
     return new Stream(options);
   }
 
-  async newClass (options = { selector: `root` }) {
+  newClass (options = { selector: `root` }) {
     options.classId = `class${NEXT_CLASS_ID}`;
     NEXT_CLASS_ID += 1;
     const ClassType = options.ClassType || this.CLASSES.GenericClass;
     delete options.ClassType;
     options.mure = this;
     this.classes[options.classId] = new ClassType(options);
-    await this.saveClasses();
+    this.saveClasses();
     return this.classes[options.classId];
   }
 
@@ -202,7 +201,7 @@ class Mure extends TriggerableMixin(class {}) {
       text
     });
   }
-  async addStringAsStaticDataSource ({
+  addStringAsStaticDataSource ({
     key,
     extension = 'txt',
     text
@@ -222,16 +221,16 @@ class Mure extends TriggerableMixin(class {}) {
     }
     return this.addStaticDataSource(key, obj);
   }
-  async addStaticDataSource (key, obj) {
+  addStaticDataSource (key, obj) {
     this.root[key] = obj;
-    const temp = await Promise.all([this.saveRoot(), this.newClass({
+    this.saveRoot();
+    return this.newClass({
       selector: `root.values('${key}').values()`
-    })]);
-    return temp[1];
+    });
   }
-  async removeDataSource (key) {
+  removeDataSource (key) {
     delete this.root[key];
-    await this.saveRoot();
+    this.saveRoot();
   }
 }
 

@@ -13,9 +13,8 @@ class ValueToken extends BaseToken {
           continue;
         }
       }
-      yield this.stream.wrap({
+      yield this.wrap({
         wrappedParent,
-        token: this,
         rawItem: obj[key]
       });
     }

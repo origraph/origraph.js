@@ -150,9 +150,8 @@ class KeysToken extends BaseToken {
       }
       if (this.matchAll) {
         for (let key in wrappedParent.rawItem) {
-          yield this.stream.wrap({
+          yield this.wrap({
             wrappedParent,
-            token: this,
             rawItem: key
           });
         }
@@ -162,9 +161,8 @@ class KeysToken extends BaseToken {
           high = Math.min(wrappedParent.rawItem.length - 1, high);
           for (let i = low; i <= high; i++) {
             if (wrappedParent.rawItem[i] !== undefined) {
-              yield this.stream.wrap({
+              yield this.wrap({
                 wrappedParent,
-                token: this,
                 rawItem: i
               });
             }
@@ -172,9 +170,8 @@ class KeysToken extends BaseToken {
         }
         for (let key in this.keys || {}) {
           if (wrappedParent.rawItem.hasOwnProperty(key)) {
-            yield this.stream.wrap({
+            yield this.wrap({
               wrappedParent,
-              token: this,
               rawItem: key
             });
           }

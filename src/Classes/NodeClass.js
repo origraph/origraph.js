@@ -6,22 +6,20 @@ class NodeClass extends GenericClass {
     this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
     this.edgeConnections = options.edgeConnections || {};
   }
-  async toRawObject () {
-    // TODO: a babel bug (https://github.com/babel/babel/issues/3930)
-    // prevents `await super`; this is a workaround:
-    const result = await GenericClass.prototype.toRawObject.call(this);
+  toRawObject () {
+    const result = super.toRawObject();
     // TODO: need to deep copy edgeConnections?
     result.edgeConnections = this.edgeConnections;
     return result;
   }
-  async interpretAsNodes () {
+  interpretAsNodes () {
     return this;
   }
-  async interpretAsEdges () {
+  interpretAsEdges () {
     throw new Error(`unimplemented`);
   }
-  async connectToNodeClass ({ otherNodeClass, directed, thisHashName, otherHashName }) {
-    const edgeClass = await this.mure.newClass({
+  connectToNodeClass ({ otherNodeClass, directed, thisHashName, otherHashName }) {
+    const edgeClass = this.mure.newClass({
       selector: null,
       ClassType: this.mure.CLASSES.EdgeClass,
       sourceClassId: this.classId,
@@ -31,15 +29,15 @@ class NodeClass extends GenericClass {
     this.edgeConnections[edgeClass.classId] = { nodeHashName: thisHashName };
     otherNodeClass.edgeConnections[edgeClass.classId] = { nodeHashName: otherHashName };
     delete this._stream;
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
   }
-  async connectToEdgeClass (options) {
+  connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;
     delete options.edgeClass;
     options.nodeClass = this;
     edgeClass.connectToNodeClass(options);
   }
-  async delete () {
+  delete () {
     for (const edgeClassId of Object.keys(this.edgeConnections)) {
       const edgeClass = this.mure.classes[edgeClassId];
       if (edgeClass.sourceClassId === this.classId) {
@@ -49,7 +47,7 @@ class NodeClass extends GenericClass {
         edgeClass.targetClassId = null;
       }
     }
-    await super.delete();
+    super.delete();
   }
 }
 

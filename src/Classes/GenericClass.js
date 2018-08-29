@@ -18,7 +18,6 @@ class GenericClass extends Introspectable {
     this.customClassName = options.customClassName || null;
     this.customNameTokenIndex = options.customNameTokenIndex || null;
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
-    this.indexes = options.indexes || {};
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     for (let [funcName, func] of Object.entries(this.namedFunctions)) {
@@ -33,14 +32,13 @@ class GenericClass extends Introspectable {
   get tokenClassList () {
     return this.mure.parseSelector(this.selector);
   }
-  async toRawObject () {
+  toRawObject () {
     const result = {
       classType: this.constructor.name,
       selector: this._selector,
       customClassName: this.customClassName,
       customNameTokenIndex: this.customNameTokenIndex,
       classId: this.classId,
-      indexes: {},
       namedFunctions: {}
     };
     for (let [funcName, func] of Object.entries(this.namedFunctions)) {
@@ -51,18 +49,13 @@ class GenericClass extends Introspectable {
       stringifiedFunc = stringifiedFunc.replace(/cov_(.+?)\+\+[,;]?/g, '');
       result.namedFunctions[funcName] = stringifiedFunc;
     }
-    await Promise.all(Object.entries(this.indexes).map(async ([funcName, index]) => {
-      if (index.complete) {
-        result.indexes[funcName] = await index.toRawObject();
-      }
-    }));
     return result;
   }
-  async setClassName (value) {
+  setClassName (value) {
     if (this.customClassName !== value) {
       this.customClassName = value;
       this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
-      await this.mure.saveClasses();
+      this.mure.saveClasses();
     }
   }
   get hasCustomName () {
@@ -98,7 +91,6 @@ class GenericClass extends Introspectable {
     options.tokenClassList = this.tokenClassList;
     options.namedFunctions = this.namedFunctions;
     options.launchedFromClass = this;
-    options.indexes = this.indexes;
     return options;
   }
   getStream (options = {}) {
@@ -111,35 +103,35 @@ class GenericClass extends Introspectable {
     if (tokenList.length !== this.tokenList.length) { return false; }
     return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
   }
-  async interpretAsNodes () {
-    const options = await this.toRawObject();
+  interpretAsNodes () {
+    const options = this.toRawObject();
     options.mure = this.mure;
     this.mure.classes[this.classId] = new this.mure.CLASSES.NodeClass(options);
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
     return this.mure.classes[this.classId];
   }
-  async interpretAsEdges () {
-    const options = await this.toRawObject();
+  interpretAsEdges () {
+    const options = this.toRawObject();
     options.mure = this.mure;
     this.mure.classes[this.classId] = new this.mure.CLASSES.EdgeClass(options);
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
     return this.mure.classes[this.classId];
   }
-  async aggregate (hash, reduce) {
+  aggregate (hash, reduce) {
     throw new Error(`unimplemented`);
   }
-  async expand (map) {
+  expand (map) {
     throw new Error(`unimplemented`);
   }
-  async filter (filter) {
+  filter (filter) {
     throw new Error(`unimplemented`);
   }
-  async split (hash) {
+  split (hash) {
     throw new Error(`unimplemented`);
   }
-  async delete () {
+  delete () {
     delete this.mure.classes[this.classId];
-    await this.mure.saveClasses();
+    this.mure.saveClasses();
   }
 }
 Object.defineProperty(GenericClass, 'type', {
