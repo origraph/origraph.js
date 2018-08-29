@@ -94,10 +94,7 @@ class GenericClass extends Introspectable {
     return options;
   }
   getStream (options = {}) {
-    if (options.reset || !this._stream) {
-      this._stream = new Stream(this.populateStreamOptions(options));
-    }
-    return this._stream;
+    return new Stream(this.populateStreamOptions(options));
   }
   isSuperSetOfTokenList (tokenList) {
     if (tokenList.length !== this.tokenList.length) { return false; }

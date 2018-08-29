@@ -99,7 +99,6 @@ class EdgeClass extends GenericClass {
       }
     }
     nodeClass.edgeConnections[this.classId] = { nodeHashName, edgeHashName };
-    delete this._stream;
     this.mure.saveClasses();
   }
   toggleNodeDirection (sourceClassId) {
@@ -115,7 +114,6 @@ class EdgeClass extends GenericClass {
         this.targetClassId = sourceClassId;
       }
     }
-    delete this._stream;
     this.mure.saveClasses();
   }
   delete () {

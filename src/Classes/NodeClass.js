@@ -28,7 +28,6 @@ class NodeClass extends GenericClass {
     });
     this.edgeConnections[edgeClass.classId] = { nodeHashName: thisHashName };
     otherNodeClass.edgeConnections[edgeClass.classId] = { nodeHashName: otherHashName };
-    delete this._stream;
     this.mure.saveClasses();
   }
   connectToEdgeClass (options) {
