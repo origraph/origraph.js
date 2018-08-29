@@ -134,7 +134,7 @@ class GenericClass extends Introspectable {
   async filter (filter) {
     throw new Error(`unimplemented`);
   }
-  async * split (hash) {
+  async split (hash) {
     throw new Error(`unimplemented`);
   }
   async delete () {
