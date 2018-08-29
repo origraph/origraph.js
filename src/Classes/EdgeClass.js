@@ -104,6 +104,22 @@ class EdgeClass extends GenericClass {
     delete this._stream;
     await this.mure.saveClasses();
   }
+  async toggleNodeDirection (sourceClassId) {
+    if (!sourceClassId) {
+      this.directed = false;
+    } else {
+      this.directed = true;
+      if (sourceClassId !== this.sourceClassId) {
+        if (sourceClassId !== this.targetClassId) {
+          throw new Error(`Can't swap to unconnected class id: ${sourceClassId}`);
+        }
+        this.sourceClassId = this.targetClassId;
+        this.targetClassId = sourceClassId;
+      }
+    }
+    delete this._stream;
+    await this.mure.saveClasses();
+  }
 }
 
 export default EdgeClass;
