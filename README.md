@@ -15,7 +15,7 @@ Installation
 For basic use in the browser:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/mure@0.4.8r3/dist/mure.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mure@0.4.9/dist/mure.umd.min.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:
