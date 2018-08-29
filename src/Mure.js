@@ -90,11 +90,6 @@ class Mure extends TriggerableMixin(class {}) {
     let classes = this.localStorage && this.localStorage.getItem('mure_classes');
     classes = classes ? JSON.parse(classes) : {};
     Object.entries(classes).forEach(([ classId, rawClassObj ]) => {
-      Object.entries(rawClassObj.indexes).forEach(([funcName, rawIndexObj]) => {
-        rawClassObj.indexes[funcName] = new this.INDEXES.InMemoryIndex({
-          entries: rawIndexObj, complete: true
-        });
-      });
       const classType = rawClassObj.classType;
       delete rawClassObj.classType;
       rawClassObj.mure = this;

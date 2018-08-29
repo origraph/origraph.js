@@ -24,9 +24,8 @@ class EdgeWrapper extends GenericWrapper {
         edge: this.rawItem.left.left,
         target: this.rawItem.right
       };
-    } else {
-      throw new Error(`Unknown edgeRole: ${token.edgeRole}`);
     }
+    // if there is no edgeRole, leave the rawItem as-is
   }
 }
 
