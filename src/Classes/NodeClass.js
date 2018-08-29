@@ -39,6 +39,18 @@ class NodeClass extends GenericClass {
     options.nodeClass = this;
     edgeClass.connectToNodeClass(options);
   }
+  async delete () {
+    for (const edgeClassId of Object.keys(this.edgeConnections)) {
+      const edgeClass = this.mure.classes[edgeClassId];
+      if (edgeClass.sourceClassId === this.classId) {
+        edgeClass.sourceClassId = null;
+      }
+      if (edgeClass.targetClassId === this.classId) {
+        edgeClass.targetClassId = null;
+      }
+    }
+    await super.delete();
+  }
 }
 
 export default NodeClass;

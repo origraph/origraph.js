@@ -120,6 +120,15 @@ class EdgeClass extends GenericClass {
     delete this._stream;
     await this.mure.saveClasses();
   }
+  async delete () {
+    if (this.sourceClassId) {
+      delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
+    }
+    if (this.targetClassId) {
+      delete this.mure.classes[this.targetClassId].edgeConnections[this.classId];
+    }
+    await super.delete();
+  }
 }
 
 export default EdgeClass;

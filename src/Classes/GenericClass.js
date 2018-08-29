@@ -138,7 +138,8 @@ class GenericClass extends Introspectable {
     throw new Error(`unimplemented`);
   }
   async delete () {
-    throw new Error(`unimplemented`);
+    delete this.mure.classes[this.classId];
+    await this.mure.saveClasses();
   }
 }
 Object.defineProperty(GenericClass, 'type', {
