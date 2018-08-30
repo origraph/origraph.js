@@ -1,3 +1,4 @@
+import Chain from './Chain.js';
 import GenericClass from './GenericClass.js';
 
 class EdgeClass extends GenericClass {
@@ -5,10 +6,24 @@ class EdgeClass extends GenericClass {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.EdgeWrapper;
     this.sourceClassId = options.sourceClassId || null;
+    this.sourceChain = new Chain(options.sourceChain);
     this.targetClassId = options.targetClassId || null;
+    this.targetChain = new Chain(options.targetChain);
     this.directed = options.directed || false;
   }
+  toRawObject () {
+    const result = super.toRawObject();
+    result.sourceClassId = this.sourceClassId;
+    result.sourceChain = this.sourceChain.toRawObject;
+    result.targetClassId = this.targetClassId;
+    result.targetChain = this.targetChain.toRawObject;
+    result.directed = this.directed;
+    return result;
+  }
   get selector () {
+    // TODO!
+    return this._selector;
+    /*
     const sourceClass = this.mure.classes[this.sourceClassId];
     const targetClass = this.mure.classes[this.targetClassId];
 
@@ -45,6 +60,7 @@ class EdgeClass extends GenericClass {
         return result;
       }
     }
+    */
   }
   populateStreamOptions (options = {}) {
     const sourceClass = this.mure.classes[this.sourceClassId];
@@ -65,15 +81,44 @@ class EdgeClass extends GenericClass {
     }
     return options;
   }
-  toRawObject () {
-    const result = super.toRawObject();
-    result.sourceClassId = this.sourceClassId;
-    result.targetClassId = this.targetClassId;
-    result.directed = this.directed;
-    return result;
-  }
   interpretAsNodes () {
-    throw new Error(`unimplemented`);
+    const options = super.toRawObject();
+    options.ClassType = this.mure.CLASSES.NodeClass;
+    const newNodeClass = this.mure.createClass(options);
+
+    if (this.sourceClassId) {
+      const sourceNodeClass = this.mure.classes[this.sourceClassId];
+      let [ targetChain, sourceChain ] = this.sourceChain.split();
+      const newSourceEdgeClass = this.mure.createClass({
+        ClassType: this.mure.CLASSES.EdgeClass,
+        sourceClassId: sourceNodeClass.classId,
+        sourceChain: sourceChain.toRawObject(),
+        targetClassId: newNodeClass.classId,
+        targetChain: targetChain.toRawObject(),
+        directed: this.directed
+      });
+      delete sourceNodeClass.edgeConnections[newNodeClass.classId];
+      sourceNodeClass.edgeConnections[newSourceEdgeClass.classId] = true;
+      newNodeClass.edgeConnections[newSourceEdgeClass.classId] = true;
+    }
+
+    if (this.targetClassId) {
+      const targetNodeClass = this.mure.classes[this.targetClassId];
+      let [ sourceChain, targetChain ] = this.targetChain.split();
+      const newTargetEdgeClass = this.mure.createClass({
+        ClassType: this.mure.CLASSES.EdgeClass,
+        sourceClassId: targetNodeClass.classId,
+        sourceChain: sourceChain.toRawObject(),
+        targetClassId: newNodeClass.classId,
+        targetChain: targetChain.toRawObject(),
+        directed: this.directed
+      });
+      delete targetNodeClass.edgeConnections[newNodeClass.classId];
+      targetNodeClass.edgeConnections[newTargetEdgeClass.classId] = true;
+      newNodeClass.edgeConnections[newTargetEdgeClass.classId] = true;
+    }
+
+    this.mure.saveClasses();
   }
   interpretAsEdges () {
     return this;
@@ -84,21 +129,24 @@ class EdgeClass extends GenericClass {
         delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
       }
       this.sourceClassId = nodeClass.classId;
+      this.sourceChain = new Chain({ nodeHash: nodeHashName, edgeHash: edgeHashName });
     } else if (direction === 'target') {
       if (this.targetClassId) {
         delete this.mure.classes[this.targetClassId].edgeConnections[this.classId];
       }
       this.targetClassId = nodeClass.classId;
+      this.targetChain = new Chain({ nodeHash: nodeHashName, edgeHash: edgeHashName });
     } else {
       if (!this.sourceClassId) {
         this.sourceClassId = nodeClass.classId;
+        this.sourceChain = new Chain({ nodeHash: nodeHashName, edgeHash: edgeHashName });
       } else if (!this.targetClassId) {
         this.targetClassId = nodeClass.classId;
+        this.targetChain = new Chain({ nodeHash: nodeHashName, edgeHash: edgeHashName });
       } else {
         throw new Error(`Source and target are already defined; please specify a direction to override`);
       }
     }
-    nodeClass.edgeConnections[this.classId] = { nodeHashName, edgeHashName };
     this.mure.saveClasses();
   }
   toggleNodeDirection (sourceClassId) {
@@ -112,9 +160,20 @@ class EdgeClass extends GenericClass {
         }
         this.sourceClassId = this.targetClassId;
         this.targetClassId = sourceClassId;
+        const temp = this.sourceChain;
+        this.sourceChain = this.targetChain;
+        this.targetChain = temp;
       }
     }
     this.mure.saveClasses();
+  }
+  disconnectSources () {
+    this.sourceClassId = null;
+    this.sourceChain = new Chain();
+  }
+  disconnectTargets () {
+    this.targetClassId = null;
+    this.targetChain = new Chain();
   }
   delete () {
     if (this.sourceClassId) {

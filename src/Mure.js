@@ -97,13 +97,16 @@ class Mure extends TriggerableMixin(class {}) {
     });
     return classes;
   }
+  getRawClasses () {
+    const rawClasses = {};
+    for (const [ classId, classObj ] of Object.entries(this.classes)) {
+      rawClasses[classId] = classObj.toRawObject();
+    }
+    return rawClasses;
+  }
   saveClasses () {
     if (this.localStorage) {
-      const rawClasses = {};
-      for (const [ classId, classObj ] of Object.entries(this.classes)) {
-        rawClasses[classId] = classObj.toRawObject();
-      }
-      this.localStorage.setItem('mure_classes', JSON.stringify(rawClasses));
+      this.localStorage.setItem('mure_classes', JSON.stringify(this.getRawClasses()));
     }
     this.trigger('classUpdate');
   }
@@ -156,15 +159,22 @@ class Mure extends TriggerableMixin(class {}) {
     return new Stream(options);
   }
 
-  newClass (options = { selector: `root` }) {
-    options.classId = `class${NEXT_CLASS_ID}`;
-    NEXT_CLASS_ID += 1;
+  createClass (options = { selector: `empty` }) {
+    if (!options.classId) {
+      options.classId = `class${NEXT_CLASS_ID}`;
+      NEXT_CLASS_ID += 1;
+    }
     const ClassType = options.ClassType || this.CLASSES.GenericClass;
     delete options.ClassType;
     options.mure = this;
     this.classes[options.classId] = new ClassType(options);
-    this.saveClasses();
     return this.classes[options.classId];
+  }
+
+  newClass (options) {
+    const newClassObj = this.createClass(options);
+    this.saveClasses();
+    return newClassObj;
   }
 
   async addFileAsStaticDataSource ({

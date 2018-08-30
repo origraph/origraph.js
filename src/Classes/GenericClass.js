@@ -17,6 +17,7 @@ class GenericClass extends Introspectable {
     this._selector = options.selector;
     this.customClassName = options.customClassName || null;
     this.customNameTokenIndex = options.customNameTokenIndex || null;
+    this.annotations = options.annotations || [];
     this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
     this.namedFunctions = Object.assign({},
       this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
@@ -38,6 +39,7 @@ class GenericClass extends Introspectable {
       selector: this._selector,
       customClassName: this.customClassName,
       customNameTokenIndex: this.customNameTokenIndex,
+      annotations: this.annotations,
       classId: this.classId,
       namedFunctions: {}
     };
@@ -86,6 +88,18 @@ class GenericClass extends Introspectable {
   addHashFunction (funcName, func) {
     this.namedFunctions[funcName] = func;
   }
+  addAttributeAsHashFunction (attrName) {
+    this.namedFunctions[attrName] = function * (wrappedItem) {
+      yield wrappedItem.rawItem[attrName];
+    };
+  }
+  expandAttributeAsHashFunction (attrName, delimiter = ',') {
+    this.namedFunctions[attrName] = function * (wrappedItem) {
+      for (const value of wrappedItem.rawItem.split(delimiter)) {
+        yield value.trim();
+      }
+    };
+  }
   populateStreamOptions (options = {}) {
     options.mure = this.mure;
     options.tokenClassList = this.tokenClassList;
@@ -102,17 +116,13 @@ class GenericClass extends Introspectable {
   }
   interpretAsNodes () {
     const options = this.toRawObject();
-    options.mure = this.mure;
-    this.mure.classes[this.classId] = new this.mure.CLASSES.NodeClass(options);
-    this.mure.saveClasses();
-    return this.mure.classes[this.classId];
+    options.ClassType = this.mure.CLASSES.NodeClass;
+    return this.mure.newClass(options);
   }
   interpretAsEdges () {
     const options = this.toRawObject();
-    options.mure = this.mure;
-    this.mure.classes[this.classId] = new this.mure.CLASSES.EdgeClass(options);
-    this.mure.saveClasses();
-    return this.mure.classes[this.classId];
+    options.ClassType = this.mure.CLASSES.EdgeClass;
+    return this.mure.newClass(options);
   }
   aggregate (hash, reduce) {
     throw new Error(`unimplemented`);
