@@ -5,20 +5,25 @@ const DuplicatableAttributesMixin = function (superclass) {
       this._instanceOfDuplicatableAttributesMixin = true;
       this._duplicatedAttributes = options.duplicatedAttributes || {};
     }
-    duplicateAttributes (wrappedItem, wrappedParent) {
-      for (const attr in this._duplicatedAttributes) {
-        wrappedItem.row[attr] = wrappedParent.row[attr];
-      }
-    }
-    toRawObject () {
-      const obj = super.toRawObject();
+    _toRawObject () {
+      const obj = super._toRawObject();
       obj.duplicatedAttributes = this._duplicatedAttributes;
       return obj;
     }
-    getAllAttributes () {
-      const result = super.getAllAttributes();
-      for (const attr in this._duplicatedAttributes) {
-        result[attr] = true;
+    duplicateAttribute (parentId, attribute) {
+      this._duplicateAttributes[parentId] = this._duplicateAttributes[parentId] || [];
+      this._duplicatedAttributes[parentId].push(attribute);
+      this.reset();
+    }
+    _duplicateAttributes (wrappedItem, parentItems) {
+      for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
+        wrappedItem.row[`${parentId}.${attr}`] = parentItems[parentId][attr];
+      }
+    }
+    _getAllAttributes () {
+      const result = super._getAllAttributes();
+      for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
+        result[`${parentId}.${attr}`] = true;
       }
       return result;
     }

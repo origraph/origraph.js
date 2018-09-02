@@ -1,33 +1,31 @@
 import Table from './Table.js';
+import SingleParentMixin from './SingleParentMixin.js';
 
-class FilteredTable extends Table {
+class FilteredTable extends SingleParentMixin(Table) {
   constructor (options) {
     super(options);
-    this.parentTableId = options.parentTableId;
-    this.attribute = options.attribute;
-    this.value = options.value;
-    if (!this.parentTableId || !this.attribute || !this.value) {
-      throw new Error(`parentTableId, attribute, and value are required`);
+    this._attribute = options.attribute;
+    this._value = options.value;
+    if (!this.attribute || !this.value) {
+      throw new Error(`attribute and value are required`);
     }
   }
+  toRawObject () {
+    const obj = super._toRawObject();
+    obj.attribute = this._attribute;
+    obj.value = this._value;
+    return obj;
+  }
   async * _iterate (options) {
-    const parentTable = this.mure.tables[this.parentTableId];
     let index = 0;
-    for await (const { wrappedParent } of parentTable.iterate(options)) {
-      if (wrappedParent.row[this.attribute] === this.value) {
+    for await (const { wrappedParent } of this.parentTable.iterate(options)) {
+      if (wrappedParent.row[this._attribute] === this._value) {
         const wrappedItem = new options.Wrapper({ index, row: wrappedParent.row });
-        this.finishItem(wrappedItem);
+        this._finishItem(wrappedItem);
         yield wrappedItem;
         index++;
       }
     }
-  }
-  toRawObject () {
-    const obj = super.toRawObject();
-    obj.parentTableId = this.parentTableId;
-    obj.attribute = this.attribute;
-    obj.value = this.value;
-    return obj;
   }
 }
 export default FilteredTable;

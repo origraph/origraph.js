@@ -1,24 +1,38 @@
 import Introspectable from '../Common/Introspectable.js';
+import TriggerableMixin from '../Common/TriggerableMixin.js';
 
-class Table extends Introspectable {
+class Table extends TriggerableMixin(Introspectable) {
   constructor (options) {
     super();
-    this.mure = options.mure;
+    this._mure = options.mure;
     this.tableId = options.tableId;
-    if (!this.mure || !this.tableId) {
+    if (!this._mure || !this.tableId) {
       throw new Error(`mure and tableId are required`);
     }
 
     this._expectedAttributes = options.attributes || {};
     this._observedAttributes = {};
-    this.derivedTableLookup = options.derivedTableLookup || {};
+    this._derivedTables = options.derivedTables || {};
 
     this._derivedAttributeFunctions = {};
     if (options.derivedAttributeFunctions) {
       for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions)) {
-        this._derivedAttributeFunctions[attr] = this.mure.hydrateFunction(stringifiedFunc);
+        this._derivedAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
       }
     }
+  }
+  _toRawObject () {
+    const result = {
+      tableId: this.tableId,
+      attributes: this._attributes,
+      derivedTables: this._derivedTables,
+      usedByClasses: this._usedByClasses,
+      derivedAttributeFunctions: {}
+    };
+    for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
+      result.derivedAttributeFunctions[attr] = this._mure.dehydrateFunction(func);
+    }
+    return result;
   }
   async * iterate (options = { reset: false }) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
@@ -27,7 +41,7 @@ class Table extends Introspectable {
     // requires tricky logic, and we're already building indexes for some tables
     // like AggregatedTable anyway)
     if (options.reset) {
-      delete this._cache;
+      this.reset();
     }
     if (this._cache) {
       for (const finishedItem of Object.values(this._cache)) {
@@ -36,22 +50,37 @@ class Table extends Introspectable {
       return;
     }
 
+    yield * await this._buildCache(options);
+  }
+  reset () {
+    delete this._partialCache;
+    delete this._cache;
+    for (const derivedTable of this.derivedTables) {
+      derivedTable.reset();
+    }
+    this.trigger('reset');
+  }
+  async * _buildCache (options) {
     // TODO: in large data scenarios, we should build the cache / index
     // externally on disk
-    const partialCache = {};
+    this._partialCache = {};
     for await (const wrappedItem of this._iterate(options)) {
-      this.finishItem(wrappedItem);
-      partialCache[wrappedItem.index] = wrappedItem;
+      this._finishItem(wrappedItem);
+      if (!this._partialCache) {
+        // iteration was cancelled; return immediately
+        return;
+      }
+      this._partialCache[wrappedItem.index] = wrappedItem;
       yield wrappedItem;
     }
-    this._cache = partialCache;
+    this._cache = this._partialCache;
+    delete this._partialCache;
   }
   async * _iterate (options) {
-    // _iterate will yield items immediately, even if they're not finished yet
     throw new Error(`this function should be overridden`);
   }
-  finishItem (wrappedItem) {
-    for (const [attr, func] of Object.entries(this.derivedAttributeFunctions)) {
+  _finishItem (wrappedItem) {
+    for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       wrappedItem.row[attr] = func(wrappedItem);
     }
     for (const attr of Object.keys(wrappedItem.row)) {
@@ -59,20 +88,7 @@ class Table extends Introspectable {
     }
     wrappedItem.trigger('finish');
   }
-  toRawObject () {
-    const result = {
-      tableId: this.tableId,
-      attributes: this.attributes,
-      derivedTables: this.derivedTables,
-      usedByClasses: this.usedByClasses,
-      derivedAttributeFunctions: {}
-    };
-    for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
-      result.derivedAttributeFunctions[attr] = this.mure.dehydrateFunction(func);
-    }
-    return result;
-  }
-  getAllAttributes () {
+  _getAllAttributes () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
       allAttrs[attr] = true;
@@ -86,23 +102,27 @@ class Table extends Introspectable {
     return allAttrs;
   }
   get attributes () {
-    return Object.keys(this.getAllAttributes());
+    return Object.keys(this._getAllAttributes());
   }
-  deriveTable (options) {
-    const newTable = this.mure.createTable(options);
-    this.derivedTableLookup[newTable.tableId] = true;
-    this.mure.saveTables();
+  deriveAttribute (attribute, func) {
+    this._derivedAttributeFunctions[attribute] = func;
+    this.reset();
+  }
+  _deriveTable (options) {
+    const newTable = this._mure.createTable(options);
+    this.derivedTables[newTable.tableId] = true;
+    this._mure.saveTables();
     return newTable;
   }
   aggregate (attribute) {
-    return this.deriveTable({
+    return this._deriveTable({
       type: 'AggregatedTable',
       parentTableId: this.tableId,
       attribute
     });
   }
   expand (attribute, delimiter) {
-    return this.deriveTable({
+    return this._deriveTable({
       type: 'ExpandedTable',
       parentTableId: this.tableId,
       attribute,
@@ -111,7 +131,7 @@ class Table extends Introspectable {
   }
   closedFacet (attribute, values) {
     return values.map(value => {
-      return this.deriveTable({
+      return this._deriveTable({
         type: 'FilteredTable',
         parentTableId: this.tableId,
         attribute,
@@ -127,7 +147,7 @@ class Table extends Introspectable {
       const value = wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
-        yield this.deriveTable({
+        yield this._deriveTable({
           type: 'FilteredTable',
           parentTableId: this.tableId,
           attribute,
@@ -137,7 +157,7 @@ class Table extends Introspectable {
     }
   }
   get classes () {
-    return Object.values(this.mure.classes).reduce((agg, classObj) => {
+    return Object.values(this._mure.classes).reduce((agg, classObj) => {
       if (classObj.tableId === this.tableId ||
         (classObj.tableIds && classObj.tableIds[this.tableId])) {
         agg.push(classObj);
@@ -145,21 +165,26 @@ class Table extends Introspectable {
     }, []);
   }
   get parentTables () {
-    return Object.values(this.mure.tables).reduce((agg, tableObj) => {
-      if (tableObj.derivedTableLookup[this.tableId]) {
+    return Object.values(this._mure.tables).reduce((agg, tableObj) => {
+      if (tableObj.derivedTables[this.tableId]) {
         agg.push(tableObj);
       }
     }, []);
   }
+  get derivedTables () {
+    return Object.keys(this.derivedTables).map(tableId => {
+      return this._mure.tables[tableId];
+    });
+  }
   delete () {
-    if (Object.keys(this.derivedTableLookup).length > 0 || this.classes.length > 0) {
+    if (Object.keys(this.derivedTables).length > 0 || this.classes.length > 0) {
       throw new Error(`Can't delete in-use table ${this.tableId}`);
     }
     for (const parentTable of this.parentTables) {
-      delete parentTable.derivedTableLookup[this.tableId];
+      delete parentTable.derivedTables[this.tableId];
     }
-    delete this.mure.tables[this.tableId];
-    this.mure.saveTables();
+    delete this._mure.tables[this.tableId];
+    this._mure.saveTables();
   }
 }
 Object.defineProperty(Table, 'type', {

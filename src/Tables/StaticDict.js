@@ -3,20 +3,19 @@ import Table from './Table.js';
 class StaticDict extends Table {
   constructor (options) {
     super(options);
-
-    this.data = options.data || {};
+    this._data = options.data || {};
+  }
+  _toRawObject () {
+    const obj = super._toRawObject();
+    obj.data = this._data;
+    return obj;
   }
   async * _iterate (options) {
-    for (const [index, row] of Object.entries(this.data)) {
+    for (const [index, row] of Object.entries(this._data)) {
       const item = new options.Wrapper({ index, row });
-      this.finishItem(item);
+      this._finishItem(item);
       yield item;
     }
-  }
-  toRawObject () {
-    const obj = super.toRawObject();
-    obj.data = this.data;
-    return obj;
   }
 }
 export default StaticDict;

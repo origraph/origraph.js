@@ -3,20 +3,19 @@ import Table from './Table.js';
 class StaticTable extends Table {
   constructor (options) {
     super(options);
-
-    this.data = options.data || [];
+    this._data = options.data || [];
+  }
+  _toRawObject () {
+    const obj = super._toRawObject();
+    obj.data = this._data;
+    return obj;
   }
   async * _iterate (options) {
-    for (let index = 0; index < this.data.length; index++) {
-      const item = new options.Wrapper({ index, row: this.data[index] });
-      this.finishItem(item);
+    for (let index = 0; index < this._data.length; index++) {
+      const item = new options.Wrapper({ index, row: this._data[index] });
+      this._finishItem(item);
       yield item;
     }
-  }
-  toRawObject () {
-    const obj = super.toRawObject();
-    obj.data = this.data;
-    return obj;
   }
 }
 export default StaticTable;

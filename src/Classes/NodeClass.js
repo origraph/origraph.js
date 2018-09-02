@@ -3,7 +3,7 @@ import GenericClass from './GenericClass.js';
 class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
-    this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
+    this.Wrapper = this._mure.WRAPPERS.NodeWrapper;
     this.edgeClassIds = options.edgeClassIds || {};
   }
   toRawObject () {
@@ -20,12 +20,12 @@ class NodeClass extends GenericClass {
       this.disconnectAllEdges();
     }
     const options = super.toRawObject();
-    options.ClassType = this.mure.CLASSES.EdgeClass;
-    const newEdgeClass = this.mure.createClass(options);
+    options.ClassType = this._mure.CLASSES.EdgeClass;
+    const newEdgeClass = this._mure.createClass(options);
     const sourceEdgeClass = (edgeIds.length === 1 || edgeIds.length === 2) &&
-      this.mure.classes[edgeIds[0]];
+      this._mure.classes[edgeIds[0]];
     const targetEdgeClass = edgeIds.length === 2 &&
-      this.mure.classes[edgeIds[1]];
+      this._mure.classes[edgeIds[1]];
 
     if (sourceEdgeClass) {
       newEdgeClass.sourceClassId = sourceEdgeClass.sourceClassId;
@@ -53,12 +53,12 @@ class NodeClass extends GenericClass {
 
       targetEdgeClass.delete();
     }
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
   connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
-    const newEdge = this.mure.createClass({
+    const newEdge = this._mure.createClass({
       selector: null,
-      ClassType: this.mure.CLASSES.EdgeClass,
+      ClassType: this._mure.CLASSES.EdgeClass,
 
       sourceClassId: this.classId,
       sourceNodeAttr: attribute,
@@ -74,7 +74,7 @@ class NodeClass extends GenericClass {
     });
     this.edgeClassIds[newEdge.classId] = true;
     otherNodeClass.edgeClassIds[newEdge.classId] = true;
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
   connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;
@@ -84,7 +84,7 @@ class NodeClass extends GenericClass {
   }
   disconnectAllEdges () {
     for (const edgeClassId of Object.keys(this.edgeClassIds)) {
-      const edgeClass = this.mure.classes[edgeClassId];
+      const edgeClass = this._mure.classes[edgeClassId];
       if (edgeClass.sourceClassId === this.classId) {
         edgeClass.disconnectSources();
       }

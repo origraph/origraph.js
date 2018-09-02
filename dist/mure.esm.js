@@ -72,8 +72,8 @@ Object.defineProperty(TriggerableMixin, Symbol.hasInstance, {
 
 class Stream {
   constructor(options) {
-    this.mure = options.mure;
-    this.namedFunctions = Object.assign({}, this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
+    this._mure = options.mure;
+    this.namedFunctions = Object.assign({}, this._mure.NAMED_FUNCTIONS, options.namedFunctions || {});
     this.namedStreams = options.namedStreams || {};
     this.launchedFromClass = options.launchedFromClass || null;
     this.tokenClassList = options.tokenClassList || []; // Reminder: this always needs to be after initializing this.namedFunctions
@@ -103,7 +103,7 @@ class Stream {
 
 
       const localTokenList = this.tokenList.slice(0, index + 1);
-      const potentialWrappers = Object.values(this.mure.classes).filter(classObj => {
+      const potentialWrappers = Object.values(this._mure.classes).filter(classObj => {
         const classTokenList = classObj.tokenClassList;
 
         if (!classTokenList.length !== localTokenList.length) {
@@ -118,7 +118,7 @@ class Stream {
 
       if (potentialWrappers.length === 0) {
         // No classes describe this series of tokens, so use the generic wrapper
-        return this.mure.WRAPPERS.GenericWrapper;
+        return this._mure.WRAPPERS.GenericWrapper;
       } else {
         if (potentialWrappers.length > 1) {
           console.warn(`Multiple classes describe the same item! Arbitrarily choosing one...`);
@@ -135,16 +135,16 @@ class Stream {
 
   fork(selector) {
     return new Stream({
-      mure: this.mure,
+      mure: this._mure,
       namedFunctions: this.namedFunctions,
       namedStreams: this.namedStreams,
-      tokenClassList: this.mure.parseSelector(selector),
+      tokenClassList: this._mure.parseSelector(selector),
       launchedFromClass: this.launchedFromClass
     });
   }
 
   extend(TokenClass, argList, options = {}) {
-    options.mure = this.mure;
+    options.mure = this._mure;
     options.namedFunctions = Object.assign({}, this.namedFunctions, options.namedFunctions || {});
     options.namedStreams = Object.assign({}, this.namedStreams, options.namedStreams || {});
     options.tokenClassList = this.tokenClassList.concat([{
@@ -186,7 +186,7 @@ class Stream {
 
     if (!this.indexes[hashFunctionName][tokenIndex]) {
       // TODO: figure out external indexes...
-      this.indexes[hashFunctionName][tokenIndex] = new this.mure.INDEXES.InMemoryIndex();
+      this.indexes[hashFunctionName][tokenIndex] = new this._mure.INDEXES.InMemoryIndex();
     }
 
     return this.indexes[hashFunctionName][tokenIndex];
@@ -509,7 +509,7 @@ class KeysToken extends BaseToken {
         }
       }
 
-      return new KeysToken(this.mure, null, {
+      return new KeysToken(this._mure, null, {
         keys: newKeys,
         ranges: newRanges
       });
@@ -948,14 +948,14 @@ const ASTERISKS = {
 class GenericClass extends Introspectable {
   constructor(options) {
     super();
-    this.mure = options.mure;
+    this._mure = options.mure;
     this.classId = options.classId;
     this._selector = options.selector;
     this.customClassName = options.customClassName || null;
     this.customNameTokenIndex = options.customNameTokenIndex || null;
     this.annotations = options.annotations || [];
-    this.Wrapper = this.mure.WRAPPERS.GenericWrapper;
-    this.namedFunctions = Object.assign({}, this.mure.NAMED_FUNCTIONS, options.namedFunctions || {});
+    this.Wrapper = this._mure.WRAPPERS.GenericWrapper;
+    this.namedFunctions = Object.assign({}, this._mure.NAMED_FUNCTIONS, options.namedFunctions || {});
 
     for (let [funcName, func] of Object.entries(this.namedFunctions)) {
       if (typeof func === 'string') {
@@ -969,7 +969,7 @@ class GenericClass extends Introspectable {
   }
 
   get tokenClassList() {
-    return this.mure.parseSelector(this.selector);
+    return this._mure.parseSelector(this.selector);
   }
 
   toRawObject() {
@@ -999,7 +999,7 @@ class GenericClass extends Introspectable {
     if (this.customClassName !== value) {
       this.customClassName = value;
       this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
-      this.mure.saveClasses();
+      this._mure.saveClasses();
     }
   }
 
@@ -1052,7 +1052,7 @@ class GenericClass extends Introspectable {
   }
 
   populateStreamOptions(options = {}) {
-    options.mure = this.mure;
+    options.mure = this._mure;
     options.tokenClassList = this.tokenClassList;
     options.namedFunctions = this.namedFunctions;
     options.launchedFromClass = this;
@@ -1073,14 +1073,14 @@ class GenericClass extends Introspectable {
 
   interpretAsNodes() {
     const options = this.toRawObject();
-    options.ClassType = this.mure.CLASSES.NodeClass;
-    return this.mure.newClass(options);
+    options.ClassType = this._mure.CLASSES.NodeClass;
+    return this._mure.newClass(options);
   }
 
   interpretAsEdges() {
     const options = this.toRawObject();
-    options.ClassType = this.mure.CLASSES.EdgeClass;
-    return this.mure.newClass(options);
+    options.ClassType = this._mure.CLASSES.EdgeClass;
+    return this._mure.newClass(options);
   }
 
   aggregate(hash, reduce) {
@@ -1100,8 +1100,8 @@ class GenericClass extends Introspectable {
   }
 
   delete() {
-    delete this.mure.classes[this.classId];
-    this.mure.saveClasses();
+    delete this._mure.classes[this.classId];
+    this._mure.saveClasses();
   }
 
 }
@@ -1116,7 +1116,7 @@ Object.defineProperty(GenericClass, 'type', {
 class NodeClass extends GenericClass {
   constructor(options) {
     super(options);
-    this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
+    this.Wrapper = this._mure.WRAPPERS.NodeWrapper;
     this.edgeClassIds = options.edgeClassIds || {};
   }
 
@@ -1138,18 +1138,18 @@ class NodeClass extends GenericClass {
       this.disconnectAllEdges();
     }
     const options = super.toRawObject();
-    options.ClassType = this.mure.CLASSES.EdgeClass;
-    const newEdgeClass = this.mure.createClass(options);
+    options.ClassType = this._mure.CLASSES.EdgeClass;
+    const newEdgeClass = this._mure.createClass(options);
     if (edgeIds.length === 1 || edgeIds.length === 2) {
-      const sourceEdgeClass = this.mure.classes[edgeIds[0]];
+      const sourceEdgeClass = this._mure.classes[edgeIds[0]];
       newEdgeClass.sourceClassId = sourceEdgeClass.sourceClassId;
       newEdgeClass.sourceChain = sourceEdgeClass.
-      newEdgeClass.glompSourceEdge(this.mure.classes[edgeIds[0]]);
+      newEdgeClass.glompSourceEdge(this._mure.classes[edgeIds[0]]);
     }
     if (edgeIds.length === 2) {
-      newEdgeClass.glompTargetEdge(this.mure.classes[edgeIds[1]]);
+      newEdgeClass.glompTargetEdge(this._mure.classes[edgeIds[1]]);
     }
-    this.mure.saveClasses();
+    this._mure.saveClasses();
     */
   }
 
@@ -1159,9 +1159,9 @@ class NodeClass extends GenericClass {
     thisHashName,
     otherHashName
   }) {
-    const newEdge = this.mure.createClass({
+    const newEdge = this._mure.createClass({
       selector: null,
-      ClassType: this.mure.CLASSES.EdgeClass,
+      ClassType: this._mure.CLASSES.EdgeClass,
       sourceClassId: this.classId,
       sourceChain: {
         nodeHash: thisHashName,
@@ -1176,7 +1176,7 @@ class NodeClass extends GenericClass {
     });
     this.edgeClassIds[newEdge.classId] = true;
     otherNodeClass.edgeClassIds[newEdge.classId] = true;
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
 
   connectToEdgeClass(options) {
@@ -1188,7 +1188,7 @@ class NodeClass extends GenericClass {
 
   disconnectAllEdges() {
     for (const edgeClassId of Object.keys(this.edgeClassIds)) {
-      const edgeClass = this.mure.classes[edgeClassId];
+      const edgeClass = this._mure.classes[edgeClassId];
 
       if (edgeClass.sourceClassId === this.classId) {
         edgeClass.disconnectSources();
@@ -1237,7 +1237,7 @@ class Chain {
 class EdgeClass extends GenericClass {
   constructor(options) {
     super(options);
-    this.Wrapper = this.mure.WRAPPERS.EdgeWrapper;
+    this.Wrapper = this._mure.WRAPPERS.EdgeWrapper;
     this.sourceClassId = options.sourceClassId || null;
     this.sourceChain = new Chain(options.sourceChain);
     this.targetClassId = options.targetClassId || null;
@@ -1259,8 +1259,8 @@ class EdgeClass extends GenericClass {
     // TODO!
     return this._selector;
     /*
-    const sourceClass = this.mure.classes[this.sourceClassId];
-    const targetClass = this.mure.classes[this.targetClassId];
+    const sourceClass = this._mure.classes[this.sourceClassId];
+    const targetClass = this._mure.classes[this.targetClassId];
      if (!this._selector) {
       if (!sourceClass || !targetClass) {
         throw new Error(`Partial connections without an edge table should never happen`);
@@ -1298,8 +1298,8 @@ class EdgeClass extends GenericClass {
   }
 
   populateStreamOptions(options = {}) {
-    const sourceClass = this.mure.classes[this.sourceClassId];
-    const targetClass = this.mure.classes[this.targetClassId];
+    const sourceClass = this._mure.classes[this.sourceClassId];
+    const targetClass = this._mure.classes[this.targetClassId];
     options.namedStreams = {};
 
     if (!this._selector) {
@@ -1323,14 +1323,14 @@ class EdgeClass extends GenericClass {
 
   interpretAsNodes() {
     const options = super.toRawObject();
-    options.ClassType = this.mure.CLASSES.NodeClass;
-    const newNodeClass = this.mure.createClass(options);
+    options.ClassType = this._mure.CLASSES.NodeClass;
+    const newNodeClass = this._mure.createClass(options);
 
     if (this.sourceClassId) {
-      const sourceNodeClass = this.mure.classes[this.sourceClassId];
+      const sourceNodeClass = this._mure.classes[this.sourceClassId];
       let [targetChain, sourceChain] = this.sourceChain.split();
-      const newSourceEdgeClass = this.mure.createClass({
-        ClassType: this.mure.CLASSES.EdgeClass,
+      const newSourceEdgeClass = this._mure.createClass({
+        ClassType: this._mure.CLASSES.EdgeClass,
         sourceClassId: sourceNodeClass.classId,
         sourceChain: sourceChain.toRawObject(),
         targetClassId: newNodeClass.classId,
@@ -1343,10 +1343,10 @@ class EdgeClass extends GenericClass {
     }
 
     if (this.targetClassId) {
-      const targetNodeClass = this.mure.classes[this.targetClassId];
+      const targetNodeClass = this._mure.classes[this.targetClassId];
       let [sourceChain, targetChain] = this.targetChain.split();
-      const newTargetEdgeClass = this.mure.createClass({
-        ClassType: this.mure.CLASSES.EdgeClass,
+      const newTargetEdgeClass = this._mure.createClass({
+        ClassType: this._mure.CLASSES.EdgeClass,
         sourceClassId: targetNodeClass.classId,
         sourceChain: sourceChain.toRawObject(),
         targetClassId: newNodeClass.classId,
@@ -1358,7 +1358,7 @@ class EdgeClass extends GenericClass {
       newNodeClass.edgeClassIds[newTargetEdgeClass.classId] = true;
     }
 
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
 
   interpretAsEdges() {
@@ -1373,7 +1373,7 @@ class EdgeClass extends GenericClass {
   }) {
     if (direction === 'source') {
       if (this.sourceClassId) {
-        delete this.mure.classes[this.sourceClassId].edgeClassIds[this.classId];
+        delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
       }
 
       this.sourceClassId = nodeClass.classId;
@@ -1383,7 +1383,7 @@ class EdgeClass extends GenericClass {
       });
     } else if (direction === 'target') {
       if (this.targetClassId) {
-        delete this.mure.classes[this.targetClassId].edgeClassIds[this.classId];
+        delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
       }
 
       this.targetClassId = nodeClass.classId;
@@ -1409,7 +1409,7 @@ class EdgeClass extends GenericClass {
       }
     }
 
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
 
   toggleNodeDirection(sourceClassId) {
@@ -1431,7 +1431,7 @@ class EdgeClass extends GenericClass {
       }
     }
 
-    this.mure.saveClasses();
+    this._mure.saveClasses();
   }
 
   disconnectSources() {
@@ -1446,11 +1446,11 @@ class EdgeClass extends GenericClass {
 
   delete() {
     if (this.sourceClassId) {
-      delete this.mure.classes[this.sourceClassId].edgeClassIds[this.classId];
+      delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
     }
 
     if (this.targetClassId) {
-      delete this.mure.classes[this.targetClassId].edgeClassIds[this.classId];
+      delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
     }
 
     super.delete();

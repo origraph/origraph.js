@@ -2,22 +2,37 @@ import Table from './Table.js';
 import DuplicatableAttributesMixin from './DuplicatableAttributesMixin.js';
 
 class ConnectedTable extends DuplicatableAttributesMixin(Table) {
-  constructor (options) {
-    super(options);
-    this.parentTableIds = options.parentTableIds;
-    if (!this.parentTableIds || !this.parentTableIds.length >= 2) {
-      throw new Error(`At least 2 parentTableIds are required`);
-    }
-  }
   async * _iterate (options) {
-    // TODO: spin through all of the parentTables so that their _cache is
-    // pre-built, and just iterate their caches! (simpler + faster algorithm
-    // than manually matching indexes)
-  }
-  toRawObject () {
-    const obj = super.toRawObject();
-    obj.parentTableIds = this.parentTableIds;
-    return obj;
+    const parentTables = this.parentTables;
+    // Spin through all of the parentTables so that their _cache is pre-built
+    for (const parentTable of parentTables) {
+      if (!parentTable._cache) {
+        const iterator = parentTable.iterate();
+        let temp;
+        while (!temp || !temp.done) {
+          temp = await iterator.next();
+        }
+      }
+    }
+    // Now that the caches are built, just iterate their keys directly
+    for (const parentTable of parentTables) {
+      if (!parentTable._cache) {
+        // One of the parent tables was reset; return immediately
+        return;
+      }
+      for (const index in parentTable._cache) {
+        if (!this._partialCache[index]) {
+          const wrappedItem = new options.Wrapper({ index, row: {} });
+          const parentItems = {};
+          for (const parentTable2 of parentTables) {
+            parentItems[parentTable2.tableId] = parentTable2._cache[index];
+          }
+          this._duplicateAttributes(wrappedItem, parentItems);
+          this._finishItem(wrappedItem);
+          yield wrappedItem;
+        }
+      }
+    }
   }
 }
 export default ConnectedTable;
