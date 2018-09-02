@@ -19142,12 +19142,12 @@
 	  constructor(options) {
 	    super(options);
 	    this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
-	    this.edgeConnections = options.edgeConnections || {};
+	    this.edgeClassIds = options.edgeClassIds || {};
 	  }
 
 	  toRawObject() {
 	    const result = super.toRawObject();
-	    result.edgeConnections = this.edgeConnections;
+	    result.edgeClassIds = this.edgeClassIds;
 	    return result;
 	  }
 
@@ -19158,7 +19158,7 @@
 	  interpretAsEdges() {
 	    throw new Error(`unimplemented`);
 	    /*
-	    const edgeIds = Object.keys(this.edgeConnections);
+	    const edgeIds = Object.keys(this.edgeClassIds);
 	    if (edgeIds.length > 2) {
 	      this.disconnectAllEdges();
 	    }
@@ -19199,8 +19199,8 @@
 	      },
 	      directed
 	    });
-	    this.edgeConnections[newEdge.classId] = true;
-	    otherNodeClass.edgeConnections[newEdge.classId] = true;
+	    this.edgeClassIds[newEdge.classId] = true;
+	    otherNodeClass.edgeClassIds[newEdge.classId] = true;
 	    this.mure.saveClasses();
 	  }
 
@@ -19212,7 +19212,7 @@
 	  }
 
 	  disconnectAllEdges() {
-	    for (const edgeClassId of Object.keys(this.edgeConnections)) {
+	    for (const edgeClassId of Object.keys(this.edgeClassIds)) {
 	      const edgeClass = this.mure.classes[edgeClassId];
 
 	      if (edgeClass.sourceClassId === this.classId) {
@@ -19223,7 +19223,7 @@
 	        edgeClass.disconnectTargets();
 	      }
 
-	      delete this.edgeConnections[edgeClassId];
+	      delete this.edgeClassIds[edgeClassId];
 	    }
 	  }
 
@@ -19291,8 +19291,8 @@
 	        throw new Error(`Partial connections without an edge table should never happen`);
 	      } else {
 	        // No edge table (simple join between two nodes)
-	        const sourceHash = sourceClass.edgeConnections[this.classId].nodeHashName;
-	        const targetHash = targetClass.edgeConnections[this.classId].nodeHashName;
+	        const sourceHash = sourceClass.edgeClassIds[this.classId].nodeHashName;
+	        const targetHash = targetClass.edgeClassIds[this.classId].nodeHashName;
 	        return sourceClass.selector + `.join(target, ${sourceHash}, ${targetHash}, defaultFinish, sourceTarget)`;
 	      }
 	    } else {
@@ -19303,18 +19303,18 @@
 	          return result;
 	        } else {
 	          // Partial edge-target connections
-	          const { edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId];
+	          const { edgeHashName, nodeHashName } = targetClass.edgeClassIds[this.classId];
 	          return result + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, edgeTarget)`;
 	        }
 	      } else if (!targetClass) {
 	        // Partial source-edge connections
-	        const { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
+	        const { nodeHashName, edgeHashName } = sourceClass.edgeClassIds[this.classId];
 	        return result + `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish, sourceEdge)`;
 	      } else {
 	        // Full connections
-	        let { nodeHashName, edgeHashName } = sourceClass.edgeConnections[this.classId];
+	        let { nodeHashName, edgeHashName } = sourceClass.edgeClassIds[this.classId];
 	        result += `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
-	        ({ edgeHashName, nodeHashName } = targetClass.edgeConnections[this.classId]);
+	        ({ edgeHashName, nodeHashName } = targetClass.edgeClassIds[this.classId]);
 	        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, full)`;
 	        return result;
 	      }
@@ -19362,9 +19362,9 @@
 	        targetChain: targetChain.toRawObject(),
 	        directed: this.directed
 	      });
-	      delete sourceNodeClass.edgeConnections[newNodeClass.classId];
-	      sourceNodeClass.edgeConnections[newSourceEdgeClass.classId] = true;
-	      newNodeClass.edgeConnections[newSourceEdgeClass.classId] = true;
+	      delete sourceNodeClass.edgeClassIds[newNodeClass.classId];
+	      sourceNodeClass.edgeClassIds[newSourceEdgeClass.classId] = true;
+	      newNodeClass.edgeClassIds[newSourceEdgeClass.classId] = true;
 	    }
 
 	    if (this.targetClassId) {
@@ -19378,9 +19378,9 @@
 	        targetChain: targetChain.toRawObject(),
 	        directed: this.directed
 	      });
-	      delete targetNodeClass.edgeConnections[newNodeClass.classId];
-	      targetNodeClass.edgeConnections[newTargetEdgeClass.classId] = true;
-	      newNodeClass.edgeConnections[newTargetEdgeClass.classId] = true;
+	      delete targetNodeClass.edgeClassIds[newNodeClass.classId];
+	      targetNodeClass.edgeClassIds[newTargetEdgeClass.classId] = true;
+	      newNodeClass.edgeClassIds[newTargetEdgeClass.classId] = true;
 	    }
 
 	    this.mure.saveClasses();
@@ -19398,7 +19398,7 @@
 	  }) {
 	    if (direction === 'source') {
 	      if (this.sourceClassId) {
-	        delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
+	        delete this.mure.classes[this.sourceClassId].edgeClassIds[this.classId];
 	      }
 
 	      this.sourceClassId = nodeClass.classId;
@@ -19408,7 +19408,7 @@
 	      });
 	    } else if (direction === 'target') {
 	      if (this.targetClassId) {
-	        delete this.mure.classes[this.targetClassId].edgeConnections[this.classId];
+	        delete this.mure.classes[this.targetClassId].edgeClassIds[this.classId];
 	      }
 
 	      this.targetClassId = nodeClass.classId;
@@ -19471,11 +19471,11 @@
 
 	  delete() {
 	    if (this.sourceClassId) {
-	      delete this.mure.classes[this.sourceClassId].edgeConnections[this.classId];
+	      delete this.mure.classes[this.sourceClassId].edgeClassIds[this.classId];
 	    }
 
 	    if (this.targetClassId) {
-	      delete this.mure.classes[this.targetClassId].edgeConnections[this.classId];
+	      delete this.mure.classes[this.targetClassId].edgeClassIds[this.classId];
 	    }
 
 	    super.delete();

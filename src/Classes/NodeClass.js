@@ -4,50 +4,76 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.Wrapper = this.mure.WRAPPERS.NodeWrapper;
-    this.edgeConnections = options.edgeConnections || {};
+    this.edgeClassIds = options.edgeClassIds || {};
   }
   toRawObject () {
     const result = super.toRawObject();
-    result.edgeConnections = this.edgeConnections;
+    result.edgeClassIds = this.edgeClassIds;
     return result;
   }
   interpretAsNodes () {
     return this;
   }
   interpretAsEdges () {
-    throw new Error(`unimplemented`);
-    /*
-    const edgeIds = Object.keys(this.edgeConnections);
+    const edgeIds = Object.keys(this.edgeClassIds);
     if (edgeIds.length > 2) {
       this.disconnectAllEdges();
     }
     const options = super.toRawObject();
     options.ClassType = this.mure.CLASSES.EdgeClass;
     const newEdgeClass = this.mure.createClass(options);
-    if (edgeIds.length === 1 || edgeIds.length === 2) {
-      const sourceEdgeClass = this.mure.classes[edgeIds[0]];
+    const sourceEdgeClass = (edgeIds.length === 1 || edgeIds.length === 2) &&
+      this.mure.classes[edgeIds[0]];
+    const targetEdgeClass = edgeIds.length === 2 &&
+      this.mure.classes[edgeIds[1]];
+
+    if (sourceEdgeClass) {
       newEdgeClass.sourceClassId = sourceEdgeClass.sourceClassId;
-      newEdgeClass.sourceChain = sourceEdgeClass.
-      newEdgeClass.glompSourceEdge(this.mure.classes[edgeIds[0]]);
+      newEdgeClass.sourceNodeAttr = sourceEdgeClass.sourceNodeAttr;
+      newEdgeClass.intermediateSources = sourceEdgeClass.intermediateSources
+        .concat([{
+          nodeAttr: sourceEdgeClass.sourceEdgeAttr,
+          selector: sourceEdgeClass._selector,
+          edgeAttr: sourceEdgeClass.targetEdgeAttr
+        }]).concat(sourceEdgeClass.intermediateTargets);
+      newEdgeClass.sourceEdgeAttr = sourceEdgeClass.targetNodeAttr;
+
+      sourceEdgeClass.delete();
     }
-    if (edgeIds.length === 2) {
-      newEdgeClass.glompTargetEdge(this.mure.classes[edgeIds[1]]);
+    if (targetEdgeClass) {
+      newEdgeClass.targetEdgeAttr = targetEdgeClass.sourceNodeAttr;
+      newEdgeClass.intermediateTargets = targetEdgeClass.intermediateSources
+        .concat([{
+          nodeAttr: targetEdgeClass.sourceEdgeAttr,
+          selector: targetEdgeClass._selector,
+          edgeAttr: targetEdgeClass.targetEdgeAttr
+        }]).concat(targetEdgeClass.intermediateTargets);
+      newEdgeClass.targetNodeAttr = targetEdgeClass.targetNodeAttr;
+      newEdgeClass.targetClassId = targetEdgeClass.targetClassId;
+
+      targetEdgeClass.delete();
     }
     this.mure.saveClasses();
-    */
   }
-  connectToNodeClass ({ otherNodeClass, directed, thisHashName, otherHashName }) {
+  connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
     const newEdge = this.mure.createClass({
       selector: null,
       ClassType: this.mure.CLASSES.EdgeClass,
+
       sourceClassId: this.classId,
-      sourceChain: { nodeHash: thisHashName, edgeHash: null },
+      sourceNodeAttr: attribute,
+      intermediateSources: [],
+      sourceEdgeAttr: null,
+
       targetClassId: otherNodeClass.classId,
-      targetHashName: { nodeHash: otherHashName, edgeHash: null },
+      targetNodeAttr: otherAttribute,
+      intermediateTargets: [],
+      targetEdgeAttr: null,
+
       directed
     });
-    this.edgeConnections[newEdge.classId] = true;
-    otherNodeClass.edgeConnections[newEdge.classId] = true;
+    this.edgeClassIds[newEdge.classId] = true;
+    otherNodeClass.edgeClassIds[newEdge.classId] = true;
     this.mure.saveClasses();
   }
   connectToEdgeClass (options) {
@@ -57,7 +83,7 @@ class NodeClass extends GenericClass {
     edgeClass.connectToNodeClass(options);
   }
   disconnectAllEdges () {
-    for (const edgeClassId of Object.keys(this.edgeConnections)) {
+    for (const edgeClassId of Object.keys(this.edgeClassIds)) {
       const edgeClass = this.mure.classes[edgeClassId];
       if (edgeClass.sourceClassId === this.classId) {
         edgeClass.disconnectSources();
@@ -65,7 +91,6 @@ class NodeClass extends GenericClass {
       if (edgeClass.targetClassId === this.classId) {
         edgeClass.disconnectTargets();
       }
-      delete this.edgeConnections[edgeClassId];
     }
   }
   delete () {

@@ -4,11 +4,13 @@ import sha1 from 'sha1';
 import TriggerableMixin from './Common/TriggerableMixin.js';
 import Stream from './Stream.js';
 import * as TOKENS from './Tokens/Tokens.js';
+import * as TABLES from './Tables/Tables.js';
 import * as CLASSES from './Classes/Classes.js';
 import * as WRAPPERS from './Wrappers/Wrappers.js';
 import * as INDEXES from './Indexes/Indexes.js';
 
 let NEXT_CLASS_ID = 1;
+let NEXT_TABLE_ID = 1;
 
 class Mure extends TriggerableMixin(class {}) {
   constructor (FileReader, localStorage) {
@@ -30,6 +32,7 @@ class Mure extends TriggerableMixin(class {}) {
 
     // Access to core classes via the main library helps avoid circular imports
     this.TOKENS = TOKENS;
+    this.TABLES = TABLES;
     this.CLASSES = CLASSES;
     this.WRAPPERS = WRAPPERS;
     this.INDEXES = INDEXES;
@@ -69,115 +72,86 @@ class Mure extends TriggerableMixin(class {}) {
     };
 
     // Object containing each of our data sources
-    this.root = this.loadRoot();
+    this.tables = this.hydrate('mure_tables');
 
     // Object containing our class specifications
-    this.classes = this.loadClasses();
+    this.classes = this.hydrate('mure_classes');
   }
 
-  loadRoot () {
-    let root = this.localStorage && this.localStorage.getItem('mure_root');
-    root = root ? JSON.parse(root) : {};
-    return root;
-  }
-  saveRoot () {
-    if (this.localStorage) {
-      this.localStorage.setItem('mure_root', JSON.stringify(this.root));
-    }
-    this.trigger('rootUpdate');
-  }
-  loadClasses () {
-    let classes = this.localStorage && this.localStorage.getItem('mure_classes');
-    classes = classes ? JSON.parse(classes) : {};
-    Object.entries(classes).forEach(([ classId, rawClassObj ]) => {
-      const classType = rawClassObj.classType;
-      delete rawClassObj.classType;
-      rawClassObj.mure = this;
-      classes[classId] = new this.CLASSES[classType](rawClassObj);
-    });
-    return classes;
-  }
-  getRawClasses () {
-    const rawClasses = {};
-    for (const [ classId, classObj ] of Object.entries(this.classes)) {
-      rawClasses[classId] = classObj.toRawObject();
-    }
-    return rawClasses;
+  saveTables () {
+    this.dehydrate('mure_tables', this.tables);
   }
   saveClasses () {
+    this.dehydrate('mure_classes', this.classes);
+  }
+
+  hydrate (storageKey, TYPES) {
+    let container = this.localStorage && this.localStorage.getItem(storageKey);
+    container = container ? JSON.parse(container) : {};
+    for (const [key, value] of Object.entries(container)) {
+      const type = value.type;
+      delete value.type;
+      container[key] = new TYPES[type](value);
+    }
+    return container;
+  }
+  deyhdrate (storageKey, container) {
     if (this.localStorage) {
-      this.localStorage.setItem('mure_classes', JSON.stringify(this.getRawClasses()));
+      const result = {};
+      for (const [key, value] of Object.entries(container)) {
+        result[key] = value.toRawObject();
+        result[key].type = value.constructor.name;
+      }
+      this.localStorage.setItem(storageKey, JSON.stringify(result));
     }
-    this.trigger('classUpdate');
+  }
+  hydrateFunction (stringifiedFunc) {
+    new Function(`return ${stringifiedFunc}`)(); // eslint-disable-line no-new-func
+  }
+  dehydrateFunction (func) {
+    let stringifiedFunc = func.toString();
+    // Istanbul adds some code to functions for computing coverage, that gets
+    // included in the stringification process during testing. See:
+    // https://github.com/gotwarlost/istanbul/issues/310#issuecomment-274889022
+    stringifiedFunc = stringifiedFunc.replace(/cov_(.+?)\+\+[,;]?/g, '');
+    return stringifiedFunc;
   }
 
-  parseSelector (selectorString) {
-    const startsWithRoot = selectorString.startsWith('root');
-    if (!(startsWithRoot || selectorString.startsWith('empty'))) {
-      throw new SyntaxError(`Selectors must start with 'root' or 'empty'`);
+  createTable (options) {
+    if (!options.tableId) {
+      options.tableId = `table${NEXT_TABLE_ID}`;
+      NEXT_TABLE_ID += 1;
     }
-    const tokenStrings = selectorString.match(/\.([^(]*)\(([^)]*)\)/g);
-    if (!tokenStrings) {
-      throw new SyntaxError(`Invalid selector string: ${selectorString}`);
-    }
-    const tokenClassList = [{
-      TokenClass: startsWithRoot ? this.TOKENS.RootToken : this.TOKENS.EmptyToken
-    }];
-    tokenStrings.forEach(chunk => {
-      const temp = chunk.match(/^.([^(]*)\(([^)]*)\)/);
-      if (!temp) {
-        throw new SyntaxError(`Invalid token: ${chunk}`);
-      }
-      const tokenClassName = temp[1][0].toUpperCase() + temp[1].slice(1) + 'Token';
-      const argList = temp[2].split(/(?<!\\),/).map(d => {
-        d = d.trim();
-        return d === '' ? undefined : d;
-      });
-      if (tokenClassName === 'ValuesToken') {
-        tokenClassList.push({
-          TokenClass: this.TOKENS.KeysToken,
-          argList
-        });
-        tokenClassList.push({
-          TokenClass: this.TOKENS.ValueToken
-        });
-      } else if (this.TOKENS[tokenClassName]) {
-        tokenClassList.push({
-          TokenClass: this.TOKENS[tokenClassName],
-          argList
-        });
-      } else {
-        throw new SyntaxError(`Unknown token: ${temp[1]}`);
-      }
-    });
-    return tokenClassList;
-  }
-
-  stream (options) {
+    const Type = this.TABLES[options.type];
+    delete options.type;
     options.mure = this;
-    options.tokenClassList = this.parseSelector(options.selector || `root.values()`);
-    return new Stream(options);
+    this.tables[options.tableId] = new Type(options);
+    return this.tables[options.tableId];
   }
-
   createClass (options = { selector: `empty` }) {
     if (!options.classId) {
       options.classId = `class${NEXT_CLASS_ID}`;
       NEXT_CLASS_ID += 1;
     }
-    const ClassType = options.ClassType || this.CLASSES.GenericClass;
-    delete options.ClassType;
+    const Type = this.CLASSES[options.type];
+    delete options.type;
     options.mure = this;
-    this.classes[options.classId] = new ClassType(options);
+    this.classes[options.classId] = new Type(options);
     return this.classes[options.classId];
   }
 
+  newTable (options) {
+    const newTableObj = this.createTable(options);
+    this.saveTables();
+    return newTableObj;
+  }
   newClass (options) {
     const newClassObj = this.createClass(options);
     this.saveClasses();
     return newClassObj;
   }
 
-  async addFileAsStaticDataSource ({
+  async addFileAsStaticTable ({
     fileObj,
     encoding = mime.charset(fileObj.type),
     extensionOverride = null,
@@ -188,7 +162,7 @@ class Mure extends TriggerableMixin(class {}) {
       if (skipSizeCheck) {
         console.warn(`Attempting to load ${fileMB}MB file into memory`);
       } else {
-        throw new Error(`${fileMB}MB file is too large to load statically; try addDynamicDataSource() instead.`);
+        throw new Error(`${fileMB}MB file is too large to load statically; try addDynamicTable() instead.`);
       }
     }
     // extensionOverride allows things like topojson or treejson (that don't
@@ -200,22 +174,22 @@ class Mure extends TriggerableMixin(class {}) {
       };
       reader.readAsText(fileObj, encoding);
     });
-    return this.addStringAsStaticDataSource({
-      key: fileObj.name,
+    return this.addStringAsStaticTable({
+      name: fileObj.name,
       extension: extensionOverride || mime.extension(fileObj.type),
       text
     });
   }
-  addStringAsStaticDataSource ({
-    key,
-    extension = 'txt',
-    text
-  }) {
-    let obj;
+  addStringAsStaticTable ({ name, extension = 'txt', text }) {
+    let data, attributes;
     if (this.DATALIB_FORMATS[extension]) {
-      obj = datalib.read(text, { type: extension });
+      data = datalib.read(text, { type: extension });
       if (extension === 'csv' || extension === 'tsv') {
-        delete obj.columns;
+        attributes = {};
+        for (const attr of data.columns) {
+          attributes[attr] = true;
+        }
+        delete data.columns;
       }
     } else if (extension === 'xml') {
       throw new Error('unimplemented');
@@ -224,18 +198,15 @@ class Mure extends TriggerableMixin(class {}) {
     } else {
       throw new Error(`Unsupported file extension: ${extension}`);
     }
-    return this.addStaticDataSource(key, obj);
+    return this.addStaticTable({ name, data, attributes });
   }
-  addStaticDataSource (key, obj) {
-    this.root[key] = obj;
-    this.saveRoot();
-    return this.newClass({
-      selector: `root.values('${key}').values()`
+  addStaticTable (options) {
+    options.type = options.data instanceof Array ? 'StaticTable' : 'StaticDict';
+    let newTable = this.newTable(options);
+    this.newClass({
+      type: 'GenericClass',
+      tableId: newTable.tableId
     });
-  }
-  removeDataSource (key) {
-    delete this.root[key];
-    this.saveRoot();
   }
 }
 
