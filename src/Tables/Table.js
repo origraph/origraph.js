@@ -54,6 +54,9 @@ class Table extends Introspectable {
     for (const [attr, func] of Object.entries(this.derivedAttributeFunctions)) {
       wrappedItem.row[attr] = func(wrappedItem);
     }
+    for (const attr of Object.keys(wrappedItem.row)) {
+      this._observedAttributes[attr] = true;
+    }
     wrappedItem.trigger('finish');
   }
   toRawObject () {
@@ -107,10 +110,31 @@ class Table extends Introspectable {
     });
   }
   closedFacet (attribute, values) {
-    throw new Error(`unimplemented`);
+    return values.map(value => {
+      return this.deriveTable({
+        type: 'FilteredTable',
+        parentTableId: this.tableId,
+        attribute,
+        value
+      });
+    });
   }
-  async * openFacet (attribute) {
-    throw new Error(`unimplemented`);
+  async * openFacet (options) {
+    const values = {};
+    const attribute = options.attribute;
+    delete options.attribute;
+    for await (const wrappedItem of this.iterate(options)) {
+      const value = wrappedItem.row[attribute];
+      if (!values[value]) {
+        values[value] = true;
+        yield this.deriveTable({
+          type: 'FilteredTable',
+          parentTableId: this.tableId,
+          attribute,
+          value
+        });
+      }
+    }
   }
   get classes () {
     return Object.values(this.mure.classes).reduce((agg, classObj) => {
