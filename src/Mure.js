@@ -2,8 +2,6 @@ import mime from 'mime-types';
 import datalib from 'datalib';
 import sha1 from 'sha1';
 import TriggerableMixin from './Common/TriggerableMixin.js';
-import Stream from './Stream.js';
-import * as TOKENS from './Tokens/Tokens.js';
 import * as TABLES from './Tables/Tables.js';
 import * as CLASSES from './Classes/Classes.js';
 import * as WRAPPERS from './Wrappers/Wrappers.js';
@@ -31,19 +29,10 @@ class Mure extends TriggerableMixin(class {}) {
     };
 
     // Access to core classes via the main library helps avoid circular imports
-    this.TOKENS = TOKENS;
     this.TABLES = TABLES;
     this.CLASSES = CLASSES;
     this.WRAPPERS = WRAPPERS;
     this.INDEXES = INDEXES;
-
-    // Monkey-patch available tokens as functions onto the Stream class
-    for (const tokenClassName in this.TOKENS) {
-      const TokenClass = this.TOKENS[tokenClassName];
-      Stream.prototype[TokenClass.lowerCamelCaseType] = function (argList, options) {
-        return this.extend(TokenClass, argList, options);
-      };
-    }
 
     // Default named functions
     this.NAMED_FUNCTIONS = {

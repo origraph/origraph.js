@@ -1,5 +1,5 @@
 import StaticTable from './StaticTable.js';
-import StaticDict from './StaticDics.js';
+import StaticDict from './StaticDict.js';
 import AggregatedTable from './AggregatedTable.js';
 import ExpandedTable from './ExpandedTable.js';
 import FilteredTable from './FilteredTable.js';
