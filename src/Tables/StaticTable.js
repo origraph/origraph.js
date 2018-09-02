@@ -12,7 +12,7 @@ class StaticTable extends Table {
   }
   async * _iterate (options) {
     for (let index = 0; index < this._data.length; index++) {
-      const item = new options.Wrapper({ index, row: this._data[index] });
+      const item = this._wrap({ index, row: this._data[index] });
       this._finishItem(item);
       yield item;
     }

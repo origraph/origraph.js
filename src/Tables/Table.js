@@ -88,6 +88,11 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     wrappedItem.trigger('finish');
   }
+  _wrap (options) {
+    options.table = this;
+    const classObj = this.classObj;
+    return classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
+  }
   _getAllAttributes () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
@@ -156,13 +161,10 @@ class Table extends TriggerableMixin(Introspectable) {
       }
     }
   }
-  get classes () {
-    return Object.values(this._mure.classes).reduce((agg, classObj) => {
-      if (classObj.tableId === this.tableId ||
-        (classObj.tableIds && classObj.tableIds[this.tableId])) {
-        agg.push(classObj);
-      }
-    }, []);
+  get classObj () {
+    return Object.values(this._mure.classes).find(classObj => {
+      return classObj.table === this;
+    });
   }
   get parentTables () {
     return Object.values(this._mure.tables).reduce((agg, tableObj) => {
@@ -177,7 +179,7 @@ class Table extends TriggerableMixin(Introspectable) {
     });
   }
   delete () {
-    if (Object.keys(this.derivedTables).length > 0 || this.classes.length > 0) {
+    if (Object.keys(this.derivedTables).length > 0 || this.classObj) {
       throw new Error(`Can't delete in-use table ${this.tableId}`);
     }
     for (const parentTable of this.parentTables) {

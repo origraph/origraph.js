@@ -12,7 +12,7 @@ class StaticDict extends Table {
   }
   async * _iterate (options) {
     for (const [index, row] of Object.entries(this._data)) {
-      const item = new options.Wrapper({ index, row });
+      const item = this._wrap({ index, row });
       this._finishItem(item);
       yield item;
     }

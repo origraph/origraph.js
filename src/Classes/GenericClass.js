@@ -1,140 +1,52 @@
 import Introspectable from '../Common/Introspectable.js';
-import Stream from '../Stream.js';
-
-const ASTERISKS = {
-  'evaluate': '↬',
-  'join': '⨯',
-  'map': '↦',
-  'promote': '↑',
-  'value': '→'
-};
 
 class GenericClass extends Introspectable {
   constructor (options) {
     super();
     this._mure = options.mure;
     this.classId = options.classId;
-    this._selector = options.selector;
-    this.customClassName = options.customClassName || null;
-    this.customNameTokenIndex = options.customNameTokenIndex || null;
-    this.annotations = options.annotations || [];
-    this.Wrapper = this._mure.WRAPPERS.GenericWrapper;
-    this.namedFunctions = Object.assign({},
-      this._mure.NAMED_FUNCTIONS, options.namedFunctions || {});
-    for (let [funcName, func] of Object.entries(this.namedFunctions)) {
-      if (typeof func === 'string') {
-        this.namedFunctions[funcName] = new Function(`return ${func}`)(); // eslint-disable-line no-new-func
-      }
+    this.tableId = options.tableId;
+    if (!this._mure || !this.classId || !this.tableId) {
+      throw new Error(`_mure and classId are required`);
     }
+
+    this._className = options.className || null;
+    this.annotation = options.annotation || '';
   }
-  get selector () {
-    return this._selector;
-  }
-  get tokenClassList () {
-    return this._mure.parseSelector(this.selector);
-  }
-  toRawObject () {
-    const result = {
-      classType: this.constructor.name,
-      selector: this._selector,
-      customClassName: this.customClassName,
-      customNameTokenIndex: this.customNameTokenIndex,
-      annotations: this.annotations,
+  _toRawObject () {
+    return {
       classId: this.classId,
-      namedFunctions: {}
+      className: this._className,
+      annotation: this.annotation
     };
-    for (let [funcName, func] of Object.entries(this.namedFunctions)) {
-      let stringifiedFunc = func.toString();
-      // Istanbul adds some code to functions for computing coverage, that gets
-      // included in the stringification process during testing. See:
-      // https://github.com/gotwarlost/istanbul/issues/310#issuecomment-274889022
-      stringifiedFunc = stringifiedFunc.replace(/cov_(.+?)\+\+[,;]?/g, '');
-      result.namedFunctions[funcName] = stringifiedFunc;
-    }
-    return result;
   }
-  setClassName (value) {
-    if (this.customClassName !== value) {
-      this.customClassName = value;
-      this.customNameTokenIndex = this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
-      this._mure.saveClasses();
-    }
+  set className (value) {
+    this._className = value;
   }
   get hasCustomName () {
-    return this.customClassName !== null &&
-      this.customNameTokenIndex === this.selector.match(/\.([^(]*)\(([^)]*)\)/g).length;
+    return this._customName !== null;
   }
   get className () {
-    const selector = this.selector;
-    const tokenStrings = selector.match(/\.([^(]*)\(([^)]*)\)/g);
-    let result = '';
-    for (let i = tokenStrings.length - 1; i >= 0; i--) {
-      if (this.customClassName !== null && i <= this.customNameTokenIndex) {
-        return this.customClassName + result;
-      }
-      const temp = tokenStrings[i].match(/^.([^(]*)\(([^)]*)\)/);
-      if (temp[1] === 'keys' || temp[1] === 'values') {
-        if (temp[2] === '') {
-          result = '*' + result;
-        } else {
-          result = temp[2].replace(/'([^']*)'/, '$1') + result;
-        }
-      } else {
-        result = ASTERISKS[temp[1]] + result;
-      }
-    }
-    return (selector.startsWith('empty') ? '∅' : '') + result;
+    return this._customName || this._autoDeriveClassName();
   }
-  addHashFunction (funcName, func) {
-    this.namedFunctions[funcName] = func;
+  _autoDeriveClassName () {
+    throw new Error(`this function should be overridden`);
   }
-  addAttributeAsHashFunction (attrName) {
-    this.namedFunctions[attrName] = function * (wrappedItem) {
-      yield wrappedItem.rawItem[attrName];
-    };
-  }
-  expandAttributeAsHashFunction (attrName, delimiter = ',') {
-    this.namedFunctions[attrName] = function * (wrappedItem) {
-      for (const value of wrappedItem.rawItem.split(delimiter)) {
-        yield value.trim();
-      }
-    };
-  }
-  populateStreamOptions (options = {}) {
-    options.mure = this._mure;
-    options.tokenClassList = this.tokenClassList;
-    options.namedFunctions = this.namedFunctions;
-    options.launchedFromClass = this;
-    return options;
-  }
-  getStream (options = {}) {
-    return new Stream(this.populateStreamOptions(options));
-  }
-  isSuperSetOfTokenList (tokenList) {
-    if (tokenList.length !== this.tokenList.length) { return false; }
-    return this.tokenList.every((token, i) => token.isSuperSetOf(tokenList[i]));
+  get table () {
+    return this._mure.tables[this.tableId];
   }
   interpretAsNodes () {
-    const options = this.toRawObject();
+    const options = this._toRawObject();
     options.ClassType = this._mure.CLASSES.NodeClass;
     return this._mure.newClass(options);
   }
   interpretAsEdges () {
-    const options = this.toRawObject();
+    const options = this._toRawObject();
     options.ClassType = this._mure.CLASSES.EdgeClass;
     return this._mure.newClass(options);
   }
-  aggregate (hash, reduce) {
-    throw new Error(`unimplemented`);
-  }
-  expand (map) {
-    throw new Error(`unimplemented`);
-  }
-  filter (filter) {
-    throw new Error(`unimplemented`);
-  }
-  split (hash) {
-    throw new Error(`unimplemented`);
+  _wrap (options) {
+    return new this._mure.WRAPPERS.GenericWrapper(options);
   }
   delete () {
     delete this._mure.classes[this.classId];

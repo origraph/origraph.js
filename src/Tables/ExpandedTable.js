@@ -20,15 +20,15 @@ class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)
   async * _iterate (options) {
     let index = 0;
     const parentTableId = this.parentTable.tableId;
-    for await (const { wrappedParentItem } of this.parentTable.iterate(options)) {
-      const values = (wrappedParentItem.row[this.attribute] || '').split(this.delimiter);
+    for await (const { wrappedParent } of this.parentTable.iterate(options)) {
+      const values = (wrappedParent.row[this.attribute] || '').split(this.delimiter);
       for (const value of values) {
         const row = {};
         row[this.attribute] = value;
-        const wrappedItem = new options.Wrapper({ index, row });
-        const parentItems = {};
-        parentItems[parentTableId] = wrappedParentItem;
-        this._duplicateAttributes(wrappedItem, parentItems);
+        const connectedRows = {};
+        connectedRows[parentTableId] = wrappedParent;
+        const wrappedItem = this._wrap({ index, row, connectedRows });
+        this._duplicateAttributes(wrappedItem, connectedRows);
         this._finishItem(wrappedItem);
         yield wrappedItem;
         index++;

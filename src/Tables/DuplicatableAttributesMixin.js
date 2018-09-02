@@ -15,9 +15,9 @@ const DuplicatableAttributesMixin = function (superclass) {
       this._duplicatedAttributes[parentId].push(attribute);
       this.reset();
     }
-    _duplicateAttributes (wrappedItem, parentItems) {
+    _duplicateAttributes (wrappedItem, connectedRows) {
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        wrappedItem.row[`${parentId}.${attr}`] = parentItems[parentId][attr];
+        wrappedItem.row[`${parentId}.${attr}`] = connectedRows[parentId][attr];
       }
     }
     _getAllAttributes () {

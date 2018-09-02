@@ -65,7 +65,10 @@ class AggregatedTable extends SingleParentMixin(Table) {
       } else if (this._partialCache[index]) {
         this._updateItem(this._partialCache[index], wrappedParent);
       } else {
-        yield new options.Wrapper({ index, row: {} });
+        yield this._wrap({
+          index,
+          connectedRows: { wrappedParent }
+        });
       }
     }
   }

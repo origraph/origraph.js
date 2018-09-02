@@ -2,10 +2,13 @@ import TriggerableMixin from '../Common/TriggerableMixin.js';
 import Introspectable from '../Common/Introspectable.js';
 
 class GenericWrapper extends TriggerableMixin(Introspectable) {
-  constructor ({ key, value }) {
+  constructor (options) {
     super();
-    this.key = key;
-    this.value = value;
+    if (!this.index) {
+      throw new Error(`index is required`);
+    }
+    this.row = options.row || {};
+    this.connectedRows = options.connectedRows || {};
   }
 }
 Object.defineProperty(GenericWrapper, 'type', {

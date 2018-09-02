@@ -20,7 +20,11 @@ class FilteredTable extends SingleParentMixin(Table) {
     let index = 0;
     for await (const { wrappedParent } of this.parentTable.iterate(options)) {
       if (wrappedParent.row[this._attribute] === this._value) {
-        const wrappedItem = new options.Wrapper({ index, row: wrappedParent.row });
+        const wrappedItem = this._wrap({
+          index,
+          row: wrappedParent.row,
+          connectedRows: { wrappedParent }
+        });
         this._finishItem(wrappedItem);
         yield wrappedItem;
         index++;

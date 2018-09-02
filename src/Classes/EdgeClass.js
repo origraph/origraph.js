@@ -17,8 +17,8 @@ class EdgeClass extends GenericClass {
 
     this.directed = options.directed || false;
   }
-  toRawObject () {
-    const result = super.toRawObject();
+  _toRawObject () {
+    const result = super._toRawObject();
 
     result.sourceClassId = this.sourceClassId;
     result.sourceNodeAttr = this.sourceNodeAttr;
@@ -32,67 +32,6 @@ class EdgeClass extends GenericClass {
 
     result.directed = this.directed;
     return result;
-  }
-  get selector () {
-    // TODO!
-    return this._selector;
-    /*
-    const sourceClass = this._mure.classes[this.sourceClassId];
-    const targetClass = this._mure.classes[this.targetClassId];
-
-    if (!this._selector) {
-      if (!sourceClass || !targetClass) {
-        throw new Error(`Partial connections without an edge table should never happen`);
-      } else {
-        // No edge table (simple join between two nodes)
-        const sourceHash = sourceClass.edgeClassIds[this.classId].nodeHashName;
-        const targetHash = targetClass.edgeClassIds[this.classId].nodeHashName;
-        return sourceClass.selector + `.join(target, ${sourceHash}, ${targetHash}, defaultFinish, sourceTarget)`;
-      }
-    } else {
-      let result = this._selector;
-      if (!sourceClass) {
-        if (!targetClass) {
-          // No connections yet; just yield the raw edge table
-          return result;
-        } else {
-          // Partial edge-target connections
-          const { edgeHashName, nodeHashName } = targetClass.edgeClassIds[this.classId];
-          return result + `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, edgeTarget)`;
-        }
-      } else if (!targetClass) {
-        // Partial source-edge connections
-        const { nodeHashName, edgeHashName } = sourceClass.edgeClassIds[this.classId];
-        return result + `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish, sourceEdge)`;
-      } else {
-        // Full connections
-        let { nodeHashName, edgeHashName } = sourceClass.edgeClassIds[this.classId];
-        result += `.join(source, ${edgeHashName}, ${nodeHashName}, defaultFinish)`;
-        ({ edgeHashName, nodeHashName } = targetClass.edgeClassIds[this.classId]);
-        result += `.join(target, ${edgeHashName}, ${nodeHashName}, defaultFinish, full)`;
-        return result;
-      }
-    }
-    */
-  }
-  populateStreamOptions (options = {}) {
-    const sourceClass = this._mure.classes[this.sourceClassId];
-    const targetClass = this._mure.classes[this.targetClassId];
-    options.namedStreams = {};
-    if (!this._selector) {
-      // Use the options from the source stream instead of our class
-      options = sourceClass.populateStreamOptions(options);
-      options.namedStreams.target = targetClass.getStream();
-    } else {
-      options = super.populateStreamOptions(options);
-      if (sourceClass) {
-        options.namedStreams.source = sourceClass.getStream();
-      }
-      if (targetClass) {
-        options.namedStreams.target = targetClass.getStream();
-      }
-    }
-    return options;
   }
   interpretAsNodes () {
     const options = super.toRawObject();
@@ -189,45 +128,37 @@ class EdgeClass extends GenericClass {
     }
     this._mure.saveClasses();
   }
-  connectSources ({ nodeClass, nodeAttribute, edgeAttribute }) {
+  connectSource ({ nodeClass, nodeAttribute, edgeAttribute, skipSave = false }) {
     if (this.sourceClassId) {
       this.disconnectSources();
     }
     this.sourceClassId = nodeClass.classId;
-    this.sourceNodeAttr = nodeAttribute;
-    this.intermediateSources = [];
-    this.sourceEdgeAttr = edgeAttribute;
+    this._mure.classes[this.sourceClassId].edgeClassIds[this.classId] = true;
+    if (!skipSave) { this._mure.saveClasses(); }
   }
-  connectTargets ({ nodeClass, nodeAttribute, edgeAttribute }) {
+  connectTarget ({ nodeClass, nodeAttribute, edgeAttribute, skipSave = false }) {
     if (this.targetClassId) {
       this.disconnectTargets();
     }
     this.targetClassId = nodeClass.classId;
-    this.targetNodeAttr = nodeAttribute;
-    this.intermediateTargets = [];
-    this.targetEdgeAttr = edgeAttribute;
+    this._mure.classes[this.targetClassId].edgeClassIds[this.classId] = true;
+    if (!skipSave) { this._mure.saveClasses(); }
   }
-  disconnectSources () {
+  disconnectSource ({ skipSave = false }) {
     if (this._mure.classes[this.sourceClassId]) {
       delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
     }
-    this.sourceClassId = null;
-    this.sourceNodeAttr = null;
-    this.intermediateSources = [];
-    this.sourceEdgeAttr = null;
+    if (!skipSave) { this._mure.saveClasses(); }
   }
-  disconnectTargets () {
+  disconnectTarget ({ skipSave = false }) {
     if (this._mure.classes[this.targetClassId]) {
       delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
     }
-    this.targetClassId = null;
-    this.targetNodeAttr = null;
-    this.intermediateTargets = [];
-    this.targetEdgeAttr = null;
+    if (!skipSave) { this._mure.saveClasses(); }
   }
   delete () {
-    this.disconnectSources();
-    this.disconnectTargets();
+    this.disconnectSource({ skipSave: true });
+    this.disconnectTarget({ skipSave: true });
     super.delete();
   }
 }
