@@ -18,13 +18,23 @@ class NodeClass extends GenericClass {
     throw new Error(`unimplemented`);
   }
   connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
-    throw new Error(`unimplemented`);
+    const thisHash = this.getHashTable(attribute);
+    const otherHash = otherNodeClass.getHashTable(otherAttribute);
+    const connectedTable = thisHash.connect([otherHash]);
+    return this._mure.newClass({
+      type: 'EdgeClass',
+      tableId: connectedTable.tableId,
+      sourceClassId: this.classId,
+      sourceNodeAttr: attribute,
+      targetClassId: otherNodeClass.classId,
+      targetNodeAttr: otherAttribute
+    });
   }
   connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;
     delete options.edgeClass;
     options.nodeClass = this;
-    edgeClass.connectToNodeClass(options);
+    return edgeClass.connectToNodeClass(options);
   }
   disconnectAllEdges () {
     for (const edgeClassId of Object.keys(this.edgeClassIds)) {

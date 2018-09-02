@@ -115,33 +115,47 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   _deriveTable (options) {
     const newTable = this._mure.createTable(options);
-    this.derivedTables[newTable.tableId] = true;
+    this._derivedTables[newTable.tableId] = true;
     this._mure.saveTables();
     return newTable;
   }
-  aggregate (attribute) {
-    return this._deriveTable({
-      type: 'AggregatedTable',
-      parentTableId: this.tableId,
-      attribute
+  _getExistingTable (options) {
+    // Check if the derived table has already been defined
+    const existingTableId = Object.keys(this.derivedTables).find(tableId => {
+      const tableObj = this._mure.tables[tableId];
+      return Object.entries(options).every(([optionName, optionValue]) => {
+        if (optionName === 'type') {
+          return tableObj.constructor.name === optionValue;
+        } else {
+          return tableObj['_' + optionName] === optionValue;
+        }
+      });
     });
+    return (existingTableId && this._mure.tables[existingTableId]) || null;
+  }
+  aggregate (attribute) {
+    const options = {
+      type: 'AggregatedTable',
+      attribute
+    };
+    return this._getExistingTable(options) || this._deriveTable(options);
   }
   expand (attribute, delimiter) {
-    return this._deriveTable({
+    const options = {
       type: 'ExpandedTable',
-      parentTableId: this.tableId,
       attribute,
       delimiter
-    });
+    };
+    return this._getExistingTable(options) || this._deriveTable(options);
   }
   closedFacet (attribute, values) {
     return values.map(value => {
-      return this._deriveTable({
+      const options = {
         type: 'FilteredTable',
-        parentTableId: this.tableId,
         attribute,
         value
-      });
+      };
+      return this._getExistingTable(options) || this._deriveTable(options);
     });
   }
   async * openFacet (options) {
@@ -152,14 +166,23 @@ class Table extends TriggerableMixin(Introspectable) {
       const value = wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
-        yield this._deriveTable({
+        const options = {
           type: 'FilteredTable',
-          parentTableId: this.tableId,
           attribute,
           value
-        });
+        };
+        yield this._getExistingTable(options) || this._deriveTable(options);
       }
     }
+  }
+  connect (otherTableList) {
+    const newTable = this._mure.createTable({ type: 'ConnectedTable' });
+    this._derivedTables[newTable.tableId] = true;
+    for (const otherTable of otherTableList) {
+      otherTable._derivedTables[newTable.tableId] = true;
+    }
+    this._mure.saveTables();
+    return newTable;
   }
   get classObj () {
     return Object.values(this._mure.classes).find(classObj => {

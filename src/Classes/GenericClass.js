@@ -5,7 +5,6 @@ class GenericClass extends Introspectable {
     super();
     this._mure = options.mure;
     this.classId = options.classId;
-    this.tableId = options.tableId;
     if (!this._mure || !this.classId || !this.tableId) {
       throw new Error(`_mure and classId are required`);
     }
@@ -28,6 +27,9 @@ class GenericClass extends Introspectable {
   }
   get className () {
     return this._customName || this._autoDeriveClassName();
+  }
+  getHashTable (attribute) {
+    return attribute === null ? this.table : this.table.aggregate(attribute);
   }
   _autoDeriveClassName () {
     throw new Error(`this function should be overridden`);
