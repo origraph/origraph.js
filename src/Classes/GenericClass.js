@@ -5,6 +5,7 @@ class GenericClass extends Introspectable {
     super();
     this._mure = options.mure;
     this.classId = options.classId;
+    this.tableId = options.tableId;
     if (!this._mure || !this.classId || !this.tableId) {
       throw new Error(`_mure and classId are required`);
     }
@@ -15,6 +16,7 @@ class GenericClass extends Introspectable {
   _toRawObject () {
     return {
       classId: this.classId,
+      tableId: this.tableId,
       className: this._className,
       annotation: this.annotation
     };

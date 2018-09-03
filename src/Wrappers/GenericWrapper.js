@@ -4,7 +4,8 @@ import Introspectable from '../Common/Introspectable.js';
 class GenericWrapper extends TriggerableMixin(Introspectable) {
   constructor (options) {
     super();
-    if (!this.index) {
+    this.index = options.index;
+    if (this.index === undefined) {
       throw new Error(`index is required`);
     }
     this.row = options.row || {};

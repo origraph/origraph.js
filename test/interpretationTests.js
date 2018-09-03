@@ -16,7 +16,7 @@ describe('Interpretation Tests', () => {
       return new Promise((resolve, reject) => {
         fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
           if (err) { reject(err); }
-          resolve(await mure.addStringAsStaticDataSource({
+          resolve(await mure.addStringAsStaticTable({
             key: filename,
             extension: mure.mime.extension(mure.mime.lookup(filename)),
             text

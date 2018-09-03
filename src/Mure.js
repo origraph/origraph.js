@@ -84,7 +84,7 @@ class Mure extends TriggerableMixin(class {}) {
     }
     return container;
   }
-  deyhdrate (storageKey, container) {
+  dehydrate (storageKey, container) {
     if (this.localStorage) {
       const result = {};
       for (const [key, value] of Object.entries(container)) {
@@ -192,10 +192,22 @@ class Mure extends TriggerableMixin(class {}) {
   addStaticTable (options) {
     options.type = options.data instanceof Array ? 'StaticTable' : 'StaticDict';
     let newTable = this.newTable(options);
-    this.newClass({
+    return this.newClass({
       type: 'GenericClass',
       tableId: newTable.tableId
     });
+  }
+  deleteAllUnusedTables () {
+    for (const tableId in this.tables) {
+      if (this.tables[tableId]) {
+        try { this.tables[tableId].delete(); } catch (err) {}
+      }
+    }
+  }
+  deleteAllClasses () {
+    for (const classObj of Object.values(this.classes)) {
+      classObj.delete();
+    }
   }
 }
 

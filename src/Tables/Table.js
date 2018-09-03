@@ -34,7 +34,7 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return result;
   }
-  async * iterate (options = { reset: false }) {
+  async * iterate (options = { reset: false, limit: Infinity }) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
     // algorithm requires that its parent tables have pre-built indexes (we
     // technically could implement it differently, but it would be expensive,
@@ -64,16 +64,28 @@ class Table extends TriggerableMixin(Introspectable) {
     // TODO: in large data scenarios, we should build the cache / index
     // externally on disk
     this._partialCache = {};
-    for await (const wrappedItem of this._iterate(options)) {
-      this._finishItem(wrappedItem);
+    const limit = options.limit;
+    delete options.limit;
+    const iterator = this._iterate(options);
+    let completed = false;
+    for (let i = 0; i < limit; i++) {
+      const temp = await iterator.next();
       if (!this._partialCache) {
         // iteration was cancelled; return immediately
         return;
       }
-      this._partialCache[wrappedItem.index] = wrappedItem;
-      yield wrappedItem;
+      if (temp.done) {
+        completed = true;
+        break;
+      } else {
+        this._finishItem(temp.value);
+        this._partialCache[temp.value.index] = temp.value;
+        yield temp.value;
+      }
     }
-    this._cache = this._partialCache;
+    if (completed) {
+      this._cache = this._partialCache;
+    }
     delete this._partialCache;
   }
   async * _iterate (options) {

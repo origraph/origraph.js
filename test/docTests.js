@@ -4,7 +4,8 @@ mure.debug = true;
 
 describe('Document Tests', () => {
   afterAll(async () => {
-    mure.removeDataSource('csvTest.csv');
+    mure.deleteAllClasses();
+    mure.deleteAllUnusedTables();
   });
 
   test('load and read a CSV file', async () => {
@@ -18,7 +19,7 @@ describe('Document Tests', () => {
     });
 
     // Upload and parse the data source
-    const genericClass = await mure.addStringAsStaticDataSource({
+    const genericClass = await mure.addStringAsStaticTable({
       key: 'csvTest.csv',
       extension: 'csv',
       text: csvString
@@ -26,8 +27,8 @@ describe('Document Tests', () => {
 
     // Stream the data
     const result = [];
-    for await (const wrappedItem of genericClass.getStream().sample({ limit: Infinity })) {
-      result.push(wrappedItem.rawItem);
+    for await (const wrappedItem of genericClass.table.iterate({ limit: Infinity })) {
+      result.push(wrappedItem.row);
     }
 
     // Verify that it matches what we expect
