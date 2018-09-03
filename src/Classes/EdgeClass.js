@@ -73,7 +73,7 @@ class EdgeClass extends GenericClass {
     nodeAttribute = null,
     edgeAttribute = null,
     skipSave = false
-  }) {
+  } = {}) {
     if (this.sourceClassId) {
       this.disconnectSource({ skipSave: true });
     }
@@ -84,7 +84,7 @@ class EdgeClass extends GenericClass {
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
-  connectTarget ({ nodeClass, nodeAttribute, edgeAttribute, skipSave = false }) {
+  connectTarget ({ nodeClass, nodeAttribute, edgeAttribute, skipSave = false } = {}) {
     if (this.targetClassId) {
       this.disconnectTarget({ skipSave: true });
     }
@@ -95,7 +95,7 @@ class EdgeClass extends GenericClass {
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
-  disconnectSource ({ skipSave = false }) {
+  disconnectSource ({ skipSave = false } = {}) {
     if (this._mure.classes[this.sourceClassId]) {
       delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
     }
@@ -103,7 +103,7 @@ class EdgeClass extends GenericClass {
     this.sourceEdgeAttr = null;
     if (!skipSave) { this._mure.saveClasses(); }
   }
-  disconnectTarget ({ skipSave = false }) {
+  disconnectTarget ({ skipSave = false } = {}) {
     if (this._mure.classes[this.targetClassId]) {
       delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
     }

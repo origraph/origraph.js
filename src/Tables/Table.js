@@ -133,8 +133,7 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   _getExistingTable (options) {
     // Check if the derived table has already been defined
-    const existingTableId = Object.keys(this.derivedTables).find(tableId => {
-      const tableObj = this._mure.tables[tableId];
+    const existingTableId = this.derivedTables.find(tableObj => {
       return Object.entries(options).every(([optionName, optionValue]) => {
         if (optionName === 'type') {
           return tableObj.constructor.name === optionValue;
@@ -209,12 +208,12 @@ class Table extends TriggerableMixin(Introspectable) {
     }, []);
   }
   get derivedTables () {
-    return Object.keys(this.derivedTables).map(tableId => {
+    return Object.keys(this._derivedTables).map(tableId => {
       return this._mure.tables[tableId];
     });
   }
   delete () {
-    if (Object.keys(this.derivedTables).length > 0 || this.classObj) {
+    if (Object.keys(this._derivedTables).length > 0 || this.classObj) {
       throw new Error(`Can't delete in-use table ${this.tableId}`);
     }
     for (const parentTable of this.parentTables) {

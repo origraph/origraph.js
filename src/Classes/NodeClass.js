@@ -21,14 +21,19 @@ class NodeClass extends GenericClass {
     const thisHash = this.getHashTable(attribute);
     const otherHash = otherNodeClass.getHashTable(otherAttribute);
     const connectedTable = thisHash.connect([otherHash]);
-    return this._mure.newClass({
+    const newEdgeClass = this._mure.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
+      directed,
       sourceClassId: this.classId,
       sourceNodeAttr: attribute,
       targetClassId: otherNodeClass.classId,
       targetNodeAttr: otherAttribute
     });
+    this.edgeClassIds[newEdgeClass.classId] = true;
+    otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;
+    this._mure.saveClasses();
+    return newEdgeClass;
   }
   connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;
@@ -40,10 +45,10 @@ class NodeClass extends GenericClass {
     for (const edgeClassId of Object.keys(this.edgeClassIds)) {
       const edgeClass = this._mure.classes[edgeClassId];
       if (edgeClass.sourceClassId === this.classId) {
-        edgeClass.disconnectSources();
+        edgeClass.disconnectSource();
       }
       if (edgeClass.targetClassId === this.classId) {
-        edgeClass.disconnectTargets();
+        edgeClass.disconnectTarget();
       }
     }
   }

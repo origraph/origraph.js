@@ -1,6 +1,5 @@
 const fs = require('fs');
 const mure = require('../dist/mure.cjs.js');
-mure.debug = true;
 
 describe('Document Tests', () => {
   afterAll(async () => {

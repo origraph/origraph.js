@@ -1,29 +1,16 @@
-const fs = require('fs');
 const mure = require('../dist/mure.cjs.js');
-mure.debug = true;
+const loadFiles = require('./loadFiles.js');
 
 describe('Interpretation Tests', () => {
-  afterAll(() => {
-    mure.removeDataSource('movies');
-    mure.removeDataSource('actors');
+  afterEach(() => {
+    mure.deleteAllClasses();
+    mure.deleteAllUnusedTables();
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(1);
+    expect.assertions(16);
 
-    const files = ['people.csv', 'movies.csv', 'movieEdges.csv'];
-    const classes = await Promise.all(files.map(async filename => {
-      return new Promise((resolve, reject) => {
-        fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
-          if (err) { reject(err); }
-          resolve(await mure.addStringAsStaticTable({
-            key: filename,
-            extension: mure.mime.extension(mure.mime.lookup(filename)),
-            text
-          }));
-        });
-      });
-    }));
+    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
     const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
 
@@ -40,49 +27,66 @@ describe('Interpretation Tests', () => {
     await mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
       direction: 'source',
-      nodeHashName: 'id',
-      edgeHashName: 'sourceID'
+      nodeAttribute: 'id',
+      edgeAttribute: 'sourceID'
     });
     await mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
       direction: 'target',
-      nodeHashName: 'id',
-      edgeHashName: 'targetID'
+      nodeAttribute: 'id',
+      edgeAttribute: 'targetID'
     });
 
-    expect(mure.getRawObject(mure.classes)).toEqual({
-      'class2': {
-        'annotation': '',
-        'classId': 'class2',
-        'className': 'People',
-        'edgeClassIds': {
-          'class4': true
-        },
-        'tableId': 'table2',
-        'type': 'NodeClass'
-      },
-      'class3': {
-        'annotation': '',
-        'classId': 'class3',
-        'className': 'Movies',
-        'edgeClassIds': {
-          'class4': true
-        },
-        'tableId': 'table3',
-        'type': 'NodeClass'
-      },
-      'class4': {
-        'annotation': '',
-        'classId': 'class4',
-        'className': null,
-        'directed': false,
-        'sourceClassId': 'class2',
-        'sourceEdgeAttr': null,
-        'sourceNodeAttr': null,
-        'tableId': 'table4',
-        'targetClassId': 'class3',
-        'type': 'EdgeClass'
-      }
-    });
+    const rawPeopleSpec = mure.classes[peopleId]._toRawObject();
+    expect(rawPeopleSpec.annotation).toEqual('');
+    expect(rawPeopleSpec.classId).toEqual(peopleId);
+    expect(rawPeopleSpec.className).toEqual('People');
+    expect(rawPeopleSpec.edgeClassIds[movieEdgesId]).toEqual(true);
+
+    const rawMoviesSpec = mure.classes[moviesId]._toRawObject();
+    expect(rawMoviesSpec.annotation).toEqual('');
+    expect(rawMoviesSpec.classId).toEqual(moviesId);
+    expect(rawMoviesSpec.className).toEqual('Movies');
+    expect(rawMoviesSpec.edgeClassIds[movieEdgesId]).toEqual(true);
+
+    const rawMovieEdgesSpec = mure.classes[movieEdgesId]._toRawObject();
+    expect(rawMovieEdgesSpec.annotation).toEqual('');
+    expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
+    expect(rawMovieEdgesSpec.className).toEqual(null);
+    expect(rawMovieEdgesSpec.directed).toEqual(false);
+    expect(rawMovieEdgesSpec.sourceNodeAttr).toEqual('id');
+    expect(rawMovieEdgesSpec.sourceEdgeAttr).toEqual('sourceID');
+    expect(rawMovieEdgesSpec.targetNodeAttr).toEqual('id');
+    expect(rawMovieEdgesSpec.targetEdgeAttr).toEqual('targetID');
+  });
+
+  test('Simple self edge test', async () => {
+    expect.assertions(12);
+
+    let [ nodeClassId ] = (await loadFiles(['csvTest.csv'])).map(classObj => classObj.classId);
+
+    mure.classes[nodeClassId].interpretAsNodes();
+    const edgeClassId = mure.classes[nodeClassId].connectToNodeClass({
+      otherNodeClass: mure.classes[nodeClassId],
+      directed: true,
+      attribute: 'is',
+      otherAttribute: 'a'
+    }).classId;
+
+    const nodeSpec = mure.classes[nodeClassId]._toRawObject();
+    expect(nodeSpec.annotation).toEqual('');
+    expect(nodeSpec.classId).toEqual(nodeClassId);
+    expect(nodeSpec.className).toEqual(null);
+    expect(nodeSpec.edgeClassIds[edgeClassId]).toEqual(true);
+
+    const edgeSpec = mure.classes[edgeClassId]._toRawObject();
+    expect(edgeSpec.annotation).toEqual('');
+    expect(edgeSpec.classId).toEqual(edgeClassId);
+    expect(edgeSpec.className).toEqual(null);
+    expect(edgeSpec.directed).toEqual(true);
+    expect(edgeSpec.sourceNodeAttr).toEqual('is');
+    expect(edgeSpec.sourceEdgeAttr).toEqual(null);
+    expect(edgeSpec.targetNodeAttr).toEqual('a');
+    expect(edgeSpec.targetEdgeAttr).toEqual(null);
   });
 });
