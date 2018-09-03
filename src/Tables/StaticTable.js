@@ -3,10 +3,18 @@ import Table from './Table.js';
 class StaticTable extends Table {
   constructor (options) {
     super(options);
+    this._name = options.name;
     this._data = options.data || [];
+    if (!this._name || !this._data) {
+      throw new Error(`name and data are required`);
+    }
+  }
+  get name () {
+    return this._name;
   }
   _toRawObject () {
     const obj = super._toRawObject();
+    obj.name = this._name;
     obj.data = this._data;
     return obj;
   }

@@ -17,6 +17,9 @@ class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)
     obj.attribute = this._attribute;
     return obj;
   }
+  get name () {
+    return this.parentTable.name + '↤';
+  }
   async * _iterate (options) {
     let index = 0;
     const parentTableId = this.parentTable.tableId;

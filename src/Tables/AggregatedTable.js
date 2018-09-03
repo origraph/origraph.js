@@ -25,6 +25,9 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
     return obj;
   }
+  get name () {
+    return this.parentTable.name + '↦';
+  }
   _updateItem (originalWrappedItem, newWrappedItem) {
     for (const [attr, func] of Object.entries(this._reduceAttributeFunctions)) {
       originalWrappedItem.row[attr] = func(originalWrappedItem, newWrappedItem);

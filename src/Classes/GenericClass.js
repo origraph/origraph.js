@@ -29,13 +29,10 @@ class GenericClass extends Introspectable {
     return this._customName !== null;
   }
   get className () {
-    return this._customName || this._autoDeriveClassName();
+    return this._customName || this.table.name;
   }
   getHashTable (attribute) {
     return attribute === null ? this.table : this.table.aggregate(attribute);
-  }
-  _autoDeriveClassName () {
-    throw new Error(`this function should be overridden`);
   }
   get table () {
     return this._mure.tables[this.tableId];

@@ -194,6 +194,7 @@ class Mure extends TriggerableMixin(class {}) {
     let newTable = this.newTable(options);
     return this.newClass({
       type: 'GenericClass',
+      name: options.name,
       tableId: newTable.tableId
     });
   }

@@ -34,6 +34,9 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return result;
   }
+  get name () {
+    throw new Error(`this function should be overridden`);
+  }
   async * iterate (options = { reset: false, limit: Infinity }) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
     // algorithm requires that its parent tables have pre-built indexes (we

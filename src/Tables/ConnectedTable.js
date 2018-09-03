@@ -2,6 +2,9 @@ import Table from './Table.js';
 import DuplicatableAttributesMixin from './DuplicatableAttributesMixin.js';
 
 class ConnectedTable extends DuplicatableAttributesMixin(Table) {
+  get name () {
+    return this.parentTables.map(parentTable => parentTable.name).join('⨯');
+  }
   async * _iterate (options) {
     const parentTables = this.parentTables;
     // Spin through all of the parentTables so that their _cache is pre-built

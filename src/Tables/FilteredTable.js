@@ -16,6 +16,9 @@ class FilteredTable extends SingleParentMixin(Table) {
     obj.value = this._value;
     return obj;
   }
+  get name () {
+    return '⊂' + this.parentTable.name;
+  }
   async * _iterate (options) {
     let index = 0;
     for await (const { wrappedParent } of this.parentTable.iterate(options)) {
