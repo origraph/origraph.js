@@ -124,6 +124,12 @@ class Table extends TriggerableMixin(Introspectable) {
   get attributes () {
     return Object.keys(this._getAllAttributes());
   }
+  get currentData () {
+    return {
+      data: this._cache || this._partialCache || {},
+      complete: !!this._cache
+    };
+  }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
     this.reset();

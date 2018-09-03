@@ -61,10 +61,10 @@ class Mure extends TriggerableMixin(class {}) {
     };
 
     // Object containing each of our data sources
-    this.tables = this.hydrate('mure_tables');
+    this.tables = this.hydrate('mure_tables', this.TABLES);
 
     // Object containing our class specifications
-    this.classes = this.hydrate('mure_classes');
+    this.classes = this.hydrate('mure_classes', this.CLASSES);
   }
 
   saveTables () {
@@ -80,6 +80,7 @@ class Mure extends TriggerableMixin(class {}) {
     for (const [key, value] of Object.entries(container)) {
       const type = value.type;
       delete value.type;
+      value.mure = this;
       container[key] = new TYPES[type](value);
     }
     return container;
@@ -208,6 +209,12 @@ class Mure extends TriggerableMixin(class {}) {
   deleteAllClasses () {
     for (const classObj of Object.values(this.classes)) {
       classObj.delete();
+    }
+  }
+  getClassData () {
+    const results = {};
+    for (const classObj of Object.values(this.classes)) {
+      results[classObj.classId] = classObj.currentData;
     }
   }
 }
