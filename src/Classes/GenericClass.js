@@ -7,7 +7,7 @@ class GenericClass extends Introspectable {
     this.classId = options.classId;
     this.tableId = options.tableId;
     if (!this._mure || !this.classId || !this.tableId) {
-      throw new Error(`_mure and classId are required`);
+      throw new Error(`_mure, classId, and tableId are required`);
     }
 
     this._className = options.className || null;
@@ -21,8 +21,9 @@ class GenericClass extends Introspectable {
       annotation: this.annotation
     };
   }
-  set className (value) {
+  setClassName (value) {
     this._className = value;
+    this._mure.saveClasses();
   }
   get hasCustomName () {
     return this._customName !== null;
@@ -41,12 +42,12 @@ class GenericClass extends Introspectable {
   }
   interpretAsNodes () {
     const options = this._toRawObject();
-    options.ClassType = this._mure.CLASSES.NodeClass;
+    options.type = 'NodeClass';
     return this._mure.newClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
-    options.ClassType = this._mure.CLASSES.EdgeClass;
+    options.type = 'EdgeClass';
     return this._mure.newClass(options);
   }
   _wrap (options) {

@@ -84,14 +84,17 @@ class Mure extends TriggerableMixin(class {}) {
     }
     return container;
   }
+  getRawObject (container) {
+    const result = {};
+    for (const [key, value] of Object.entries(container)) {
+      result[key] = value._toRawObject();
+      result[key].type = value.constructor.name;
+    }
+    return result;
+  }
   dehydrate (storageKey, container) {
     if (this.localStorage) {
-      const result = {};
-      for (const [key, value] of Object.entries(container)) {
-        result[key] = value.toRawObject();
-        result[key].type = value.constructor.name;
-      }
-      this.localStorage.setItem(storageKey, JSON.stringify(result));
+      this.localStorage.setItem(storageKey, JSON.stringify(this.getRawObject(container)));
     }
   }
   hydrateFunction (stringifiedFunc) {

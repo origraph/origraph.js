@@ -9,7 +9,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(3);
+    expect.assertions(1);
 
     const files = ['people.csv', 'movies.csv', 'movieEdges.csv'];
     const classes = await Promise.all(files.map(async filename => {
@@ -28,24 +28,15 @@ describe('Interpretation Tests', () => {
     const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
 
     // Initial interpretation
-    await mure.classes[peopleId].interpretAsNodes();
-    await mure.classes[moviesId].interpretAsNodes();
-    await mure.classes[movieEdgesId].interpretAsEdges();
+    mure.classes[peopleId].interpretAsNodes();
+    mure.classes[peopleId].setClassName('People');
+
+    mure.classes[moviesId].interpretAsNodes();
+    mure.classes[moviesId].setClassName('Movies');
+
+    mure.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    mure.classes[peopleId].addHashFunction('id', function * (wrappedItem) {
-      yield wrappedItem.rawItem.id;
-    });
-    mure.classes[moviesId].addHashFunction('id', function * (wrappedItem) {
-      yield wrappedItem.rawItem.id;
-    });
-    mure.classes[movieEdgesId].addHashFunction('sourceID', function * (wrappedItem) {
-      yield wrappedItem.rawItem.sourceID;
-    });
-    mure.classes[movieEdgesId].addHashFunction('targetID', function * (wrappedItem) {
-      yield wrappedItem.rawItem.targetID;
-    });
-
     await mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
       direction: 'source',
@@ -59,8 +50,39 @@ describe('Interpretation Tests', () => {
       edgeHashName: 'targetID'
     });
 
-    expect(mure.getRawClasses()).toEqual({
-      // TODO
+    expect(mure.getRawObject(mure.classes)).toEqual({
+      'class2': {
+        'annotation': '',
+        'classId': 'class2',
+        'className': 'People',
+        'edgeClassIds': {
+          'class4': true
+        },
+        'tableId': 'table2',
+        'type': 'NodeClass'
+      },
+      'class3': {
+        'annotation': '',
+        'classId': 'class3',
+        'className': 'Movies',
+        'edgeClassIds': {
+          'class4': true
+        },
+        'tableId': 'table3',
+        'type': 'NodeClass'
+      },
+      'class4': {
+        'annotation': '',
+        'classId': 'class4',
+        'className': null,
+        'directed': false,
+        'sourceClassId': 'class2',
+        'sourceEdgeAttr': null,
+        'sourceNodeAttr': null,
+        'tableId': 'table4',
+        'targetClassId': 'class3',
+        'type': 'EdgeClass'
+      }
     });
   });
 });
