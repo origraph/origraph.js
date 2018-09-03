@@ -19,7 +19,7 @@ describe('Document Tests', () => {
 
     // Upload and parse the data source
     const genericClass = await mure.addStringAsStaticTable({
-      key: 'csvTest.csv',
+      name: 'csvTest.csv',
       extension: 'csv',
       text: csvString
     });

@@ -7,7 +7,7 @@ module.exports = async function (filenames) {
       fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
         if (err) { reject(err); }
         resolve(await mure.addStringAsStaticTable({
-          key: filename,
+          name: filename,
           extension: mure.mime.extension(mure.mime.lookup(filename)),
           text
         }));
