@@ -69,9 +69,11 @@ class Mure extends TriggerableMixin(class {}) {
 
   saveTables () {
     this.dehydrate('mure_tables', this.tables);
+    this.trigger('tableUpdate');
   }
   saveClasses () {
     this.dehydrate('mure_classes', this.classes);
+    this.trigger('classUpdate');
   }
 
   hydrate (storageKey, TYPES) {
