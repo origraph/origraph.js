@@ -62,9 +62,17 @@ class Mure extends TriggerableMixin(class {}) {
 
     // Object containing each of our data sources
     this.tables = this.hydrate('mure_tables', this.TABLES);
+    NEXT_TABLE_ID = Object.keys(this.tables)
+      .reduce((highestNum, tableId) => {
+        return Math.max(highestNum, parseInt(tableId.match(/table(\d*)/)[1]));
+      }, 0) + 1;
 
     // Object containing our class specifications
     this.classes = this.hydrate('mure_classes', this.CLASSES);
+    NEXT_CLASS_ID = Object.keys(this.classes)
+      .reduce((highestNum, classId) => {
+        return Math.max(highestNum, parseInt(classId.match(/class(\d*)/)[1]));
+      }, 0) + 1;
   }
 
   saveTables () {
