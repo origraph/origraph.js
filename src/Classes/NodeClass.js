@@ -15,7 +15,30 @@ class NodeClass extends GenericClass {
     return this;
   }
   interpretAsEdges () {
-    throw new Error(`unimplemented`);
+    const edgeClassIds = Object.keys(this.edgeClassIds);
+    const options = super._toRawObject();
+    if (edgeClassIds.length > 2) {
+      this.disconnectAllEdges();
+    } else {
+      if (edgeClassIds.length === 1 || edgeClassIds.length === 2) {
+        const sourceEdgeClass = this._mure.classes[edgeClassIds[0]];
+        options.sourceNodeId = sourceEdgeClass.sourceNodeId;
+        options.sourceNodeAttr = sourceEdgeClass.sourceNodeAttr;
+        options.sourceEdgeAttr = sourceEdgeClass.targetNodeAttr;
+        sourceEdgeClass.delete();
+      }
+      if (edgeClassIds.length === 2) {
+        const targetEdgeClass = this._mure.classes[edgeClassIds[1]];
+        options.targetNodeId = targetEdgeClass.targetNodeId;
+        options.targetNodeAttr = targetEdgeClass.targetNodeAttr;
+        options.targetEdgeAttr = targetEdgeClass.sourceNodeAttr;
+        targetEdgeClass.delete();
+      }
+    }
+    this.delete();
+    delete options.classId;
+    options.type = 'EdgeClass';
+    return this._mure.newClass(options);
   }
   connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
     const thisHash = this.getHashTable(attribute);

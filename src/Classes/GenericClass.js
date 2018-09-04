@@ -26,10 +26,10 @@ class GenericClass extends Introspectable {
     this._mure.saveClasses();
   }
   get hasCustomName () {
-    return this._customName !== null;
+    return this._className !== null;
   }
   get className () {
-    return this._customName || this.table.name;
+    return this._className || this.table.name;
   }
   getHashTable (attribute) {
     return attribute === null ? this.table : this.table.aggregate(attribute);
