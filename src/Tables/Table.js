@@ -178,11 +178,9 @@ class Table extends TriggerableMixin(Introspectable) {
       return this._getExistingTable(options) || this._deriveTable(options);
     });
   }
-  async * openFacet (options) {
+  async * openFacet (attribute, limit = Infinity) {
     const values = {};
-    const attribute = options.attribute;
-    delete options.attribute;
-    for await (const wrappedItem of this.iterate(options)) {
+    for await (const wrappedItem of this.iterate({ limit })) {
       const value = wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;

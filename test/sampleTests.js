@@ -125,4 +125,27 @@ describe('StaticTable Samples', () => {
       {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
     ]);
   });
+
+  test('FilteredTable Samples (openFacet)', async () => {
+    expect.assertions(2);
+
+    const limit = 4;
+
+    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    const tableIds = [];
+    for await (const tableObj of mure.tables[testId].openFacet('test', limit)) {
+      tableIds.push(tableObj.tableId);
+    }
+
+    // Test that we get the right number of tables
+    expect(tableIds.length).toEqual(limit);
+
+    // Test that the table names are what we'd expect
+    expect(tableIds.map(tableId => mure.tables[tableId].name)).toEqual([
+      'csvTest.csv[five]',
+      'csvTest.csv[three]',
+      'csvTest.csv[nine]',
+      'csvTest.csv[four]'
+    ]);
+  });
 });
