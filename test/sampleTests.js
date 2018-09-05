@@ -1,89 +1,59 @@
-const fs = require('fs');
 const mure = require('../dist/mure.cjs.js');
-mure.debug = true;
+const loadFiles = require('./loadFiles.js');
 
-async function getFiveSamples (classObj) {
+async function getFiveSamples (tableObj) {
   const samples = [];
-  for await (const sample of classObj.getStream().sample({ limit: 5 })) {
-    samples.push(sample.rawItem);
+  for await (const sample of tableObj.iterate({ limit: 5 })) {
+    samples.push(sample);
   }
   return samples;
 }
 
 describe('Sampling Tests', () => {
-  afterAll(() => {
-    mure.removeDataSource('movies');
-    mure.removeDataSource('actors');
+  afterEach(() => {
+    mure.deleteAllClasses();
+    mure.deleteAllUnusedTables();
   });
 
-  test('Sample Movies as Nodes', async () => {
-    expect.assertions(3);
+  test('Raw Table Samples', async () => {
+    expect.assertions(1);
 
-    const files = ['people.csv', 'movies.csv', 'movieEdges.csv'];
-    const classes = await Promise.all(files.map(async filename => {
-      return new Promise((resolve, reject) => {
-        fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
-          if (err) { reject(err); }
-          resolve(await mure.addStringAsStaticDataSource({
-            key: filename,
-            extension: mure.mime.extension(mure.mime.lookup(filename)),
-            text
-          }));
-        });
-      });
-    }));
+    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
 
-    const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
-
-    // Initial interpretation
-    await mure.classes[peopleId].interpretAsNodes();
-    await mure.classes[moviesId].interpretAsNodes();
-    await mure.classes[movieEdgesId].interpretAsEdges();
-
-    // Set up initial connections
-    mure.classes[peopleId].addHashFunction('id', function * (wrappedItem) {
-      yield wrappedItem.rawItem.id;
-    });
-    mure.classes[moviesId].addHashFunction('id', function * (wrappedItem) {
-      yield wrappedItem.rawItem.id;
-    });
-    mure.classes[movieEdgesId].addHashFunction('sourceID', function * (wrappedItem) {
-      yield wrappedItem.rawItem.sourceID;
-    });
-    mure.classes[movieEdgesId].addHashFunction('targetID', function * (wrappedItem) {
-      yield wrappedItem.rawItem.targetID;
-    });
-
-    await mure.classes[peopleId].connectToEdgeClass({
-      edgeClass: mure.classes[movieEdgesId],
-      direction: 'source',
-      nodeHashName: 'id',
-      edgeHashName: 'sourceID'
-    });
-    await mure.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: mure.classes[moviesId],
-      direction: 'target',
-      nodeHashName: 'id',
-      edgeHashName: 'targetID'
-    });
-
-    // Test that the actors, movies, and edges are what we'd expect
-    expect(await getFiveSamples(mure.classes[peopleId])).toEqual([
+    // Test that the data is what we'd expect
+    const samples = await getFiveSamples(mure.tables[peopleId]);
+    expect(samples.map(s => s.row)).toEqual([
       {'born': '1964', 'id': '1', 'name': 'Keanu Reeves'},
       {'born': '1967', 'id': '2', 'name': 'Carrie-Anne Moss'},
       {'born': '1961', 'id': '3', 'name': 'Laurence Fishburne'},
       {'born': '1960', 'id': '4', 'name': 'Hugo Weaving'},
       {'born': '1967', 'id': '5', 'name': 'Andy Wachowski'}
     ]);
-    expect(await getFiveSamples(mure.classes[moviesId])).toEqual([
-      {'id': '0', 'released': '1999', 'tagline': 'Welcome to the Real World', 'title': 'The Matrix'},
-      {'id': '9', 'released': '2003', 'tagline': 'Free your mind', 'title': 'The Matrix Reloaded'},
-      {'id': '10', 'released': '2003', 'tagline': 'Everything that has a beginning has an end', 'title': 'The Matrix Revolutions'},
-      {'id': '11', 'released': '1997', 'tagline': 'Evil has its winning ways', 'title': 'The Devil\'s Advocate'},
-      {'id': '15', 'released': '1992', 'tagline': 'In the heart of the nation\'s capital, in a courthouse of the U.S. government, one man will stop at nothing to keep his honor, and one will stop at nothing to find the truth.', 'title': 'A Few Good Men'}
+  });
+
+  test('Aggregated Table Samples', async () => {
+    expect.assertions(2);
+
+    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
+    const bornId = mure.tables[peopleId].aggregate('born').tableId;
+
+    mure.tables[bornId].deriveReducedAttribute('count', (originalItem, newItem) => {
+      return (originalItem.row.count || 0) + 1;
+    });
+
+    const samples = await getFiveSamples(mure.tables[bornId]);
+
+    // Test that the indexes are what we'd expect at this point
+    expect(samples.map(s => s.index)).toEqual([
+      '1964', '1967', '1961', '1960'
     ]);
-    expect(await getFiveSamples(mure.classes[movieEdgesId])).toEqual([
-      // TODO
+
+    // Test that the data is what we'd expect at this point
+    expect(samples.map(s => s.row)).toEqual([
+      { count: 1 },
+      { count: 2 },
+      { count: 1 },
+      { count: 1 }
     ]);
   });
 });

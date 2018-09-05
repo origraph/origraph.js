@@ -28,6 +28,10 @@ class AggregatedTable extends SingleParentMixin(Table) {
   get name () {
     return this.parentTable.name + '↦';
   }
+  deriveReducedAttribute (attr, func) {
+    this._reduceAttributeFunctions[attr] = func;
+    this.reset();
+  }
   _updateItem (originalWrappedItem, newWrappedItem) {
     for (const [attr, func] of Object.entries(this._reduceAttributeFunctions)) {
       originalWrappedItem.row[attr] = func(originalWrappedItem, newWrappedItem);
@@ -60,7 +64,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
     delete this._partialCache;
   }
   async * _iterate (options) {
-    for await (const { wrappedParent } of this.parentTable.iterate(options)) {
+    for await (const wrappedParent of this.parentTable.iterate(options)) {
       const index = wrappedParent.row[this._attribute];
       if (!this._partialCache) {
         // We were reset; return immediately
@@ -68,10 +72,13 @@ class AggregatedTable extends SingleParentMixin(Table) {
       } else if (this._partialCache[index]) {
         this._updateItem(this._partialCache[index], wrappedParent);
       } else {
-        yield this._wrap({
+        const newItem = this._wrap({
           index,
           connectedRows: { wrappedParent }
         });
+        // Reduce operations still need to be applied to the first item
+        this._updateItem(newItem, newItem);
+        yield newItem;
       }
     }
   }

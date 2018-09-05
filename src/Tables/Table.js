@@ -211,9 +211,10 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   get parentTables () {
     return Object.values(this._mure.tables).reduce((agg, tableObj) => {
-      if (tableObj.derivedTables[this.tableId]) {
+      if (tableObj._derivedTables[this.tableId]) {
         agg.push(tableObj);
       }
+      return agg;
     }, []);
   }
   get derivedTables () {

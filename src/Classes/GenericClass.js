@@ -37,6 +37,9 @@ class GenericClass extends Introspectable {
   get table () {
     return this._mure.tables[this.tableId];
   }
+  _wrap (options) {
+    return new this._mure.WRAPPERS.GenericWrapper(options);
+  }
   interpretAsNodes () {
     const options = this._toRawObject();
     options.type = 'NodeClass';
@@ -47,8 +50,12 @@ class GenericClass extends Introspectable {
     options.type = 'EdgeClass';
     return this._mure.newClass(options);
   }
-  _wrap (options) {
-    return new this._mure.WRAPPERS.GenericWrapper(options);
+  aggregate (attribute) {
+    const newTable = this.table.aggregate(attribute);
+    return this._mure.newClass({
+      tableId: newTable.tableId,
+      type: 'GenericClass'
+    });
   }
   delete () {
     delete this._mure.classes[this.classId];

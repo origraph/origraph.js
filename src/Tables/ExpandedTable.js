@@ -23,7 +23,7 @@ class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)
   async * _iterate (options) {
     let index = 0;
     const parentTableId = this.parentTable.tableId;
-    for await (const { wrappedParent } of this.parentTable.iterate(options)) {
+    for await (const wrappedParent of this.parentTable.iterate(options)) {
       const values = (wrappedParent.row[this.attribute] || '').split(this.delimiter);
       for (const value of values) {
         const row = {};
