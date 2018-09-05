@@ -9,7 +9,7 @@ async function getFiveSamples (tableObj) {
   return samples;
 }
 
-describe('Sampling Tests', () => {
+describe('StaticTable Samples', () => {
   afterEach(() => {
     mure.deleteAllClasses();
     mure.deleteAllUnusedTables();
@@ -31,7 +31,7 @@ describe('Sampling Tests', () => {
     ]);
   });
 
-  test('Aggregated Table Samples', async () => {
+  test('AggregatedTable Samples', async () => {
     expect.assertions(2);
 
     let peopleId = (await loadFiles(['people.csv']))[0].tableId;
@@ -57,7 +57,7 @@ describe('Sampling Tests', () => {
     ]);
   });
 
-  test('Expanded Table Samples', async () => {
+  test('ExpandedTable Samples', async () => {
     expect.assertions(1);
 
     let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
@@ -74,6 +74,33 @@ describe('Sampling Tests', () => {
       {'csvTest.csv.test': 'three', 'this': '9'},
       {'csvTest.csv.test': 'three', 'this': '2'},
       {'csvTest.csv.test': 'nine', 'this': '5'}
+    ]);
+  });
+
+  test('ConnectedTable Samples', async () => {
+    expect.assertions(2);
+
+    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    const connectedId = mure.tables[testId].connect([
+      mure.tables[testId]
+    ]).tableId;
+
+    mure.tables[connectedId].duplicateAttribute(testId, 'test');
+
+    const samples = await getFiveSamples(mure.tables[connectedId]);
+
+    // Test that the indexes are what we'd expect
+    expect(samples.map(s => s.index)).toEqual([
+      '0', '1', '2', '3', '4'
+    ]);
+
+    // Test that the data is what we'd expect
+    expect(samples.map(s => s.row)).toEqual([
+      {'csvTest.csv.test': 'five'},
+      {'csvTest.csv.test': 'three'},
+      {'csvTest.csv.test': 'nine'},
+      {'csvTest.csv.test': 'four'},
+      {'csvTest.csv.test': 'three'}
     ]);
   });
 });

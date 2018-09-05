@@ -29,7 +29,7 @@ class ConnectedTable extends DuplicatableAttributesMixin(Table) {
           for (const parentTable2 of parentTables) {
             connectedRows[parentTable2.tableId] = parentTable2._cache[index];
           }
-          const wrappedItem = this.wrap({ index, connectedRows });
+          const wrappedItem = this._wrap({ index, connectedRows });
           this._duplicateAttributes(wrappedItem, connectedRows);
           this._finishItem(wrappedItem);
           yield wrappedItem;
