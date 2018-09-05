@@ -50,12 +50,27 @@ class GenericClass extends Introspectable {
     options.type = 'EdgeClass';
     return this._mure.newClass(options);
   }
-  aggregate (attribute) {
-    const newTable = this.table.aggregate(attribute);
+  _deriveGenericClass (newTable) {
     return this._mure.newClass({
       tableId: newTable.tableId,
       type: 'GenericClass'
     });
+  }
+  aggregate (attribute) {
+    return this._deriveGenericClass(this.table.aggregate(attribute));
+  }
+  expand (attribute, delimiter) {
+    return this._deriveGenericClass(this.table.expand(attribute, delimiter));
+  }
+  closedFacet (attribute, values) {
+    return this.table.closedFacet(attribute, values).map(newTable => {
+      return this._deriveGenericClass(newTable);
+    });
+  }
+  async * openFacet (attribute) {
+    for await (const newTable of this.table.openFacet(attribute)) {
+      yield this._deriveGenericClass(newTable);
+    }
   }
   delete () {
     delete this._mure.classes[this.classId];
