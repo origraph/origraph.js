@@ -11,19 +11,21 @@ const DuplicatableAttributesMixin = function (superclass) {
       return obj;
     }
     duplicateAttribute (parentId, attribute) {
-      this._duplicateAttributes[parentId] = this._duplicateAttributes[parentId] || [];
+      this._duplicatedAttributes[parentId] = this._duplicatedAttributes[parentId] || [];
       this._duplicatedAttributes[parentId].push(attribute);
       this.reset();
     }
     _duplicateAttributes (wrappedItem, connectedRows) {
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        wrappedItem.row[`${parentId}.${attr}`] = connectedRows[parentId][attr];
+        const parentName = this._mure.tables[parentId].name;
+        wrappedItem.row[`${parentName}.${attr}`] = connectedRows[parentId].row[attr];
       }
     }
     _getAllAttributes () {
       const result = super._getAllAttributes();
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        result[`${parentId}.${attr}`] = true;
+        const parentName = this._mure.tables[parentId].name;
+        result[`${parentName}.${attr}`] = true;
       }
       return result;
     }

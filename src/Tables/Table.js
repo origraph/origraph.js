@@ -37,7 +37,7 @@ class Table extends TriggerableMixin(Introspectable) {
   get name () {
     throw new Error(`this function should be overridden`);
   }
-  async * iterate (options = { reset: false, limit: Infinity }) {
+  async * iterate (options = {}) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
     // algorithm requires that its parent tables have pre-built indexes (we
     // technically could implement it differently, but it would be expensive,
@@ -67,7 +67,7 @@ class Table extends TriggerableMixin(Introspectable) {
     // TODO: in large data scenarios, we should build the cache / index
     // externally on disk
     this._partialCache = {};
-    const limit = options.limit;
+    const limit = options.limit === undefined ? Infinity : options.limit;
     delete options.limit;
     const iterator = this._iterate(options);
     let completed = false;

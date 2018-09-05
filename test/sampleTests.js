@@ -56,4 +56,24 @@ describe('Sampling Tests', () => {
       { count: 1 }
     ]);
   });
+
+  test('Expanded Table Samples', async () => {
+    expect.assertions(1);
+
+    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    const digitId = mure.tables[testId].expand('this', '.').tableId;
+
+    mure.tables[digitId].duplicateAttribute(testId, 'test');
+
+    const samples = await getFiveSamples(mure.tables[digitId]);
+
+    // Test that the data is what we'd expect
+    expect(samples.map(s => s.row)).toEqual([
+      {'csvTest.csv.test': 'five', 'this': '3'},
+      {'csvTest.csv.test': 'five', 'this': '1'},
+      {'csvTest.csv.test': 'three', 'this': '9'},
+      {'csvTest.csv.test': 'three', 'this': '2'},
+      {'csvTest.csv.test': 'nine', 'this': '5'}
+    ]);
+  });
 });
