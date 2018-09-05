@@ -103,4 +103,26 @@ describe('StaticTable Samples', () => {
       {'csvTest.csv.test': 'three'}
     ]);
   });
+
+  test('FilteredTable Samples (closedFacet)', async () => {
+    expect.assertions(2);
+
+    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    const values = ['three', 'seven'];
+    const [threeId, sevenId] = mure.tables[testId].closedFacet('test', values)
+      .map(tableObj => tableObj.tableId);
+
+    // Test that the data is what we'd expect
+    let samples = await getFiveSamples(mure.tables[threeId]);
+    expect(samples.map(s => s.row)).toEqual([
+      {'a': '5', 'is': '6', 'test': 'three', 'this': '9.2'},
+      {'a': '4', 'is': '6', 'test': 'three', 'this': '6.2'}
+    ]);
+
+    samples = await getFiveSamples(mure.tables[sevenId]);
+    expect(samples.map(s => s.row)).toEqual([
+      {'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8'},
+      {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
+    ]);
+  });
 });

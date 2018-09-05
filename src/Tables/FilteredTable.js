@@ -6,7 +6,7 @@ class FilteredTable extends SingleParentMixin(Table) {
     super(options);
     this._attribute = options.attribute;
     this._value = options.value;
-    if (!this._attribute || !this.value) {
+    if (!this._attribute || !this._value) {
       throw new Error(`attribute and value are required`);
     }
   }
