@@ -1,5 +1,5 @@
 import StaticTable from './StaticTable.js';
-import StaticDict from './StaticDict.js';
+import StaticDictTable from './StaticDictTable.js';
 import AggregatedTable from './AggregatedTable.js';
 import ExpandedTable from './ExpandedTable.js';
 import FilteredTable from './FilteredTable.js';
@@ -7,7 +7,7 @@ import ConnectedTable from './ConnectedTable.js';
 
 export {
   StaticTable,
-  StaticDict,
+  StaticDictTable,
   AggregatedTable,
   ExpandedTable,
   FilteredTable,

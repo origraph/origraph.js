@@ -8,7 +8,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(16);
+    expect.assertions(14);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -54,14 +54,12 @@ describe('Interpretation Tests', () => {
     expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
     expect(rawMovieEdgesSpec.className).toEqual(null);
     expect(rawMovieEdgesSpec.directed).toEqual(false);
-    expect(rawMovieEdgesSpec.sourceNodeAttr).toEqual('id');
-    expect(rawMovieEdgesSpec.sourceEdgeAttr).toEqual('sourceID');
-    expect(rawMovieEdgesSpec.targetNodeAttr).toEqual('id');
-    expect(rawMovieEdgesSpec.targetEdgeAttr).toEqual('targetID');
+    expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
+    expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
   });
 
   test('Simple self edge test', async () => {
-    expect.assertions(12);
+    expect.assertions(10);
 
     let [ nodeClassId ] = (await loadFiles(['csvTest.csv'])).map(classObj => classObj.classId);
 
@@ -84,9 +82,7 @@ describe('Interpretation Tests', () => {
     expect(edgeSpec.classId).toEqual(edgeClassId);
     expect(edgeSpec.className).toEqual(null);
     expect(edgeSpec.directed).toEqual(true);
-    expect(edgeSpec.sourceNodeAttr).toEqual('is');
-    expect(edgeSpec.sourceEdgeAttr).toEqual(null);
-    expect(edgeSpec.targetNodeAttr).toEqual('a');
-    expect(edgeSpec.targetEdgeAttr).toEqual(null);
+    expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
+    expect(edgeSpec.targetClassId).toEqual(nodeClassId);
   });
 });

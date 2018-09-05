@@ -1,6 +1,6 @@
 import Table from './Table.js';
 
-class StaticDict extends Table {
+class StaticDictTable extends Table {
   constructor (options) {
     super(options);
     this._name = options.name;
@@ -26,4 +26,4 @@ class StaticDict extends Table {
     }
   }
 }
-export default StaticDict;
+export default StaticDictTable;

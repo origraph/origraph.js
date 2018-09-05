@@ -17,21 +17,18 @@ class NodeClass extends GenericClass {
   interpretAsEdges () {
     const edgeClassIds = Object.keys(this.edgeClassIds);
     const options = super._toRawObject();
+    delete options.edgeClassIds;
     if (edgeClassIds.length > 2) {
       this.disconnectAllEdges();
     } else {
       if (edgeClassIds.length === 1 || edgeClassIds.length === 2) {
         const sourceEdgeClass = this._mure.classes[edgeClassIds[0]];
         options.sourceNodeId = sourceEdgeClass.sourceNodeId;
-        options.sourceNodeAttr = sourceEdgeClass.sourceNodeAttr;
-        options.sourceEdgeAttr = sourceEdgeClass.targetNodeAttr;
         sourceEdgeClass.delete();
       }
       if (edgeClassIds.length === 2) {
         const targetEdgeClass = this._mure.classes[edgeClassIds[1]];
         options.targetNodeId = targetEdgeClass.targetNodeId;
-        options.targetNodeAttr = targetEdgeClass.targetNodeAttr;
-        options.targetEdgeAttr = targetEdgeClass.sourceNodeAttr;
         targetEdgeClass.delete();
       }
     }
@@ -49,9 +46,7 @@ class NodeClass extends GenericClass {
       tableId: connectedTable.tableId,
       directed,
       sourceClassId: this.classId,
-      sourceNodeAttr: attribute,
-      targetClassId: otherNodeClass.classId,
-      targetNodeAttr: otherAttribute
+      targetClassId: otherNodeClass.classId
     });
     this.edgeClassIds[newEdgeClass.classId] = true;
     otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;

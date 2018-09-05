@@ -201,7 +201,7 @@ class Mure extends TriggerableMixin(class {}) {
     return this.addStaticTable({ name, data, attributes });
   }
   addStaticTable (options) {
-    options.type = options.data instanceof Array ? 'StaticTable' : 'StaticDict';
+    options.type = options.data instanceof Array ? 'StaticTable' : 'StaticDictTable';
     let newTable = this.newTable(options);
     return this.newClass({
       type: 'GenericClass',

@@ -6,31 +6,79 @@ class EdgeClass extends GenericClass {
     this.Wrapper = this._mure.WRAPPERS.EdgeWrapper;
 
     this.sourceClassId = options.sourceClassId || null;
-    this.sourceNodeAttr = options.sourceNodeAttr || null;
-    this.sourceEdgeAttr = options.sourceEdgeAttr || null;
-
     this.targetClassId = options.targetClassId || null;
-    this.targetNodeAttr = options.targetNodeAttr || null;
-    this.targetEdgeAttr = options.targetEdgeAttr || null;
-
     this.directed = options.directed || false;
   }
   _toRawObject () {
     const result = super._toRawObject();
 
     result.sourceClassId = this.sourceClassId;
-    result.sourceNodeAttr = this.sourceNodeAttr;
-    result.sourceEdgeAttr = this.sourceEdgeAttr;
-
     result.targetClassId = this.targetClassId;
-    result.targetNodeAttr = this.targetNodeAttr;
-    result.targetEdgeAttr = this.targetEdgeAttr;
-
     result.directed = this.directed;
     return result;
   }
+  _pickEdgeTable (otherClass) {
+    let edgeTable;
+    let chain = this.table.shortestPathToTable(otherClass.table);
+    if (chain === null) {
+      throw new Error(`Underlying table chain between edge and node classes is broken`);
+    } else if (chain.length <= 2) {
+      // Weird corner case where we're trying to create an edge between
+      // adjacent or identical tables... create a ConnectedTable
+      edgeTable = this.table.connect(otherClass.table);
+    } else {
+      // Use a table in the middle; prioritize StaticTable and StaticDictTable
+      let staticExists = false;
+      chain = chain.slice(1, chain.length - 1).map((table, dist) => {
+        staticExists = staticExists || table.type.startsWith('Static');
+        return { table, dist };
+      });
+      if (staticExists) {
+        chain = chain.filter(({ table }) => {
+          return table.type.startsWith('Static');
+        });
+      }
+      edgeTable = chain[0].table;
+    }
+    return edgeTable;
+  }
   interpretAsNodes () {
-    throw new Error(`unimplemented`);
+    const temp = this._toRawObject();
+    this.delete();
+    const newNodeClass = this._mure.createClass({
+      type: 'NodeClass',
+      tableId: this.tableId
+    });
+
+    if (temp.sourceClassId) {
+      const sourceClass = this._mure.classes[this.sourceClassId];
+      const edgeTable = this._pickEdgeTable(sourceClass);
+      const sourceEdgeClass = this._mure.createClass({
+        type: 'EdgeClass',
+        tableId: edgeTable.tableId,
+        directed: temp.directed,
+        sourceClassId: temp.sourceClassId,
+        targetClassId: newNodeClass.classId
+      });
+      sourceClass.edgeClassIds[sourceEdgeClass.classId] = true;
+      newNodeClass.edgeClassIds[sourceEdgeClass.classId] = true;
+    }
+    if (temp.targetClassId) {
+      const targetClass = this._mure.classes[this.targetClassId];
+      const edgeTable = this._pickEdgeTable(targetClass);
+      const targetEdgeClass = this._mure.createClass({
+        type: 'EdgeClass',
+        tableId: edgeTable.tableId,
+        directed: temp.directed,
+        sourceClassId: newNodeClass.classId,
+        targetClassId: temp.targetClassId
+      });
+      targetClass.edgeClassIds[targetEdgeClass.classId] = true;
+      newNodeClass.edgeClassIds[targetEdgeClass.classId] = true;
+    }
+
+    this._mure.saveClasses();
+    return newNodeClass;
   }
   interpretAsEdges () {
     return this;
@@ -58,12 +106,6 @@ class EdgeClass extends GenericClass {
         let temp = this.sourceClassId;
         this.sourceClassId = this.targetClassId;
         this.targetClassId = temp;
-        temp = this.sourceNodeAttr;
-        this.sourceNodeAttr = this.targetNodeAttr;
-        this.targetNodeAttr = temp;
-        temp = this.intermediateSources;
-        this.sourceEdgeAttr = this.targetEdgeAttr;
-        this.targetEdgeAttr = temp;
       }
     }
     this._mure.saveClasses();
@@ -79,8 +121,6 @@ class EdgeClass extends GenericClass {
     }
     this.sourceClassId = nodeClass.classId;
     this._mure.classes[this.sourceClassId].edgeClassIds[this.classId] = true;
-    this.sourceNodeAttr = nodeAttribute;
-    this.sourceEdgeAttr = edgeAttribute;
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
@@ -90,8 +130,6 @@ class EdgeClass extends GenericClass {
     }
     this.targetClassId = nodeClass.classId;
     this._mure.classes[this.targetClassId].edgeClassIds[this.classId] = true;
-    this.targetNodeAttr = nodeAttribute;
-    this.targetEdgeAttr = edgeAttribute;
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
@@ -99,16 +137,12 @@ class EdgeClass extends GenericClass {
     if (this._mure.classes[this.sourceClassId]) {
       delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
     }
-    this.sourceNodeAttr = null;
-    this.sourceEdgeAttr = null;
     if (!skipSave) { this._mure.saveClasses(); }
   }
   disconnectTarget ({ skipSave = false } = {}) {
     if (this._mure.classes[this.targetClassId]) {
       delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
     }
-    this.targetNodeAttr = null;
-    this.targetEdgeAttr = null;
     if (!skipSave) { this._mure.saveClasses(); }
   }
   delete () {
