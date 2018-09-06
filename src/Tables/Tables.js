@@ -2,7 +2,7 @@ import StaticTable from './StaticTable.js';
 import StaticDictTable from './StaticDictTable.js';
 import AggregatedTable from './AggregatedTable.js';
 import ExpandedTable from './ExpandedTable.js';
-import FilteredTable from './FilteredTable.js';
+import FacetedTable from './FacetedTable.js';
 import ConnectedTable from './ConnectedTable.js';
 
 export {
@@ -10,6 +10,6 @@ export {
   StaticDictTable,
   AggregatedTable,
   ExpandedTable,
-  FilteredTable,
+  FacetedTable,
   ConnectedTable
 };

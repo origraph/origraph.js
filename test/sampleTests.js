@@ -104,7 +104,7 @@ describe('StaticTable Samples', () => {
     ]);
   });
 
-  test('FilteredTable Samples (closedFacet)', async () => {
+  test('FacetedTable Samples (closedFacet)', async () => {
     expect.assertions(2);
 
     let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
@@ -126,7 +126,7 @@ describe('StaticTable Samples', () => {
     ]);
   });
 
-  test('FilteredTable Samples (openFacet)', async () => {
+  test('FacetedTable Samples (openFacet)', async () => {
     expect.assertions(2);
 
     const limit = 4;

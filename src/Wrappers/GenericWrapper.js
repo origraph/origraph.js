@@ -9,7 +9,13 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
       throw new Error(`index is required`);
     }
     this.row = options.row || {};
-    this.connectedRows = options.connectedRows || {};
+    this.connectedItems = options.connectedItems || {};
+  }
+  connectItem (tableId, item) {
+    this.connectedItems[tableId] = this.connectedItems[tableId] || [];
+    if (this.connectedItems[tableId].indexOf(item) === -1) {
+      this.connectedItems[tableId].push(item);
+    }
   }
 }
 Object.defineProperty(GenericWrapper, 'type', {

@@ -1,7 +1,7 @@
 import Table from './Table.js';
 import SingleParentMixin from './SingleParentMixin.js';
 
-class FilteredTable extends SingleParentMixin(Table) {
+class FacetedTable extends SingleParentMixin(Table) {
   constructor (options) {
     super(options);
     this._attribute = options.attribute;
@@ -21,16 +21,18 @@ class FilteredTable extends SingleParentMixin(Table) {
   }
   async * _iterate (options) {
     let index = 0;
-    for await (const wrappedParent of this.parentTable.iterate(options)) {
+    const parentTable = this.parentTable;
+    for await (const wrappedParent of parentTable.iterate(options)) {
       const includeItem = () => {
-        const wrappedItem = this._wrap({
+        const newItem = this._wrap({
           index,
-          row: wrappedParent.row,
-          connectedRows: { wrappedParent }
+          row: Object.assign({}, wrappedParent.row)
         });
-        this._finishItem(wrappedItem);
+        newItem.connectItem(parentTable.tableId, wrappedParent);
+        wrappedParent.connectItem(this.tableId, newItem);
+        this._finishItem(newItem);
         index++;
-        return wrappedItem;
+        return newItem;
       };
       if (this._attribute === null) {
         if (wrappedParent.index === this._value) {
@@ -44,4 +46,4 @@ class FilteredTable extends SingleParentMixin(Table) {
     }
   }
 }
-export default FilteredTable;
+export default FacetedTable;

@@ -223,7 +223,7 @@ class Table extends TriggerableMixin(Introspectable) {
   closedFacet (attribute, values) {
     return values.map(value => {
       const options = {
-        type: 'FilteredTable',
+        type: 'FacetedTable',
         attribute,
         value
       };
@@ -237,7 +237,7 @@ class Table extends TriggerableMixin(Introspectable) {
       if (!values[value]) {
         values[value] = true;
         const options = {
-          type: 'FilteredTable',
+          type: 'FacetedTable',
           attribute,
           value
         };

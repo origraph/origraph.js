@@ -4,12 +4,14 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.edgeClassIds = options.edgeClassIds || {};
-    this.Wrapper = this._mure.WRAPPERS.NodeWrapper;
   }
   _toRawObject () {
     const result = super._toRawObject();
     result.edgeClassIds = this.edgeClassIds;
     return result;
+  }
+  _wrap (options) {
+    return new this._mure.WRAPPERS.NodeWrapper(options);
   }
   interpretAsNodes () {
     return this;

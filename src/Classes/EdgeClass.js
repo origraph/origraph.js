@@ -3,8 +3,6 @@ import GenericClass from './GenericClass.js';
 class EdgeClass extends GenericClass {
   constructor (options) {
     super(options);
-    this.Wrapper = this._mure.WRAPPERS.EdgeWrapper;
-
     this.sourceClassId = options.sourceClassId || null;
     this.targetClassId = options.targetClassId || null;
     this.directed = options.directed || false;
@@ -16,6 +14,9 @@ class EdgeClass extends GenericClass {
     result.targetClassId = this.targetClassId;
     result.directed = this.directed;
     return result;
+  }
+  _wrap (options) {
+    return new this._mure.WRAPPERS.EdgeWrapper(options);
   }
   _pickEdgeTable (otherClass) {
     let edgeTable;

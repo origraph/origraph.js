@@ -64,7 +64,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
     delete this._partialCache;
   }
   async * _iterate (options) {
-    for await (const wrappedParent of this.parentTable.iterate(options)) {
+    const parentTable = this.parentTable;
+    for await (const wrappedParent of parentTable.iterate(options)) {
       const index = wrappedParent.row[this._attribute];
       if (!this._partialCache) {
         // We were reset; return immediately
@@ -72,10 +73,9 @@ class AggregatedTable extends SingleParentMixin(Table) {
       } else if (this._partialCache[index]) {
         this._updateItem(this._partialCache[index], wrappedParent);
       } else {
-        const newItem = this._wrap({
-          index,
-          connectedRows: { wrappedParent }
-        });
+        const newItem = this._wrap({ index });
+        newItem.connectItem(parentTable.tableId, wrappedParent);
+        wrappedParent.connectItem(this.tableId, newItem);
         // Reduce operations still need to be applied to the first item
         this._updateItem(newItem, newItem);
         yield newItem;

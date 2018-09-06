@@ -18405,7 +18405,7 @@
 	  closedFacet(attribute, values) {
 	    return values.map(value => {
 	      const options = {
-	        type: 'FilteredTable',
+	        type: 'FacetedTable',
 	        attribute,
 	        value
 	      };
@@ -18424,7 +18424,7 @@
 	      if (!values[value]) {
 	        values[value] = true;
 	        const options = {
-	          type: 'FilteredTable',
+	          type: 'FacetedTable',
 	          attribute,
 	          value
 	        };
@@ -18811,7 +18811,7 @@
 
 	}
 
-	class FilteredTable extends SingleParentMixin(Table) {
+	class FacetedTable extends SingleParentMixin(Table) {
 	  constructor(options) {
 	    super(options);
 	    this._attribute = options.attribute;
@@ -18925,7 +18925,7 @@
 		StaticDictTable: StaticDictTable,
 		AggregatedTable: AggregatedTable,
 		ExpandedTable: ExpandedTable,
-		FilteredTable: FilteredTable,
+		FacetedTable: FacetedTable,
 		ConnectedTable: ConnectedTable
 	});
 
