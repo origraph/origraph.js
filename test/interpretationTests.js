@@ -53,7 +53,7 @@ describe('Interpretation Tests', () => {
     expect(rawMovieEdgesSpec.annotation).toEqual('');
     expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
     expect(rawMovieEdgesSpec.className).toEqual(null);
-    expect(rawMovieEdgesSpec.directed).toEqual(false);
+    expect(rawMovieEdgesSpec.directed).toEqual(true);
     expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
   });
@@ -84,5 +84,47 @@ describe('Interpretation Tests', () => {
     expect(edgeSpec.directed).toEqual(true);
     expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
     expect(edgeSpec.targetClassId).toEqual(nodeClassId);
+  });
+
+  test('Movies to Edges and Back Again', async () => {
+    expect.assertions(6);
+
+    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
+
+    let [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
+
+    // Initial interpretation
+    mure.classes[peopleId].interpretAsNodes();
+    mure.classes[peopleId].setClassName('People');
+
+    mure.classes[moviesId].interpretAsNodes();
+    mure.classes[moviesId].setClassName('Movies');
+
+    mure.classes[movieEdgesId].interpretAsEdges();
+
+    // Set up initial connections
+    await mure.classes[peopleId].connectToEdgeClass({
+      edgeClass: mure.classes[movieEdgesId],
+      direction: 'source',
+      nodeAttribute: 'id',
+      edgeAttribute: 'sourceID'
+    });
+    await mure.classes[movieEdgesId].connectToNodeClass({
+      nodeClass: mure.classes[moviesId],
+      direction: 'target',
+      nodeAttribute: 'id',
+      edgeAttribute: 'targetID'
+    });
+
+    // Reinterpret Movies as Edges
+    moviesId = mure.classes[moviesId].interpretAsEdges().classId;
+
+    const rawMoviesSpec = mure.classes[moviesId]._toRawObject();
+    expect(rawMoviesSpec.annotation).toEqual('');
+    expect(rawMoviesSpec.classId).toEqual(moviesId);
+    expect(rawMoviesSpec.className).toEqual('Movies');
+    expect(rawMoviesSpec.directed).toEqual(true);
+    expect(rawMoviesSpec.sourceClassId).toEqual(peopleId);
+    expect(rawMoviesSpec.targetClassId).toEqual(peopleId);
   });
 });

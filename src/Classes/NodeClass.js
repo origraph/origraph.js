@@ -17,23 +17,47 @@ class NodeClass extends GenericClass {
   interpretAsEdges () {
     const edgeClassIds = Object.keys(this.edgeClassIds);
     const options = super._toRawObject();
-    delete options.edgeClassIds;
+
     if (edgeClassIds.length > 2) {
+      // If there are more than two edges, break all connections and make
+      // this a floating edge (for now, we're not dealing in hyperedges)
       this.disconnectAllEdges();
-    } else {
-      if (edgeClassIds.length === 1 || edgeClassIds.length === 2) {
-        const sourceEdgeClass = this._mure.classes[edgeClassIds[0]];
-        options.sourceNodeId = sourceEdgeClass.sourceNodeId;
-        sourceEdgeClass.delete();
+    } else if (edgeClassIds.length === 1) {
+      // With only one connection, this node should become a self-edge
+      // (or a floating edge if edgeClass.sourceClassId is null)
+      const edgeClass = this._mure.classes[edgeClassIds[0]];
+      options.sourceClassId = edgeClass.sourceClassId;
+      options.targetClassId = edgeClass.sourceClassId;
+      options.directed = edgeClass.directed;
+      edgeClass.delete();
+    } else if (edgeClassIds.length === 2) {
+      let sourceEdgeClass = this._mure.classes[edgeClassIds[0]];
+      let targetEdgeClass = this._mure.classes[edgeClassIds[1]];
+      // Figure out the direction, if there is one
+      options.directed = false;
+      if (sourceEdgeClass.directed && targetEdgeClass.directed) {
+        if (sourceEdgeClass.targetClassId === this.classId &&
+            targetEdgeClass.sourceClassId === this.classId) {
+          // We happened to get the edges in order; set directed to true
+          options.directed = true;
+        } else if (sourceEdgeClass.sourceClassId === this.classId &&
+                   targetEdgeClass.targetClassId === this.classId) {
+          // We got the edges backwards; swap them and set directed to true
+          targetEdgeClass = this._mure.classes[edgeClassIds[0]];
+          sourceEdgeClass = this._mure.classes[edgeClassIds[1]];
+          options.directed = true;
+        }
       }
-      if (edgeClassIds.length === 2) {
-        const targetEdgeClass = this._mure.classes[edgeClassIds[1]];
-        options.targetNodeId = targetEdgeClass.targetNodeId;
-        targetEdgeClass.delete();
-      }
+      // Okay, now we know how to set source / target ids
+      options.sourceClassId = sourceEdgeClass.classId;
+      options.targetClassId = targetEdgeClass.classId;
+      // Delete each of the edge classes
+      sourceEdgeClass.delete();
+      targetEdgeClass.delete();
     }
     this.delete();
     delete options.classId;
+    delete options.edgeClassIds;
     options.type = 'EdgeClass';
     return this._mure.newClass(options);
   }

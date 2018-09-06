@@ -45,10 +45,9 @@ class EdgeClass extends GenericClass {
   interpretAsNodes () {
     const temp = this._toRawObject();
     this.delete();
-    const newNodeClass = this._mure.createClass({
-      type: 'NodeClass',
-      tableId: this.tableId
-    });
+    temp.type = 'NodeClass';
+    delete temp.classId;
+    const newNodeClass = this._mure.createClass(temp);
 
     if (temp.sourceClassId) {
       const sourceClass = this._mure.classes[this.sourceClassId];
@@ -84,6 +83,9 @@ class EdgeClass extends GenericClass {
     return this;
   }
   connectToNodeClass ({ nodeClass, direction, nodeAttribute, edgeAttribute }) {
+    if (direction) {
+      this.directed = true;
+    }
     if (direction !== 'source' && direction !== 'target') {
       direction = this.targetClassId === null ? 'target' : 'source';
     }
@@ -120,16 +122,31 @@ class EdgeClass extends GenericClass {
       this.disconnectSource({ skipSave: true });
     }
     this.sourceClassId = nodeClass.classId;
-    this._mure.classes[this.sourceClassId].edgeClassIds[this.classId] = true;
+    const sourceClass = this._mure.classes[this.sourceClassId];
+    sourceClass.edgeClassIds[this.classId] = true;
+
+    const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.getHashTable(nodeAttribute);
+    edgeHash.connect([nodeHash]);
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
-  connectTarget ({ nodeClass, nodeAttribute, edgeAttribute, skipSave = false } = {}) {
+  connectTarget ({
+    nodeClass,
+    nodeAttribute = null,
+    edgeAttribute = null,
+    skipSave = false
+  } = {}) {
     if (this.targetClassId) {
       this.disconnectTarget({ skipSave: true });
     }
     this.targetClassId = nodeClass.classId;
-    this._mure.classes[this.targetClassId].edgeClassIds[this.classId] = true;
+    const targetClass = this._mure.classes[this.targetClassId];
+    targetClass.edgeClassIds[this.classId] = true;
+
+    const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.getHashTable(nodeAttribute);
+    edgeHash.connect([nodeHash]);
 
     if (!skipSave) { this._mure.saveClasses(); }
   }
