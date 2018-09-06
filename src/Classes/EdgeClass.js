@@ -62,7 +62,7 @@ class EdgeClass extends GenericClass {
       sourceClass.edgeClassIds[sourceEdgeClass.classId] = true;
       newNodeClass.edgeClassIds[sourceEdgeClass.classId] = true;
     }
-    if (temp.targetClassId) {
+    if (temp.targetClassId && temp.sourceClassId !== temp.targetClassId) {
       const targetClass = this._mure.classes[this.targetClassId];
       const edgeTable = this._pickEdgeTable(targetClass);
       const targetEdgeClass = this._mure.createClass({
