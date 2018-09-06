@@ -73,7 +73,12 @@ describe('Sample Tests', () => {
           edge: sample.edge.row.edgeType
         };
       });
-    expect(samples).toEqual([null]);
+    expect(samples).toEqual([
+      {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
+      {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
+      {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'},
+      {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'}
+    ]);
 
     samples = (await getNodeToEdgeSamples(mure.classes[moviesId]))
       .map(sample => {
@@ -82,7 +87,12 @@ describe('Sample Tests', () => {
           edge: sample.edge.row.edgeType
         };
       });
-    expect(samples).toEqual([null]);
+    expect(samples).toEqual([
+      {'edge': 'ACTED_IN', 'node': 'The Matrix'},
+      {'edge': 'ACTED_IN', 'node': 'The Matrix'},
+      {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'},
+      {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'}
+    ]);
 
     samples = (await getEdgeToNodeSamples(mure.classes[movieEdgesId]))
       .map(sample => {

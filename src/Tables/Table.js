@@ -46,10 +46,10 @@ class Table extends TriggerableMixin(Introspectable) {
     if (options.reset) {
       this.reset();
     }
+
     if (this._cache) {
-      for (const finishedItem of Object.values(this._cache)) {
-        yield finishedItem;
-      }
+      const limit = options.limit === undefined ? Infinity : options.limit;
+      yield * Object.values(this._cache).slice(0, limit);
       return;
     }
 
