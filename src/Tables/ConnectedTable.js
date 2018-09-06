@@ -9,32 +9,31 @@ class ConnectedTable extends DuplicatableAttributesMixin(Table) {
     const parentTables = this.parentTables;
     // Spin through all of the parentTables so that their _cache is pre-built
     for (const parentTable of parentTables) {
-      if (!parentTable._cache) {
-        const iterator = parentTable.iterate();
-        let temp;
-        while (!temp || !temp.done) {
-          temp = await iterator.next();
-        }
-      }
+      await parentTable.countRows();
     }
-    // Now that the caches are built, just iterate their keys directly
-    for (const parentTable of parentTables) {
-      if (!parentTable._cache) {
+    // Now that the caches are built, just iterate their keys directly. We only
+    // care about including rows that have exact matches across all tables, so
+    // we can just pick one parent table to iterate
+    const baseParentTable = parentTables[0];
+    const otherParentTables = parentTables.slice(1);
+    for (const index in baseParentTable._cache) {
+      if (!parentTables.every(table => table._cache)) {
         // One of the parent tables was reset; return immediately
         return;
       }
-      for (const index in parentTable._cache) {
-        if (!this._partialCache[index]) {
-          const newItem = this._wrap({ index });
-          for (const parentTable2 of parentTables) {
-            newItem.connectItem(parentTable2.tableId, parentTable2._cache[index]);
-            parentTable2._cache[index].connectItem(this.tableId, newItem);
-          }
-          this._duplicateAttributes(newItem);
-          this._finishItem(newItem);
-          yield newItem;
-        }
+      if (!otherParentTables.every(table => table._cache[index])) {
+        // No match in one of the other tables; omit this item
+        continue;
       }
+      // TODO: add each parent tables' keys as attribute values
+      const newItem = this._wrap({ index });
+      for (const table of parentTables) {
+        newItem.connectItem(table.tableId, table._cache[index]);
+        table._cache[index].connectItem(this.tableId, newItem);
+      }
+      this._duplicateAttributes(newItem);
+      this._finishItem(newItem);
+      yield newItem;
     }
   }
 }

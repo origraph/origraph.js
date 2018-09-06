@@ -4,6 +4,7 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.edgeClassIds = options.edgeClassIds || {};
+    this._cachedShortestEdgePaths = {};
   }
   _toRawObject () {
     const result = super._toRawObject();
@@ -11,7 +12,23 @@ class NodeClass extends GenericClass {
     return result;
   }
   _wrap (options) {
+    options.classObj = this;
     return new this._mure.WRAPPERS.NodeWrapper(options);
+  }
+  async prepShortestEdgePath (edgeClassId) {
+    if (this._cachedShortestEdgePaths[edgeClassId] !== undefined) {
+      return this._cachedShortestEdgePaths[edgeClassId];
+    } else {
+      const edgeTable = this._mure.classes[edgeClassId].table;
+      const idList = [];
+      for (const table of this.table.shortestPathToTable(edgeTable)) {
+        idList.push(table.tableId);
+        // Spin through the table to make sure all its rows are wrapped and connected
+        await table.countRows();
+      }
+      this._cachedShortestEdgePaths[edgeClassId] = idList;
+      return this._cachedShortestEdgePaths[edgeClassId];
+    }
   }
   interpretAsNodes () {
     return this;

@@ -38,6 +38,7 @@ class GenericClass extends Introspectable {
     return this._mure.tables[this.tableId];
   }
   _wrap (options) {
+    options.classObj = this;
     return new this._mure.WRAPPERS.GenericWrapper(options);
   }
   interpretAsNodes () {

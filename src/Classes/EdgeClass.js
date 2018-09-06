@@ -16,6 +16,7 @@ class EdgeClass extends GenericClass {
     return result;
   }
   _wrap (options) {
+    options.classObj = this;
     return new this._mure.WRAPPERS.EdgeWrapper(options);
   }
   _pickEdgeTable (otherClass) {
@@ -42,6 +43,40 @@ class EdgeClass extends GenericClass {
       edgeTable = chain[0].table;
     }
     return edgeTable;
+  }
+  async prepShortestSourcePath () {
+    if (this._cachedShortestSourcePath !== undefined) {
+      return this._cachedShortestSourcePath;
+    } else if (this._sourceClassId === null) {
+      return null;
+    } else {
+      const sourceTable = this._mure.classes[this.sourceClassId].table;
+      const idList = [];
+      for (const table of this.table.shortestPathToTable(sourceTable)) {
+        idList.push(table.tableId);
+        // Spin through the table to make sure all its rows are wrapped and connected
+        await table.countRows();
+      }
+      this._cachedShortestSourcePath = idList;
+      return this._cachedShortestSourcePath;
+    }
+  }
+  async prepShortestTargetPath () {
+    if (this._cachedShortestTargetPath !== undefined) {
+      return this._cachedShortestTargetPath;
+    } else if (this._targetClassId === null) {
+      return null;
+    } else {
+      const targetTable = this._mure.classes[this.targetClassId].table;
+      const idList = [];
+      for (const table of this.table.shortestPathToTable(targetTable)) {
+        idList.push(table.tableId);
+        // Spin through the table to make sure all its rows are wrapped and connected
+        await table.countRows();
+      }
+      this._cachedShortestTargetPath = idList;
+      return this._cachedShortestTargetPath;
+    }
   }
   interpretAsNodes () {
     const temp = this._toRawObject();
@@ -152,15 +187,21 @@ class EdgeClass extends GenericClass {
     if (!skipSave) { this._mure.saveClasses(); }
   }
   disconnectSource ({ skipSave = false } = {}) {
-    if (this._mure.classes[this.sourceClassId]) {
-      delete this._mure.classes[this.sourceClassId].edgeClassIds[this.classId];
+    const existingSourceClass = this._mure.classes[this.sourceClassId];
+    if (existingSourceClass) {
+      delete existingSourceClass.edgeClassIds[this.classId];
+      delete existingSourceClass._cachedShortestEdgePaths[this.classId];
     }
+    delete this._cachedShortestSourcePath;
     if (!skipSave) { this._mure.saveClasses(); }
   }
   disconnectTarget ({ skipSave = false } = {}) {
-    if (this._mure.classes[this.targetClassId]) {
-      delete this._mure.classes[this.targetClassId].edgeClassIds[this.classId];
+    const existingTargetClass = this._mure.classes[this.targetClassId];
+    if (existingTargetClass) {
+      delete existingTargetClass.edgeClassIds[this.classId];
+      delete existingTargetClass._cachedShortestEdgePaths[this.classId];
     }
+    delete this._cachedShortestTargetPath;
     if (!skipSave) { this._mure.saveClasses(); }
   }
   delete () {

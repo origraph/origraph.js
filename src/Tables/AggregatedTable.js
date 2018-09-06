@@ -71,12 +71,14 @@ class AggregatedTable extends SingleParentMixin(Table) {
         // We were reset; return immediately
         return;
       } else if (this._partialCache[index]) {
-        this._updateItem(this._partialCache[index], wrappedParent);
+        const existingItem = this._partialCache[index];
+        existingItem.connectItem(parentTable.tableId, wrappedParent);
+        wrappedParent.connectItem(this.tableId, existingItem);
+        this._updateItem(existingItem, wrappedParent);
       } else {
         const newItem = this._wrap({ index });
         newItem.connectItem(parentTable.tableId, wrappedParent);
         wrappedParent.connectItem(this.tableId, newItem);
-        // Reduce operations still need to be applied to the first item
         this._updateItem(newItem, newItem);
         yield newItem;
       }

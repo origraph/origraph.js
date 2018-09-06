@@ -5,9 +5,11 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
   constructor (options) {
     super();
     this.index = options.index;
-    if (this.index === undefined) {
-      throw new Error(`index is required`);
+    this.table = options.table;
+    if (this.index === undefined || !this.table) {
+      throw new Error(`index and table are required`);
     }
+    this.classObj = options.classObj || null;
     this.row = options.row || {};
     this.connectedItems = options.connectedItems || {};
   }
@@ -15,6 +17,17 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     this.connectedItems[tableId] = this.connectedItems[tableId] || [];
     if (this.connectedItems[tableId].indexOf(item) === -1) {
       this.connectedItems[tableId].push(item);
+    }
+  }
+  * iterateAcrossConnections (tableIds) {
+    if (tableIds.length === 1) {
+      yield * (this.connectedItems[tableIds[0]] || []);
+    } else {
+      const thisTableId = tableIds[0];
+      const remainingTableIds = tableIds.slice(1);
+      for (const item of this.connectedItems[thisTableId] || []) {
+        yield * item.iterateAcrossConnections(remainingTableIds);
+      }
     }
   }
 }

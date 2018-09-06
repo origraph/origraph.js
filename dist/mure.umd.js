@@ -18195,7 +18195,7 @@
 	      return;
 	    }
 
-	    yield* await this._buildCache(options);
+	    yield* await this.buildCache(options);
 	  }
 
 	  reset() {
@@ -18209,7 +18209,7 @@
 	    this.trigger('reset');
 	  }
 
-	  async *_buildCache(options) {
+	  async *buildCache(options) {
 	    // TODO: in large data scenarios, we should build the cache / index
 	    // externally on disk
 	    this._partialCache = {};
@@ -18644,8 +18644,8 @@
 	    originalWrappedItem.trigger('update');
 	  }
 
-	  async *_buildCache(options) {
-	    // We override _buildCache because so that AggregatedTable can take advantage
+	  async *buildCache(options) {
+	    // We override buildCache because so that AggregatedTable can take advantage
 	    // of the partially-built cache as it goes, and postpone finishing items
 	    // until after the parent table has been fully iterated
 	    // TODO: in large data scenarios, we should build the cache / index

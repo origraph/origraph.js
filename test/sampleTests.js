@@ -1,151 +1,97 @@
 const mure = require('../dist/mure.cjs.js');
 const loadFiles = require('./loadFiles.js');
 
-async function getFiveSamples (tableObj) {
+async function getNodeToEdgeSamples (nodeClassObj) {
   const samples = [];
-  for await (const sample of tableObj.iterate({ limit: 5 })) {
-    samples.push(sample);
+  for await (const node of nodeClassObj.table.iterate({ limit: 2 })) {
+    for await (const edge of node.edges({ limit: 2 })) {
+      samples.push({ node, edge });
+    }
   }
   return samples;
 }
 
-describe('StaticTable Samples', () => {
+async function getEdgeToNodeSamples (edgeClassObj) {
+  const samples = [];
+  for await (const edge of edgeClassObj.table.iterate({ limit: 2 })) {
+    for await (const source of edge.sourceNodes({ limit: 2 })) {
+      for await (const target of edge.targetNodes({ limit: 2 })) {
+        samples.push({ source, edge, target });
+      }
+    }
+  }
+  return samples;
+}
+
+describe('Sample Tests', () => {
   afterEach(() => {
     mure.deleteAllClasses();
     mure.deleteAllUnusedTables();
   });
 
-  test('Raw Table Samples', async () => {
-    expect.assertions(1);
+  test('Movie + Person + Edge Samples', async () => {
+    expect.assertions(6);
 
-    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
+    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
-    // Test that the data is what we'd expect
-    const samples = await getFiveSamples(mure.tables[peopleId]);
-    expect(samples.map(s => s.row)).toEqual([
-      {'born': '1964', 'id': '1', 'name': 'Keanu Reeves'},
-      {'born': '1967', 'id': '2', 'name': 'Carrie-Anne Moss'},
-      {'born': '1961', 'id': '3', 'name': 'Laurence Fishburne'},
-      {'born': '1960', 'id': '4', 'name': 'Hugo Weaving'},
-      {'born': '1967', 'id': '5', 'name': 'Andy Wachowski'}
-    ]);
-  });
+    const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
 
-  test('AggregatedTable Samples', async () => {
-    expect.assertions(2);
+    // Initial interpretation
+    mure.classes[peopleId].interpretAsNodes();
+    mure.classes[peopleId].setClassName('People');
 
-    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
-    const bornId = mure.tables[peopleId].aggregate('born').tableId;
+    mure.classes[moviesId].interpretAsNodes();
+    mure.classes[moviesId].setClassName('Movies');
 
-    mure.tables[bornId].deriveReducedAttribute('count', (originalItem, newItem) => {
-      return (originalItem.row.count || 0) + 1;
+    mure.classes[movieEdgesId].interpretAsEdges();
+
+    // Set up initial connections
+    await mure.classes[peopleId].connectToEdgeClass({
+      edgeClass: mure.classes[movieEdgesId],
+      direction: 'source',
+      nodeAttribute: 'id',
+      edgeAttribute: 'sourceID'
+    });
+    await mure.classes[movieEdgesId].connectToNodeClass({
+      nodeClass: mure.classes[moviesId],
+      direction: 'target',
+      nodeAttribute: 'id',
+      edgeAttribute: 'targetID'
     });
 
-    const samples = await getFiveSamples(mure.tables[bornId]);
+    let count = await mure.classes[peopleId].table.countRows();
+    expect(count).toEqual(133);
+    count = await mure.classes[moviesId].table.countRows();
+    expect(count).toEqual(38);
+    count = await mure.classes[movieEdgesId].table.countRows();
+    expect(count).toEqual(506);
 
-    // Test that the indexes are what we'd expect at this point
-    expect(samples.map(s => s.index)).toEqual([
-      '1964', '1967', '1961', '1960'
-    ]);
+    let samples = (await getNodeToEdgeSamples(mure.classes[peopleId]))
+      .map(sample => {
+        return {
+          node: sample.node.row.name,
+          edge: sample.edge.row.edgeType
+        };
+      });
+    expect(samples).toEqual([null]);
 
-    // Test that the data is what we'd expect at this point
-    expect(samples.map(s => s.row)).toEqual([
-      { count: 1 },
-      { count: 2 },
-      { count: 1 },
-      { count: 1 }
-    ]);
-  });
+    samples = (await getNodeToEdgeSamples(mure.classes[moviesId]))
+      .map(sample => {
+        return {
+          node: sample.node.row.title,
+          edge: sample.edge.row.edgeType
+        };
+      });
+    expect(samples).toEqual([null]);
 
-  test('ExpandedTable Samples', async () => {
-    expect.assertions(1);
-
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const digitId = mure.tables[testId].expand('this', '.').tableId;
-
-    mure.tables[digitId].duplicateAttribute(testId, 'test');
-
-    const samples = await getFiveSamples(mure.tables[digitId]);
-
-    // Test that the data is what we'd expect
-    expect(samples.map(s => s.row)).toEqual([
-      {'csvTest.csv.test': 'five', 'this': '3'},
-      {'csvTest.csv.test': 'five', 'this': '1'},
-      {'csvTest.csv.test': 'three', 'this': '9'},
-      {'csvTest.csv.test': 'three', 'this': '2'},
-      {'csvTest.csv.test': 'nine', 'this': '5'}
-    ]);
-  });
-
-  test('ConnectedTable Samples', async () => {
-    expect.assertions(2);
-
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const connectedId = mure.tables[testId].connect([
-      mure.tables[testId]
-    ]).tableId;
-
-    mure.tables[connectedId].duplicateAttribute(testId, 'test');
-
-    const samples = await getFiveSamples(mure.tables[connectedId]);
-
-    // Test that the indexes are what we'd expect
-    expect(samples.map(s => s.index)).toEqual([
-      '0', '1', '2', '3', '4'
-    ]);
-
-    // Test that the data is what we'd expect
-    expect(samples.map(s => s.row)).toEqual([
-      {'csvTest.csv.test': 'five'},
-      {'csvTest.csv.test': 'three'},
-      {'csvTest.csv.test': 'nine'},
-      {'csvTest.csv.test': 'four'},
-      {'csvTest.csv.test': 'three'}
-    ]);
-  });
-
-  test('FacetedTable Samples (closedFacet)', async () => {
-    expect.assertions(2);
-
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const values = ['three', 'seven'];
-    const [threeId, sevenId] = mure.tables[testId].closedFacet('test', values)
-      .map(tableObj => tableObj.tableId);
-
-    // Test that the data is what we'd expect
-    let samples = await getFiveSamples(mure.tables[threeId]);
-    expect(samples.map(s => s.row)).toEqual([
-      {'a': '5', 'is': '6', 'test': 'three', 'this': '9.2'},
-      {'a': '4', 'is': '6', 'test': 'three', 'this': '6.2'}
-    ]);
-
-    samples = await getFiveSamples(mure.tables[sevenId]);
-    expect(samples.map(s => s.row)).toEqual([
-      {'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8'},
-      {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
-    ]);
-  });
-
-  test('FacetedTable Samples (openFacet)', async () => {
-    expect.assertions(2);
-
-    const limit = 4;
-
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const tableIds = [];
-    for await (const tableObj of mure.tables[testId].openFacet('test', limit)) {
-      tableIds.push(tableObj.tableId);
-    }
-
-    // Test that we get the right number of tables
-    expect(tableIds.length).toEqual(limit);
-
-    // Test that the table names are what we'd expect
-    expect(tableIds.map(tableId => mure.tables[tableId].name)).toEqual([
-      'csvTest.csv[five]',
-      'csvTest.csv[three]',
-      'csvTest.csv[nine]',
-      'csvTest.csv[four]'
-    ]);
+    samples = (await getEdgeToNodeSamples(mure.classes[movieEdgesId]))
+      .map(sample => {
+        return {
+          source: sample.source.row.name,
+          edge: sample.edge.row.edgeType,
+          target: sample.target.row.title
+        };
+      });
+    expect(samples).toEqual([null]);
   });
 });

@@ -63,7 +63,21 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     this.trigger('reset');
   }
-  async * _buildCache (options) {
+  async countRows () {
+    if (this._cache) {
+      return Object.keys(this._cache).length;
+    } else {
+      let count = 0;
+      const iterator = this._buildCache();
+      let temp = await iterator.next();
+      while (!temp.done) {
+        count++;
+        temp = await iterator.next();
+      }
+      return count;
+    }
+  }
+  async * _buildCache (options = {}) {
     // TODO: in large data scenarios, we should build the cache / index
     // externally on disk
     this._partialCache = {};
