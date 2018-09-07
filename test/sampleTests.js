@@ -3,9 +3,14 @@ const loadFiles = require('./loadFiles.js');
 
 async function getNodeToEdgeSamples (nodeClassObj) {
   const samples = [];
-  for await (const node of nodeClassObj.table.iterate({ limit: 2 })) {
-    for await (const edge of node.edges({ limit: 2 })) {
+  let fullMatches = 0;
+  for await (const node of nodeClassObj.table.iterate()) {
+    for await (const edge of node.edges({ limit: 1 })) {
       samples.push({ node, edge });
+      fullMatches++;
+      if (fullMatches >= 5) {
+        return samples;
+      }
     }
   }
   return samples;
@@ -13,10 +18,15 @@ async function getNodeToEdgeSamples (nodeClassObj) {
 
 async function getEdgeToNodeSamples (edgeClassObj) {
   const samples = [];
-  for await (const edge of edgeClassObj.table.iterate({ limit: 2 })) {
-    for await (const source of edge.sourceNodes({ limit: 2 })) {
-      for await (const target of edge.targetNodes({ limit: 2 })) {
+  let fullMatches = 0;
+  for await (const edge of edgeClassObj.table.iterate()) {
+    for await (const source of edge.sourceNodes({ limit: 1 })) {
+      for await (const target of edge.targetNodes({ limit: 1 })) {
         samples.push({ source, edge, target });
+        fullMatches++;
+        if (fullMatches >= 5) {
+          return samples;
+        }
       }
     }
   }
@@ -75,9 +85,10 @@ describe('Sample Tests', () => {
       });
     expect(samples).toEqual([
       {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
-      {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
       {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'},
-      {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'}
+      {'edge': 'ACTED_IN', 'node': 'Laurence Fishburne'},
+      {'edge': 'ACTED_IN', 'node': 'Hugo Weaving'},
+      {'edge': 'PRODUCED', 'node': 'Andy Wachowski'}
     ]);
 
     samples = (await getNodeToEdgeSamples(mure.classes[moviesId]))
@@ -89,9 +100,10 @@ describe('Sample Tests', () => {
       });
     expect(samples).toEqual([
       {'edge': 'ACTED_IN', 'node': 'The Matrix'},
-      {'edge': 'ACTED_IN', 'node': 'The Matrix'},
       {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'},
-      {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'}
+      {'edge': 'ACTED_IN', 'node': 'The Matrix Revolutions'},
+      {'edge': 'ACTED_IN', 'node': 'The Devil\'s Advocate'},
+      {'edge': 'ACTED_IN', 'node': 'A Few Good Men'}
     ]);
 
     samples = (await getEdgeToNodeSamples(mure.classes[movieEdgesId]))
@@ -102,6 +114,12 @@ describe('Sample Tests', () => {
           target: sample.target.row.title
         };
       });
-    expect(samples).toEqual([null]);
+    expect(samples).toEqual([
+      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Something\'s Gotta Give'},
+      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Johnny Mnemonic'},
+      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Replacements'},
+      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Devil\'s Advocate'},
+      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Matrix Revolutions'}
+    ]);
   });
 });
