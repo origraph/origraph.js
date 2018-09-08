@@ -21,13 +21,14 @@ const DuplicatableAttributesMixin = function (superclass) {
         wrappedItem.row[`${parentName}.${attr}`] = wrappedItem.connectedItems[parentId][0].row[attr];
       }
     }
-    _getAllAttributes () {
-      const result = super._getAllAttributes();
+    getAttributeDetails () {
+      const allAttrs = super.getAttributeDetails();
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        const parentName = this._mure.tables[parentId].name;
-        result[`${parentName}.${attr}`] = true;
+        const attrName = `${this._mure.tables[parentId].name}.${attr}`;
+        allAttrs[attrName] = allAttrs[attrName] || {};
+        allAttrs[attrName].copied = true;
       }
-      return result;
+      return allAttrs;
     }
   };
 };

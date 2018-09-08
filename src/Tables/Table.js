@@ -12,13 +12,19 @@ class Table extends TriggerableMixin(Introspectable) {
 
     this._expectedAttributes = options.attributes || {};
     this._observedAttributes = {};
+
     this._derivedTables = options.derivedTables || {};
 
     this._derivedAttributeFunctions = {};
-    if (options.derivedAttributeFunctions) {
-      for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions)) {
-        this._derivedAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
-      }
+    for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions || {})) {
+      this._derivedAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
+    }
+
+    this._suppressedAttributes = options.suppressedAttributes || {};
+
+    this._attributeSubFilters = {};
+    for (const [attr, stringifiedFunc] of Object.entries(options.attributeSubFilters || {})) {
+      this._attributeSubFilters[attr] = this._mure.hydrateFunction(stringifiedFunc);
     }
   }
   _toRawObject () {
@@ -27,10 +33,15 @@ class Table extends TriggerableMixin(Introspectable) {
       attributes: this._attributes,
       derivedTables: this._derivedTables,
       usedByClasses: this._usedByClasses,
-      derivedAttributeFunctions: {}
+      derivedAttributeFunctions: {},
+      suppressedAttributes: this._suppressedAttributes,
+      attributeSubFilters: {}
     };
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       result.derivedAttributeFunctions[attr] = this._mure.dehydrateFunction(func);
+    }
+    for (const [attr, func] of Object.entries(this._attributeSubFilters)) {
+      result.attributeSubFilters[attr] = this._mure.dehydrateFunction(func);
     }
     return result;
   }
@@ -112,8 +123,11 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       wrappedItem.row[attr] = func(wrappedItem);
     }
-    for (const attr of Object.keys(wrappedItem.row)) {
+    for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
+    }
+    for (const attr in this._suppressedAttributes) {
+      delete wrappedItem.row[attr];
     }
     wrappedItem.trigger('finish');
   }
@@ -122,21 +136,32 @@ class Table extends TriggerableMixin(Introspectable) {
     const classObj = this.classObj;
     return classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
   }
-  _getAllAttributes () {
+  getAttributeDetails () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].expected = true;
     }
     for (const attr in this._observedAttributes) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].observed = true;
     }
     for (const attr in this._derivedAttributeFunctions) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].derived = true;
+    }
+    for (const attr in this._suppressedAttributes) {
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].suppressed = true;
+    }
+    for (const attr in this._attributeSubFilters) {
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].filtered = true;
     }
     return allAttrs;
   }
   get attributes () {
-    return Object.keys(this._getAllAttributes());
+    return Object.keys(this.getAttributeDetails());
   }
   get currentData () {
     return {

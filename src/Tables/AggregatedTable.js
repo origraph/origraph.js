@@ -10,10 +10,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
 
     this._reduceAttributeFunctions = {};
-    if (options.reduceAttributeFunctions) {
-      for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions)) {
-        this._reduceAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
-      }
+    for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions || {})) {
+      this._reduceAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
     }
   }
   _toRawObject () {
@@ -84,12 +82,13 @@ class AggregatedTable extends SingleParentMixin(Table) {
       }
     }
   }
-  _getAllAttributes () {
-    const result = super._getAllAttributes();
+  getAttributeDetails () {
+    const allAttrs = super.getAttributeDetails();
     for (const attr in this._reduceAttributeFunctions) {
-      result[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr].reduced = true;
     }
-    return result;
+    return allAttrs;
   }
 }
 export default AggregatedTable;

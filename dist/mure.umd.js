@@ -18285,7 +18285,7 @@
 	    return classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
 	  }
 
-	  _getAllAttributes() {
+	  getAttributeDetails() {
 	    const allAttrs = {};
 
 	    for (const attr in this._expectedAttributes) {
@@ -18304,7 +18304,7 @@
 	  }
 
 	  get attributes() {
-	    return Object.keys(this._getAllAttributes());
+	    return Object.keys(this.getAttributeDetails());
 	  }
 
 	  get currentData() {
@@ -18719,8 +18719,8 @@
 	    }
 	  }
 
-	  _getAllAttributes() {
-	    const result = super._getAllAttributes();
+	  getAttributeDetails() {
+	    const result = super.getAttributeDetails();
 
 	    for (const attr in this._reduceAttributeFunctions) {
 	      result[attr] = true;
@@ -18761,8 +18761,8 @@
 	      }
 	    }
 
-	    _getAllAttributes() {
-	      const result = super._getAllAttributes();
+	    getAttributeDetails() {
+	      const result = super.getAttributeDetails();
 
 	      for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
 	        const parentName = this._mure.tables[parentId].name;
