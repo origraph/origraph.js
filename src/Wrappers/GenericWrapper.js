@@ -13,11 +13,22 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     this.row = options.row || {};
     this.connectedItems = options.connectedItems || {};
   }
-  connectItem (tableId, item) {
-    this.connectedItems[tableId] = this.connectedItems[tableId] || [];
-    if (this.connectedItems[tableId].indexOf(item) === -1) {
-      this.connectedItems[tableId].push(item);
+  connectItem (item) {
+    this.connectedItems[item.table.tableId] = this.connectedItems[item.table.tableId] || [];
+    if (this.connectedItems[item.table.tableId].indexOf(item) === -1) {
+      this.connectedItems[item.table.tableId].push(item);
     }
+  }
+  disconnect () {
+    for (const itemList of Object.values(this.connectedItems)) {
+      for (const item of itemList) {
+        const index = (item.connectedItems[this.table.tableId] || []).indexOf(this);
+        if (index !== -1) {
+          item.connectedItems[this.table.tableId].splice(index, 1);
+        }
+      }
+    }
+    this.connectedItems = {};
   }
   * iterateAcrossConnections (tableIds) {
     if (tableIds.length === 1) {

@@ -26,14 +26,14 @@ class ConnectedTable extends DuplicatableAttributesMixin(Table) {
         continue;
       }
       // TODO: add each parent tables' keys as attribute values
-      const newItem = this._wrap({ index });
-      for (const table of parentTables) {
-        newItem.connectItem(table.tableId, table._cache[index]);
-        table._cache[index].connectItem(this.tableId, newItem);
-      }
+      const newItem = this._wrap({
+        index,
+        itemsToConnect: parentTables.map(table => table._cache[index])
+      });
       this._duplicateAttributes(newItem);
-      this._finishItem(newItem);
-      yield newItem;
+      if (this._finishItem(newItem)) {
+        yield newItem;
+      }
     }
   }
 }

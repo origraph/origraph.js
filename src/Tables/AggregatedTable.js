@@ -56,7 +56,9 @@ class AggregatedTable extends SingleParentMixin(Table) {
     // table, we can finish each item
     for (const index in this._partialCache) {
       const wrappedItem = this._partialCache[index];
-      this._finishItem(wrappedItem);
+      if (!this._finishItem(wrappedItem)) {
+        delete this._partialCache[index];
+      }
     }
     this._cache = this._partialCache;
     delete this._partialCache;
@@ -70,13 +72,14 @@ class AggregatedTable extends SingleParentMixin(Table) {
         return;
       } else if (this._partialCache[index]) {
         const existingItem = this._partialCache[index];
-        existingItem.connectItem(parentTable.tableId, wrappedParent);
-        wrappedParent.connectItem(this.tableId, existingItem);
+        existingItem.connectItem(wrappedParent);
+        wrappedParent.connectItem(existingItem);
         this._updateItem(existingItem, wrappedParent);
       } else {
-        const newItem = this._wrap({ index });
-        newItem.connectItem(parentTable.tableId, wrappedParent);
-        wrappedParent.connectItem(this.tableId, newItem);
+        const newItem = this._wrap({
+          index,
+          itemsToConnect: [ wrappedParent ]
+        });
         this._updateItem(newItem, newItem);
         yield newItem;
       }

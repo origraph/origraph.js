@@ -21,7 +21,9 @@ class Table extends TriggerableMixin(Introspectable) {
     }
 
     this._suppressedAttributes = options.suppressedAttributes || {};
+    this._suppressIndex = !!options.suppressIndex;
 
+    this._indexSubFilter = (options.indexSubFilter && this._mure.hydrateFunction(options.indexSubFilter)) || null;
     this._attributeSubFilters = {};
     for (const [attr, stringifiedFunc] of Object.entries(options.attributeSubFilters || {})) {
       this._attributeSubFilters[attr] = this._mure.hydrateFunction(stringifiedFunc);
@@ -35,7 +37,9 @@ class Table extends TriggerableMixin(Introspectable) {
       usedByClasses: this._usedByClasses,
       derivedAttributeFunctions: {},
       suppressedAttributes: this._suppressedAttributes,
-      attributeSubFilters: {}
+      suppressIndex: this._suppressIndex,
+      attributeSubFilters: {},
+      indexSubFilter: (this._indexSubFilter && this._mure.dehydrateFunction(this._indexSubFilter)) || null
     };
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       result.derivedAttributeFunctions[attr] = this._mure.dehydrateFunction(func);
@@ -129,12 +133,31 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const attr in this._suppressedAttributes) {
       delete wrappedItem.row[attr];
     }
-    wrappedItem.trigger('finish');
+    let keep = true;
+    if (this._indexSubFilter) {
+      keep = this._indexSubFilter(wrappedItem.index);
+    }
+    for (const [attr, func] of Object.entries(this._attributeSubFilters)) {
+      keep = keep && func(wrappedItem.row[attr]);
+      if (!keep) { break; }
+    }
+    if (keep) {
+      wrappedItem.trigger('finish');
+    } else {
+      wrappedItem.disconnect();
+      wrappedItem.trigger('filter');
+    }
+    return keep;
   }
   _wrap (options) {
     options.table = this;
     const classObj = this.classObj;
-    return classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
+    const wrappedItem = classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
+    for (const otherItem of options.itemsToConnect || []) {
+      wrappedItem.connectItem(otherItem);
+      otherItem.connectItem(wrappedItem);
+    }
+    return wrappedItem;
   }
   getAttributeDetails () {
     const allAttrs = {};
@@ -171,6 +194,22 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
+    this.reset();
+  }
+  suppressAttribute (attribute) {
+    if (attribute === null) {
+      this._suppressIndex = true;
+    } else {
+      this._suppressedAttributes[attribute] = true;
+    }
+    this.reset();
+  }
+  addSubFilter (attribute, func) {
+    if (attribute === null) {
+      this._indexSubFilter = func;
+    } else {
+      this._attributeSubFilters[attribute] = func;
+    }
     this.reset();
   }
   _deriveTable (options) {

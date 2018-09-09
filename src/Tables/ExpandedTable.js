@@ -28,12 +28,15 @@ class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)
       for (const value of values) {
         const row = {};
         row[this._attribute] = value;
-        const newItem = this._wrap({ index, row });
-        newItem.connectItem(parentTable.tableId, wrappedParent);
-        wrappedParent.connectItem(this.tableId, newItem);
+        const newItem = this._wrap({
+          index,
+          row,
+          itemsToConnect: [ wrappedParent ]
+        });
         this._duplicateAttributes(newItem);
-        this._finishItem(newItem);
-        yield newItem;
+        if (this._finishItem(newItem)) {
+          yield newItem;
+        }
         index++;
       }
     }
