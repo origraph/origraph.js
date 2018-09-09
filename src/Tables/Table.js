@@ -159,6 +159,16 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return wrappedItem;
   }
+  getIndexDetails () {
+    const details = {};
+    if (this._suppressIndex) {
+      details.suppressed = true;
+    }
+    if (this._indexSubFilter) {
+      details.filtered = true;
+    }
+    return details;
+  }
   getAttributeDetails () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
