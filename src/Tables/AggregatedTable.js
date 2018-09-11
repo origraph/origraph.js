@@ -88,7 +88,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
   getAttributeDetails () {
     const allAttrs = super.getAttributeDetails();
     for (const attr in this._reduceAttributeFunctions) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].reduced = true;
     }
     return allAttrs;

@@ -25,7 +25,7 @@ const DuplicatableAttributesMixin = function (superclass) {
       const allAttrs = super.getAttributeDetails();
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
         const attrName = `${this._mure.tables[parentId].name}.${attr}`;
-        allAttrs[attrName] = allAttrs[attrName] || {};
+        allAttrs[attrName] = allAttrs[attrName] || { name: attrName };
         allAttrs[attrName].copied = true;
       }
       return allAttrs;

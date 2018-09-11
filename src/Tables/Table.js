@@ -160,7 +160,7 @@ class Table extends TriggerableMixin(Introspectable) {
     return wrappedItem;
   }
   getIndexDetails () {
-    const details = {};
+    const details = { name: null };
     if (this._suppressIndex) {
       details.suppressed = true;
     }
@@ -172,23 +172,23 @@ class Table extends TriggerableMixin(Introspectable) {
   getAttributeDetails () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].expected = true;
     }
     for (const attr in this._observedAttributes) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].observed = true;
     }
     for (const attr in this._derivedAttributeFunctions) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].derived = true;
     }
     for (const attr in this._suppressedAttributes) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].suppressed = true;
     }
     for (const attr in this._attributeSubFilters) {
-      allAttrs[attr] = allAttrs[attr] || {};
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
       allAttrs[attr].filtered = true;
     }
     return allAttrs;
