@@ -321,7 +321,7 @@ class Table extends TriggerableMixin(Introspectable) {
   async * openFacet (attribute, limit = Infinity) {
     const values = {};
     for await (const wrappedItem of this.iterate({ limit })) {
-      const value = wrappedItem.row[attribute];
+      const value = attribute === null ? wrappedItem.index : wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
         const options = {

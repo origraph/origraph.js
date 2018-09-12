@@ -1,5 +1,5 @@
-const fs = require('fs');
 const mure = require('../dist/mure.cjs.js');
+const loadFiles = require('./loadFiles.js');
 
 describe('Document Tests', () => {
   afterAll(async () => {
@@ -8,25 +8,12 @@ describe('Document Tests', () => {
   });
 
   test('load and read a CSV file', async () => {
-    expect.assertions(1);
+    expect.assertions(2);
 
-    const csvString = await new Promise((resolve, reject) => {
-      fs.readFile('test/data/csvTest.csv', 'utf8', (err, data) => {
-        if (err) { reject(err); }
-        resolve(data);
-      });
-    });
+    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
 
-    // Upload and parse the data source
-    const genericClass = await mure.addStringAsStaticTable({
-      name: 'csvTest.csv',
-      extension: 'csv',
-      text: csvString
-    });
-
-    // Stream the data
     const result = [];
-    for await (const wrappedItem of genericClass.table.iterate({ limit: Infinity })) {
+    for await (const wrappedItem of mure.tables[testId].iterate({ limit: Infinity })) {
       result.push(wrappedItem.row);
     }
 
@@ -41,5 +28,31 @@ describe('Document Tests', () => {
       {'a': '2', 'is': '0', 'test': 'eight', 'this': '9.5'},
       {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
     ]);
+
+    // Verify that it was a StaticTable
+    expect(mure.tables[testId]).toBeInstanceOf(mure.TABLES.StaticTable);
+  });
+
+  test('load and read a JSON file', async () => {
+    expect.assertions(2);
+
+    let testId = (await loadFiles(['miserables.json']))[0].tableId;
+
+    let result;
+    for await (const wrappedItem of mure.tables[testId].iterate({ limit: 1 })) {
+      result = wrappedItem.row;
+    }
+
+    // Verify that it matches what we expect
+    expect(result.slice(0, 5)).toEqual([
+      {'group': 1, 'index': 0, 'name': 'Myriel'},
+      {'group': 1, 'index': 1, 'name': 'Napoleon'},
+      {'group': 1, 'index': 2, 'name': 'Mlle.Baptistine'},
+      {'group': 1, 'index': 3, 'name': 'Mme.Magloire'},
+      {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
+    ]);
+
+    // Verify that it was a StaticDictTable
+    expect(mure.tables[testId]).toBeInstanceOf(mure.TABLES.StaticDictTable);
   });
 });

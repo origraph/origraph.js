@@ -142,10 +142,35 @@ describe('Table Samples', () => {
 
     // Test that the table names are what we'd expect
     expect(tableIds.map(tableId => mure.tables[tableId].name)).toEqual([
-      'csvTest.csv[five]',
-      'csvTest.csv[three]',
-      'csvTest.csv[nine]',
-      'csvTest.csv[four]'
+      '[five]',
+      '[three]',
+      '[nine]',
+      '[four]'
+    ]);
+  });
+
+  test('FacetedTableSamples (openFacet indexes)', async () => {
+    expect.assertions(3);
+
+    let testId = (await loadFiles(['miserables.json']))[0].tableId;
+    const tableIds = [];
+    for await (const tableObj of mure.tables[testId].openFacet(null)) {
+      tableIds.push(tableObj.tableId);
+    }
+
+    // Test that we get the right number of tables
+    expect(tableIds.length).toEqual(2);
+
+    // Test that the table names are what we'd expect
+    expect(tableIds.map(tableId => mure.tables[tableId].name)).toEqual([
+      '[nodes]',
+      '[links]'
+    ]);
+
+    // Test that we get the rows that we'd expect
+    const samples = await getFiveSamples(mure.tables[tableIds[0]]);
+    expect(samples.map(s => s.row)).toEqual([
+      null
     ]);
   });
 });
