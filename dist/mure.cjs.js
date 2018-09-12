@@ -2053,7 +2053,7 @@ class Mure extends TriggerableMixin(class {}) {
 }
 
 var name = "mure";
-var version = "0.5.6";
+var version = "0.5.7";
 var description = "A library for flexible graph reshaping";
 var main = "dist/mure.cjs.js";
 var module$1 = "dist/mure.esm.js";

@@ -20073,7 +20073,7 @@
 	}
 
 	var name$1 = "mure";
-	var version$1 = "0.5.6";
+	var version$1 = "0.5.7";
 	var description$1 = "A library for flexible graph reshaping";
 	var main$1 = "dist/mure.cjs.js";
 	var module$1 = "dist/mure.esm.js";
