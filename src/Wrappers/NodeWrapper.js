@@ -7,9 +7,9 @@ class NodeWrapper extends GenericWrapper {
       throw new Error(`classObj is required`);
     }
   }
-  async * edges ({ limit = Infinity } = {}) {
+  async * edges ({ limit = Infinity, edgeIds = this.classObj.edgeClassIds } = {}) {
     let i = 0;
-    for (const edgeClassId of Object.keys(this.classObj.edgeClassIds)) {
+    for (const edgeClassId of Object.keys(edgeIds)) {
       const tableIdChain = await this.classObj.prepShortestEdgePath(edgeClassId);
       const iterator = this.iterateAcrossConnections(tableIdChain);
       let temp = iterator.next();

@@ -40,7 +40,7 @@ describe('Sample Tests', () => {
   });
 
   test('Movie + Person + Edge Samples', async () => {
-    expect.assertions(6);
+    expect.assertions(13);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -76,13 +76,17 @@ describe('Sample Tests', () => {
     count = await mure.classes[movieEdgesId].table.countRows();
     expect(count).toEqual(506);
 
-    let samples = (await getNodeToEdgeSamples(mure.classes[peopleId]))
-      .map(sample => {
-        return {
-          node: sample.node.row.name,
-          edge: sample.edge.row.edgeType
-        };
-      });
+    let samples = await getNodeToEdgeSamples(mure.classes[peopleId]);
+
+    expect(samples[0].node).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+    expect(samples[0].edge).toBeInstanceOf(mure.WRAPPERS.EdgeWrapper);
+
+    samples = samples.map(sample => {
+      return {
+        node: sample.node.row.name,
+        edge: sample.edge.row.edgeType
+      };
+    });
     expect(samples).toEqual([
       {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
       {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'},
@@ -91,13 +95,17 @@ describe('Sample Tests', () => {
       {'edge': 'PRODUCED', 'node': 'Andy Wachowski'}
     ]);
 
-    samples = (await getNodeToEdgeSamples(mure.classes[moviesId]))
-      .map(sample => {
-        return {
-          node: sample.node.row.title,
-          edge: sample.edge.row.edgeType
-        };
-      });
+    samples = await getNodeToEdgeSamples(mure.classes[moviesId]);
+
+    expect(samples[0].node).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+    expect(samples[0].edge).toBeInstanceOf(mure.WRAPPERS.EdgeWrapper);
+
+    samples = samples.map(sample => {
+      return {
+        node: sample.node.row.title,
+        edge: sample.edge.row.edgeType
+      };
+    });
     expect(samples).toEqual([
       {'edge': 'ACTED_IN', 'node': 'The Matrix'},
       {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'},
@@ -106,14 +114,19 @@ describe('Sample Tests', () => {
       {'edge': 'ACTED_IN', 'node': 'A Few Good Men'}
     ]);
 
-    samples = (await getEdgeToNodeSamples(mure.classes[movieEdgesId]))
-      .map(sample => {
-        return {
-          source: sample.source.row.name,
-          edge: sample.edge.row.edgeType,
-          target: sample.target.row.title
-        };
-      });
+    samples = await getEdgeToNodeSamples(mure.classes[movieEdgesId]);
+
+    expect(samples[0].source).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+    expect(samples[0].edge).toBeInstanceOf(mure.WRAPPERS.EdgeWrapper);
+    expect(samples[0].target).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+
+    samples = samples.map(sample => {
+      return {
+        source: sample.source.row.name,
+        edge: sample.edge.row.edgeType,
+        target: sample.target.row.title
+      };
+    });
     expect(samples).toEqual([
       {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Something\'s Gotta Give'},
       {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Johnny Mnemonic'},
