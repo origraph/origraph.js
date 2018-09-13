@@ -75,6 +75,16 @@ class GenericClass extends Introspectable {
       yield this._deriveGenericClass(newTable);
     }
   }
+  closedTranspose (indexes) {
+    return this.table.closedTranspose(indexes).map(newTable => {
+      return this._deriveGenericClass(newTable);
+    });
+  }
+  async * openTranspose () {
+    for await (const newTable of this.table.openTranspose()) {
+      yield this._deriveGenericClass(newTable);
+    }
+  }
   delete () {
     delete this._mure.classes[this.classId];
     this._mure.saveClasses();
