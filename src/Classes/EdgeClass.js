@@ -47,8 +47,8 @@ class EdgeClass extends GenericClass {
   async prepShortestSourcePath () {
     if (this._cachedShortestSourcePath !== undefined) {
       return this._cachedShortestSourcePath;
-    } else if (this._sourceClassId === null) {
-      return null;
+    } else if (this.sourceClassId === null) {
+      return [];
     } else {
       const sourceTable = this._mure.classes[this.sourceClassId].table;
       const idList = [];
@@ -64,8 +64,8 @@ class EdgeClass extends GenericClass {
   async prepShortestTargetPath () {
     if (this._cachedShortestTargetPath !== undefined) {
       return this._cachedShortestTargetPath;
-    } else if (this._targetClassId === null) {
-      return null;
+    } else if (this.targetClassId === null) {
+      return [];
     } else {
       const targetTable = this._mure.classes[this.targetClassId].table;
       const idList = [];
@@ -111,7 +111,7 @@ class EdgeClass extends GenericClass {
       targetClass.edgeClassIds[targetEdgeClass.classId] = true;
       newNodeClass.edgeClassIds[targetEdgeClass.classId] = true;
     }
-
+    this.table.reset();
     this._mure.saveClasses();
     return newNodeClass;
   }

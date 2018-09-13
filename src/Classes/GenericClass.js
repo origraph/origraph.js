@@ -44,11 +44,13 @@ class GenericClass extends Introspectable {
   interpretAsNodes () {
     const options = this._toRawObject();
     options.type = 'NodeClass';
+    this.table.reset();
     return this._mure.newClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
     options.type = 'EdgeClass';
+    this.table.reset();
     return this._mure.newClass(options);
   }
   _deriveGenericClass (newTable) {

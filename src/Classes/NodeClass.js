@@ -78,6 +78,7 @@ class NodeClass extends GenericClass {
     delete options.classId;
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
+    this.table.reset();
     return this._mure.newClass(options);
   }
   connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
