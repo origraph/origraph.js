@@ -55,7 +55,7 @@ class EdgeClass extends GenericClass {
       for (const table of this.table.shortestPathToTable(sourceTable)) {
         idList.push(table.tableId);
         // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
+        await table.buildCache();
       }
       this._cachedShortestSourcePath = idList;
       return this._cachedShortestSourcePath;
@@ -72,7 +72,7 @@ class EdgeClass extends GenericClass {
       for (const table of this.table.shortestPathToTable(targetTable)) {
         idList.push(table.tableId);
         // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
+        await table.buildCache();
       }
       this._cachedShortestTargetPath = idList;
       return this._cachedShortestTargetPath;

@@ -78,19 +78,22 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     this.trigger('reset');
   }
-  async countRows () {
+  async buildCache () {
     if (this._cache) {
-      return Object.keys(this._cache).length;
+      return this._cache;
+    } else if (this._cachePromise) {
+      return this._cachePromise;
     } else {
-      let count = 0;
-      const iterator = this._buildCache();
-      let temp = await iterator.next();
-      while (!temp.done) {
-        count++;
-        temp = await iterator.next();
-      }
-      return count;
+      this._cachePromise = new Promise(async (resolve, reject) => {
+        for await (const temp of this._buildCache()) {} // eslint-disable-line no-unused-vars
+        delete this._cachePromise;
+        resolve(this._cache);
+      });
+      return this._cachePromise;
     }
+  }
+  async countRows () {
+    return Object.keys(await this.buildCache()).length;
   }
   async * _buildCache (options = {}) {
     // TODO: in large data scenarios, we should build the cache / index

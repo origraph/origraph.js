@@ -9,7 +9,7 @@ class ConnectedTable extends DuplicatableAttributesMixin(Table) {
     const parentTables = this.parentTables;
     // Spin through all of the parentTables so that their _cache is pre-built
     for (const parentTable of parentTables) {
-      await parentTable.countRows();
+      await parentTable.buildCache();
     }
     // Now that the caches are built, just iterate their keys directly. We only
     // care about including rows that have exact matches across all tables, so

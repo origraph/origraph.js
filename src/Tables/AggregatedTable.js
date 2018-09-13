@@ -80,7 +80,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
           index,
           itemsToConnect: [ wrappedParent ]
         });
-        this._updateItem(newItem, newItem);
+        this._updateItem(newItem, wrappedParent);
         yield newItem;
       }
     }

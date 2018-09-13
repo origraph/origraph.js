@@ -24,7 +24,7 @@ class NodeClass extends GenericClass {
       for (const table of this.table.shortestPathToTable(edgeTable)) {
         idList.push(table.tableId);
         // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
+        await table.buildCache();
       }
       this._cachedShortestEdgePaths[edgeClassId] = idList;
       return this._cachedShortestEdgePaths[edgeClassId];
