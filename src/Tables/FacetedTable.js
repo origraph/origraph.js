@@ -6,7 +6,7 @@ class FacetedTable extends SingleParentMixin(Table) {
     super(options);
     this._attribute = options.attribute;
     this._value = options.value;
-    if (!this._attribute === undefined || !this._value === undefined) {
+    if (!this._attribute || !this._value === undefined) {
       throw new Error(`attribute and value are required`);
     }
   }
@@ -23,20 +23,7 @@ class FacetedTable extends SingleParentMixin(Table) {
     let index = 0;
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate(options)) {
-      if (this.attribute === null && wrappedParent.index === this._value) {
-        // Faceting by index transforms a row into a table
-        for (const [ childIndex, childRow ] of Object.entries(wrappedParent.row)) {
-          const newItem = this._wrap({
-            index: childIndex,
-            row: childRow,
-            itemsToConnect: [ wrappedParent ]
-          });
-          if (this._finishItem(newItem)) {
-            yield newItem;
-          }
-        }
-        return;
-      } else if (this._attribute !== null && wrappedParent.row[this._attribute] === this._value) {
+      if (wrappedParent.row[this._attribute] === this._value) {
         // Normal faceting just gives a subset of the original table
         const newItem = this._wrap({
           index,

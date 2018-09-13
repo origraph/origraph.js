@@ -324,7 +324,7 @@ class Table extends TriggerableMixin(Introspectable) {
   async * openFacet (attribute, limit = Infinity) {
     const values = {};
     for await (const wrappedItem of this.iterate({ limit })) {
-      const value = attribute === null ? wrappedItem.index : wrappedItem.row[attribute];
+      const value = wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
         const options = {
@@ -334,6 +334,24 @@ class Table extends TriggerableMixin(Introspectable) {
         };
         yield this._getExistingTable(options) || this._deriveTable(options);
       }
+    }
+  }
+  closedTranspose (indexes) {
+    return indexes.map(index => {
+      const options = {
+        type: 'TransposedTable',
+        index
+      };
+      return this._getExistingTable(options) || this._deriveTable(options);
+    });
+  }
+  async * openTranspose (limit = Infinity) {
+    for await (const wrappedItem of this.iterate({ limit })) {
+      const options = {
+        type: 'TransposedTable',
+        index: wrappedItem.index
+      };
+      yield this._getExistingTable(options) || this._deriveTable(options);
     }
   }
   connect (otherTableList) {

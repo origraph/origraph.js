@@ -149,12 +149,12 @@ describe('Table Samples', () => {
     ]);
   });
 
-  test('FacetedTableSamples (openFacet indexes)', async () => {
-    expect.assertions(3);
+  test('TransposedTable Samples (openTranspose)', async () => {
+    expect.assertions(4);
 
     let testId = (await loadFiles(['miserables.json']))[0].tableId;
     const tableIds = [];
-    for await (const tableObj of mure.tables[testId].openFacet(null)) {
+    for await (const tableObj of mure.tables[testId].openTranspose()) {
       tableIds.push(tableObj.tableId);
     }
 
@@ -163,14 +163,27 @@ describe('Table Samples', () => {
 
     // Test that the table names are what we'd expect
     expect(tableIds.map(tableId => mure.tables[tableId].name)).toEqual([
-      '[nodes]',
-      '[links]'
+      'ᵀnodes',
+      'ᵀlinks'
     ]);
 
     // Test that we get the rows that we'd expect
-    const samples = await getFiveSamples(mure.tables[tableIds[0]]);
+    let samples = await getFiveSamples(mure.tables[tableIds[0]]);
     expect(samples.map(s => s.row)).toEqual([
-      null
+      {'group': 1, 'index': 0, 'name': 'Myriel'},
+      {'group': 1, 'index': 1, 'name': 'Napoleon'},
+      {'group': 1, 'index': 2, 'name': 'Mlle.Baptistine'},
+      {'group': 1, 'index': 3, 'name': 'Mme.Magloire'},
+      {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
+    ]);
+
+    samples = await getFiveSamples(mure.tables[tableIds[1]]);
+    expect(samples.map(s => s.row)).toEqual([
+      {'source': 1, 'target': 0, 'value': 1},
+      {'source': 2, 'target': 0, 'value': 8},
+      {'source': 3, 'target': 0, 'value': 10},
+      {'source': 3, 'target': 2, 'value': 6},
+      {'source': 4, 'target': 0, 'value': 1}
     ]);
   });
 });
