@@ -49,9 +49,6 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return result;
   }
-  get name () {
-    throw new Error(`this function should be overridden`);
-  }
   async * iterate (options = {}) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
     // algorithm requires that its parent tables have pre-built indexes (we
@@ -69,31 +66,6 @@ class Table extends TriggerableMixin(Introspectable) {
     }
 
     yield * await this._buildCache(options);
-  }
-  reset () {
-    delete this._partialCache;
-    delete this._cache;
-    for (const derivedTable of this.derivedTables) {
-      derivedTable.reset();
-    }
-    this.trigger('reset');
-  }
-  async buildCache () {
-    if (this._cache) {
-      return this._cache;
-    } else if (this._cachePromise) {
-      return this._cachePromise;
-    } else {
-      this._cachePromise = new Promise(async (resolve, reject) => {
-        for await (const temp of this._buildCache()) {} // eslint-disable-line no-unused-vars
-        delete this._cachePromise;
-        resolve(this._cache);
-      });
-      return this._cachePromise;
-    }
-  }
-  async countRows () {
-    return Object.keys(await this.buildCache()).length;
   }
   async * _buildCache (options = {}) {
     // TODO: in large data scenarios, we should build the cache / index
@@ -161,6 +133,34 @@ class Table extends TriggerableMixin(Introspectable) {
       otherItem.connectItem(wrappedItem);
     }
     return wrappedItem;
+  }
+  reset () {
+    delete this._partialCache;
+    delete this._cache;
+    for (const derivedTable of this.derivedTables) {
+      derivedTable.reset();
+    }
+    this.trigger('reset');
+  }
+  get name () {
+    throw new Error(`this function should be overridden`);
+  }
+  async buildCache () {
+    if (this._cache) {
+      return this._cache;
+    } else if (this._cachePromise) {
+      return this._cachePromise;
+    } else {
+      this._cachePromise = new Promise(async (resolve, reject) => {
+        for await (const temp of this._buildCache()) {} // eslint-disable-line no-unused-vars
+        delete this._cachePromise;
+        resolve(this._cache);
+      });
+      return this._cachePromise;
+    }
+  }
+  async countRows () {
+    return Object.keys(await this.buildCache()).length;
   }
   getIndexDetails () {
     const details = { name: null };
@@ -381,8 +381,18 @@ class Table extends TriggerableMixin(Introspectable) {
       return this._mure.tables[tableId];
     });
   }
+  get inUse () {
+    if (Object.keys(this._derivedTables).length > 0) {
+      return true;
+    }
+    return Object.values(this._mure.classes).some(classObj => {
+      return classObj.tableId === this.tableId ||
+        classObj.sourceTableIds.indexOf(this.tableId) !== -1 ||
+        classObj.targetTableIds.indexOf(this.tableId) !== -1;
+    });
+  }
   delete () {
-    if (Object.keys(this._derivedTables).length > 0 || this.classObj) {
+    if (this.inUse) {
       throw new Error(`Can't delete in-use table ${this.tableId}`);
     }
     for (const parentTable of this.parentTables) {
