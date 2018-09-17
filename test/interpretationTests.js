@@ -8,7 +8,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(14);
+    expect.assertions(20);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -56,6 +56,25 @@ describe('Interpretation Tests', () => {
     expect(rawMovieEdgesSpec.directed).toEqual(true);
     expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
+
+    let [ edgesAggregatedId, connectedId, peopleAggregatedId ] =
+      rawMovieEdgesSpec.sourceTableIds;
+    expect(mure.tables[edgesAggregatedId].parentTable.tableId)
+      .toEqual(mure.classes[movieEdgesId].tableId);
+    expect(mure.tables[connectedId].parentTables.map(table => table.tableId))
+      .toEqual([ edgesAggregatedId, peopleAggregatedId ]);
+    expect(mure.tables[peopleAggregatedId].parentTable.tableId)
+      .toEqual(mure.classes[peopleId].tableId);
+
+    let moviesAggregatedId;
+    [ edgesAggregatedId, connectedId, moviesAggregatedId ] =
+      rawMovieEdgesSpec.targetTableIds;
+    expect(mure.tables[edgesAggregatedId].parentTable.tableId)
+      .toEqual(mure.classes[movieEdgesId].tableId);
+    expect(mure.tables[connectedId].parentTables.map(table => table.tableId))
+      .toEqual([ edgesAggregatedId, moviesAggregatedId ]);
+    expect(mure.tables[moviesAggregatedId].parentTable.tableId)
+      .toEqual(mure.classes[moviesId].tableId);
   });
 
   test('Simple self edge test', async () => {

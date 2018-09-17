@@ -67,12 +67,12 @@ class EdgeClass extends GenericClass {
     const newNodeClass = this._mure.createClass(temp);
 
     if (temp.sourceClassId) {
-      const sourceClass = this._mure.classes[this.sourceClassId];
+      const sourceClass = this._mure.classes[temp.sourceClassId];
       const {
         nodeTableIdList,
         edgeTableId,
         edgeTableIdList
-      } = this._splitTableIdList(this.sourceTableIds, sourceClass);
+      } = this._splitTableIdList(temp.sourceTableIds, sourceClass);
       const sourceEdgeClass = this._mure.createClass({
         type: 'EdgeClass',
         tableId: edgeTableId,
@@ -86,12 +86,12 @@ class EdgeClass extends GenericClass {
       newNodeClass.edgeClassIds[sourceEdgeClass.classId] = true;
     }
     if (temp.targetClassId && temp.sourceClassId !== temp.targetClassId) {
-      const targetClass = this._mure.classes[this.targetClassId];
+      const targetClass = this._mure.classes[temp.targetClassId];
       const {
         nodeTableIdList,
         edgeTableId,
         edgeTableIdList
-      } = this._splitTableIdList(this.targettableIds, targetClass);
+      } = this._splitTableIdList(temp.targetTableIds, targetClass);
       const targetEdgeClass = this._mure.createClass({
         type: 'EdgeClass',
         tableId: edgeTableId,
@@ -164,7 +164,7 @@ class EdgeClass extends GenericClass {
       this.sourceTableIds.unshift(edgeHash.tableId);
     }
     if (nodeAttribute !== null) {
-      this.sourceTableIds.push(edgeHash.tableId);
+      this.sourceTableIds.push(nodeHash.tableId);
     }
 
     if (!skipSave) { this._mure.saveClasses(); }
@@ -189,7 +189,7 @@ class EdgeClass extends GenericClass {
       this.targetTableIds.unshift(edgeHash.tableId);
     }
     if (nodeAttribute !== null) {
-      this.targetTableIds.push(edgeHash.tableId);
+      this.targetTableIds.push(nodeHash.tableId);
     }
 
     if (!skipSave) { this._mure.saveClasses(); }

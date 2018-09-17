@@ -28,14 +28,16 @@ class NodeClass extends GenericClass {
     } else if (edgeClassIds.length === 1) {
       // With only one connection, this node should become a self-edge
       const edgeClass = this._mure.classes[edgeClassIds[0]];
-      // Are we the source or target of the edge (internally, in terms of
-      // sourceId / targetId, not edgeClass.direction)?
+      // Are we the source or target of the existing edge (internally, in terms
+      // of sourceId / targetId, not edgeClass.direction)?
       const isSource = edgeClass.sourceClassId === this.classId;
 
+      // As we're converted to an edge, our new resulting source AND target
+      // should be whatever is at the other end of edgeClass (if anything)
       if (isSource) {
-        options.sourceClassId = options.targetClassId = edgeClass.sourceClassId;
-      } else {
         options.sourceClassId = options.targetClassId = edgeClass.targetClassId;
+      } else {
+        options.sourceClassId = options.targetClassId = edgeClass.sourceClassId;
       }
 
       // tableId lists should emanate out from the (new) edge table; assuming

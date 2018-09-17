@@ -7,19 +7,24 @@ class NodeWrapper extends GenericWrapper {
       throw new Error(`classObj is required`);
     }
   }
-  async * edges ({ limit = Infinity, edgeIds = this.classObj.edgeClassIds } = {}) {
+  async * edges (options = { limit: Infinity }) {
+    const edgeIds = options.edgeIds || this.classObj.edgeClassIds;
     let i = 0;
-    for (const edgeClassId of Object.keys(edgeIds)) {
-      const tableIdChain = await this.classObj.prepShortestEdgePath(edgeClassId);
-      const iterator = this.iterateAcrossConnections(tableIdChain);
-      let temp = iterator.next();
-      while (!temp.done && i < limit) {
-        yield temp.value;
-        i++;
-        temp = iterator.next();
+    for (const edgeId of Object.keys(edgeIds)) {
+      const edgeClass = this.classObj._mure.classes[edgeId];
+      if (edgeClass.sourceClassId === this.classObj.classId) {
+        options.tableIds = edgeClass.sourceTableIds.slice().reverse()
+          .concat([edgeClass.tableId]);
+      } else {
+        options.tableIds = edgeClass.targetTableIds.slice().reverse()
+          .concat([edgeClass.tableId]);
       }
-      if (i >= limit) {
-        return;
+      for await (const item of this.iterateAcrossConnections(options)) {
+        yield item;
+        i++;
+        if (i >= options.limit) {
+          return;
+        }
       }
     }
   }
