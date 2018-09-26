@@ -66,7 +66,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
   async * _iterate (options) {
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate(options)) {
-      const index = wrappedParent.row[this._attribute];
+      const index = String(wrappedParent.row[this._attribute]);
       if (!this._partialCache) {
         // We were reset; return immediately
         return;

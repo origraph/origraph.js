@@ -1,14 +1,14 @@
 const mure = require('../dist/mure.cjs.js');
 const loadFiles = require('./loadFiles.js');
 
-async function getNodeToEdgeSamples (nodeClassObj) {
+async function getNodeToEdgeSamples (nodeClassObj, branchLimit = 1, fullLimit = 5) {
   const samples = [];
   let fullMatches = 0;
   for await (const node of nodeClassObj.table.iterate()) {
-    for await (const edge of node.edges({ limit: 1 })) {
+    for await (const edge of node.edges({ limit: branchLimit })) {
       samples.push({ node, edge });
       fullMatches++;
-      if (fullMatches >= 5) {
+      if (fullMatches >= fullLimit) {
         return samples;
       }
     }
@@ -16,15 +16,15 @@ async function getNodeToEdgeSamples (nodeClassObj) {
   return samples;
 }
 
-async function getEdgeToNodeSamples (edgeClassObj) {
+async function getEdgeToNodeSamples (edgeClassObj, branchLimit = 1, fullLimit = 5) {
   const samples = [];
   let fullMatches = 0;
   for await (const edge of edgeClassObj.table.iterate()) {
-    for await (const source of edge.sourceNodes({ limit: 1 })) {
-      for await (const target of edge.targetNodes({ limit: 1 })) {
+    for await (const source of edge.sourceNodes({ limit: branchLimit })) {
+      for await (const target of edge.targetNodes({ limit: branchLimit })) {
         samples.push({ source, edge, target });
         fullMatches++;
-        if (fullMatches >= 5) {
+        if (fullMatches >= fullLimit) {
           return samples;
         }
       }
@@ -39,7 +39,7 @@ describe('Sample Tests', () => {
     mure.deleteAllUnusedTables();
   });
 
-  test('Movie + Person + Edge Samples', async () => {
+  test('Movie + Person + Edge', async () => {
     expect.assertions(13);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
@@ -56,15 +56,15 @@ describe('Sample Tests', () => {
     mure.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await mure.classes[peopleId].connectToEdgeClass({
+    mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await mure.classes[movieEdgesId].connectToNodeClass({
+    mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
@@ -133,6 +133,46 @@ describe('Sample Tests', () => {
       {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Replacements'},
       {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Devil\'s Advocate'},
       {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Matrix Revolutions'}
+    ]);
+  });
+
+  test('Person + Year + Person', async () => {
+    expect.assertions(6);
+
+    const peopleId = (await loadFiles(['people.csv']))[0].classId;
+
+    // Interpretation
+    mure.classes[peopleId].interpretAsNodes();
+    const yearsId = mure.classes[peopleId].connectToNodeClass({
+      otherNodeClass: mure.classes[peopleId],
+      attribute: 'born',
+      otherAttribute: 'born'
+    }).classId;
+
+    let count = await mure.classes[peopleId].table.countRows();
+    expect(count).toEqual(133);
+    count = await mure.classes[yearsId].table.countRows();
+    expect(count).toEqual(53); // TODO: this should at least be higher than 133
+
+    let samples = await getEdgeToNodeSamples(mure.classes[yearsId]);
+
+    expect(samples[0].source).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+    expect(samples[0].edge).toBeInstanceOf(mure.WRAPPERS.EdgeWrapper);
+    expect(samples[0].target).toBeInstanceOf(mure.WRAPPERS.NodeWrapper);
+
+    samples = samples.map(sample => {
+      return {
+        source: sample.source.row.name,
+        edge: sample.edge.index,
+        target: sample.target.row.name
+      };
+    });
+    expect(samples).toEqual([
+      {'edge': '1929', 'source': 'Max von Sydow', 'target': 'Max von Sydow'},
+      {'edge': '1930', 'source': 'Gene Hackman', 'target': 'Gene Hackman'},
+      {'edge': '1931', 'source': 'Mike Nichols', 'target': 'Mike Nichols'},
+      {'edge': '1932', 'source': 'Milos Forman', 'target': 'Milos Forman'},
+      {'edge': '1933', 'source': 'Tom Skerritt', 'target': 'Tom Skerritt'}
     ]);
   });
 });

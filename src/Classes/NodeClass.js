@@ -102,14 +102,13 @@ class NodeClass extends GenericClass {
     this.table.reset();
     return this._mure.newClass(options);
   }
-  connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
+  connectToNodeClass ({ otherNodeClass, attribute, otherAttribute }) {
     const thisHash = this.getHashTable(attribute);
     const otherHash = otherNodeClass.getHashTable(otherAttribute);
     const connectedTable = thisHash.connect([otherHash]);
     const newEdgeClass = this._mure.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
-      directed,
       sourceClassId: this.classId,
       sourceTableIds: [ thisHash.tableId ],
       targetClassId: otherNodeClass.classId,

@@ -111,36 +111,29 @@ class EdgeClass extends GenericClass {
   interpretAsEdges () {
     return this;
   }
-  connectToNodeClass ({ nodeClass, direction, nodeAttribute, edgeAttribute }) {
-    if (direction) {
-      this.directed = true;
-    }
-    if (direction !== 'source' && direction !== 'target') {
-      direction = this.targetClassId === null ? 'target' : 'source';
-    }
-    if (direction === 'target') {
+  connectToNodeClass ({ nodeClass, side, nodeAttribute, edgeAttribute }) {
+    if (side === 'source') {
+      this.connectSource({ nodeClass, nodeAttribute, edgeAttribute });
+    } else if (side === 'target') {
       this.connectTarget({ nodeClass, nodeAttribute, edgeAttribute });
     } else {
-      this.connectSource({ nodeClass, nodeAttribute, edgeAttribute });
+      throw new Error(`PoliticalOutsiderError: "${side}" is an invalid side`);
     }
     this._mure.saveClasses();
   }
-  toggleNodeDirection (sourceClassId) {
-    if (!sourceClassId) {
+  toggleDirection (directed) {
+    if (!directed) {
       this.directed = false;
-    } else {
+    } else if (!this.directed) {
       this.directed = true;
-      if (sourceClassId !== this.sourceClassId) {
-        if (sourceClassId !== this.targetClassId) {
-          throw new Error(`Can't swap to unconnected class id: ${sourceClassId}`);
-        }
-        let temp = this.sourceClassId;
-        this.sourceClassId = this.targetClassId;
-        this.targetClassId = temp;
-        temp = this.sourceTableIds;
-        this.sourceTableIds = this.targetTableIds;
-        this.targetTableIds = temp;
-      }
+    } else {
+      // Directed was already true, just switch source and target
+      let temp = this.sourceClassId;
+      this.sourceClassId = this.targetClassId;
+      this.targetClassId = temp;
+      temp = this.sourceTableIds;
+      this.sourceTableIds = this.targetTableIds;
+      this.targetTableIds = temp;
     }
     this._mure.saveClasses();
   }

@@ -24,15 +24,15 @@ describe('Interpretation Tests', () => {
     mure.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await mure.classes[peopleId].connectToEdgeClass({
+    mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await mure.classes[movieEdgesId].connectToNodeClass({
+    mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
@@ -53,7 +53,7 @@ describe('Interpretation Tests', () => {
     expect(rawMovieEdgesSpec.annotation).toEqual('');
     expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
     expect(rawMovieEdgesSpec.className).toEqual(null);
-    expect(rawMovieEdgesSpec.directed).toEqual(true);
+    expect(rawMovieEdgesSpec.directed).toEqual(false);
     expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
 
@@ -85,10 +85,10 @@ describe('Interpretation Tests', () => {
     mure.classes[nodeClassId].interpretAsNodes();
     const edgeClassId = mure.classes[nodeClassId].connectToNodeClass({
       otherNodeClass: mure.classes[nodeClassId],
-      directed: true,
       attribute: 'is',
       otherAttribute: 'a'
     }).classId;
+    mure.classes[edgeClassId].toggleDirection();
 
     const nodeSpec = mure.classes[nodeClassId]._toRawObject();
     expect(nodeSpec.annotation).toEqual('');
@@ -100,7 +100,7 @@ describe('Interpretation Tests', () => {
     expect(edgeSpec.annotation).toEqual('');
     expect(edgeSpec.classId).toEqual(edgeClassId);
     expect(edgeSpec.className).toEqual(null);
-    expect(edgeSpec.directed).toEqual(true);
+    expect(edgeSpec.directed).toEqual(false);
     expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
     expect(edgeSpec.targetClassId).toEqual(nodeClassId);
   });
@@ -122,15 +122,15 @@ describe('Interpretation Tests', () => {
     mure.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await mure.classes[peopleId].connectToEdgeClass({
+    mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await mure.classes[movieEdgesId].connectToNodeClass({
+    mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
@@ -142,7 +142,7 @@ describe('Interpretation Tests', () => {
     expect(rawMoviesSpec.annotation).toEqual('');
     expect(rawMoviesSpec.classId).toEqual(moviesId);
     expect(rawMoviesSpec.className).toEqual('Movies');
-    expect(rawMoviesSpec.directed).toEqual(true);
+    expect(rawMoviesSpec.directed).toEqual(false);
     expect(rawMoviesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMoviesSpec.targetClassId).toEqual(peopleId);
   });
@@ -165,15 +165,15 @@ describe('Interpretation Tests', () => {
     const movieEdgesTableId = mure.classes[movieEdgesId].tableId;
 
     // Set up initial connections
-    await mure.classes[peopleId].connectToEdgeClass({
+    mure.classes[peopleId].connectToEdgeClass({
       edgeClass: mure.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await mure.classes[movieEdgesId].connectToNodeClass({
+    mure.classes[movieEdgesId].connectToNodeClass({
       nodeClass: mure.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
