@@ -44,11 +44,13 @@ class GenericClass extends Introspectable {
   interpretAsNodes () {
     const options = this._toRawObject();
     options.type = 'NodeClass';
+    this.table.reset();
     return this._origraph.newClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
     options.type = 'EdgeClass';
+    this.table.reset();
     return this._origraph.newClass(options);
   }
   _deriveGenericClass (newTable) {
@@ -70,6 +72,16 @@ class GenericClass extends Introspectable {
   }
   async * openFacet (attribute) {
     for await (const newTable of this.table.openFacet(attribute)) {
+      yield this._deriveGenericClass(newTable);
+    }
+  }
+  closedTranspose (indexes) {
+    return this.table.closedTranspose(indexes).map(newTable => {
+      return this._deriveGenericClass(newTable);
+    });
+  }
+  async * openTranspose () {
+    for await (const newTable of this.table.openTranspose()) {
       yield this._deriveGenericClass(newTable);
     }
   }

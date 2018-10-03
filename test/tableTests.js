@@ -142,10 +142,48 @@ describe('Table Samples', () => {
 
     // Test that the table names are what we'd expect
     expect(tableIds.map(tableId => origraph.tables[tableId].name)).toEqual([
-      'csvTest.csv[five]',
-      'csvTest.csv[three]',
-      'csvTest.csv[nine]',
-      'csvTest.csv[four]'
+      '[five]',
+      '[three]',
+      '[nine]',
+      '[four]'
+    ]);
+  });
+
+  test('TransposedTable Samples (openTranspose)', async () => {
+    expect.assertions(4);
+
+    let testId = (await loadFiles(['miserables.json']))[0].tableId;
+    const tableIds = [];
+    for await (const tableObj of origraph.tables[testId].openTranspose()) {
+      tableIds.push(tableObj.tableId);
+    }
+
+    // Test that we get the right number of tables
+    expect(tableIds.length).toEqual(2);
+
+    // Test that the table names are what we'd expect
+    expect(tableIds.map(tableId => origraph.tables[tableId].name)).toEqual([
+      'ᵀnodes',
+      'ᵀlinks'
+    ]);
+
+    // Test that we get the rows that we'd expect
+    let samples = await getFiveSamples(origraph.tables[tableIds[0]]);
+    expect(samples.map(s => s.row)).toEqual([
+      {'group': 1, 'index': 0, 'name': 'Myriel'},
+      {'group': 1, 'index': 1, 'name': 'Napoleon'},
+      {'group': 1, 'index': 2, 'name': 'Mlle.Baptistine'},
+      {'group': 1, 'index': 3, 'name': 'Mme.Magloire'},
+      {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
+    ]);
+
+    samples = await getFiveSamples(origraph.tables[tableIds[1]]);
+    expect(samples.map(s => s.row)).toEqual([
+      {'source': 1, 'target': 0, 'value': 1},
+      {'source': 2, 'target': 0, 'value': 8},
+      {'source': 3, 'target': 0, 'value': 10},
+      {'source': 3, 'target': 2, 'value': 6},
+      {'source': 4, 'target': 0, 'value': 1}
     ]);
   });
 });

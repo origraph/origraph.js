@@ -12,13 +12,21 @@ class Table extends TriggerableMixin(Introspectable) {
 
     this._expectedAttributes = options.attributes || {};
     this._observedAttributes = {};
+
     this._derivedTables = options.derivedTables || {};
 
     this._derivedAttributeFunctions = {};
-    if (options.derivedAttributeFunctions) {
-      for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions)) {
-        this._derivedAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
-      }
+    for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions || {})) {
+      this._derivedAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
+    }
+
+    this._suppressedAttributes = options.suppressedAttributes || {};
+    this._suppressIndex = !!options.suppressIndex;
+
+    this._indexSubFilter = (options.indexSubFilter && this._origraph.hydrateFunction(options.indexSubFilter)) || null;
+    this._attributeSubFilters = {};
+    for (const [attr, stringifiedFunc] of Object.entries(options.attributeSubFilters || {})) {
+      this._attributeSubFilters[attr] = this._origraph.hydrateFunction(stringifiedFunc);
     }
   }
   _toRawObject () {
@@ -27,15 +35,19 @@ class Table extends TriggerableMixin(Introspectable) {
       attributes: this._attributes,
       derivedTables: this._derivedTables,
       usedByClasses: this._usedByClasses,
-      derivedAttributeFunctions: {}
+      derivedAttributeFunctions: {},
+      suppressedAttributes: this._suppressedAttributes,
+      suppressIndex: this._suppressIndex,
+      attributeSubFilters: {},
+      indexSubFilter: (this._indexSubFilter && this._origraph.dehydrateFunction(this._indexSubFilter)) || null
     };
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       result.derivedAttributeFunctions[attr] = this._origraph.dehydrateFunction(func);
     }
+    for (const [attr, func] of Object.entries(this._attributeSubFilters)) {
+      result.attributeSubFilters[attr] = this._origraph.dehydrateFunction(func);
+    }
     return result;
-  }
-  get name () {
-    throw new Error(`this function should be overridden`);
   }
   async * iterate (options = {}) {
     // Generic caching stuff; this isn't just for performance. ConnectedTable's
@@ -54,28 +66,6 @@ class Table extends TriggerableMixin(Introspectable) {
     }
 
     yield * await this._buildCache(options);
-  }
-  reset () {
-    delete this._partialCache;
-    delete this._cache;
-    for (const derivedTable of this.derivedTables) {
-      derivedTable.reset();
-    }
-    this.trigger('reset');
-  }
-  async countRows () {
-    if (this._cache) {
-      return Object.keys(this._cache).length;
-    } else {
-      let count = 0;
-      const iterator = this._buildCache();
-      let temp = await iterator.next();
-      while (!temp.done) {
-        count++;
-        temp = await iterator.next();
-      }
-      return count;
-    }
   }
   async * _buildCache (options = {}) {
     // TODO: in large data scenarios, we should build the cache / index
@@ -112,31 +102,102 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       wrappedItem.row[attr] = func(wrappedItem);
     }
-    for (const attr of Object.keys(wrappedItem.row)) {
+    for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
     }
-    wrappedItem.trigger('finish');
+    for (const attr in this._suppressedAttributes) {
+      delete wrappedItem.row[attr];
+    }
+    let keep = true;
+    if (this._indexSubFilter) {
+      keep = this._indexSubFilter(wrappedItem.index);
+    }
+    for (const [attr, func] of Object.entries(this._attributeSubFilters)) {
+      keep = keep && func(wrappedItem.row[attr]);
+      if (!keep) { break; }
+    }
+    if (keep) {
+      wrappedItem.trigger('finish');
+    } else {
+      wrappedItem.disconnect();
+      wrappedItem.trigger('filter');
+    }
+    return keep;
   }
   _wrap (options) {
     options.table = this;
     const classObj = this.classObj;
-    return classObj ? classObj._wrap(options) : new this._origraph.WRAPPERS.GenericWrapper(options);
+    const wrappedItem = classObj ? classObj._wrap(options) : new this._origraph.WRAPPERS.GenericWrapper(options);
+    for (const otherItem of options.itemsToConnect || []) {
+      wrappedItem.connectItem(otherItem);
+      otherItem.connectItem(wrappedItem);
+    }
+    return wrappedItem;
   }
-  _getAllAttributes () {
+  reset () {
+    delete this._partialCache;
+    delete this._cache;
+    for (const derivedTable of this.derivedTables) {
+      derivedTable.reset();
+    }
+    this.trigger('reset');
+  }
+  get name () {
+    throw new Error(`this function should be overridden`);
+  }
+  async buildCache () {
+    if (this._cache) {
+      return this._cache;
+    } else if (this._cachePromise) {
+      return this._cachePromise;
+    } else {
+      this._cachePromise = new Promise(async (resolve, reject) => {
+        for await (const temp of this._buildCache()) {} // eslint-disable-line no-unused-vars
+        delete this._cachePromise;
+        resolve(this._cache);
+      });
+      return this._cachePromise;
+    }
+  }
+  async countRows () {
+    return Object.keys(await this.buildCache()).length;
+  }
+  getIndexDetails () {
+    const details = { name: null };
+    if (this._suppressIndex) {
+      details.suppressed = true;
+    }
+    if (this._indexSubFilter) {
+      details.filtered = true;
+    }
+    return details;
+  }
+  getAttributeDetails () {
     const allAttrs = {};
     for (const attr in this._expectedAttributes) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].expected = true;
     }
     for (const attr in this._observedAttributes) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].observed = true;
     }
     for (const attr in this._derivedAttributeFunctions) {
-      allAttrs[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].derived = true;
+    }
+    for (const attr in this._suppressedAttributes) {
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].suppressed = true;
+    }
+    for (const attr in this._attributeSubFilters) {
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].filtered = true;
     }
     return allAttrs;
   }
   get attributes () {
-    return Object.keys(this._getAllAttributes());
+    return Object.keys(this.getAttributeDetails());
   }
   get currentData () {
     return {
@@ -146,6 +207,22 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
+    this.reset();
+  }
+  suppressAttribute (attribute) {
+    if (attribute === null) {
+      this._suppressIndex = true;
+    } else {
+      this._suppressedAttributes[attribute] = true;
+    }
+    this.reset();
+  }
+  addSubFilter (attribute, func) {
+    if (attribute === null) {
+      this._indexSubFilter = func;
+    } else {
+      this._attributeSubFilters[attribute] = func;
+    }
     this.reset();
   }
   _deriveTable (options) {
@@ -259,6 +336,24 @@ class Table extends TriggerableMixin(Introspectable) {
       }
     }
   }
+  closedTranspose (indexes) {
+    return indexes.map(index => {
+      const options = {
+        type: 'TransposedTable',
+        index
+      };
+      return this._getExistingTable(options) || this._deriveTable(options);
+    });
+  }
+  async * openTranspose (limit = Infinity) {
+    for await (const wrappedItem of this.iterate({ limit })) {
+      const options = {
+        type: 'TransposedTable',
+        index: wrappedItem.index
+      };
+      yield this._getExistingTable(options) || this._deriveTable(options);
+    }
+  }
   connect (otherTableList) {
     const newTable = this._origraph.createTable({ type: 'ConnectedTable' });
     this._derivedTables[newTable.tableId] = true;
@@ -286,8 +381,18 @@ class Table extends TriggerableMixin(Introspectable) {
       return this._origraph.tables[tableId];
     });
   }
+  get inUse () {
+    if (Object.keys(this._derivedTables).length > 0) {
+      return true;
+    }
+    return Object.values(this._origraph.classes).some(classObj => {
+      return classObj.tableId === this.tableId ||
+        classObj.sourceTableIds.indexOf(this.tableId) !== -1 ||
+        classObj.targetTableIds.indexOf(this.tableId) !== -1;
+    });
+  }
   delete () {
-    if (Object.keys(this._derivedTables).length > 0 || this.classObj) {
+    if (this.inUse) {
       throw new Error(`Can't delete in-use table ${this.tableId}`);
     }
     for (const parentTable of this.parentTables) {

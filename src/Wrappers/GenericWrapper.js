@@ -13,20 +13,46 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     this.row = options.row || {};
     this.connectedItems = options.connectedItems || {};
   }
-  connectItem (tableId, item) {
-    this.connectedItems[tableId] = this.connectedItems[tableId] || [];
-    if (this.connectedItems[tableId].indexOf(item) === -1) {
-      this.connectedItems[tableId].push(item);
+  connectItem (item) {
+    this.connectedItems[item.table.tableId] = this.connectedItems[item.table.tableId] || [];
+    if (this.connectedItems[item.table.tableId].indexOf(item) === -1) {
+      this.connectedItems[item.table.tableId].push(item);
     }
   }
-  * iterateAcrossConnections (tableIds) {
+  disconnect () {
+    for (const itemList of Object.values(this.connectedItems)) {
+      for (const item of itemList) {
+        const index = (item.connectedItems[this.table.tableId] || []).indexOf(this);
+        if (index !== -1) {
+          item.connectedItems[this.table.tableId].splice(index, 1);
+        }
+      }
+    }
+    this.connectedItems = {};
+  }
+  async * iterateAcrossConnections ({ tableIds, limit = Infinity }) {
+    // First make sure that all the table caches have been fully built and
+    // connected
+    await Promise.all(tableIds.map(tableId => {
+      return this.classObj._origraph.tables[tableId].buildCache();
+    }));
+    let i = 0;
+    for (const item of this._iterateAcrossConnections(tableIds)) {
+      yield item;
+      i++;
+      if (i >= limit) {
+        return;
+      }
+    }
+  }
+  * _iterateAcrossConnections (tableIds) {
     if (tableIds.length === 1) {
       yield * (this.connectedItems[tableIds[0]] || []);
     } else {
       const thisTableId = tableIds[0];
       const remainingTableIds = tableIds.slice(1);
       for (const item of this.connectedItems[thisTableId] || []) {
-        yield * item.iterateAcrossConnections(remainingTableIds);
+        yield * item._iterateAcrossConnections(remainingTableIds);
       }
     }
   }

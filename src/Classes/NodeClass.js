@@ -4,7 +4,6 @@ class NodeClass extends GenericClass {
   constructor (options) {
     super(options);
     this.edgeClassIds = options.edgeClassIds || {};
-    this._cachedShortestEdgePaths = {};
   }
   _toRawObject () {
     const result = super._toRawObject();
@@ -14,21 +13,6 @@ class NodeClass extends GenericClass {
   _wrap (options) {
     options.classObj = this;
     return new this._origraph.WRAPPERS.NodeWrapper(options);
-  }
-  async prepShortestEdgePath (edgeClassId) {
-    if (this._cachedShortestEdgePaths[edgeClassId] !== undefined) {
-      return this._cachedShortestEdgePaths[edgeClassId];
-    } else {
-      const edgeTable = this._origraph.classes[edgeClassId].table;
-      const idList = [];
-      for (const table of this.table.shortestPathToTable(edgeTable)) {
-        idList.push(table.tableId);
-        // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
-      }
-      this._cachedShortestEdgePaths[edgeClassId] = idList;
-      return this._cachedShortestEdgePaths[edgeClassId];
-    }
   }
   interpretAsNodes () {
     return this;
@@ -43,13 +27,36 @@ class NodeClass extends GenericClass {
       this.disconnectAllEdges();
     } else if (edgeClassIds.length === 1) {
       // With only one connection, this node should become a self-edge
-      // (or a floating edge if edgeClass.sourceClassId is null)
       const edgeClass = this._origraph.classes[edgeClassIds[0]];
-      options.sourceClassId = edgeClass.sourceClassId;
-      options.targetClassId = edgeClass.sourceClassId;
+      // Are we the source or target of the existing edge (internally, in terms
+      // of sourceId / targetId, not edgeClass.direction)?
+      const isSource = edgeClass.sourceClassId === this.classId;
+
+      // As we're converted to an edge, our new resulting source AND target
+      // should be whatever is at the other end of edgeClass (if anything)
+      if (isSource) {
+        options.sourceClassId = options.targetClassId = edgeClass.targetClassId;
+      } else {
+        options.sourceClassId = options.targetClassId = edgeClass.sourceClassId;
+      }
+
+      // tableId lists should emanate out from the (new) edge table; assuming
+      // (for a moment) that isSource === true, we'd construct the tableId list
+      // like this:
+      let tableIdList = edgeClass.targetTableIds.slice().reverse()
+        .concat([ edgeClass.tableId ])
+        .concat(edgeClass.sourceTableIds);
+      if (!isSource) {
+        // Whoops, got it backwards!
+        tableIdList.reverse();
+      }
       options.directed = edgeClass.directed;
+      options.sourceTableIds = options.targetTableIds = tableIdList;
+      // TODO: instead of deleting the existing edge class, should we leave it
+      // hanging + unconnected?
       edgeClass.delete();
     } else if (edgeClassIds.length === 2) {
+      // Okay, we've got two edges, so this is a little more straightforward
       let sourceEdgeClass = this._origraph.classes[edgeClassIds[0]];
       let targetEdgeClass = this._origraph.classes[edgeClassIds[1]];
       // Figure out the direction, if there is one
@@ -70,6 +77,20 @@ class NodeClass extends GenericClass {
       // Okay, now we know how to set source / target ids
       options.sourceClassId = sourceEdgeClass.classId;
       options.targetClassId = targetEdgeClass.classId;
+      // Concatenate the intermediate tableId lists, emanating out from the
+      // (new) edge table
+      options.sourceTableIds = sourceEdgeClass.targetTableIds.slice().reverse()
+        .concat([ sourceEdgeClass.tableId ])
+        .concat(sourceEdgeClass.sourceTableIds);
+      if (sourceEdgeClass.targetClassId === this.classId) {
+        options.sourceTableIds.reverse();
+      }
+      options.targetTableIds = targetEdgeClass.targetTableIds.slice().reverse()
+        .concat([ targetEdgeClass.tableId ])
+        .concat(targetEdgeClass.sourceTableIds);
+      if (targetEdgeClass.targetClassId === this.classId) {
+        options.targetTableIds.reverse();
+      }
       // Delete each of the edge classes
       sourceEdgeClass.delete();
       targetEdgeClass.delete();
@@ -78,18 +99,20 @@ class NodeClass extends GenericClass {
     delete options.classId;
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
+    this.table.reset();
     return this._origraph.newClass(options);
   }
-  connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
+  connectToNodeClass ({ otherNodeClass, attribute, otherAttribute }) {
     const thisHash = this.getHashTable(attribute);
     const otherHash = otherNodeClass.getHashTable(otherAttribute);
     const connectedTable = thisHash.connect([otherHash]);
     const newEdgeClass = this._origraph.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
-      directed,
       sourceClassId: this.classId,
-      targetClassId: otherNodeClass.classId
+      sourceTableIds: [ thisHash.tableId ],
+      targetClassId: otherNodeClass.classId,
+      targetTableIds: [ otherHash.tableId ]
     });
     this.edgeClassIds[newEdgeClass.classId] = true;
     otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;

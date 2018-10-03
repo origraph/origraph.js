@@ -3,15 +3,24 @@ import GenericClass from './GenericClass.js';
 class EdgeClass extends GenericClass {
   constructor (options) {
     super(options);
+
+    // sourceTableIds and targetTableIds are lists of any intermediate tables,
+    // beginning with the edge table (but not including it), that lead to the
+    // source / target node tables (but not including) those
+
     this.sourceClassId = options.sourceClassId || null;
+    this.sourceTableIds = options.sourceTableIds || [];
     this.targetClassId = options.targetClassId || null;
+    this.targetTableIds = options.targetTableIds || [];
     this.directed = options.directed || false;
   }
   _toRawObject () {
     const result = super._toRawObject();
 
     result.sourceClassId = this.sourceClassId;
+    result.sourceTableIds = this.sourceTableIds;
     result.targetClassId = this.targetClassId;
+    result.targetTableIds = this.targetTableIds;
     result.directed = this.directed;
     return result;
   }
@@ -19,64 +28,36 @@ class EdgeClass extends GenericClass {
     options.classObj = this;
     return new this._origraph.WRAPPERS.EdgeWrapper(options);
   }
-  _pickEdgeTable (otherClass) {
-    let edgeTable;
-    let chain = this.table.shortestPathToTable(otherClass.table);
-    if (chain === null) {
-      throw new Error(`Underlying table chain between edge and node classes is broken`);
-    } else if (chain.length <= 2) {
+  _splitTableIdList (tableIdList, otherClass) {
+    let result = {
+      nodeTableIdList: [],
+      edgeTableId: null,
+      edgeTableIdList: []
+    };
+    if (tableIdList.length === 0) {
       // Weird corner case where we're trying to create an edge between
       // adjacent or identical tables... create a ConnectedTable
-      edgeTable = this.table.connect(otherClass.table);
+      result.edgeTableId = this.table.connect(otherClass.table).tableId;
+      return result;
     } else {
-      // Use a table in the middle; prioritize StaticTable and StaticDictTable
+      // Use a table in the middle as the new edge table; prioritize
+      // StaticTable and StaticDictTable
       let staticExists = false;
-      chain = chain.slice(1, chain.length - 1).map((table, dist) => {
-        staticExists = staticExists || table.type.startsWith('Static');
-        return { table, dist };
+      let tableDistances = tableIdList.map((tableId, index) => {
+        staticExists = staticExists || this._origraph.tables[tableId].type.startsWith('Static');
+        return { tableId, index, dist: Math.abs(tableIdList / 2 - index) };
       });
       if (staticExists) {
-        chain = chain.filter(({ table }) => {
-          return table.type.startsWith('Static');
+        tableDistances = tableDistances.filter(({ tableId }) => {
+          return this._origraph.tables[tableId].type.startsWith('Static');
         });
       }
-      edgeTable = chain[0].table;
+      const { tableId, index } = tableDistances.sort((a, b) => a.dist - b.dist)[0];
+      result.edgeTableId = tableId;
+      result.edgeTableIdList = tableIdList.slice(0, index).reverse();
+      result.nodeTableIdList = tableIdList.slice(index + 1);
     }
-    return edgeTable;
-  }
-  async prepShortestSourcePath () {
-    if (this._cachedShortestSourcePath !== undefined) {
-      return this._cachedShortestSourcePath;
-    } else if (this._sourceClassId === null) {
-      return null;
-    } else {
-      const sourceTable = this._origraph.classes[this.sourceClassId].table;
-      const idList = [];
-      for (const table of this.table.shortestPathToTable(sourceTable)) {
-        idList.push(table.tableId);
-        // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
-      }
-      this._cachedShortestSourcePath = idList;
-      return this._cachedShortestSourcePath;
-    }
-  }
-  async prepShortestTargetPath () {
-    if (this._cachedShortestTargetPath !== undefined) {
-      return this._cachedShortestTargetPath;
-    } else if (this._targetClassId === null) {
-      return null;
-    } else {
-      const targetTable = this._origraph.classes[this.targetClassId].table;
-      const idList = [];
-      for (const table of this.table.shortestPathToTable(targetTable)) {
-        idList.push(table.tableId);
-        // Spin through the table to make sure all its rows are wrapped and connected
-        await table.countRows();
-      }
-      this._cachedShortestTargetPath = idList;
-      return this._cachedShortestTargetPath;
-    }
+    return result;
   }
   interpretAsNodes () {
     const temp = this._toRawObject();
@@ -86,65 +67,76 @@ class EdgeClass extends GenericClass {
     const newNodeClass = this._origraph.createClass(temp);
 
     if (temp.sourceClassId) {
-      const sourceClass = this._origraph.classes[this.sourceClassId];
-      const edgeTable = this._pickEdgeTable(sourceClass);
+      const sourceClass = this._origraph.classes[temp.sourceClassId];
+      const {
+        nodeTableIdList,
+        edgeTableId,
+        edgeTableIdList
+      } = this._splitTableIdList(temp.sourceTableIds, sourceClass);
       const sourceEdgeClass = this._origraph.createClass({
         type: 'EdgeClass',
-        tableId: edgeTable.tableId,
+        tableId: edgeTableId,
         directed: temp.directed,
         sourceClassId: temp.sourceClassId,
-        targetClassId: newNodeClass.classId
+        sourceTableIds: nodeTableIdList,
+        targetClassId: newNodeClass.classId,
+        targetTableIds: edgeTableIdList
       });
       sourceClass.edgeClassIds[sourceEdgeClass.classId] = true;
       newNodeClass.edgeClassIds[sourceEdgeClass.classId] = true;
     }
     if (temp.targetClassId && temp.sourceClassId !== temp.targetClassId) {
-      const targetClass = this._origraph.classes[this.targetClassId];
-      const edgeTable = this._pickEdgeTable(targetClass);
+      const targetClass = this._origraph.classes[temp.targetClassId];
+      const {
+        nodeTableIdList,
+        edgeTableId,
+        edgeTableIdList
+      } = this._splitTableIdList(temp.targetTableIds, targetClass);
       const targetEdgeClass = this._origraph.createClass({
         type: 'EdgeClass',
-        tableId: edgeTable.tableId,
+        tableId: edgeTableId,
         directed: temp.directed,
         sourceClassId: newNodeClass.classId,
-        targetClassId: temp.targetClassId
+        sourceTableIds: edgeTableIdList,
+        targetClassId: temp.targetClassId,
+        targetTableIds: nodeTableIdList
       });
       targetClass.edgeClassIds[targetEdgeClass.classId] = true;
       newNodeClass.edgeClassIds[targetEdgeClass.classId] = true;
     }
-
+    this.table.reset();
     this._origraph.saveClasses();
     return newNodeClass;
   }
   interpretAsEdges () {
     return this;
   }
-  connectToNodeClass ({ nodeClass, direction, nodeAttribute, edgeAttribute }) {
-    if (direction) {
-      this.directed = true;
-    }
-    if (direction !== 'source' && direction !== 'target') {
-      direction = this.targetClassId === null ? 'target' : 'source';
-    }
-    if (direction === 'target') {
+  connectToNodeClass ({ nodeClass, side, nodeAttribute, edgeAttribute }) {
+    if (side === 'source') {
+      this.connectSource({ nodeClass, nodeAttribute, edgeAttribute });
+    } else if (side === 'target') {
       this.connectTarget({ nodeClass, nodeAttribute, edgeAttribute });
     } else {
-      this.connectSource({ nodeClass, nodeAttribute, edgeAttribute });
+      throw new Error(`PoliticalOutsiderError: "${side}" is an invalid side`);
     }
     this._origraph.saveClasses();
   }
-  toggleNodeDirection (sourceClassId) {
-    if (!sourceClassId) {
+  toggleDirection (directed) {
+    if (directed === false || this.swappedDirection === true) {
       this.directed = false;
-    } else {
+      delete this.swappedDirection;
+    } else if (!this.directed) {
       this.directed = true;
-      if (sourceClassId !== this.sourceClassId) {
-        if (sourceClassId !== this.targetClassId) {
-          throw new Error(`Can't swap to unconnected class id: ${sourceClassId}`);
-        }
-        let temp = this.sourceClassId;
-        this.sourceClassId = this.targetClassId;
-        this.targetClassId = temp;
-      }
+      this.swappedDirection = false;
+    } else {
+      // Directed was already true, just switch source and target
+      let temp = this.sourceClassId;
+      this.sourceClassId = this.targetClassId;
+      this.targetClassId = temp;
+      temp = this.sourceTableIds;
+      this.sourceTableIds = this.targetTableIds;
+      this.targetTableIds = temp;
+      this.swappedDirection = true;
     }
     this._origraph.saveClasses();
   }
@@ -163,7 +155,13 @@ class EdgeClass extends GenericClass {
 
     const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
     const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.getHashTable(nodeAttribute);
-    edgeHash.connect([nodeHash]);
+    this.sourceTableIds = [ edgeHash.connect([nodeHash]).tableId ];
+    if (edgeAttribute !== null) {
+      this.sourceTableIds.unshift(edgeHash.tableId);
+    }
+    if (nodeAttribute !== null) {
+      this.sourceTableIds.push(nodeHash.tableId);
+    }
 
     if (!skipSave) { this._origraph.saveClasses(); }
   }
@@ -182,7 +180,13 @@ class EdgeClass extends GenericClass {
 
     const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
     const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.getHashTable(nodeAttribute);
-    edgeHash.connect([nodeHash]);
+    this.targetTableIds = [ edgeHash.connect([nodeHash]).tableId ];
+    if (edgeAttribute !== null) {
+      this.targetTableIds.unshift(edgeHash.tableId);
+    }
+    if (nodeAttribute !== null) {
+      this.targetTableIds.push(nodeHash.tableId);
+    }
 
     if (!skipSave) { this._origraph.saveClasses(); }
   }
@@ -190,18 +194,18 @@ class EdgeClass extends GenericClass {
     const existingSourceClass = this._origraph.classes[this.sourceClassId];
     if (existingSourceClass) {
       delete existingSourceClass.edgeClassIds[this.classId];
-      delete existingSourceClass._cachedShortestEdgePaths[this.classId];
     }
-    delete this._cachedShortestSourcePath;
+    this.sourceTableIds = [];
+    this.sourceClassId = null;
     if (!skipSave) { this._origraph.saveClasses(); }
   }
   disconnectTarget ({ skipSave = false } = {}) {
     const existingTargetClass = this._origraph.classes[this.targetClassId];
     if (existingTargetClass) {
       delete existingTargetClass.edgeClassIds[this.classId];
-      delete existingTargetClass._cachedShortestEdgePaths[this.classId];
     }
-    delete this._cachedShortestTargetPath;
+    this.targetTableIds = [];
+    this.targetClassId = null;
     if (!skipSave) { this._origraph.saveClasses(); }
   }
   delete () {

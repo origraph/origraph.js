@@ -10,10 +10,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
 
     this._reduceAttributeFunctions = {};
-    if (options.reduceAttributeFunctions) {
-      for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions)) {
-        this._reduceAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
-      }
+    for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions || {})) {
+      this._reduceAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
     }
   }
   _toRawObject () {
@@ -58,7 +56,9 @@ class AggregatedTable extends SingleParentMixin(Table) {
     // table, we can finish each item
     for (const index in this._partialCache) {
       const wrappedItem = this._partialCache[index];
-      this._finishItem(wrappedItem);
+      if (!this._finishItem(wrappedItem)) {
+        delete this._partialCache[index];
+      }
     }
     this._cache = this._partialCache;
     delete this._partialCache;
@@ -66,30 +66,32 @@ class AggregatedTable extends SingleParentMixin(Table) {
   async * _iterate (options) {
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate(options)) {
-      const index = wrappedParent.row[this._attribute];
+      const index = String(wrappedParent.row[this._attribute]);
       if (!this._partialCache) {
         // We were reset; return immediately
         return;
       } else if (this._partialCache[index]) {
         const existingItem = this._partialCache[index];
-        existingItem.connectItem(parentTable.tableId, wrappedParent);
-        wrappedParent.connectItem(this.tableId, existingItem);
+        existingItem.connectItem(wrappedParent);
+        wrappedParent.connectItem(existingItem);
         this._updateItem(existingItem, wrappedParent);
       } else {
-        const newItem = this._wrap({ index });
-        newItem.connectItem(parentTable.tableId, wrappedParent);
-        wrappedParent.connectItem(this.tableId, newItem);
-        this._updateItem(newItem, newItem);
+        const newItem = this._wrap({
+          index,
+          itemsToConnect: [ wrappedParent ]
+        });
+        this._updateItem(newItem, wrappedParent);
         yield newItem;
       }
     }
   }
-  _getAllAttributes () {
-    const result = super._getAllAttributes();
+  getAttributeDetails () {
+    const allAttrs = super.getAttributeDetails();
     for (const attr in this._reduceAttributeFunctions) {
-      result[attr] = true;
+      allAttrs[attr] = allAttrs[attr] || { name: attr };
+      allAttrs[attr].reduced = true;
     }
-    return result;
+    return allAttrs;
   }
 }
 export default AggregatedTable;

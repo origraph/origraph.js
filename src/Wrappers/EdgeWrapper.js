@@ -7,27 +7,25 @@ class EdgeWrapper extends GenericWrapper {
       throw new Error(`classObj is required`);
     }
   }
-  async * sourceNodes ({ limit = Infinity } = {}) {
-    const tableIdChain = await this.classObj.prepShortestSourcePath();
-    const iterator = this.iterateAcrossConnections(tableIdChain);
-    let temp = iterator.next();
-    let i = 0;
-    while (!temp.done && i < limit) {
-      yield temp.value;
-      i++;
-      temp = iterator.next();
+  async * sourceNodes (options = {}) {
+    if (this.classObj.sourceClassId === null) {
+      return;
     }
+    const sourceTableId = this.classObj._origraph
+      .classes[this.classObj.sourceClassId].tableId;
+    options.tableIds = this.classObj.sourceTableIds
+      .concat([ sourceTableId ]);
+    yield * this.iterateAcrossConnections(options);
   }
-  async * targetNodes ({ limit = Infinity } = {}) {
-    const tableIdChain = await this.classObj.prepShortestTargetPath();
-    const iterator = this.iterateAcrossConnections(tableIdChain);
-    let temp = iterator.next();
-    let i = 0;
-    while (!temp.done && i < limit) {
-      yield temp.value;
-      i++;
-      temp = iterator.next();
+  async * targetNodes (options = {}) {
+    if (this.classObj.targetClassId === null) {
+      return;
     }
+    const targetTableId = this.classObj._origraph
+      .classes[this.classObj.targetClassId].tableId;
+    options.tableIds = this.classObj.targetTableIds
+      .concat([ targetTableId ]);
+    yield * this.iterateAcrossConnections(options);
   }
 }
 

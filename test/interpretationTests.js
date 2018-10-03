@@ -8,7 +8,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(14);
+    expect.assertions(20);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -24,15 +24,15 @@ describe('Interpretation Tests', () => {
     origraph.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await origraph.classes[peopleId].connectToEdgeClass({
+    origraph.classes[peopleId].connectToEdgeClass({
       edgeClass: origraph.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await origraph.classes[movieEdgesId].connectToNodeClass({
+    origraph.classes[movieEdgesId].connectToNodeClass({
       nodeClass: origraph.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
@@ -53,9 +53,28 @@ describe('Interpretation Tests', () => {
     expect(rawMovieEdgesSpec.annotation).toEqual('');
     expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
     expect(rawMovieEdgesSpec.className).toEqual(null);
-    expect(rawMovieEdgesSpec.directed).toEqual(true);
+    expect(rawMovieEdgesSpec.directed).toEqual(false);
     expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
+
+    let [ edgesAggregatedId, connectedId, peopleAggregatedId ] =
+      rawMovieEdgesSpec.sourceTableIds;
+    expect(origraph.tables[edgesAggregatedId].parentTable.tableId)
+      .toEqual(origraph.classes[movieEdgesId].tableId);
+    expect(origraph.tables[connectedId].parentTables.map(table => table.tableId))
+      .toEqual([ edgesAggregatedId, peopleAggregatedId ]);
+    expect(origraph.tables[peopleAggregatedId].parentTable.tableId)
+      .toEqual(origraph.classes[peopleId].tableId);
+
+    let moviesAggregatedId;
+    [ edgesAggregatedId, connectedId, moviesAggregatedId ] =
+      rawMovieEdgesSpec.targetTableIds;
+    expect(origraph.tables[edgesAggregatedId].parentTable.tableId)
+      .toEqual(origraph.classes[movieEdgesId].tableId);
+    expect(origraph.tables[connectedId].parentTables.map(table => table.tableId))
+      .toEqual([ edgesAggregatedId, moviesAggregatedId ]);
+    expect(origraph.tables[moviesAggregatedId].parentTable.tableId)
+      .toEqual(origraph.classes[moviesId].tableId);
   });
 
   test('Simple self edge test', async () => {
@@ -66,10 +85,10 @@ describe('Interpretation Tests', () => {
     origraph.classes[nodeClassId].interpretAsNodes();
     const edgeClassId = origraph.classes[nodeClassId].connectToNodeClass({
       otherNodeClass: origraph.classes[nodeClassId],
-      directed: true,
       attribute: 'is',
       otherAttribute: 'a'
     }).classId;
+    origraph.classes[edgeClassId].toggleDirection();
 
     const nodeSpec = origraph.classes[nodeClassId]._toRawObject();
     expect(nodeSpec.annotation).toEqual('');
@@ -81,7 +100,7 @@ describe('Interpretation Tests', () => {
     expect(edgeSpec.annotation).toEqual('');
     expect(edgeSpec.classId).toEqual(edgeClassId);
     expect(edgeSpec.className).toEqual(null);
-    expect(edgeSpec.directed).toEqual(true);
+    expect(edgeSpec.directed).toEqual(false);
     expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
     expect(edgeSpec.targetClassId).toEqual(nodeClassId);
   });
@@ -103,15 +122,15 @@ describe('Interpretation Tests', () => {
     origraph.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await origraph.classes[peopleId].connectToEdgeClass({
+    origraph.classes[peopleId].connectToEdgeClass({
       edgeClass: origraph.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await origraph.classes[movieEdgesId].connectToNodeClass({
+    origraph.classes[movieEdgesId].connectToNodeClass({
       nodeClass: origraph.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
@@ -123,7 +142,7 @@ describe('Interpretation Tests', () => {
     expect(rawMoviesSpec.annotation).toEqual('');
     expect(rawMoviesSpec.classId).toEqual(moviesId);
     expect(rawMoviesSpec.className).toEqual('Movies');
-    expect(rawMoviesSpec.directed).toEqual(true);
+    expect(rawMoviesSpec.directed).toEqual(false);
     expect(rawMoviesSpec.sourceClassId).toEqual(peopleId);
     expect(rawMoviesSpec.targetClassId).toEqual(peopleId);
   });
@@ -146,15 +165,15 @@ describe('Interpretation Tests', () => {
     const movieEdgesTableId = origraph.classes[movieEdgesId].tableId;
 
     // Set up initial connections
-    await origraph.classes[peopleId].connectToEdgeClass({
+    origraph.classes[peopleId].connectToEdgeClass({
       edgeClass: origraph.classes[movieEdgesId],
-      direction: 'source',
+      side: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await origraph.classes[movieEdgesId].connectToNodeClass({
+    origraph.classes[movieEdgesId].connectToNodeClass({
       nodeClass: origraph.classes[moviesId],
-      direction: 'target',
+      side: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
