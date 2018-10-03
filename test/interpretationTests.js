@@ -100,7 +100,7 @@ describe('Interpretation Tests', () => {
     expect(edgeSpec.annotation).toEqual('');
     expect(edgeSpec.classId).toEqual(edgeClassId);
     expect(edgeSpec.className).toEqual(null);
-    expect(edgeSpec.directed).toEqual(false);
+    expect(edgeSpec.directed).toEqual(true);
     expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
     expect(edgeSpec.targetClassId).toEqual(nodeClassId);
   });
