@@ -12,7 +12,7 @@ Installation
 For basic use in the browser:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/origraph@0.1.0/dist/origraph.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/origraph@0.1.1/dist/origraph.umd.min.js"></script>
 ```
 
 For server-side apps or pre-bundled browser apps:
