@@ -1,5 +1,9 @@
 origraph.js
 ===========
+[![Build Status](https://travis-ci.org/origraph/origraph.js.svg?branch=master)](https://travis-ci.org/origraph/origraph.js)
+[![Coverage Status](https://coveralls.io/repos/github/origraph/origraph.js/badge.svg?branch=master)](https://coveralls.io/github/origraph/origraph.js?branch=master)
+
+
 `origraph.js` is a library for wrangling graph data. Graph constructs (like what is a node, and what is an edge) are deliberately lightweight, so that they are easy to map (and re-map) to data items, regardless of how the raw data is structured.
 
 ![Operations](documentation/teaser.svg)
