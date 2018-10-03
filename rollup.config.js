@@ -54,7 +54,7 @@ if (targets.umd) {
   builds.push({
     input: 'src/module.js',
     output: {
-      name: 'mure',
+      name: 'origraph',
       file: pkg.browser,
       format: 'umd',
       globals: { 'd3': 'd3' },

@@ -17,14 +17,14 @@ const DuplicatableAttributesMixin = function (superclass) {
     }
     _duplicateAttributes (wrappedItem) {
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        const parentName = this._mure.tables[parentId].name;
+        const parentName = this._origraph.tables[parentId].name;
         wrappedItem.row[`${parentName}.${attr}`] = wrappedItem.connectedItems[parentId][0].row[attr];
       }
     }
     _getAllAttributes () {
       const result = super._getAllAttributes();
       for (const [parentId, attr] of Object.entries(this._duplicatedAttributes)) {
-        const parentName = this._mure.tables[parentId].name;
+        const parentName = this._origraph.tables[parentId].name;
         result[`${parentName}.${attr}`] = true;
       }
       return result;

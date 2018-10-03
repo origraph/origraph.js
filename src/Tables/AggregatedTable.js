@@ -12,7 +12,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
     this._reduceAttributeFunctions = {};
     if (options.reduceAttributeFunctions) {
       for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions)) {
-        this._reduceAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
+        this._reduceAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
       }
     }
   }
@@ -21,7 +21,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
     obj.attribute = this._attribute;
     obj.reduceAttributeFunctions = {};
     for (const [attr, func] of Object.entries(this._reduceAttributeFunctions)) {
-      obj.reduceAttributeFunctions[attr] = this._mure._dehydrateFunction(func);
+      obj.reduceAttributeFunctions[attr] = this._origraph._dehydrateFunction(func);
     }
     return obj;
   }

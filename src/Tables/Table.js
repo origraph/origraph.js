@@ -4,10 +4,10 @@ import TriggerableMixin from '../Common/TriggerableMixin.js';
 class Table extends TriggerableMixin(Introspectable) {
   constructor (options) {
     super();
-    this._mure = options.mure;
+    this._origraph = options.origraph;
     this.tableId = options.tableId;
-    if (!this._mure || !this.tableId) {
-      throw new Error(`mure and tableId are required`);
+    if (!this._origraph || !this.tableId) {
+      throw new Error(`origraph and tableId are required`);
     }
 
     this._expectedAttributes = options.attributes || {};
@@ -17,7 +17,7 @@ class Table extends TriggerableMixin(Introspectable) {
     this._derivedAttributeFunctions = {};
     if (options.derivedAttributeFunctions) {
       for (const [attr, stringifiedFunc] of Object.entries(options.derivedAttributeFunctions)) {
-        this._derivedAttributeFunctions[attr] = this._mure.hydrateFunction(stringifiedFunc);
+        this._derivedAttributeFunctions[attr] = this._origraph.hydrateFunction(stringifiedFunc);
       }
     }
   }
@@ -30,7 +30,7 @@ class Table extends TriggerableMixin(Introspectable) {
       derivedAttributeFunctions: {}
     };
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
-      result.derivedAttributeFunctions[attr] = this._mure.dehydrateFunction(func);
+      result.derivedAttributeFunctions[attr] = this._origraph.dehydrateFunction(func);
     }
     return result;
   }
@@ -120,7 +120,7 @@ class Table extends TriggerableMixin(Introspectable) {
   _wrap (options) {
     options.table = this;
     const classObj = this.classObj;
-    return classObj ? classObj._wrap(options) : new this._mure.WRAPPERS.GenericWrapper(options);
+    return classObj ? classObj._wrap(options) : new this._origraph.WRAPPERS.GenericWrapper(options);
   }
   _getAllAttributes () {
     const allAttrs = {};
@@ -149,9 +149,9 @@ class Table extends TriggerableMixin(Introspectable) {
     this.reset();
   }
   _deriveTable (options) {
-    const newTable = this._mure.createTable(options);
+    const newTable = this._origraph.createTable(options);
     this._derivedTables[newTable.tableId] = true;
-    this._mure.saveTables();
+    this._origraph.saveTables();
     return newTable;
   }
   _getExistingTable (options) {
@@ -165,7 +165,7 @@ class Table extends TriggerableMixin(Introspectable) {
         }
       });
     });
-    return (existingTableId && this._mure.tables[existingTableId]) || null;
+    return (existingTableId && this._origraph.tables[existingTableId]) || null;
   }
   shortestPathToTable (otherTable) {
     // Dijkstra's algorithm...
@@ -173,7 +173,7 @@ class Table extends TriggerableMixin(Introspectable) {
     const distances = {};
     const prevTables = {};
     const visit = targetId => {
-      const targetTable = this._mure.tables[targetId];
+      const targetTable = this._origraph.tables[targetId];
       // Only check the unvisited derived and parent tables
       const neighborList = Object.keys(targetTable._derivedTables)
         .concat(targetTable.parentTables.map(parentTable => parentTable.tableId))
@@ -206,7 +206,7 @@ class Table extends TriggerableMixin(Introspectable) {
         // Found otherTable! Send back the chain of connected tables
         const chain = [];
         while (prevTables[nextId] !== null) {
-          chain.unshift(this._mure.tables[nextId]);
+          chain.unshift(this._origraph.tables[nextId]);
           nextId = prevTables[nextId];
         }
         return chain;
@@ -260,21 +260,21 @@ class Table extends TriggerableMixin(Introspectable) {
     }
   }
   connect (otherTableList) {
-    const newTable = this._mure.createTable({ type: 'ConnectedTable' });
+    const newTable = this._origraph.createTable({ type: 'ConnectedTable' });
     this._derivedTables[newTable.tableId] = true;
     for (const otherTable of otherTableList) {
       otherTable._derivedTables[newTable.tableId] = true;
     }
-    this._mure.saveTables();
+    this._origraph.saveTables();
     return newTable;
   }
   get classObj () {
-    return Object.values(this._mure.classes).find(classObj => {
+    return Object.values(this._origraph.classes).find(classObj => {
       return classObj.table === this;
     });
   }
   get parentTables () {
-    return Object.values(this._mure.tables).reduce((agg, tableObj) => {
+    return Object.values(this._origraph.tables).reduce((agg, tableObj) => {
       if (tableObj._derivedTables[this.tableId]) {
         agg.push(tableObj);
       }
@@ -283,7 +283,7 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   get derivedTables () {
     return Object.keys(this._derivedTables).map(tableId => {
-      return this._mure.tables[tableId];
+      return this._origraph.tables[tableId];
     });
   }
   delete () {
@@ -293,8 +293,8 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const parentTable of this.parentTables) {
       delete parentTable.derivedTables[this.tableId];
     }
-    delete this._mure.tables[this.tableId];
-    this._mure.saveTables();
+    delete this._origraph.tables[this.tableId];
+    this._origraph.saveTables();
   }
 }
 Object.defineProperty(Table, 'type', {

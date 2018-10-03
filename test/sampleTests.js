@@ -1,4 +1,4 @@
-const mure = require('../dist/mure.cjs.js');
+const origraph = require('../dist/origraph.cjs.js');
 const loadFiles = require('./loadFiles.js');
 
 async function getNodeToEdgeSamples (nodeClassObj) {
@@ -35,8 +35,8 @@ async function getEdgeToNodeSamples (edgeClassObj) {
 
 describe('Sample Tests', () => {
   afterEach(() => {
-    mure.deleteAllClasses();
-    mure.deleteAllUnusedTables();
+    origraph.deleteAllClasses();
+    origraph.deleteAllUnusedTables();
   });
 
   test('Movie + Person + Edge Samples', async () => {
@@ -47,36 +47,36 @@ describe('Sample Tests', () => {
     const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
 
     // Initial interpretation
-    mure.classes[peopleId].interpretAsNodes();
-    mure.classes[peopleId].setClassName('People');
+    origraph.classes[peopleId].interpretAsNodes();
+    origraph.classes[peopleId].setClassName('People');
 
-    mure.classes[moviesId].interpretAsNodes();
-    mure.classes[moviesId].setClassName('Movies');
+    origraph.classes[moviesId].interpretAsNodes();
+    origraph.classes[moviesId].setClassName('Movies');
 
-    mure.classes[movieEdgesId].interpretAsEdges();
+    origraph.classes[movieEdgesId].interpretAsEdges();
 
     // Set up initial connections
-    await mure.classes[peopleId].connectToEdgeClass({
-      edgeClass: mure.classes[movieEdgesId],
+    await origraph.classes[peopleId].connectToEdgeClass({
+      edgeClass: origraph.classes[movieEdgesId],
       direction: 'source',
       nodeAttribute: 'id',
       edgeAttribute: 'sourceID'
     });
-    await mure.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: mure.classes[moviesId],
+    await origraph.classes[movieEdgesId].connectToNodeClass({
+      nodeClass: origraph.classes[moviesId],
       direction: 'target',
       nodeAttribute: 'id',
       edgeAttribute: 'targetID'
     });
 
-    let count = await mure.classes[peopleId].table.countRows();
+    let count = await origraph.classes[peopleId].table.countRows();
     expect(count).toEqual(133);
-    count = await mure.classes[moviesId].table.countRows();
+    count = await origraph.classes[moviesId].table.countRows();
     expect(count).toEqual(38);
-    count = await mure.classes[movieEdgesId].table.countRows();
+    count = await origraph.classes[movieEdgesId].table.countRows();
     expect(count).toEqual(506);
 
-    let samples = (await getNodeToEdgeSamples(mure.classes[peopleId]))
+    let samples = (await getNodeToEdgeSamples(origraph.classes[peopleId]))
       .map(sample => {
         return {
           node: sample.node.row.name,
@@ -91,7 +91,7 @@ describe('Sample Tests', () => {
       {'edge': 'PRODUCED', 'node': 'Andy Wachowski'}
     ]);
 
-    samples = (await getNodeToEdgeSamples(mure.classes[moviesId]))
+    samples = (await getNodeToEdgeSamples(origraph.classes[moviesId]))
       .map(sample => {
         return {
           node: sample.node.row.title,
@@ -106,7 +106,7 @@ describe('Sample Tests', () => {
       {'edge': 'ACTED_IN', 'node': 'A Few Good Men'}
     ]);
 
-    samples = (await getEdgeToNodeSamples(mure.classes[movieEdgesId]))
+    samples = (await getEdgeToNodeSamples(origraph.classes[movieEdgesId]))
       .map(sample => {
         return {
           source: sample.source.row.name,

@@ -3,11 +3,11 @@ import Introspectable from '../Common/Introspectable.js';
 class GenericClass extends Introspectable {
   constructor (options) {
     super();
-    this._mure = options.mure;
+    this._origraph = options.origraph;
     this.classId = options.classId;
     this.tableId = options.tableId;
-    if (!this._mure || !this.classId || !this.tableId) {
-      throw new Error(`_mure, classId, and tableId are required`);
+    if (!this._origraph || !this.classId || !this.tableId) {
+      throw new Error(`_origraph, classId, and tableId are required`);
     }
 
     this._className = options.className || null;
@@ -23,7 +23,7 @@ class GenericClass extends Introspectable {
   }
   setClassName (value) {
     this._className = value;
-    this._mure.saveClasses();
+    this._origraph.saveClasses();
   }
   get hasCustomName () {
     return this._className !== null;
@@ -35,24 +35,24 @@ class GenericClass extends Introspectable {
     return attribute === null ? this.table : this.table.aggregate(attribute);
   }
   get table () {
-    return this._mure.tables[this.tableId];
+    return this._origraph.tables[this.tableId];
   }
   _wrap (options) {
     options.classObj = this;
-    return new this._mure.WRAPPERS.GenericWrapper(options);
+    return new this._origraph.WRAPPERS.GenericWrapper(options);
   }
   interpretAsNodes () {
     const options = this._toRawObject();
     options.type = 'NodeClass';
-    return this._mure.newClass(options);
+    return this._origraph.newClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
     options.type = 'EdgeClass';
-    return this._mure.newClass(options);
+    return this._origraph.newClass(options);
   }
   _deriveGenericClass (newTable) {
-    return this._mure.newClass({
+    return this._origraph.newClass({
       tableId: newTable.tableId,
       type: 'GenericClass'
     });
@@ -74,8 +74,8 @@ class GenericClass extends Introspectable {
     }
   }
   delete () {
-    delete this._mure.classes[this.classId];
-    this._mure.saveClasses();
+    delete this._origraph.classes[this.classId];
+    this._origraph.saveClasses();
   }
 }
 Object.defineProperty(GenericClass, 'type', {

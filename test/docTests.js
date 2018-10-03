@@ -1,10 +1,10 @@
 const fs = require('fs');
-const mure = require('../dist/mure.cjs.js');
+const origraph = require('../dist/origraph.cjs.js');
 
 describe('Document Tests', () => {
   afterAll(async () => {
-    mure.deleteAllClasses();
-    mure.deleteAllUnusedTables();
+    origraph.deleteAllClasses();
+    origraph.deleteAllUnusedTables();
   });
 
   test('load and read a CSV file', async () => {
@@ -18,7 +18,7 @@ describe('Document Tests', () => {
     });
 
     // Upload and parse the data source
-    const genericClass = await mure.addStringAsStaticTable({
+    const genericClass = await origraph.addStringAsStaticTable({
       name: 'csvTest.csv',
       extension: 'csv',
       text: csvString

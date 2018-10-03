@@ -13,13 +13,13 @@ class NodeClass extends GenericClass {
   }
   _wrap (options) {
     options.classObj = this;
-    return new this._mure.WRAPPERS.NodeWrapper(options);
+    return new this._origraph.WRAPPERS.NodeWrapper(options);
   }
   async prepShortestEdgePath (edgeClassId) {
     if (this._cachedShortestEdgePaths[edgeClassId] !== undefined) {
       return this._cachedShortestEdgePaths[edgeClassId];
     } else {
-      const edgeTable = this._mure.classes[edgeClassId].table;
+      const edgeTable = this._origraph.classes[edgeClassId].table;
       const idList = [];
       for (const table of this.table.shortestPathToTable(edgeTable)) {
         idList.push(table.tableId);
@@ -44,14 +44,14 @@ class NodeClass extends GenericClass {
     } else if (edgeClassIds.length === 1) {
       // With only one connection, this node should become a self-edge
       // (or a floating edge if edgeClass.sourceClassId is null)
-      const edgeClass = this._mure.classes[edgeClassIds[0]];
+      const edgeClass = this._origraph.classes[edgeClassIds[0]];
       options.sourceClassId = edgeClass.sourceClassId;
       options.targetClassId = edgeClass.sourceClassId;
       options.directed = edgeClass.directed;
       edgeClass.delete();
     } else if (edgeClassIds.length === 2) {
-      let sourceEdgeClass = this._mure.classes[edgeClassIds[0]];
-      let targetEdgeClass = this._mure.classes[edgeClassIds[1]];
+      let sourceEdgeClass = this._origraph.classes[edgeClassIds[0]];
+      let targetEdgeClass = this._origraph.classes[edgeClassIds[1]];
       // Figure out the direction, if there is one
       options.directed = false;
       if (sourceEdgeClass.directed && targetEdgeClass.directed) {
@@ -62,8 +62,8 @@ class NodeClass extends GenericClass {
         } else if (sourceEdgeClass.sourceClassId === this.classId &&
                    targetEdgeClass.targetClassId === this.classId) {
           // We got the edges backwards; swap them and set directed to true
-          targetEdgeClass = this._mure.classes[edgeClassIds[0]];
-          sourceEdgeClass = this._mure.classes[edgeClassIds[1]];
+          targetEdgeClass = this._origraph.classes[edgeClassIds[0]];
+          sourceEdgeClass = this._origraph.classes[edgeClassIds[1]];
           options.directed = true;
         }
       }
@@ -78,13 +78,13 @@ class NodeClass extends GenericClass {
     delete options.classId;
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
-    return this._mure.newClass(options);
+    return this._origraph.newClass(options);
   }
   connectToNodeClass ({ otherNodeClass, directed, attribute, otherAttribute }) {
     const thisHash = this.getHashTable(attribute);
     const otherHash = otherNodeClass.getHashTable(otherAttribute);
     const connectedTable = thisHash.connect([otherHash]);
-    const newEdgeClass = this._mure.createClass({
+    const newEdgeClass = this._origraph.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
       directed,
@@ -93,7 +93,7 @@ class NodeClass extends GenericClass {
     });
     this.edgeClassIds[newEdgeClass.classId] = true;
     otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;
-    this._mure.saveClasses();
+    this._origraph.saveClasses();
     return newEdgeClass;
   }
   connectToEdgeClass (options) {
@@ -104,7 +104,7 @@ class NodeClass extends GenericClass {
   }
   disconnectAllEdges () {
     for (const edgeClassId of Object.keys(this.edgeClassIds)) {
-      const edgeClass = this._mure.classes[edgeClassId];
+      const edgeClass = this._origraph.classes[edgeClassId];
       if (edgeClass.sourceClassId === this.classId) {
         edgeClass.disconnectSource();
       }

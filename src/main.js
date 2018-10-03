@@ -1,8 +1,8 @@
-import Mure from './Mure.js';
+import Origraph from './Origraph.js';
 import pkg from '../package.json';
 import FileReader from 'filereader';
 
-let mure = new Mure(FileReader, null);
-mure.version = pkg.version;
+let origraph = new Origraph(FileReader, null);
+origraph.version = pkg.version;
 
-export default mure;
+export default origraph;

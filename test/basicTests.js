@@ -1,8 +1,8 @@
-const mure = require('../dist/mure.cjs.js');
+const origraph = require('../dist/origraph.cjs.js');
 const pkg = require('../package.json');
 
 describe('Basic Tests', () => {
   test('Version check', () => {
-    expect(pkg.version).toBe(mure.version);
+    expect(pkg.version).toBe(origraph.version);
   });
 });

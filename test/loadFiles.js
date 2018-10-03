@@ -1,4 +1,4 @@
-const mure = require('../dist/mure.cjs.js');
+const origraph = require('../dist/origraph.cjs.js');
 const fs = require('fs');
 
 module.exports = async function (filenames) {
@@ -6,9 +6,9 @@ module.exports = async function (filenames) {
     return new Promise((resolve, reject) => {
       fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
         if (err) { reject(err); }
-        resolve(await mure.addStringAsStaticTable({
+        resolve(await origraph.addStringAsStaticTable({
           name: filename,
-          extension: mure.mime.extension(mure.mime.lookup(filename)),
+          extension: origraph.mime.extension(origraph.mime.lookup(filename)),
           text
         }));
       });

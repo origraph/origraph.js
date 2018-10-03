@@ -4,7 +4,6 @@ node_js:
 notifications:
     slack:
       rooms:
-        - mure-apps:9SXKuestEVdHAevzd5JQf2J1
         - vdl-sci:oZOAsPzSebfD3cmkP87cqRmu
     email: false
 after_success: 'npm run coveralls'

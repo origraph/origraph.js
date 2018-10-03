@@ -10,14 +10,14 @@ import * as INDEXES from './Indexes/Indexes.js';
 let NEXT_CLASS_ID = 1;
 let NEXT_TABLE_ID = 1;
 
-class Mure extends TriggerableMixin(class {}) {
+class Origraph extends TriggerableMixin(class {}) {
   constructor (FileReader, localStorage) {
     super();
     this.FileReader = FileReader; // either window.FileReader or one from Node
     this.localStorage = localStorage; // either window.localStorage or null
     this.mime = mime; // expose access to mime library, since we're bundling it anyway
 
-    this.debug = false; // Set mure.debug to true to debug streams
+    this.debug = false; // Set origraph.debug to true to debug streams
 
     // extensions that we want datalib to handle
     this.DATALIB_FORMATS = {
@@ -61,14 +61,14 @@ class Mure extends TriggerableMixin(class {}) {
     };
 
     // Object containing each of our data sources
-    this.tables = this.hydrate('mure_tables', this.TABLES);
+    this.tables = this.hydrate('origraph_tables', this.TABLES);
     NEXT_TABLE_ID = Object.keys(this.tables)
       .reduce((highestNum, tableId) => {
         return Math.max(highestNum, parseInt(tableId.match(/table(\d*)/)[1]));
       }, 0) + 1;
 
     // Object containing our class specifications
-    this.classes = this.hydrate('mure_classes', this.CLASSES);
+    this.classes = this.hydrate('origraph_classes', this.CLASSES);
     NEXT_CLASS_ID = Object.keys(this.classes)
       .reduce((highestNum, classId) => {
         return Math.max(highestNum, parseInt(classId.match(/class(\d*)/)[1]));
@@ -76,11 +76,11 @@ class Mure extends TriggerableMixin(class {}) {
   }
 
   saveTables () {
-    this.dehydrate('mure_tables', this.tables);
+    this.dehydrate('origraph_tables', this.tables);
     this.trigger('tableUpdate');
   }
   saveClasses () {
-    this.dehydrate('mure_classes', this.classes);
+    this.dehydrate('origraph_classes', this.classes);
     this.trigger('classUpdate');
   }
 
@@ -90,7 +90,7 @@ class Mure extends TriggerableMixin(class {}) {
     for (const [key, value] of Object.entries(container)) {
       const type = value.type;
       delete value.type;
-      value.mure = this;
+      value.origraph = this;
       container[key] = new TYPES[type](value);
     }
     return container;
@@ -124,7 +124,7 @@ class Mure extends TriggerableMixin(class {}) {
     }
     const Type = this.TABLES[options.type];
     delete options.type;
-    options.mure = this;
+    options.origraph = this;
     this.tables[options.tableId] = new Type(options);
     return this.tables[options.tableId];
   }
@@ -135,7 +135,7 @@ class Mure extends TriggerableMixin(class {}) {
     }
     const Type = this.CLASSES[options.type];
     delete options.type;
-    options.mure = this;
+    options.origraph = this;
     this.classes[options.classId] = new Type(options);
     return this.classes[options.classId];
   }
@@ -229,4 +229,4 @@ class Mure extends TriggerableMixin(class {}) {
   }
 }
 
-export default Mure;
+export default Origraph;
