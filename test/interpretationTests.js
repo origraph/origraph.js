@@ -8,7 +8,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(20);
+    expect.assertions(17);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -38,19 +38,16 @@ describe('Interpretation Tests', () => {
     });
 
     const rawPeopleSpec = origraph.classes[peopleId]._toRawObject();
-    expect(rawPeopleSpec.annotation).toEqual('');
     expect(rawPeopleSpec.classId).toEqual(peopleId);
     expect(rawPeopleSpec.className).toEqual('People');
     expect(rawPeopleSpec.edgeClassIds[movieEdgesId]).toEqual(true);
 
     const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.annotation).toEqual('');
     expect(rawMoviesSpec.classId).toEqual(moviesId);
     expect(rawMoviesSpec.className).toEqual('Movies');
     expect(rawMoviesSpec.edgeClassIds[movieEdgesId]).toEqual(true);
 
     const rawMovieEdgesSpec = origraph.classes[movieEdgesId]._toRawObject();
-    expect(rawMovieEdgesSpec.annotation).toEqual('');
     expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
     expect(rawMovieEdgesSpec.className).toEqual(null);
     expect(rawMovieEdgesSpec.directed).toEqual(false);
@@ -78,7 +75,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Simple self edge test', async () => {
-    expect.assertions(10);
+    expect.assertions(8);
 
     let [ nodeClassId ] = (await loadFiles(['csvTest.csv'])).map(classObj => classObj.classId);
 
@@ -91,13 +88,11 @@ describe('Interpretation Tests', () => {
     origraph.classes[edgeClassId].toggleDirection();
 
     const nodeSpec = origraph.classes[nodeClassId]._toRawObject();
-    expect(nodeSpec.annotation).toEqual('');
     expect(nodeSpec.classId).toEqual(nodeClassId);
     expect(nodeSpec.className).toEqual(null);
     expect(nodeSpec.edgeClassIds[edgeClassId]).toEqual(true);
 
     const edgeSpec = origraph.classes[edgeClassId]._toRawObject();
-    expect(edgeSpec.annotation).toEqual('');
     expect(edgeSpec.classId).toEqual(edgeClassId);
     expect(edgeSpec.className).toEqual(null);
     expect(edgeSpec.directed).toEqual(true);
@@ -106,7 +101,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movies to Edges', async () => {
-    expect.assertions(6);
+    expect.assertions(5);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -139,7 +134,6 @@ describe('Interpretation Tests', () => {
     moviesId = origraph.classes[moviesId].interpretAsEdges().classId;
 
     const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.annotation).toEqual('');
     expect(rawMoviesSpec.classId).toEqual(moviesId);
     expect(rawMoviesSpec.className).toEqual('Movies');
     expect(rawMoviesSpec.directed).toEqual(false);
@@ -148,7 +142,7 @@ describe('Interpretation Tests', () => {
   });
 
   test('Movies to Edges and Back Again', async () => {
-    expect.assertions(5);
+    expect.assertions(4);
 
     const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
@@ -186,7 +180,6 @@ describe('Interpretation Tests', () => {
 
     // Check that the basics are still there
     const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.annotation).toEqual('');
     expect(rawMoviesSpec.classId).toEqual(moviesId);
     expect(rawMoviesSpec.className).toEqual('Movies');
 

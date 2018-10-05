@@ -11,14 +11,14 @@ class GenericClass extends Introspectable {
     }
 
     this._className = options.className || null;
-    this.annotation = options.annotation || '';
+    this.annotations = options.annotations || {};
   }
   _toRawObject () {
     return {
       classId: this.classId,
       tableId: this.tableId,
       className: this._className,
-      annotation: this.annotation
+      annotations: this.annotations
     };
   }
   setClassName (value) {
