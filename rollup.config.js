@@ -8,10 +8,10 @@ import json from 'rollup-plugin-json';
 import pkg from './package.json';
 
 // Derive some of the configuration from package.json
-const peerDependencies = Object.keys(pkg.peerDependencies);
+const peerDependencies = Object.keys(pkg.peerDependencies || {});
 const allExternals = peerDependencies.concat(
-  Object.keys(pkg.dependencies)).concat(
-  Object.keys(pkg.devDependencies));
+  Object.keys(pkg.dependencies || {})).concat(
+  Object.keys(pkg.devDependencies || {}));
 const commonPlugins = [
   string({ include: '**/*.text.*' }), // allow us to import files as strings
   json(), // import json files as modules

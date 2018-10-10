@@ -1,6 +1,6 @@
 {
   "name": "origraph",
-  "version": "0.1.2",
+  "version": "0.1.2r1",
   "description": "A library for flexible graph reshaping",
   "main": "dist/origraph.cjs.js",
   "module": "dist/origraph.esm.js",
@@ -36,7 +36,6 @@
     "babel-core": "^7.0.0-0",
     "babel-jest": "^23.6.0",
     "coveralls": "^3.0.2",
-    "filereader": "^0.10.3",
     "jest": "^23.6.0",
     "rollup": "^0.66.6",
     "rollup-plugin-babel": "^4.0.3",
@@ -49,6 +48,7 @@
   },
   "dependencies": {
     "datalib": "^1.9.1",
+    "filereader": "^0.10.3",
     "mime-types": "^2.1.20",
     "sha1": "^1.1.1"
   },

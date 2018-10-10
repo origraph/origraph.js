@@ -20195,7 +20195,7 @@
 	}
 
 	var name$1 = "origraph";
-	var version$1 = "0.1.2";
+	var version$1 = "0.1.2r1";
 	var description$1 = "A library for flexible graph reshaping";
 	var main$1 = "dist/origraph.cjs.js";
 	var module$1 = "dist/origraph.esm.js";
@@ -20230,7 +20230,6 @@
 		"babel-core": "^7.0.0-0",
 		"babel-jest": "^23.6.0",
 		coveralls: "^3.0.2",
-		filereader: "^0.10.3",
 		jest: "^23.6.0",
 		rollup: "^0.66.6",
 		"rollup-plugin-babel": "^4.0.3",
@@ -20243,6 +20242,7 @@
 	};
 	var dependencies$1 = {
 		datalib: "^1.9.1",
+		filereader: "^0.10.3",
 		"mime-types": "^2.1.20",
 		sha1: "^1.1.1"
 	};
