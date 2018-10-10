@@ -19,6 +19,8 @@ class Origraph extends TriggerableMixin(class {}) {
 
     this.debug = false; // Set origraph.debug to true to debug streams
 
+    this.plugins = {};
+
     // extensions that we want datalib to handle
     this.DATALIB_FORMATS = {
       'json': 'json',
@@ -226,6 +228,9 @@ class Origraph extends TriggerableMixin(class {}) {
     for (const classObj of Object.values(this.classes)) {
       results[classObj.classId] = classObj.currentData;
     }
+  }
+  registerPlugin (name, plugin) {
+    this.plugins[name] = plugin;
   }
 }
 

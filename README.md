@@ -11,21 +11,25 @@ origraph.js
 Be advised that this is project is *very* work-in-progress, and is being implemented in parallel with [Origraph](https://github.com/origraph/origraph.js), a non-programmer's visual interface for using this library.
 Expect frequent sweeping changes and poor documentation for now, especially as we explore and refine what constructs and operations are even important for this graph data wrangling.
 
-Installation
-============
-For basic use in the browser:
+# Installation and Usage
 
+## Basic use in the browser
+This will make the `window.origraph` global available to your scripts:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/origraph@0.1.1/dist/origraph.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/origraph@0.1.2/dist/origraph.umd.js"></script>
 ```
 
-For server-side apps or pre-bundled browser apps:
+## Server-side apps or pre-bundled browser apps
 
+Installation:
 ```bash
 npm install origraph
 ```
 
-However, for the latter, be advised that some of the dependencies of this library result in webpack / rollup / whatever configuration hell. If you discover a configuration that actually works, we'd love to hear about it!
+Usage:
+```js
+const origraph = require('origraph');
+```
 
 Development
 ===========
@@ -57,7 +61,7 @@ npm run watchumd
 # Releasing a new version
 A list of reminders to make sure we don't forget any steps:
 
-- Update the version in package.json
+- Update the version number in `package.json`
 - Update the release link in this README
 - `npm run build`
 - `npm run test`

@@ -1,7 +1,5 @@
 node_modules
 coverage
 .coveralls.yml
-origraph
-origraph-mrview*
 package-lock.json
 package-lock.json*

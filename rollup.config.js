@@ -5,8 +5,6 @@ import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
-// import { uglify } from 'rollup-plugin-uglify';
-// import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
 
 // Derive some of the configuration from package.json
@@ -54,7 +52,7 @@ if (targets.umd) {
   builds.push({
     input: 'src/module.js',
     output: {
-      name: 'origraph',
+      name: pkg.name,
       file: pkg.browser,
       format: 'umd',
       globals: { 'd3': 'd3' },
@@ -91,28 +89,4 @@ if (targets.esm) {
   });
 }
 
-// Create both minified and un-minified versions for
-// builds with 'min.js' in their filenames
-let minifiedBuilds = [];
-/*
-TODO: some kind of recent change to rollup-plugin-uglify has broken this...
-
-builds.forEach(build => {
-  if (build.output.file.endsWith('min.js')) {
-    // Deep copy the build spec, add uglification
-    let minBuild = Object.assign({}, build);
-    minBuild.output = Object.assign({}, build.output);
-    minBuild.plugins = minBuild.plugins.concat([
-      build.output.file.endsWith('esm.min.js') ? terser() : uglify()
-    ]);
-    minifiedBuilds.push(minBuild);
-
-    // Keep the un-minified version for development,
-    // include a sourcemap
-    build.output.file = build.output.file.replace(/min\.js/, 'js');
-    build.output.sourcemap = 'inline';
-  }
-});
-*/
-
-export default builds.concat(minifiedBuilds);
+export default builds;
