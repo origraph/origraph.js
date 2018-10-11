@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# A hook script that follows the symlink created by
+# `npm link $REPO_NAME` so that # pre-release versions of the
+# plugin are committed with the app
+
+REPO_NAME="origraph"
+BUNDLE_NAME="origraph.umd.js"
+
+cp node_modules/$REPO_NAME/dist/$BUNDLE_NAME temp.js
+rm -rf node_modules/$REPO_NAME
+mkdir node_modules/$REPO_NAME
+mkdir node_modules/$REPO_NAME/dist
+mv temp.js node_modules/$REPO_NAME/dist/$BUNDLE_NAME
+git add node_modules/$REPO_NAME/dist/$BUNDLE_NAME

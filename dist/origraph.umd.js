@@ -20195,7 +20195,7 @@
 	}
 
 	var name$1 = "origraph";
-	var version$1 = "0.1.2r1";
+	var version$1 = "0.1.3";
 	var description$1 = "A library for flexible graph reshaping";
 	var main$1 = "dist/origraph.cjs.js";
 	var module$1 = "dist/origraph.esm.js";

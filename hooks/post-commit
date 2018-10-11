@@ -1,0 +1,7 @@
+#!/bin/sh
+#
+# A hook script that restores the `npm link $REPO_NAME` symlink post-commit
+
+REPO_NAME="origraph"
+rm -rf node_modules/$REPO_NAME
+npm link $REPO_NAME
