@@ -12,4 +12,4 @@ rm -rf node_modules/$REPO_NAME
 mkdir node_modules/$REPO_NAME
 mkdir node_modules/$REPO_NAME/dist
 mv temp.js node_modules/$REPO_NAME/dist/$BUNDLE_NAME
-git add node_modules/$REPO_NAME/dist/$BUNDLE_NAME
+git add -f node_modules/$REPO_NAME/dist/$BUNDLE_NAME
