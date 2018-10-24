@@ -53,10 +53,10 @@ class GenericClass extends Introspectable {
     this.table.reset();
     return this._origraph.newClass(options);
   }
-  _deriveGenericClass (newTable) {
+  _deriveGenericClass (newTable, type = this.constructor.name) {
     return this._origraph.newClass({
       tableId: newTable.tableId,
-      type: 'GenericClass'
+      type
     });
   }
   aggregate (attribute) {
