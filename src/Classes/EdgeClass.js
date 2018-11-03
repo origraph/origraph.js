@@ -108,6 +108,14 @@ class EdgeClass extends GenericClass {
     this._origraph.saveClasses();
     return newNodeClass;
   }
+  * connectedClasses () {
+    if (this.sourceClassId) {
+      yield this._origraph.classes[this.sourceClassId];
+    }
+    if (this.targetClassId) {
+      yield this._origraph.classes[this.targetClassId];
+    }
+  }
   interpretAsEdges () {
     return this;
   }

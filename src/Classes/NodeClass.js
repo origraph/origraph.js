@@ -126,14 +126,18 @@ class NodeClass extends GenericClass {
     return edgeClass.connectToNodeClass(options);
   }
   disconnectAllEdges () {
-    for (const edgeClassId of Object.keys(this.edgeClassIds)) {
-      const edgeClass = this._origraph.classes[edgeClassId];
+    for (const edgeClass of this.connectedClasses()) {
       if (edgeClass.sourceClassId === this.classId) {
         edgeClass.disconnectSource();
       }
       if (edgeClass.targetClassId === this.classId) {
         edgeClass.disconnectTarget();
       }
+    }
+  }
+  * connectedClasses () {
+    for (const edgeClassId of Object.keys(this.edgeClassIds)) {
+      yield this._origraph.classes[edgeClassId];
     }
   }
   delete () {
