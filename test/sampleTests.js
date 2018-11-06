@@ -1,6 +1,24 @@
 const origraph = require('../dist/origraph.cjs.js');
 const loadFiles = require('./loadFiles.js');
 
+async function getNodeToNodeSamples (nodeClassObj, branchLimit, fullLimit = 5) {
+  const samples = [];
+  let fullMatches = 0;
+  for await (const node of nodeClassObj.table.iterate()) {
+    for await (const edge of node.edges({ limit: branchLimit })) {
+      for await (const source of edge.sourceNodes({ limit: branchLimit })) {
+        for await (const target of edge.targetNodes({ limit: branchLimit })) {
+          samples.push({ node, edge, source, target });
+          fullMatches++;
+          if (fullMatches >= fullLimit) {
+            return samples;
+          }
+        }
+      }
+    }
+  }
+}
+
 async function getNodeToEdgeSamples (nodeClassObj, branchLimit = 1, fullLimit = 5) {
   const samples = [];
   let fullMatches = 0;
@@ -136,7 +154,7 @@ describe('Sample Tests', () => {
     ]);
   });
 
-  test('Person + Year + Person', async () => {
+  test('Person + Year + Person (as edges)', async () => {
     expect.assertions(6);
 
     const peopleId = (await loadFiles(['people.csv']))[0].classId;
@@ -174,5 +192,35 @@ describe('Sample Tests', () => {
       {'edge': '1932', 'source': 'Milos Forman', 'target': 'Milos Forman'},
       {'edge': '1933', 'source': 'Tom Skerritt', 'target': 'Tom Skerritt'}
     ]);
+  });
+
+  test('Person + Year (as aggregated nodes)', async () => {
+    expect.assertions(7);
+
+    const peopleId = (await loadFiles(['people.csv']))[0].classId;
+
+    // Interpretation
+    origraph.classes[peopleId].interpretAsNodes();
+    const yearsId = origraph.classes[peopleId].aggregate('born').classId;
+
+    let count = await origraph.classes[peopleId].table.countRows();
+    expect(count).toEqual(133);
+    count = await origraph.classes[yearsId].table.countRows();
+    expect(count).toEqual(-1); // TODO: this should at least be higher than 133
+
+    let samples = await getNodeToNodeSamples(origraph.classes[yearsId]);
+
+    expect(samples[0].node).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
+    expect(samples[0].source).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
+    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
+    expect(samples[0].target).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
+
+    samples = samples.map(sample => {
+      return {
+        person: sample.node.row.name,
+        born: sample.target.index
+      };
+    });
+    expect(samples).toEqual([ null ]);
   });
 });

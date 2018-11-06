@@ -233,7 +233,7 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   _getExistingTable (options) {
     // Check if the derived table has already been defined
-    const existingTableId = this.derivedTables.find(tableObj => {
+    const existingTable = this.derivedTables.find(tableObj => {
       return Object.entries(options).every(([optionName, optionValue]) => {
         if (optionName === 'type') {
           return tableObj.constructor.name === optionValue;
@@ -242,59 +242,7 @@ class Table extends TriggerableMixin(Introspectable) {
         }
       });
     });
-    return (existingTableId && this._origraph.tables[existingTableId]) || null;
-  }
-  shortestPathToTable (otherTable) {
-    // Dijkstra's algorithm...
-    const visited = {};
-    const distances = {};
-    const prevTables = {};
-    const visit = targetId => {
-      const targetTable = this._origraph.tables[targetId];
-      // Only check the unvisited derived and parent tables
-      const neighborList = Object.keys(targetTable._derivedTables)
-        .concat(targetTable.parentTables.map(parentTable => parentTable.tableId))
-        .filter(tableId => !visited[tableId]);
-      // Check and assign (or update) tentative distances to each neighbor
-      for (const neighborId of neighborList) {
-        if (distances[neighborId] === undefined) {
-          distances[neighborId] = Infinity;
-        }
-        if (distances[targetId] + 1 < distances[neighborId]) {
-          distances[neighborId] = distances[targetId] + 1;
-          prevTables[neighborId] = targetId;
-        }
-      }
-      // Okay, this table is officially visited; take it out of the running
-      // for future visits / checks
-      visited[targetId] = true;
-      delete distances[targetId];
-    };
-
-    // Start with this table
-    prevTables[this.tableId] = null;
-    distances[this.tableId] = 0;
-    let toVisit = Object.keys(distances);
-    while (toVisit.length > 0) {
-      // Visit the next table that has the shortest distance
-      toVisit.sort((a, b) => distances[a] - distances[b]);
-      let nextId = toVisit.shift();
-      if (nextId === otherTable.tableId) {
-        // Found otherTable! Send back the chain of connected tables
-        const chain = [];
-        while (prevTables[nextId] !== null) {
-          chain.unshift(this._origraph.tables[nextId]);
-          nextId = prevTables[nextId];
-        }
-        return chain;
-      } else {
-        // Visit the table
-        visit(nextId);
-        toVisit = Object.keys(distances);
-      }
-    }
-    // We didn't find it; there's no connection
-    return null;
+    return (existingTable && this._origraph.tables[existingTable.tableId]) || null;
   }
   aggregate (attribute) {
     const options = {

@@ -125,6 +125,15 @@ class NodeClass extends GenericClass {
     options.nodeClass = this;
     return edgeClass.connectToNodeClass(options);
   }
+  aggregate (attribute) {
+    const newNodeClass = super.aggregate(attribute);
+    this.connectToNodeClass({
+      otherNodeClass: newNodeClass,
+      attribute,
+      otherAttribute: null
+    });
+    return newNodeClass;
+  }
   disconnectAllEdges () {
     for (const edgeClass of this.connectedClasses()) {
       if (edgeClass.sourceClassId === this.classId) {
