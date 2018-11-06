@@ -24,7 +24,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
     return obj;
   }
   get name () {
-    return this.parentTable.name + '↦';
+    return '↦' + this._attribute;
   }
   deriveReducedAttribute (attr, func) {
     this._reduceAttributeFunctions[attr] = func;
