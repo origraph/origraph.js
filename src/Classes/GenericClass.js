@@ -31,9 +31,6 @@ class GenericClass extends Introspectable {
   get className () {
     return this._className || this.table.name;
   }
-  getHashTable (attribute) {
-    return attribute === null ? this.table : this.table.aggregate(attribute);
-  }
   get table () {
     return this._origraph.tables[this.tableId];
   }

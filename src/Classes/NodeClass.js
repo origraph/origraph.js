@@ -103,16 +103,33 @@ class NodeClass extends GenericClass {
     return this._origraph.newClass(options);
   }
   connectToNodeClass ({ otherNodeClass, attribute, otherAttribute }) {
-    const thisHash = this.getHashTable(attribute);
-    const otherHash = otherNodeClass.getHashTable(otherAttribute);
-    const connectedTable = thisHash.connect([otherHash]);
+    let thisHash, otherHash, sourceTableIds, targetTableIds;
+    if (attribute === null) {
+      thisHash = this.table;
+      sourceTableIds = [];
+    } else {
+      thisHash = this.table.aggregate(attribute);
+      sourceTableIds = [ thisHash.tableId ];
+    }
+    if (otherAttribute === null) {
+      otherHash = otherNodeClass.table;
+      targetTableIds = [];
+    } else {
+      otherHash = otherNodeClass.table.aggregate(otherAttribute);
+      targetTableIds = [ otherHash.tableId ];
+    }
+    // If we have a self edge connecting the same attribute, we can just use
+    // the AggregatedTable as the edge table; otherwise we need to create a
+    // ConnectedTable
+    const connectedTable = this === otherNodeClass && attribute === otherAttribute
+      ? thisHash : thisHash.connect([otherHash]);
     const newEdgeClass = this._origraph.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
       sourceClassId: this.classId,
-      sourceTableIds: [ thisHash.tableId ],
+      sourceTableIds,
       targetClassId: otherNodeClass.classId,
-      targetTableIds: [ otherHash.tableId ]
+      targetTableIds
     });
     this.edgeClassIds[newEdgeClass.classId] = true;
     otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;

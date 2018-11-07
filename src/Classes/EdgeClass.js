@@ -161,8 +161,8 @@ class EdgeClass extends GenericClass {
     const sourceClass = this._origraph.classes[this.sourceClassId];
     sourceClass.edgeClassIds[this.classId] = true;
 
-    const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
-    const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.getHashTable(nodeAttribute);
+    const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.table.aggregate(nodeAttribute);
     this.sourceTableIds = [ edgeHash.connect([nodeHash]).tableId ];
     if (edgeAttribute !== null) {
       this.sourceTableIds.unshift(edgeHash.tableId);
@@ -186,8 +186,8 @@ class EdgeClass extends GenericClass {
     const targetClass = this._origraph.classes[this.targetClassId];
     targetClass.edgeClassIds[this.classId] = true;
 
-    const edgeHash = edgeAttribute === null ? this.table : this.getHashTable(edgeAttribute);
-    const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.getHashTable(nodeAttribute);
+    const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.table.aggregate(nodeAttribute);
     this.targetTableIds = [ edgeHash.connect([nodeHash]).tableId ];
     if (edgeAttribute !== null) {
       this.targetTableIds.unshift(edgeHash.tableId);

@@ -170,7 +170,7 @@ describe('Sample Tests', () => {
     let count = await origraph.classes[peopleId].table.countRows();
     expect(count).toEqual(133);
     count = await origraph.classes[yearsId].table.countRows();
-    expect(count).toEqual(-1); // TODO: this should at least be higher than 133
+    expect(count).toEqual(53); // TODO: this should at least be higher than 133
 
     let samples = await getEdgeToNodeSamples(origraph.classes[yearsId]);
 
@@ -206,7 +206,7 @@ describe('Sample Tests', () => {
     let count = await origraph.classes[peopleId].table.countRows();
     expect(count).toEqual(133);
     count = await origraph.classes[yearsId].table.countRows();
-    expect(count).toEqual(-1); // TODO: this should at least be higher than 133
+    expect(count).toEqual(53); // TODO: this should at least be higher than 133
 
     let samples = await getNodeToNodeSamples(origraph.classes[yearsId]);
 
