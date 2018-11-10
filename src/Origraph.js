@@ -232,6 +232,151 @@ class Origraph extends TriggerableMixin(class {}) {
   registerPlugin (name, plugin) {
     this.plugins[name] = plugin;
   }
+  getNetworkModelGraph (includeDummies = false) {
+    const edgeClasses = [];
+    let graph = {
+      classes: [],
+      classLookup: {},
+      connections: [],
+      connectionLookup: {}
+    };
+
+    const classList = Object.values(this.classes);
+
+    for (const classObj of classList) {
+      // Add and index the class as a node
+      graph.classLookup[classObj.classId] = graph.classes.length;
+      const classSpec = classObj._toRawObject();
+      classSpec.type = classObj.constructor.name;
+      graph.classes.push(classSpec);
+
+      if (classObj.type === 'Edge') {
+        // Store the edge class so we can create connections later
+        edgeClasses.push(classObj);
+      } else if (classObj.type === 'Node' && includeDummies) {
+        // Create a "potential" connection + dummy node
+        graph.connections.push({
+          id: `${classObj.classID}>dummy`,
+          source: graph.classes.length,
+          target: graph.classes.length,
+          directed: false,
+          location: 'node',
+          dummy: true
+        });
+        graph.nodes.push({ dummy: true });
+      }
+
+      // Create existing connections
+      edgeClasses.forEach(edgeClass => {
+        if (edgeClass.sourceClassId !== null) {
+          // Connect the source node class to the edge class
+          graph.connections.push({
+            id: `${edgeClass.sourceClassId}>${edgeClass.classId}`,
+            source: graph.classLookup[edgeClass.sourceClassId],
+            target: graph.classLookup[edgeClass.classId],
+            directed: edgeClass.directed,
+            location: 'source'
+          });
+        } else if (includeDummies) {
+          // Create a "potential" connection + dummy source class
+          graph.connections.push({
+            id: `dummy>${edgeClass.classId}`,
+            source: graph.classes.length,
+            target: graph.classLookup[edgeClass.classId],
+            directed: edgeClass.directed,
+            location: 'source',
+            dummy: true
+          });
+          graph.classes.push({ dummy: true });
+        }
+        if (edgeClass.targetClassId !== null) {
+          // Connect the edge class to the target node class
+          graph.connections.push({
+            id: `${edgeClass.classId}>${edgeClass.targetClassId}`,
+            source: graph.classLookup[edgeClass.classId],
+            target: graph.classLookup[edgeClass.targetClassId],
+            directed: edgeClass.directed,
+            location: 'target'
+          });
+        } else if (includeDummies) {
+          // Create a "potential" connection + dummy target class
+          graph.connections.push({
+            id: `${edgeClass.classId}>dummy`,
+            source: graph.classLookup[edgeClass.classId],
+            target: graph.classes.length,
+            directed: edgeClass.directed,
+            location: 'target',
+            dummy: true
+          });
+          graph.classes.push({ dummy: true });
+        }
+      });
+    }
+
+    Object.entries(this.classes).forEach(([selector, classObj]) => {
+      // Add and index the class as a node
+      graph.classLookup[classObj.classId] = graph.nodes.length;
+      graph.nodes.push({ classObj });
+      if (classObj.type === 'Edge') {
+        // Store the edge class so we can create connections later
+        edgeClasses.push(classObj);
+      } else if (classObj.type === 'Node') {
+        // Create a "potential" connection + dummy node
+        graph.edges.push({
+          id: `${classObj.classId}>dummy`,
+          source: graph.nodes.length - 1,
+          target: graph.nodes.length,
+          directed: false,
+          location: 'node',
+          dummy: true
+        });
+        graph.nodes.push({ dummy: true });
+      }
+    });
+
+    return graph;
+  }
+  getTableDependencyGraph () {
+    const graph = {
+      tables: [],
+      tableLookup: {},
+      tableLinks: [],
+      tableLinkLookup: {}
+    };
+    const tableList = Object.values(this.tables);
+    for (const table of tableList) {
+      const tableSpec = table._toRawObject();
+      tableSpec.type = table.constructor.name;
+      graph.tableLookup[table.tableId] = graph.tables.length;
+      graph.tables.push(tableSpec);
+    }
+    // Fill the graph with links based on parentTables...
+    for (const table of tableList) {
+      for (const parentTable of table.parentTables) {
+        graph.tableLinkLookup[parentTable.tableId + table.tableId] =
+          graph.tableLinks.length;
+        graph.tableLinks.push({
+          source: graph.tableLookup[parentTable.tableId],
+          target: graph.tableLookup[table.tableId]
+        });
+      }
+    }
+    // Validate that all of the derivedTables links are represented
+    for (const table of tableList) {
+      for (const derivedTable of table.derivedTables) {
+        if (graph.tableLinkLookup[table.tableId + derivedTable.tableId] === undefined) {
+          throw new Error(`Missing derived table link: ${table.tableId} => ${derivedTable.tableId}`);
+        }
+      }
+    }
+    return graph;
+  }
+  createFullSchemaGraph () {
+    // TODO: when we have support for multiple network models, enable generating
+    // a new model based on the current one's class and table structure (connect
+    // getNetworkModelGraph() and getTableDependencyGraph() together)
+    throw new Error(`unimplemented`);
+  }
 }
 
 export default Origraph;
