@@ -1,8 +1,7 @@
 import Table from './Table.js';
 import SingleParentMixin from './SingleParentMixin.js';
-import DuplicatableAttributesMixin from './DuplicatableAttributesMixin.js';
 
-class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)) {
+class ExpandedTable extends SingleParentMixin(Table) {
   constructor (options) {
     super(options);
     this._attribute = options.attribute;
@@ -33,7 +32,6 @@ class ExpandedTable extends DuplicatableAttributesMixin(SingleParentMixin(Table)
           row,
           itemsToConnect: [ wrappedParent ]
         });
-        this._duplicateAttributes(newItem);
         if (this._finishItem(newItem)) {
           yield newItem;
         }

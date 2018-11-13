@@ -1,7 +1,6 @@
 import Table from './Table.js';
-import DuplicatableAttributesMixin from './DuplicatableAttributesMixin.js';
 
-class ConnectedTable extends DuplicatableAttributesMixin(Table) {
+class ConnectedTable extends Table {
   get name () {
     return this.parentTables.map(parentTable => parentTable.name).join('⨯');
   }
@@ -30,7 +29,6 @@ class ConnectedTable extends DuplicatableAttributesMixin(Table) {
         index,
         itemsToConnect: parentTables.map(table => table._cache[index])
       });
-      this._duplicateAttributes(newItem);
       if (this._finishItem(newItem)) {
         yield newItem;
       }

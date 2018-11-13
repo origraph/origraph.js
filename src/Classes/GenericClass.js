@@ -1,13 +1,14 @@
 import Introspectable from '../Common/Introspectable.js';
+import GenericWrapper from '../Wrappers/GenericWrapper.js';
 
 class GenericClass extends Introspectable {
   constructor (options) {
     super();
-    this._origraph = options.origraph;
+    this.model = options.model;
     this.classId = options.classId;
     this.tableId = options.tableId;
-    if (!this._origraph || !this.classId || !this.tableId) {
-      throw new Error(`_origraph, classId, and tableId are required`);
+    if (!this.model || !this.classId || !this.tableId) {
+      throw new Error(`model, classId, and tableId are required`);
     }
 
     this._className = options.className || null;
@@ -23,7 +24,7 @@ class GenericClass extends Introspectable {
   }
   setClassName (value) {
     this._className = value;
-    this._origraph.saveClasses();
+    this.model.trigger('update');
   }
   get hasCustomName () {
     return this._className !== null;
@@ -32,59 +33,61 @@ class GenericClass extends Introspectable {
     return this._className || this.table.name;
   }
   get table () {
-    return this._origraph.tables[this.tableId];
+    return this.model.tables[this.tableId];
   }
   _wrap (options) {
     options.classObj = this;
-    return new this._origraph.WRAPPERS.GenericWrapper(options);
+    return new GenericWrapper(options);
   }
   interpretAsNodes () {
     const options = this._toRawObject();
     options.type = 'NodeClass';
+    options.overwrite = true;
     this.table.reset();
-    return this._origraph.newClass(options);
+    return this.model.createClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
     options.type = 'EdgeClass';
+    options.overwrite = true;
     this.table.reset();
-    return this._origraph.newClass(options);
+    return this.model.createClass(options);
   }
-  _deriveGenericClass (newTable, type = this.constructor.name) {
-    return this._origraph.newClass({
+  _deriveNewClass (newTable, type = this.constructor.name) {
+    return this.model.createClass({
       tableId: newTable.tableId,
       type
     });
   }
   aggregate (attribute) {
-    return this._deriveGenericClass(this.table.aggregate(attribute));
+    return this._deriveNewClass(this.table.aggregate(attribute));
   }
   expand (attribute, delimiter) {
-    return this._deriveGenericClass(this.table.expand(attribute, delimiter));
+    return this._deriveNewClass(this.table.expand(attribute, delimiter));
   }
   closedFacet (attribute, values) {
     return this.table.closedFacet(attribute, values).map(newTable => {
-      return this._deriveGenericClass(newTable);
+      return this._deriveNewClass(newTable);
     });
   }
   async * openFacet (attribute) {
     for await (const newTable of this.table.openFacet(attribute)) {
-      yield this._deriveGenericClass(newTable);
+      yield this._deriveNewClass(newTable);
     }
   }
   closedTranspose (indexes) {
     return this.table.closedTranspose(indexes).map(newTable => {
-      return this._deriveGenericClass(newTable);
+      return this._deriveNewClass(newTable);
     });
   }
   async * openTranspose () {
     for await (const newTable of this.table.openTranspose()) {
-      yield this._deriveGenericClass(newTable);
+      yield this._deriveNewClass(newTable);
     }
   }
   delete () {
-    delete this._origraph.classes[this.classId];
-    this._origraph.saveClasses();
+    delete this.model.classes[this.classId];
+    this.model.trigger('update');
   }
 }
 Object.defineProperty(GenericClass, 'type', {

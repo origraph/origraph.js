@@ -3,17 +3,16 @@ const loadFiles = require('./loadFiles.js');
 
 describe('Document Tests', () => {
   afterAll(async () => {
-    origraph.deleteAllClasses();
-    origraph.deleteAllUnusedTables();
+    origraph.deleteModel();
   });
 
   test('load and read a CSV file', async () => {
     expect.assertions(2);
 
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    const testTable = (await loadFiles(['csvTest.csv']))[0].table;
 
     const result = [];
-    for await (const wrappedItem of origraph.tables[testId].iterate({ limit: Infinity })) {
+    for await (const wrappedItem of testTable.iterate({ limit: Infinity })) {
       result.push(wrappedItem.row);
     }
 
@@ -30,16 +29,16 @@ describe('Document Tests', () => {
     ]);
 
     // Verify that it was a StaticTable
-    expect(origraph.tables[testId]).toBeInstanceOf(origraph.TABLES.StaticTable);
+    expect(testTable.type).toEqual('Static');
   });
 
   test('load and read a JSON file', async () => {
     expect.assertions(2);
 
-    let testId = (await loadFiles(['miserables.json']))[0].tableId;
+    let testTable = (await loadFiles(['miserables.json']))[0].table;
 
     let result;
-    for await (const wrappedItem of origraph.tables[testId].iterate({ limit: 1 })) {
+    for await (const wrappedItem of testTable.iterate({ limit: 1 })) {
       result = wrappedItem.row;
     }
 
@@ -53,6 +52,6 @@ describe('Document Tests', () => {
     ]);
 
     // Verify that it was a StaticDictTable
-    expect(origraph.tables[testId]).toBeInstanceOf(origraph.TABLES.StaticDictTable);
+    expect(testTable.type).toEqual('StaticDict');
   });
 });

@@ -1,4 +1,5 @@
 const origraph = require('../dist/origraph.cjs.js');
+const mime = require('mime-types');
 const fs = require('fs');
 
 module.exports = async function (filenames) {
@@ -6,9 +7,9 @@ module.exports = async function (filenames) {
     return new Promise((resolve, reject) => {
       fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
         if (err) { reject(err); }
-        resolve(await origraph.addStringAsStaticTable({
+        resolve(await origraph.currentModel.addStringAsStaticTable({
           name: filename,
-          extension: origraph.mime.extension(origraph.mime.lookup(filename)),
+          extension: mime.extension(mime.lookup(filename)),
           text
         }));
       });

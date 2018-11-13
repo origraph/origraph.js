@@ -1,4 +1,5 @@
 import GenericClass from './GenericClass.js';
+import EdgeWrapper from '../Wrappers/EdgeWrapper.js';
 
 class EdgeClass extends GenericClass {
   constructor (options) {
@@ -26,7 +27,7 @@ class EdgeClass extends GenericClass {
   }
   _wrap (options) {
     options.classObj = this;
-    return new this._origraph.WRAPPERS.EdgeWrapper(options);
+    return new EdgeWrapper(options);
   }
   _splitTableIdList (tableIdList, otherClass) {
     let result = {
@@ -44,12 +45,12 @@ class EdgeClass extends GenericClass {
       // StaticTable and StaticDictTable
       let staticExists = false;
       let tableDistances = tableIdList.map((tableId, index) => {
-        staticExists = staticExists || this._origraph.tables[tableId].type.startsWith('Static');
+        staticExists = staticExists || this.model.tables[tableId].type.startsWith('Static');
         return { tableId, index, dist: Math.abs(tableIdList / 2 - index) };
       });
       if (staticExists) {
         tableDistances = tableDistances.filter(({ tableId }) => {
-          return this._origraph.tables[tableId].type.startsWith('Static');
+          return this.model.tables[tableId].type.startsWith('Static');
         });
       }
       const { tableId, index } = tableDistances.sort((a, b) => a.dist - b.dist)[0];
@@ -61,19 +62,19 @@ class EdgeClass extends GenericClass {
   }
   interpretAsNodes () {
     const temp = this._toRawObject();
-    this.delete();
+    this.disconnectAllEdges();
     temp.type = 'NodeClass';
-    delete temp.classId;
-    const newNodeClass = this._origraph.createClass(temp);
+    temp.overwrite = true;
+    const newNodeClass = this.model.createClass(temp);
 
     if (temp.sourceClassId) {
-      const sourceClass = this._origraph.classes[temp.sourceClassId];
+      const sourceClass = this.model.classes[temp.sourceClassId];
       const {
         nodeTableIdList,
         edgeTableId,
         edgeTableIdList
       } = this._splitTableIdList(temp.sourceTableIds, sourceClass);
-      const sourceEdgeClass = this._origraph.createClass({
+      const sourceEdgeClass = this.model.createClass({
         type: 'EdgeClass',
         tableId: edgeTableId,
         directed: temp.directed,
@@ -86,13 +87,13 @@ class EdgeClass extends GenericClass {
       newNodeClass.edgeClassIds[sourceEdgeClass.classId] = true;
     }
     if (temp.targetClassId && temp.sourceClassId !== temp.targetClassId) {
-      const targetClass = this._origraph.classes[temp.targetClassId];
+      const targetClass = this.model.classes[temp.targetClassId];
       const {
         nodeTableIdList,
         edgeTableId,
         edgeTableIdList
       } = this._splitTableIdList(temp.targetTableIds, targetClass);
-      const targetEdgeClass = this._origraph.createClass({
+      const targetEdgeClass = this.model.createClass({
         type: 'EdgeClass',
         tableId: edgeTableId,
         directed: temp.directed,
@@ -105,29 +106,28 @@ class EdgeClass extends GenericClass {
       newNodeClass.edgeClassIds[targetEdgeClass.classId] = true;
     }
     this.table.reset();
-    this._origraph.saveClasses();
+    this.model.trigger('update');
     return newNodeClass;
   }
   * connectedClasses () {
     if (this.sourceClassId) {
-      yield this._origraph.classes[this.sourceClassId];
+      yield this.model.classes[this.sourceClassId];
     }
     if (this.targetClassId) {
-      yield this._origraph.classes[this.targetClassId];
+      yield this.model.classes[this.targetClassId];
     }
   }
   interpretAsEdges () {
     return this;
   }
-  connectToNodeClass ({ nodeClass, side, nodeAttribute, edgeAttribute }) {
-    if (side === 'source') {
-      this.connectSource({ nodeClass, nodeAttribute, edgeAttribute });
-    } else if (side === 'target') {
-      this.connectTarget({ nodeClass, nodeAttribute, edgeAttribute });
+  connectToNodeClass (options) {
+    if (options.side === 'source') {
+      this.connectSource(options);
+    } else if (options.side === 'target') {
+      this.connectTarget(options);
     } else {
-      throw new Error(`PoliticalOutsiderError: "${side}" is an invalid side`);
+      throw new Error(`PoliticalOutsiderError: "${options.side}" is an invalid side`);
     }
-    this._origraph.saveClasses();
   }
   toggleDirection (directed) {
     if (directed === false || this.swappedDirection === true) {
@@ -146,19 +146,18 @@ class EdgeClass extends GenericClass {
       this.targetTableIds = temp;
       this.swappedDirection = true;
     }
-    this._origraph.saveClasses();
+    this.model.trigger('update');
   }
   connectSource ({
     nodeClass,
     nodeAttribute = null,
-    edgeAttribute = null,
-    skipSave = false
+    edgeAttribute = null
   } = {}) {
     if (this.sourceClassId) {
-      this.disconnectSource({ skipSave: true });
+      this.disconnectSource();
     }
     this.sourceClassId = nodeClass.classId;
-    const sourceClass = this._origraph.classes[this.sourceClassId];
+    const sourceClass = this.model.classes[this.sourceClassId];
     sourceClass.edgeClassIds[this.classId] = true;
 
     const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
@@ -170,20 +169,18 @@ class EdgeClass extends GenericClass {
     if (nodeAttribute !== null) {
       this.sourceTableIds.push(nodeHash.tableId);
     }
-
-    if (!skipSave) { this._origraph.saveClasses(); }
+    this.model.trigger('update');
   }
   connectTarget ({
     nodeClass,
     nodeAttribute = null,
-    edgeAttribute = null,
-    skipSave = false
+    edgeAttribute = null
   } = {}) {
     if (this.targetClassId) {
-      this.disconnectTarget({ skipSave: true });
+      this.disconnectTarget();
     }
     this.targetClassId = nodeClass.classId;
-    const targetClass = this._origraph.classes[this.targetClassId];
+    const targetClass = this.model.classes[this.targetClassId];
     targetClass.edgeClassIds[this.classId] = true;
 
     const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
@@ -195,30 +192,29 @@ class EdgeClass extends GenericClass {
     if (nodeAttribute !== null) {
       this.targetTableIds.push(nodeHash.tableId);
     }
-
-    if (!skipSave) { this._origraph.saveClasses(); }
+    this.model.trigger('update');
   }
-  disconnectSource ({ skipSave = false } = {}) {
-    const existingSourceClass = this._origraph.classes[this.sourceClassId];
+  disconnectSource () {
+    const existingSourceClass = this.model.classes[this.sourceClassId];
     if (existingSourceClass) {
       delete existingSourceClass.edgeClassIds[this.classId];
     }
     this.sourceTableIds = [];
     this.sourceClassId = null;
-    if (!skipSave) { this._origraph.saveClasses(); }
+    this.model.trigger('update');
   }
-  disconnectTarget ({ skipSave = false } = {}) {
-    const existingTargetClass = this._origraph.classes[this.targetClassId];
+  disconnectTarget () {
+    const existingTargetClass = this.model.classes[this.targetClassId];
     if (existingTargetClass) {
       delete existingTargetClass.edgeClassIds[this.classId];
     }
     this.targetTableIds = [];
     this.targetClassId = null;
-    if (!skipSave) { this._origraph.saveClasses(); }
+    this.model.trigger('update');
   }
   delete () {
-    this.disconnectSource({ skipSave: true });
-    this.disconnectTarget({ skipSave: true });
+    this.disconnectSource();
+    this.disconnectTarget();
     super.delete();
   }
 }

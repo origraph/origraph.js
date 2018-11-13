@@ -3,35 +3,35 @@ const TriggerableMixin = function (superclass) {
     constructor () {
       super(...arguments);
       this._instanceOfTriggerableMixin = true;
-      this.eventHandlers = {};
-      this.stickyTriggers = {};
+      this._eventHandlers = {};
+      this._stickyTriggers = {};
     }
     on (eventName, callback, allowDuplicateListeners) {
-      if (!this.eventHandlers[eventName]) {
-        this.eventHandlers[eventName] = [];
+      if (!this._eventHandlers[eventName]) {
+        this._eventHandlers[eventName] = [];
       }
       if (!allowDuplicateListeners) {
-        if (this.eventHandlers[eventName].indexOf(callback) !== -1) {
+        if (this._eventHandlers[eventName].indexOf(callback) !== -1) {
           return;
         }
       }
-      this.eventHandlers[eventName].push(callback);
+      this._eventHandlers[eventName].push(callback);
     }
     off (eventName, callback) {
-      if (this.eventHandlers[eventName]) {
+      if (this._eventHandlers[eventName]) {
         if (!callback) {
-          delete this.eventHandlers[eventName];
+          delete this._eventHandlers[eventName];
         } else {
-          let index = this.eventHandlers[eventName].indexOf(callback);
+          let index = this._eventHandlers[eventName].indexOf(callback);
           if (index >= 0) {
-            this.eventHandlers[eventName].splice(index, 1);
+            this._eventHandlers[eventName].splice(index, 1);
           }
         }
       }
     }
     trigger (eventName, ...args) {
-      if (this.eventHandlers[eventName]) {
-        this.eventHandlers[eventName].forEach(callback => {
+      if (this._eventHandlers[eventName]) {
+        this._eventHandlers[eventName].forEach(callback => {
           setTimeout(() => { // Add timeout to prevent blocking
             callback.apply(this, args);
           }, 0);
@@ -39,12 +39,12 @@ const TriggerableMixin = function (superclass) {
       }
     }
     stickyTrigger (eventName, argObj, delay = 10) {
-      this.stickyTriggers[eventName] = this.stickyTriggers[eventName] || { argObj: {} };
-      Object.assign(this.stickyTriggers[eventName].argObj, argObj);
-      clearTimeout(this.stickyTriggers.timeout);
-      this.stickyTriggers.timeout = setTimeout(() => {
-        let argObj = this.stickyTriggers[eventName].argObj;
-        delete this.stickyTriggers[eventName];
+      this._stickyTriggers[eventName] = this._stickyTriggers[eventName] || { argObj: {} };
+      Object.assign(this._stickyTriggers[eventName].argObj, argObj);
+      clearTimeout(this._stickyTriggers.timeout);
+      this._stickyTriggers.timeout = setTimeout(() => {
+        let argObj = this._stickyTriggers[eventName].argObj;
+        delete this._stickyTriggers[eventName];
         this.trigger(eventName, argObj);
       }, delay);
     }
