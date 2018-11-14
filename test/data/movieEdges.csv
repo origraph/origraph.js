@@ -1,4 +1,4 @@
-edgeID,sourceID,targetID,edgeType
+edgeID,personID,movieID,edgeType
 7,0,8,ACTED_IN
 6,0,7,PRODUCED
 5,0,6,DIRECTED

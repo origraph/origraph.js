@@ -40,6 +40,12 @@ class NodeClass extends GenericClass {
       } else {
         options.sourceClassId = options.targetClassId = edgeClass.sourceClassId;
       }
+      // If there is a node class on the other end of edgeClass, add our
+      // id to its list of connections
+      const nodeClass = this.model.classes[options.sourceClassId];
+      if (nodeClass) {
+        nodeClass.edgeClassIds[this.classId] = true;
+      }
 
       // tableId lists should emanate out from the (new) edge table; assuming
       // (for a moment) that isSource === true, we'd construct the tableId list
@@ -78,6 +84,14 @@ class NodeClass extends GenericClass {
       // Okay, now we know how to set source / target ids
       options.sourceClassId = sourceEdgeClass.classId;
       options.targetClassId = targetEdgeClass.classId;
+      // If node classes exist on the other end of those edges, add this class
+      // to their edgeClassIds
+      if (this.model.classes[options.sourceClassId]) {
+        this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
+      }
+      if (this.model.classes[options.targetClassId]) {
+        this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
+      }
       // Concatenate the intermediate tableId lists, emanating out from the
       // (new) edge table
       options.sourceTableIds = sourceEdgeClass.targetTableIds.slice().reverse()
@@ -124,18 +138,18 @@ class NodeClass extends GenericClass {
     // ConnectedTable
     const connectedTable = this === otherNodeClass && attribute === otherAttribute
       ? thisHash : thisHash.connect([otherHash]);
-    return this.model.createClass({
+    const newEdgeClass = this.model.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
       sourceClassId: this.classId,
       sourceTableIds,
       targetClassId: otherNodeClass.classId,
-      targetTableIds,
-      preSave: newEdgeClass => {
-        this.edgeClassIds[newEdgeClass.classId] = true;
-        otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;
-      }
+      targetTableIds
     });
+    this.edgeClassIds[newEdgeClass.classId] = true;
+    otherNodeClass.edgeClassIds[newEdgeClass.classId] = true;
+    this.model.trigger('update');
+    return newEdgeClass;
   }
   connectToEdgeClass (options) {
     const edgeClass = options.edgeClass;

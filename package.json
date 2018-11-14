@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/origraph/origraph.js#readme",
   "devDependencies": {
-    "@babel/core": "^7.1.2",
+    "@babel/core": "^7.1.5",
     "@babel/plugin-proposal-async-generator-functions": "^7.1.0",
-    "@babel/preset-env": "^7.1.0",
+    "@babel/preset-env": "^7.1.5",
     "babel-core": "^7.0.0-0",
     "babel-jest": "^23.6.0",
     "coveralls": "^3.0.2",
     "jest": "^23.6.0",
-    "rollup": "^0.66.6",
+    "rollup": "^0.67.1",
     "rollup-plugin-babel": "^4.0.3",
     "rollup-plugin-commonjs": "^9.2.0",
     "rollup-plugin-json": "^3.1.0",
@@ -50,7 +50,7 @@
   "dependencies": {
     "datalib": "^1.9.1",
     "filereader": "^0.10.3",
-    "mime-types": "^2.1.20"
+    "mime-types": "^2.1.21"
   },
   "peerDependencies": {
     "d3": "^5.4.0"

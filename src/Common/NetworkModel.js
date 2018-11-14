@@ -13,9 +13,6 @@ const DATALIB_FORMATS = {
   'treejson': 'treejson'
 };
 
-let NEXT_CLASS_ID = 1;
-let NEXT_TABLE_ID = 1;
-
 class NetworkModel extends TriggerableMixin(class {}) {
   constructor ({
     origraph,
@@ -32,6 +29,9 @@ class NetworkModel extends TriggerableMixin(class {}) {
     this.annotations = annotations;
     this.classes = {};
     this.tables = {};
+
+    this._nextClassId = 1;
+    this._nextTableId = 1;
 
     for (const classObj of Object.values(classes)) {
       this.classes[classObj.classId] = this.hydrate(classObj, CLASSES);
@@ -76,8 +76,8 @@ class NetworkModel extends TriggerableMixin(class {}) {
   }
   createTable (options) {
     while (!options.tableId || (!options.overwrite && this.tables[options.tableId])) {
-      options.tableId = `table${NEXT_TABLE_ID}`;
-      NEXT_TABLE_ID += 1;
+      options.tableId = `table${this._nextTableId}`;
+      this._nextTableId += 1;
     }
     options.model = this;
     this.tables[options.tableId] = new TABLES[options.type](options);
@@ -86,8 +86,8 @@ class NetworkModel extends TriggerableMixin(class {}) {
   }
   createClass (options = { selector: `empty` }) {
     while (!options.classId || (!options.overwrite && this.classes[options.classId])) {
-      options.classId = `class${NEXT_CLASS_ID}`;
-      NEXT_CLASS_ID += 1;
+      options.classId = `class${this._nextClassId}`;
+      this._nextClassId += 1;
     }
     options.model = this;
     this.classes[options.classId] = new CLASSES[options.type](options);
@@ -166,14 +166,89 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     this.trigger('update');
   }
-  /*
+  async getSampleGraph ({
+    rootClass = null,
+    branchLimit = Infinity,
+    nodeLimit = Infinity,
+    edgeLimit = Infinity,
+    tripleLimit = Infinity
+  } = {}) {
+    const sampleGraph = {
+      nodes: [],
+      nodeLookup: {},
+      edges: [],
+      edgeLookup: {}
+    };
+
+    let numTriples = 0;
+    let numEdgeInstances = 0;
+    const addNode = node => {
+      if (!sampleGraph.nodeLookup[node.instanceId]) {
+        sampleGraph.nodeLookup[node.instanceId] = sampleGraph.nodes.length;
+        sampleGraph.nodes.push(node);
+      }
+      return sampleGraph.nodes.length <= nodeLimit;
+    };
+    const addEdge = edge => {
+      if (!sampleGraph.edgeLookup[edge.instanceId]) {
+        sampleGraph.edgeLookup[edge.instanceId] = {
+          instance: edge,
+          pairwiseInstances: []
+        };
+        numEdgeInstances++;
+      }
+      return numEdgeInstances <= edgeLimit;
+    };
+    const addTriple = (source, edge, target) => {
+      if (addNode(source) && addNode(target) && addEdge(edge)) {
+        sampleGraph.edgeLookup[edge.instanceId].pairwiseInstances
+          .push(sampleGraph.edges.length);
+        sampleGraph.edges.push({
+          source: sampleGraph.nodeLookup[source.instanceId],
+          target: sampleGraph.nodeLookup[target.instanceId],
+          edgeInstance: edge
+        });
+        numTriples++;
+        return numTriples <= tripleLimit;
+      } else {
+        return false;
+      }
+    };
+
+    let classList = rootClass ? [rootClass] : Object.values(this.classes);
+    for (const classObj of classList) {
+      if (classObj.type === 'Node') {
+        for await (const node of classObj.table.iterate()) {
+          if (!addNode(node)) {
+            return sampleGraph;
+          }
+          for await (const { source, edge, target } of node.pairwiseNeighborhood({ limit: branchLimit })) {
+            if (!addTriple(source, edge, target)) {
+              return sampleGraph;
+            }
+          }
+        }
+      } else if (classObj.type === 'Edge') {
+        for await (const edge of classObj.table.iterate()) {
+          if (!addEdge(edge)) {
+            return sampleGraph;
+          }
+          for await (const { source, target } of edge.pairwiseEdges({ limit: branchLimit })) {
+            if (!addTriple(source, edge, target)) {
+              return sampleGraph;
+            }
+          }
+        }
+      }
+    }
+    return sampleGraph;
+  }
   getNetworkModelGraph (includeDummies = false) {
     const edgeClasses = [];
     let graph = {
       classes: [],
       classLookup: {},
-      connections: [],
-      connectionLookup: {}
+      classConnections: []
     };
 
     const classList = Object.values(this.classes);
@@ -186,11 +261,11 @@ class NetworkModel extends TriggerableMixin(class {}) {
       graph.classes.push(classSpec);
 
       if (classObj.type === 'Edge') {
-        // Store the edge class so we can create connections later
+        // Store the edge class so we can create classConnections later
         edgeClasses.push(classObj);
       } else if (classObj.type === 'Node' && includeDummies) {
         // Create a "potential" connection + dummy node
-        graph.connections.push({
+        graph.classConnections.push({
           id: `${classObj.classID}>dummy`,
           source: graph.classes.length,
           target: graph.classes.length,
@@ -201,11 +276,11 @@ class NetworkModel extends TriggerableMixin(class {}) {
         graph.nodes.push({ dummy: true });
       }
 
-      // Create existing connections
+      // Create existing classConnections
       edgeClasses.forEach(edgeClass => {
         if (edgeClass.sourceClassId !== null) {
           // Connect the source node class to the edge class
-          graph.connections.push({
+          graph.classConnections.push({
             id: `${edgeClass.sourceClassId}>${edgeClass.classId}`,
             source: graph.classLookup[edgeClass.sourceClassId],
             target: graph.classLookup[edgeClass.classId],
@@ -214,7 +289,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
           });
         } else if (includeDummies) {
           // Create a "potential" connection + dummy source class
-          graph.connections.push({
+          graph.classConnections.push({
             id: `dummy>${edgeClass.classId}`,
             source: graph.classes.length,
             target: graph.classLookup[edgeClass.classId],
@@ -226,7 +301,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
         }
         if (edgeClass.targetClassId !== null) {
           // Connect the edge class to the target node class
-          graph.connections.push({
+          graph.classConnections.push({
             id: `${edgeClass.classId}>${edgeClass.targetClassId}`,
             source: graph.classLookup[edgeClass.classId],
             target: graph.classLookup[edgeClass.targetClassId],
@@ -235,7 +310,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
           });
         } else if (includeDummies) {
           // Create a "potential" connection + dummy target class
-          graph.connections.push({
+          graph.classConnections.push({
             id: `${edgeClass.classId}>dummy`,
             source: graph.classLookup[edgeClass.classId],
             target: graph.classes.length,
@@ -248,35 +323,13 @@ class NetworkModel extends TriggerableMixin(class {}) {
       });
     }
 
-    Object.entries(this.classes).forEach(([selector, classObj]) => {
-      // Add and index the class as a node
-      graph.classLookup[classObj.classId] = graph.nodes.length;
-      graph.nodes.push({ classObj });
-      if (classObj.type === 'Edge') {
-        // Store the edge class so we can create connections later
-        edgeClasses.push(classObj);
-      } else if (classObj.type === 'Node') {
-        // Create a "potential" connection + dummy node
-        graph.edges.push({
-          id: `${classObj.classId}>dummy`,
-          source: graph.nodes.length - 1,
-          target: graph.nodes.length,
-          directed: false,
-          location: 'node',
-          dummy: true
-        });
-        graph.nodes.push({ dummy: true });
-      }
-    });
-
     return graph;
   }
   getTableDependencyGraph () {
     const graph = {
       tables: [],
       tableLookup: {},
-      tableLinks: [],
-      tableLinkLookup: {}
+      tableLinks: []
     };
     const tableList = Object.values(this.tables);
     for (const table of tableList) {
@@ -288,30 +341,66 @@ class NetworkModel extends TriggerableMixin(class {}) {
     // Fill the graph with links based on parentTables...
     for (const table of tableList) {
       for (const parentTable of table.parentTables) {
-        graph.tableLinkLookup[parentTable.tableId + table.tableId] =
-          graph.tableLinks.length;
         graph.tableLinks.push({
           source: graph.tableLookup[parentTable.tableId],
           target: graph.tableLookup[table.tableId]
         });
       }
     }
-    // Validate that all of the derivedTables links are represented
-    for (const table of tableList) {
-      for (const derivedTable of table.derivedTables) {
-        if (graph.tableLinkLookup[table.tableId + derivedTable.tableId] === undefined) {
-          throw new Error(`Missing derived table link: ${table.tableId} => ${derivedTable.tableId}`);
-        }
-      }
-    }
     return graph;
   }
-  createFullSchemaGraph () {
-    // TODO: when we have support for multiple network models, enable generating
-    // a new model based on the current one's class and table structure (connect
-    // getNetworkModelGraph() and getTableDependencyGraph() together)
-    throw new Error(`unimplemented`);
+  getFullSchemaGraph () {
+    return Object.assign(this.getNetworkModelGraph(), this.getTableDependencyGraph());
   }
-  */
+  createSchemaModel () {
+    const graph = this.getFullSchemaGraph();
+    const newModel = this._origraph.createModel({ name: this.name + '_schema' });
+    let classes = newModel.addStaticTable({
+      data: graph.classes,
+      name: 'Classes'
+    }).interpretAsNodes();
+    let classConnections = newModel.addStaticTable({
+      data: graph.classConnections,
+      name: 'Class Connections'
+    }).interpretAsEdges();
+    let tables = newModel.addStaticTable({
+      data: graph.tables,
+      name: 'Tables'
+    }).interpretAsNodes();
+    let tableLinks = newModel.addStaticTable({
+      data: graph.tableLinks,
+      name: 'Table Links'
+    }).interpretAsEdges();
+    classes.connectToEdgeClass({
+      edgeClass: classConnections,
+      side: 'source',
+      nodeAttribute: null,
+      edgeAttribute: 'source'
+    });
+    classes.connectToEdgeClass({
+      edgeClass: classConnections,
+      side: 'target',
+      nodeAttribute: null,
+      edgeAttribute: 'target'
+    });
+    tables.connectToEdgeClass({
+      edgeClass: tableLinks,
+      side: 'source',
+      nodeAttribute: null,
+      edgeAttribute: 'source'
+    });
+    tables.connectToEdgeClass({
+      edgeClass: tableLinks,
+      side: 'target',
+      nodeAttribute: null,
+      edgeAttribute: 'target'
+    });
+    classes.connectToNodeClass({
+      otherNodeClass: tables,
+      attribute: 'tableId',
+      otherAttribute: 'tableId'
+    }).setClassName('Core Tables');
+    return newModel;
+  }
 }
 export default NetworkModel;

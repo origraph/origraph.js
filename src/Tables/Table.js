@@ -238,10 +238,10 @@ class Table extends TriggerableMixin(Introspectable) {
     this.reset();
   }
   _deriveTable (options) {
-    options.preSave = (newTable) => {
-      this._derivedTables[newTable.tableId] = true;
-    };
-    return this.model.createTable(options);
+    const newTable = this.model.createTable(options);
+    this._derivedTables[newTable.tableId] = true;
+    this.model.trigger('update');
+    return newTable;
   }
   _getExistingTable (options) {
     // Check if the derived table has already been defined
@@ -315,15 +315,15 @@ class Table extends TriggerableMixin(Introspectable) {
     }
   }
   connect (otherTableList) {
-    return this.model.createTable({
-      type: 'ConnectedTable',
-      preSave: (newTable) => {
-        this._derivedTables[newTable.tableId] = true;
-        for (const otherTable of otherTableList) {
-          otherTable._derivedTables[newTable.tableId] = true;
-        }
-      }
+    const newTable = this.model.createTable({
+      type: 'ConnectedTable'
     });
+    this._derivedTables[newTable.tableId] = true;
+    for (const otherTable of otherTableList) {
+      otherTable._derivedTables[newTable.tableId] = true;
+    }
+    this.model.trigger('update');
+    return newTable;
   }
   get classObj () {
     return Object.values(this.model.classes).find(classObj => {

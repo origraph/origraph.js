@@ -11,7 +11,7 @@ class NodeWrapper extends GenericWrapper {
     const edgeIds = options.edgeIds || this.classObj.edgeClassIds;
     let i = 0;
     for (const edgeId of Object.keys(edgeIds)) {
-      const edgeClass = this.classObj._origraph.classes[edgeId];
+      const edgeClass = this.classObj.model.classes[edgeId];
       if (edgeClass.sourceClassId === this.classObj.classId) {
         options.tableIds = edgeClass.sourceTableIds.slice().reverse()
           .concat([edgeClass.tableId]);
@@ -26,6 +26,11 @@ class NodeWrapper extends GenericWrapper {
           return;
         }
       }
+    }
+  }
+  async * pairwiseNeighborhood (options) {
+    for await (const edge of this.edges(options)) {
+      yield * edge.pairwiseEdges(options);
     }
   }
 }

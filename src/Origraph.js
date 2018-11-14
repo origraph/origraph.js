@@ -1,9 +1,11 @@
+import TriggerableMixin from './Common/TriggerableMixin.js';
 import NetworkModel from './Common/NetworkModel.js';
 
 let NEXT_MODEL_ID = 1;
 
-class Origraph {
+class Origraph extends TriggerableMixin(class {}) {
   constructor (FileReader, localStorage) {
+    super();
     this.FileReader = FileReader; // either window.FileReader or one from Node
     this.localStorage = localStorage; // either window.localStorage or null
 
@@ -30,16 +32,19 @@ class Origraph {
         models[modelId] = model._toRawObject();
       }
       this.localStorage.setItem('origraph_models', JSON.stringify(models));
+      this.trigger('save');
     }
   }
   closeCurrentModel () {
     this._currentModelId = null;
+    this.trigger('changeCurrentModel');
   }
   get currentModel () {
     return this.models[this._currentModelId] || this.createModel();
   }
   set currentModel (model) {
     this._currentModelId = model.modelId;
+    this.trigger('changeCurrentModel');
   }
   createModel (options = {}) {
     while (!options.modelId || this.models[options.modelId]) {
@@ -50,6 +55,7 @@ class Origraph {
     this.models[options.modelId] = new NetworkModel(options);
     this._currentModelId = options.modelId;
     this.save();
+    this.trigger('changeCurrentModel');
     return this.models[options.modelId];
   }
   deleteModel (modelId = this.currentModelId) {
@@ -59,8 +65,15 @@ class Origraph {
     delete this.models[modelId];
     if (this._currentModelId === modelId) {
       this._currentModelId = null;
+      this.trigger('changeCurrentModel');
     }
     this.save();
+  }
+  deleteAllModels () {
+    this.models = {};
+    this._currentModelId = null;
+    this.save();
+    this.trigger('changeCurrentModel');
   }
 }
 

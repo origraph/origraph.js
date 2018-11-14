@@ -1,13 +1,5 @@
 const origraph = require('../dist/origraph.cjs.js');
-const loadFiles = require('./loadFiles.js');
-
-async function getFiveSamples (tableObj) {
-  const samples = [];
-  for await (const sample of tableObj.iterate({ limit: 5 })) {
-    samples.push(sample);
-  }
-  return samples;
-}
+const utils = require('./utils.js');
 
 describe('Table Samples', () => {
   afterEach(() => {

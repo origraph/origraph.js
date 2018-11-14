@@ -1,192 +1,183 @@
 const origraph = require('../dist/origraph.cjs.js');
-const loadFiles = require('./loadFiles.js');
+const utils = require('./utils.js');
 
 describe('Interpretation Tests', () => {
   afterEach(() => {
-    origraph.deleteAllClasses();
-    origraph.deleteAllUnusedTables();
+    origraph.deleteAllModels();
   });
 
   test('Movie + Person nodes + Connections', async () => {
-    expect.assertions(17);
+    expect.assertions(10);
 
-    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
-
-    const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
+    let [ people, movies, movieEdges ] = await utils.loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
     // Initial interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    origraph.classes[peopleId].setClassName('People');
+    people = people.interpretAsNodes();
+    people.setClassName('People');
 
-    origraph.classes[moviesId].interpretAsNodes();
-    origraph.classes[moviesId].setClassName('Movies');
+    movies = movies.interpretAsNodes();
+    movies.setClassName('Movies');
 
-    origraph.classes[movieEdgesId].interpretAsEdges();
+    movieEdges = movieEdges.interpretAsEdges();
 
     // Set up initial connections
-    origraph.classes[peopleId].connectToEdgeClass({
-      edgeClass: origraph.classes[movieEdgesId],
+    people.connectToEdgeClass({
+      edgeClass: movieEdges,
       side: 'source',
       nodeAttribute: 'id',
-      edgeAttribute: 'sourceID'
+      edgeAttribute: 'personID'
     });
-    origraph.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: origraph.classes[moviesId],
+    movieEdges.connectToNodeClass({
+      nodeClass: movies,
       side: 'target',
       nodeAttribute: 'id',
-      edgeAttribute: 'targetID'
+      edgeAttribute: 'movieID'
     });
 
-    const rawPeopleSpec = origraph.classes[peopleId]._toRawObject();
-    expect(rawPeopleSpec.classId).toEqual(peopleId);
-    expect(rawPeopleSpec.className).toEqual('People');
-    expect(rawPeopleSpec.edgeClassIds[movieEdgesId]).toEqual(true);
-
-    const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.classId).toEqual(moviesId);
-    expect(rawMoviesSpec.className).toEqual('Movies');
-    expect(rawMoviesSpec.edgeClassIds[movieEdgesId]).toEqual(true);
-
-    const rawMovieEdgesSpec = origraph.classes[movieEdgesId]._toRawObject();
-    expect(rawMovieEdgesSpec.classId).toEqual(movieEdgesId);
-    expect(rawMovieEdgesSpec.className).toEqual(null);
-    expect(rawMovieEdgesSpec.directed).toEqual(false);
-    expect(rawMovieEdgesSpec.sourceClassId).toEqual(peopleId);
-    expect(rawMovieEdgesSpec.targetClassId).toEqual(moviesId);
-
-    let [ edgesAggregatedId, connectedId, peopleAggregatedId ] =
-      rawMovieEdgesSpec.sourceTableIds;
-    expect(origraph.tables[edgesAggregatedId].parentTable.tableId)
-      .toEqual(origraph.classes[movieEdgesId].tableId);
-    expect(origraph.tables[connectedId].parentTables.map(table => table.tableId))
-      .toEqual([ edgesAggregatedId, peopleAggregatedId ]);
-    expect(origraph.tables[peopleAggregatedId].parentTable.tableId)
-      .toEqual(origraph.classes[peopleId].tableId);
-
-    let moviesAggregatedId;
-    [ edgesAggregatedId, connectedId, moviesAggregatedId ] =
-      rawMovieEdgesSpec.targetTableIds;
-    expect(origraph.tables[edgesAggregatedId].parentTable.tableId)
-      .toEqual(origraph.classes[movieEdgesId].tableId);
-    expect(origraph.tables[connectedId].parentTables.map(table => table.tableId))
-      .toEqual([ edgesAggregatedId, moviesAggregatedId ]);
-    expect(origraph.tables[moviesAggregatedId].parentTable.tableId)
-      .toEqual(origraph.classes[moviesId].tableId);
+    // Dump schema graph
+    const dump = origraph.currentModel.getNetworkModelGraph();
+    const peopleDump = dump.classes[dump.classLookup[people.classId]];
+    expect(peopleDump.className).toEqual('People');
+    expect(peopleDump.edgeClassIds[movieEdges.classId]).toEqual(true);
+    expect(peopleDump.type).toEqual('NodeClass');
+    const moviesDump = dump.classes[dump.classLookup[movies.classId]];
+    expect(moviesDump.className).toEqual('Movies');
+    expect(moviesDump.edgeClassIds[movieEdges.classId]).toEqual(true);
+    expect(moviesDump.type).toEqual('NodeClass');
+    const movieEdgesDump = dump.classes[dump.classLookup[movieEdges.classId]];
+    expect(movieEdgesDump.className).toEqual(null);
+    expect(movieEdgesDump.sourceClassId).toEqual(people.classId);
+    expect(movieEdgesDump.targetClassId).toEqual(movies.classId);
+    expect(movieEdgesDump.type).toEqual('EdgeClass');
   });
-
   test('Simple self edge test', async () => {
-    expect.assertions(8);
+    expect.assertions(6);
 
-    let [ nodeClassId ] = (await loadFiles(['csvTest.csv'])).map(classObj => classObj.classId);
+    let [ nodeClass ] = await utils.loadFiles(['csvTest.csv']);
 
-    origraph.classes[nodeClassId].interpretAsNodes();
-    const edgeClassId = origraph.classes[nodeClassId].connectToNodeClass({
-      otherNodeClass: origraph.classes[nodeClassId],
+    nodeClass = nodeClass.interpretAsNodes();
+    const edgeClass = nodeClass.connectToNodeClass({
+      otherNodeClass: nodeClass,
       attribute: 'is',
       otherAttribute: 'a'
-    }).classId;
-    origraph.classes[edgeClassId].toggleDirection();
+    });
+    edgeClass.toggleDirection();
 
-    const nodeSpec = origraph.classes[nodeClassId]._toRawObject();
-    expect(nodeSpec.classId).toEqual(nodeClassId);
-    expect(nodeSpec.className).toEqual(null);
-    expect(nodeSpec.edgeClassIds[edgeClassId]).toEqual(true);
+    const dump = origraph.currentModel.getNetworkModelGraph();
+    const nodeDump = dump.classes[dump.classLookup[nodeClass.classId]];
+    expect(nodeDump.className).toEqual(null);
+    expect(nodeDump.edgeClassIds[edgeClass.classId]).toEqual(true);
 
-    const edgeSpec = origraph.classes[edgeClassId]._toRawObject();
-    expect(edgeSpec.classId).toEqual(edgeClassId);
-    expect(edgeSpec.className).toEqual(null);
-    expect(edgeSpec.directed).toEqual(true);
-    expect(edgeSpec.sourceClassId).toEqual(nodeClassId);
-    expect(edgeSpec.targetClassId).toEqual(nodeClassId);
+    const edgeDump = dump.classes[dump.classLookup[edgeClass.classId]];
+    expect(edgeDump.className).toEqual(null);
+    expect(edgeDump.directed).toEqual(true);
+    expect(edgeDump.sourceClassId).toEqual(nodeClass.classId);
+    expect(edgeDump.targetClassId).toEqual(nodeClass.classId);
   });
 
   test('Movies to Edges', async () => {
     expect.assertions(5);
 
-    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
-
-    let [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
+    let [ people, movies, movieEdges ] = await utils
+      .loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
     // Initial interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    origraph.classes[peopleId].setClassName('People');
+    people = people.interpretAsNodes();
+    people.setClassName('People');
 
-    origraph.classes[moviesId].interpretAsNodes();
-    origraph.classes[moviesId].setClassName('Movies');
+    movies = movies.interpretAsNodes();
+    movies.setClassName('Movies');
 
-    origraph.classes[movieEdgesId].interpretAsEdges();
+    movieEdges = movieEdges.interpretAsEdges();
 
     // Set up initial connections
-    origraph.classes[peopleId].connectToEdgeClass({
-      edgeClass: origraph.classes[movieEdgesId],
+    people.connectToEdgeClass({
+      edgeClass: movieEdges,
       side: 'source',
       nodeAttribute: 'id',
-      edgeAttribute: 'sourceID'
+      edgeAttribute: 'personID'
     });
-    origraph.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: origraph.classes[moviesId],
+    movieEdges.connectToNodeClass({
+      nodeClass: movies,
       side: 'target',
       nodeAttribute: 'id',
-      edgeAttribute: 'targetID'
+      edgeAttribute: 'movieID'
     });
 
     // Reinterpret Movies as Edges
-    moviesId = origraph.classes[moviesId].interpretAsEdges().classId;
+    movies = movies.interpretAsEdges();
 
-    const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.classId).toEqual(moviesId);
-    expect(rawMoviesSpec.className).toEqual('Movies');
-    expect(rawMoviesSpec.directed).toEqual(false);
-    expect(rawMoviesSpec.sourceClassId).toEqual(peopleId);
-    expect(rawMoviesSpec.targetClassId).toEqual(peopleId);
+    const dump = origraph.currentModel.getNetworkModelGraph();
+    const moviesDump = dump.classes[dump.classLookup[movies.classId]];
+    expect(moviesDump.className).toEqual('Movies');
+    expect(moviesDump.directed).toEqual(false);
+    expect(moviesDump.sourceClassId).toEqual(people.classId);
+    expect(moviesDump.targetClassId).toEqual(people.classId);
+    expect(moviesDump.type).toEqual('EdgeClass');
   });
 
   test('Movies to Edges and Back Again', async () => {
-    expect.assertions(4);
+    expect.assertions(16);
 
-    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
-
-    let [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
+    let [ people, movies, movieEdges ] = await utils
+      .loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
 
     // Initial interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    origraph.classes[peopleId].setClassName('People');
+    people = people.interpretAsNodes();
+    people.setClassName('People');
 
-    origraph.classes[moviesId].interpretAsNodes();
-    origraph.classes[moviesId].setClassName('Movies');
+    movies = movies.interpretAsNodes();
+    movies.setClassName('Movies');
 
-    origraph.classes[movieEdgesId].interpretAsEdges();
-    const movieEdgesTableId = origraph.classes[movieEdgesId].tableId;
+    movieEdges = movieEdges.interpretAsEdges();
 
     // Set up initial connections
-    origraph.classes[peopleId].connectToEdgeClass({
-      edgeClass: origraph.classes[movieEdgesId],
+    people.connectToEdgeClass({
+      edgeClass: movieEdges,
       side: 'source',
       nodeAttribute: 'id',
-      edgeAttribute: 'sourceID'
+      edgeAttribute: 'personID'
     });
-    origraph.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: origraph.classes[moviesId],
+    movieEdges.connectToNodeClass({
+      nodeClass: movies,
       side: 'target',
       nodeAttribute: 'id',
-      edgeAttribute: 'targetID'
+      edgeAttribute: 'movieID'
     });
 
     // Reinterpret Movies as Edges
-    moviesId = origraph.classes[moviesId].interpretAsEdges().classId;
+    movies = movies.interpretAsEdges();
+
+    // Check that we now only have people and movies, and that they're connected
+    let dump = origraph.currentModel.getNetworkModelGraph();
+    let moviesDump = dump.classes[dump.classLookup[movies.classId]];
+    expect(moviesDump.className).toEqual('Movies');
+    expect(moviesDump.directed).toEqual(false);
+    expect(moviesDump.sourceClassId).toEqual(people.classId);
+    expect(moviesDump.targetClassId).toEqual(people.classId);
+    expect(moviesDump.type).toEqual('EdgeClass');
+    let peopleDump = dump.classes[dump.classLookup[people.classId]];
+    const expectedEdgeClassIds = {};
+    expectedEdgeClassIds[movies.classId] = true;
+    expect(peopleDump.edgeClassIds).toEqual(expectedEdgeClassIds);
 
     // Reinterpret Movies as Nodes
-    moviesId = origraph.classes[moviesId].interpretAsNodes().classId;
+    movies = movies.interpretAsNodes();
 
-    // Check that the basics are still there
-    const rawMoviesSpec = origraph.classes[moviesId]._toRawObject();
-    expect(rawMoviesSpec.classId).toEqual(moviesId);
-    expect(rawMoviesSpec.className).toEqual('Movies');
-
-    // Check that we now have exactly one edge class that refers to
-    // the movieEdges table
-    const edgeClassIds = Object.keys(rawMoviesSpec.edgeClassIds);
-    expect(edgeClassIds.length).toEqual(1);
-    expect(origraph.classes[edgeClassIds[0]].tableId).toEqual(movieEdgesTableId);
+    // Check that the original classes are still there
+    dump = origraph.currentModel.getNetworkModelGraph();
+    peopleDump = dump.classes[dump.classLookup[people.classId]];
+    expect(peopleDump.className).toEqual('People');
+    expect(peopleDump.edgeClassIds[movieEdges.classId]).toEqual(true);
+    expect(peopleDump.type).toEqual('NodeClass');
+    moviesDump = dump.classes[dump.classLookup[movies.classId]];
+    expect(moviesDump.className).toEqual('Movies');
+    expect(moviesDump.edgeClassIds[movieEdges.classId]).toEqual(true);
+    expect(moviesDump.type).toEqual('NodeClass');
+    const movieEdgesDump = dump.classes[dump.classLookup[movieEdges.classId]];
+    expect(movieEdgesDump.className).toEqual(null);
+    expect(movieEdgesDump.sourceClassId).toEqual(people.classId);
+    expect(movieEdgesDump.targetClassId).toEqual(movies.classId);
+    expect(movieEdgesDump.type).toEqual('EdgeClass');
   });
 });

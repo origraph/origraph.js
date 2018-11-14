@@ -1,15 +1,15 @@
 const origraph = require('../dist/origraph.cjs.js');
-const loadFiles = require('./loadFiles.js');
+const utils = require('./utils.js');
 
 describe('Document Tests', () => {
   afterAll(async () => {
-    origraph.deleteModel();
+    origraph.deleteAllModels();
   });
 
   test('load and read a CSV file', async () => {
     expect.assertions(2);
 
-    const testTable = (await loadFiles(['csvTest.csv']))[0].table;
+    const testTable = (await utils.loadFiles(['csvTest.csv']))[0].table;
 
     const result = [];
     for await (const wrappedItem of testTable.iterate({ limit: Infinity })) {
@@ -35,7 +35,7 @@ describe('Document Tests', () => {
   test('load and read a JSON file', async () => {
     expect.assertions(2);
 
-    let testTable = (await loadFiles(['miserables.json']))[0].table;
+    let testTable = (await utils.loadFiles(['miserables.json']))[0].table;
 
     let result;
     for await (const wrappedItem of testTable.iterate({ limit: 1 })) {

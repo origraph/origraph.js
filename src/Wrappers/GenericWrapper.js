@@ -30,11 +30,17 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     }
     this.connectedItems = {};
   }
+  get instanceId () {
+    return `${this.classObj.classId}_${this.index}`;
+  }
+  equals (item) {
+    return this.instanceId === item.instanceId;
+  }
   async * iterateAcrossConnections ({ tableIds, limit = Infinity }) {
     // First make sure that all the table caches have been fully built and
     // connected
     await Promise.all(tableIds.map(tableId => {
-      return this.classObj._origraph.tables[tableId].buildCache();
+      return this.classObj.model.tables[tableId].buildCache();
     }));
     let i = 0;
     for (const item of this._iterateAcrossConnections(tableIds)) {

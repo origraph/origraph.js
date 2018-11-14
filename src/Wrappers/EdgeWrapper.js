@@ -11,7 +11,7 @@ class EdgeWrapper extends GenericWrapper {
     if (this.classObj.sourceClassId === null) {
       return;
     }
-    const sourceTableId = this.classObj._origraph
+    const sourceTableId = this.classObj.model
       .classes[this.classObj.sourceClassId].tableId;
     options.tableIds = this.classObj.sourceTableIds
       .concat([ sourceTableId ]);
@@ -21,11 +21,31 @@ class EdgeWrapper extends GenericWrapper {
     if (this.classObj.targetClassId === null) {
       return;
     }
-    const targetTableId = this.classObj._origraph
+    const targetTableId = this.classObj.model
       .classes[this.classObj.targetClassId].tableId;
     options.tableIds = this.classObj.targetTableIds
       .concat([ targetTableId ]);
     yield * this.iterateAcrossConnections(options);
+  }
+  async * pairwiseEdges (options) {
+    for await (const source of this.sourceNodes(options)) {
+      for await (const target of this.targetNodes(options)) {
+        yield { source, edge: this, target };
+      }
+    }
+  }
+  async hyperedge (options) {
+    const result = {
+      sources: [],
+      targets: [],
+      edge: this
+    };
+    for await (const source of this.sourceNodes(options)) {
+      result.push(source);
+    }
+    for await (const target of this.targetNodes(options)) {
+      result.push(target);
+    }
   }
 }
 
