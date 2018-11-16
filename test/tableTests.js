@@ -3,17 +3,16 @@ const utils = require('./utils.js');
 
 describe('Table Samples', () => {
   afterEach(() => {
-    origraph.deleteAllClasses();
-    origraph.deleteAllUnusedTables();
+    origraph.deleteAllModels();
   });
 
   test('StaticTable Samples', async () => {
     expect.assertions(1);
 
-    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
+    let people = (await utils.loadFiles(['people.csv']))[0].table;
 
     // Test that the data is what we'd expect
-    const samples = await getFiveSamples(origraph.tables[peopleId]);
+    const samples = await utils.getFiveSamples(people);
     expect(samples.map(s => s.row)).toEqual([
       {'born': '1964', 'id': '1', 'name': 'Keanu Reeves'},
       {'born': '1967', 'id': '2', 'name': 'Carrie-Anne Moss'},
@@ -26,14 +25,14 @@ describe('Table Samples', () => {
   test('AggregatedTable Samples', async () => {
     expect.assertions(2);
 
-    let peopleId = (await loadFiles(['people.csv']))[0].tableId;
-    const bornId = origraph.tables[peopleId].aggregate('born').tableId;
+    let people = (await utils.loadFiles(['people.csv']))[0].table;
+    const born = people.aggregate('born');
 
-    origraph.tables[bornId].deriveReducedAttribute('count', (originalItem, newItem) => {
+    born.deriveReducedAttribute('count', (originalItem, newItem) => {
       return (originalItem.row.count || 0) + 1;
     });
 
-    const samples = await getFiveSamples(origraph.tables[bornId]);
+    const samples = await utils.getFiveSamples(born);
 
     // Test that the indexes are what we'd expect at this point
     expect(samples.map(s => s.index)).toEqual([
@@ -52,34 +51,30 @@ describe('Table Samples', () => {
   test('ExpandedTable Samples', async () => {
     expect.assertions(1);
 
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const digitId = origraph.tables[testId].expand('this', '.').tableId;
+    // TODO: expand attributes internally to all tables; don't create a new one
 
-    origraph.tables[digitId].duplicateAttribute(testId, 'test');
+    let test = (await utils.loadFiles(['csvTest.csv']))[0].table;
+    const digit = test.expand('this', '.');
 
-    const samples = await getFiveSamples(origraph.tables[digitId]);
+    const samples = await utils.getFiveSamples(digit);
 
     // Test that the data is what we'd expect
     expect(samples.map(s => s.row)).toEqual([
-      {'csvTest.csv.test': 'five', 'this': '3'},
-      {'csvTest.csv.test': 'five', 'this': '1'},
-      {'csvTest.csv.test': 'three', 'this': '9'},
-      {'csvTest.csv.test': 'three', 'this': '2'},
-      {'csvTest.csv.test': 'nine', 'this': '5'}
+      {'this': '3'},
+      {'this': '1'},
+      {'this': '9'},
+      {'this': '2'},
+      {'this': '5'}
     ]);
   });
 
   test('ConnectedTable Samples', async () => {
     expect.assertions(2);
 
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const connectedId = origraph.tables[testId].connect([
-      origraph.tables[testId]
-    ]).tableId;
+    let test = (await utils.loadFiles(['csvTest.csv']))[0].table;
+    const connected = test.connect([ test ]);
 
-    origraph.tables[connectedId].duplicateAttribute(testId, 'test');
-
-    const samples = await getFiveSamples(origraph.tables[connectedId]);
+    const samples = await utils.getFiveSamples(connected);
 
     // Test that the indexes are what we'd expect
     expect(samples.map(s => s.index)).toEqual([
@@ -88,30 +83,25 @@ describe('Table Samples', () => {
 
     // Test that the data is what we'd expect
     expect(samples.map(s => s.row)).toEqual([
-      {'csvTest.csv.test': 'five'},
-      {'csvTest.csv.test': 'three'},
-      {'csvTest.csv.test': 'nine'},
-      {'csvTest.csv.test': 'four'},
-      {'csvTest.csv.test': 'three'}
+      {}, {}, {}, {}, {}
     ]);
   });
 
   test('FacetedTable Samples (closedFacet)', async () => {
     expect.assertions(2);
 
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
+    let test = (await utils.loadFiles(['csvTest.csv']))[0].table;
     const values = ['three', 'seven'];
-    const [threeId, sevenId] = origraph.tables[testId].closedFacet('test', values)
-      .map(tableObj => tableObj.tableId);
+    const [three, seven] = test.closedFacet('test', values);
 
     // Test that the data is what we'd expect
-    let samples = await getFiveSamples(origraph.tables[threeId]);
+    let samples = await utils.getFiveSamples(three);
     expect(samples.map(s => s.row)).toEqual([
       {'a': '5', 'is': '6', 'test': 'three', 'this': '9.2'},
       {'a': '4', 'is': '6', 'test': 'three', 'this': '6.2'}
     ]);
 
-    samples = await getFiveSamples(origraph.tables[sevenId]);
+    samples = await utils.getFiveSamples(seven);
     expect(samples.map(s => s.row)).toEqual([
       {'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8'},
       {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
@@ -123,17 +113,17 @@ describe('Table Samples', () => {
 
     const limit = 4;
 
-    let testId = (await loadFiles(['csvTest.csv']))[0].tableId;
-    const tableIds = [];
-    for await (const tableObj of origraph.tables[testId].openFacet('test', limit)) {
-      tableIds.push(tableObj.tableId);
+    let test = (await utils.loadFiles(['csvTest.csv']))[0].table;
+    const tables = [];
+    for await (const tableObj of test.openFacet('test', limit)) {
+      tables.push(tableObj);
     }
 
     // Test that we get the right number of tables
-    expect(tableIds.length).toEqual(limit);
+    expect(tables.length).toEqual(limit);
 
     // Test that the table names are what we'd expect
-    expect(tableIds.map(tableId => origraph.tables[tableId].name)).toEqual([
+    expect(tables.map(table => table.name)).toEqual([
       '[five]',
       '[three]',
       '[nine]',
@@ -144,23 +134,23 @@ describe('Table Samples', () => {
   test('TransposedTable Samples (openTranspose)', async () => {
     expect.assertions(4);
 
-    let testId = (await loadFiles(['miserables.json']))[0].tableId;
-    const tableIds = [];
-    for await (const tableObj of origraph.tables[testId].openTranspose()) {
-      tableIds.push(tableObj.tableId);
+    let test = (await utils.loadFiles(['miserables.json']))[0].table;
+    const tables = [];
+    for await (const tableObj of test.openTranspose()) {
+      tables.push(tableObj);
     }
 
     // Test that we get the right number of tables
-    expect(tableIds.length).toEqual(2);
+    expect(tables.length).toEqual(2);
 
     // Test that the table names are what we'd expect
-    expect(tableIds.map(tableId => origraph.tables[tableId].name)).toEqual([
+    expect(tables.map(table => table.name)).toEqual([
       'ᵀnodes',
       'ᵀlinks'
     ]);
 
     // Test that we get the rows that we'd expect
-    let samples = await getFiveSamples(origraph.tables[tableIds[0]]);
+    let samples = await utils.getFiveSamples(tables[0]);
     expect(samples.map(s => s.row)).toEqual([
       {'group': 1, 'index': 0, 'name': 'Myriel'},
       {'group': 1, 'index': 1, 'name': 'Napoleon'},
@@ -169,7 +159,7 @@ describe('Table Samples', () => {
       {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
     ]);
 
-    samples = await getFiveSamples(origraph.tables[tableIds[1]]);
+    samples = await utils.getFiveSamples(tables[1]);
     expect(samples.map(s => s.row)).toEqual([
       {'source': 1, 'target': 0, 'value': 1},
       {'source': 2, 'target': 0, 'value': 8},

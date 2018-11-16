@@ -62,7 +62,8 @@ class EdgeClass extends GenericClass {
   }
   interpretAsNodes () {
     const temp = this._toRawObject();
-    this.disconnectAllEdges();
+    this.disconnectSource();
+    this.disconnectTarget();
     temp.type = 'NodeClass';
     temp.overwrite = true;
     const newNodeClass = this.model.createClass(temp);

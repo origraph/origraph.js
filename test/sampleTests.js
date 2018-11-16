@@ -10,167 +10,94 @@ describe('Sample Tests', () => {
   test('Movie + Person + Edge', async () => {
     expect.assertions(13);
 
-    const classes = await loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
+    let { people, movies, movieEdges } = await utils.setupMovies();
 
-    const [ peopleId, moviesId, movieEdgesId ] = classes.map(classObj => classObj.classId);
-
-    // Initial interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    origraph.classes[peopleId].setClassName('People');
-
-    origraph.classes[moviesId].interpretAsNodes();
-    origraph.classes[moviesId].setClassName('Movies');
-
-    origraph.classes[movieEdgesId].interpretAsEdges();
-
-    // Set up initial connections
-    origraph.classes[peopleId].connectToEdgeClass({
-      edgeClass: origraph.classes[movieEdgesId],
-      side: 'source',
-      nodeAttribute: 'id',
-      edgeAttribute: 'sourceID'
-    });
-    origraph.classes[movieEdgesId].connectToNodeClass({
-      nodeClass: origraph.classes[moviesId],
-      side: 'target',
-      nodeAttribute: 'id',
-      edgeAttribute: 'targetID'
-    });
-
-    let count = await origraph.classes[peopleId].table.countRows();
+    let count = await people.table.countRows();
     expect(count).toEqual(133);
-    count = await origraph.classes[moviesId].table.countRows();
+    count = await movies.table.countRows();
     expect(count).toEqual(38);
-    count = await origraph.classes[movieEdgesId].table.countRows();
+    count = await movieEdges.table.countRows();
     expect(count).toEqual(506);
 
-    let samples = await getNodeToEdgeSamples(origraph.classes[peopleId]);
-
-    expect(samples[0].node).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
-
-    samples = samples.map(sample => {
-      return {
-        node: sample.node.row.name,
-        edge: sample.edge.row.edgeType
-      };
+    let samples = await people.getSampleGraph({
+      nodeLimit: 5
     });
-    expect(samples).toEqual([
-      {'edge': 'ACTED_IN', 'node': 'Keanu Reeves'},
-      {'edge': 'ACTED_IN', 'node': 'Carrie-Anne Moss'},
-      {'edge': 'ACTED_IN', 'node': 'Laurence Fishburne'},
-      {'edge': 'ACTED_IN', 'node': 'Hugo Weaving'},
-      {'edge': 'PRODUCED', 'node': 'Andy Wachowski'}
-    ]);
 
-    samples = await getNodeToEdgeSamples(origraph.classes[moviesId]);
+    expect(samples.nodes[0].type).toEqual('Node');
+    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
 
-    expect(samples[0].node).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
+    samples = {
+      nodes: samples.nodes.map(d => d.row),
+      edges: samples.edges.map(d => d.edgeInstance.row)
+    };
+    expect(samples).toEqual([ null ]);
 
-    samples = samples.map(sample => {
-      return {
-        node: sample.node.row.title,
-        edge: sample.edge.row.edgeType
-      };
+    samples = await movies.getSampleGraph({
+      nodeLimit: 5
     });
-    expect(samples).toEqual([
-      {'edge': 'ACTED_IN', 'node': 'The Matrix'},
-      {'edge': 'ACTED_IN', 'node': 'The Matrix Reloaded'},
-      {'edge': 'ACTED_IN', 'node': 'The Matrix Revolutions'},
-      {'edge': 'ACTED_IN', 'node': 'The Devil\'s Advocate'},
-      {'edge': 'ACTED_IN', 'node': 'A Few Good Men'}
-    ]);
 
-    samples = await getEdgeToNodeSamples(origraph.classes[movieEdgesId]);
+    expect(samples.nodes[0].type).toEqual('Node');
+    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
 
-    expect(samples[0].source).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
-    expect(samples[0].target).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
+    samples = {
+      nodes: samples.nodes.map(d => d.row),
+      edges: samples.edges.map(d => d.edgeInstance.row)
+    };
+    expect(samples).toEqual([ null ]);
 
-    samples = samples.map(sample => {
-      return {
-        source: sample.source.row.name,
-        edge: sample.edge.row.edgeType,
-        target: sample.target.row.title
-      };
+    samples = await movieEdges.getSampleGraph({
+      edgeLimit: 5
     });
-    expect(samples).toEqual([
-      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Something\'s Gotta Give'},
-      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'Johnny Mnemonic'},
-      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Replacements'},
-      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Devil\'s Advocate'},
-      {'edge': 'ACTED_IN', 'source': 'Keanu Reeves', 'target': 'The Matrix Revolutions'}
-    ]);
+
+    expect(samples.nodes[0].type).toEqual('Node');
+    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
+
+    samples = {
+      nodes: samples.nodes.map(d => d.row),
+      edges: samples.edges.map(d => d.edgeInstance.row)
+    };
+    expect(samples).toEqual([ null ]);
   });
 
   test('Person + Year + Person (as edges)', async () => {
-    expect.assertions(6);
+    expect.assertions(3);
 
-    const peopleId = (await loadFiles(['people.csv']))[0].classId;
+    let people = (await utils.loadFiles(['people.csv']))[0];
 
     // Interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    const yearsId = origraph.classes[peopleId].connectToNodeClass({
-      otherNodeClass: origraph.classes[peopleId],
+    people = people.interpretAsNodes();
+    const years = people.connectToNodeClass({
+      otherNodeClass: people,
       attribute: 'born',
       otherAttribute: 'born'
-    }).classId;
-
-    let count = await origraph.classes[peopleId].table.countRows();
-    expect(count).toEqual(133);
-    count = await origraph.classes[yearsId].table.countRows();
-    expect(count).toEqual(53); // TODO: this should at least be higher than 133
-
-    let samples = await getEdgeToNodeSamples(origraph.classes[yearsId]);
-
-    expect(samples[0].source).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
-    expect(samples[0].target).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-
-    samples = samples.map(sample => {
-      return {
-        source: sample.source.row.name,
-        edge: sample.edge.index,
-        target: sample.target.row.name
-      };
     });
-    expect(samples).toEqual([
-      {'edge': '1929', 'source': 'Max von Sydow', 'target': 'Max von Sydow'},
-      {'edge': '1930', 'source': 'Gene Hackman', 'target': 'Gene Hackman'},
-      {'edge': '1931', 'source': 'Mike Nichols', 'target': 'Mike Nichols'},
-      {'edge': '1932', 'source': 'Milos Forman', 'target': 'Milos Forman'},
-      {'edge': '1933', 'source': 'Tom Skerritt', 'target': 'Tom Skerritt'}
-    ]);
+
+    let count = await people.table.countRows();
+    expect(count).toEqual(133);
+    count = await years.table.countRows();
+    expect(count).toEqual(53);
+
+    let samples = years.getSampleGraph({ nodeLimit: 5 });
+
+    expect(samples).toEqual([ null ]);
   });
 
   test('Person + Year (as aggregated nodes)', async () => {
     expect.assertions(7);
 
-    const peopleId = (await loadFiles(['people.csv']))[0].classId;
+    let people = (await utils.loadFiles(['people.csv']))[0];
 
     // Interpretation
-    origraph.classes[peopleId].interpretAsNodes();
-    const yearsId = origraph.classes[peopleId].aggregate('born').classId;
+    people = people.interpretAsNodes();
+    const years = people.aggregate('born');
 
-    let count = await origraph.classes[peopleId].table.countRows();
+    let count = await people.table.countRows();
     expect(count).toEqual(133);
-    count = await origraph.classes[yearsId].table.countRows();
-    expect(count).toEqual(53); // TODO: this should at least be higher than 133
+    count = await years.table.countRows();
+    expect(count).toEqual(53);
 
-    let samples = await getNodeToNodeSamples(origraph.classes[yearsId]);
+    let samples = years.getSampleGraph({ nodeLimit: 5 });
 
-    expect(samples[0].node).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].source).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-    expect(samples[0].edge).toBeInstanceOf(origraph.WRAPPERS.EdgeWrapper);
-    expect(samples[0].target).toBeInstanceOf(origraph.WRAPPERS.NodeWrapper);
-
-    samples = samples.map(sample => {
-      return {
-        person: sample.node.row.name,
-        born: sample.target.index
-      };
-    });
     expect(samples).toEqual([ null ]);
   });
 });

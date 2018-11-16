@@ -18,15 +18,15 @@ class NodeClass extends GenericClass {
   interpretAsNodes () {
     return this;
   }
-  interpretAsEdges () {
+  interpretAsEdges ({ autoconnect = false }) {
     const edgeClassIds = Object.keys(this.edgeClassIds);
     const options = super._toRawObject();
 
-    if (edgeClassIds.length > 2) {
+    if (!autoconnect || edgeClassIds.length > 2) {
       // If there are more than two edges, break all connections and make
       // this a floating edge (for now, we're not dealing in hyperedges)
       this.disconnectAllEdges();
-    } else if (edgeClassIds.length === 1) {
+    } else if (autoconnect && edgeClassIds.length === 1) {
       // With only one connection, this node should become a self-edge
       const edgeClass = this.model.classes[edgeClassIds[0]];
       // Are we the source or target of the existing edge (internally, in terms
@@ -37,8 +37,10 @@ class NodeClass extends GenericClass {
       // should be whatever is at the other end of edgeClass (if anything)
       if (isSource) {
         options.sourceClassId = options.targetClassId = edgeClass.targetClassId;
+        edgeClass.disconnectSource();
       } else {
         options.sourceClassId = options.targetClassId = edgeClass.sourceClassId;
+        edgeClass.disconnectTarget();
       }
       // If there is a node class on the other end of edgeClass, add our
       // id to its list of connections
@@ -59,10 +61,7 @@ class NodeClass extends GenericClass {
       }
       options.directed = edgeClass.directed;
       options.sourceTableIds = options.targetTableIds = tableIdList;
-      // TODO: instead of deleting the existing edge class, should we leave it
-      // hanging + unconnected?
-      edgeClass.delete();
-    } else if (edgeClassIds.length === 2) {
+    } else if (autoconnect && edgeClassIds.length === 2) {
       // Okay, we've got two edges, so this is a little more straightforward
       let sourceEdgeClass = this.model.classes[edgeClassIds[0]];
       let targetEdgeClass = this.model.classes[edgeClassIds[1]];
@@ -84,14 +83,9 @@ class NodeClass extends GenericClass {
       // Okay, now we know how to set source / target ids
       options.sourceClassId = sourceEdgeClass.classId;
       options.targetClassId = targetEdgeClass.classId;
-      // If node classes exist on the other end of those edges, add this class
-      // to their edgeClassIds
-      if (this.model.classes[options.sourceClassId]) {
-        this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
-      }
-      if (this.model.classes[options.targetClassId]) {
-        this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
-      }
+      // Add this class to the source's / target's edgeClassIds
+      this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
+      this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
       // Concatenate the intermediate tableId lists, emanating out from the
       // (new) edge table
       options.sourceTableIds = sourceEdgeClass.targetTableIds.slice().reverse()
@@ -106,11 +100,9 @@ class NodeClass extends GenericClass {
       if (targetEdgeClass.targetClassId === this.classId) {
         options.targetTableIds.reverse();
       }
-      // Delete each of the edge classes
-      sourceEdgeClass.delete();
-      targetEdgeClass.delete();
+      // Disconnect the existing edge classes from the new (now edge) class
+      this.disconnectAllEdges();
     }
-    this.delete();
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
     options.overwrite = true;

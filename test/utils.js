@@ -2,7 +2,7 @@ const origraph = require('../dist/origraph.cjs.js');
 const mime = require('mime-types');
 const fs = require('fs');
 
-module.exports = {
+const utils = {
   loadFiles: async function (filenames) {
     return Promise.all(filenames.map(async filename => {
       return new Promise((resolve, reject) => {
@@ -17,51 +17,40 @@ module.exports = {
       });
     }));
   },
-  getNodeToNodeSamples: async function (nodeClassObj, branchLimit, fullLimit = 5) {
+  async getFiveSamples (tableObj) {
     const samples = [];
-    let fullMatches = 0;
-    for await (const node of nodeClassObj.table.iterate()) {
-      for await (const edge of node.edges({ limit: branchLimit })) {
-        for await (const source of edge.sourceNodes({ limit: branchLimit })) {
-          for await (const target of edge.targetNodes({ limit: branchLimit })) {
-            samples.push({ node, edge, source, target });
-            fullMatches++;
-            if (fullMatches >= fullLimit) {
-              return samples;
-            }
-          }
-        }
-      }
-    }
-  },
-  getNodeToEdgeSamples: async function (nodeClassObj, branchLimit = 1, fullLimit = 5) {
-    const samples = [];
-    let fullMatches = 0;
-    for await (const node of nodeClassObj.table.iterate()) {
-      for await (const edge of node.edges({ limit: branchLimit })) {
-        samples.push({ node, edge });
-        fullMatches++;
-        if (fullMatches >= fullLimit) {
-          return samples;
-        }
-      }
+    for await (const sample of tableObj.iterate({ limit: 5 })) {
+      samples.push(sample);
     }
     return samples;
   },
-  getEdgeToNodeSamples: async function (edgeClassObj, branchLimit = 1, fullLimit = 5) {
-    const samples = [];
-    let fullMatches = 0;
-    for await (const edge of edgeClassObj.table.iterate()) {
-      for await (const source of edge.sourceNodes({ limit: branchLimit })) {
-        for await (const target of edge.targetNodes({ limit: branchLimit })) {
-          samples.push({ source, edge, target });
-          fullMatches++;
-          if (fullMatches >= fullLimit) {
-            return samples;
-          }
-        }
-      }
-    }
-    return samples;
+  setupMovies: async function () {
+    let [ people, movies, movieEdges ] = await utils.loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
+
+    // Initial interpretation
+    people = people.interpretAsNodes();
+    people.setClassName('People');
+
+    movies = movies.interpretAsNodes();
+    movies.setClassName('Movies');
+
+    movieEdges = movieEdges.interpretAsEdges();
+
+    // Set up initial connections
+    people.connectToEdgeClass({
+      edgeClass: movieEdges,
+      side: 'source',
+      nodeAttribute: 'id',
+      edgeAttribute: 'personID'
+    });
+    movieEdges.connectToNodeClass({
+      nodeClass: movies,
+      side: 'target',
+      nodeAttribute: 'id',
+      edgeAttribute: 'movieID'
+    });
+
+    return { people, movies, movieEdges };
   }
 };
+module.exports = utils;

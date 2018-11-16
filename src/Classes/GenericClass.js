@@ -89,6 +89,10 @@ class GenericClass extends Introspectable {
     delete this.model.classes[this.classId];
     this.model.trigger('update');
   }
+  getSampleGraph (options) {
+    options.rootClass = this;
+    return this.model.getSampleGraph(options);
+  }
 }
 Object.defineProperty(GenericClass, 'type', {
   get () {
