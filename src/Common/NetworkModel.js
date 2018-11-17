@@ -177,36 +177,31 @@ class NetworkModel extends TriggerableMixin(class {}) {
       nodes: [],
       nodeLookup: {},
       edges: [],
-      edgeLookup: {}
+      edgeLookup: {},
+      links: []
     };
 
     let numTriples = 0;
-    let numEdgeInstances = 0;
     const addNode = node => {
-      if (!sampleGraph.nodeLookup[node.instanceId]) {
+      if (sampleGraph.nodeLookup[node.instanceId] === undefined) {
         sampleGraph.nodeLookup[node.instanceId] = sampleGraph.nodes.length;
         sampleGraph.nodes.push(node);
       }
       return sampleGraph.nodes.length <= nodeLimit;
     };
     const addEdge = edge => {
-      if (!sampleGraph.edgeLookup[edge.instanceId]) {
-        sampleGraph.edgeLookup[edge.instanceId] = {
-          instance: edge,
-          pairwiseInstances: []
-        };
-        numEdgeInstances++;
+      if (sampleGraph.edgeLookup[edge.instanceId] === undefined) {
+        sampleGraph.edgeLookup[edge.instanceId] = sampleGraph.edges.length;
+        sampleGraph.edges.push(edge);
       }
-      return numEdgeInstances <= edgeLimit;
+      return sampleGraph.edges.length <= edgeLimit;
     };
     const addTriple = (source, edge, target) => {
       if (addNode(source) && addNode(target) && addEdge(edge)) {
-        sampleGraph.edgeLookup[edge.instanceId].pairwiseInstances
-          .push(sampleGraph.edges.length);
-        sampleGraph.edges.push({
+        sampleGraph.links.push({
           source: sampleGraph.nodeLookup[source.instanceId],
           target: sampleGraph.nodeLookup[target.instanceId],
-          edgeInstance: edge
+          edge: sampleGraph.edgeLookup[edge.instanceId]
         });
         numTriples++;
         return numTriples <= tripleLimit;

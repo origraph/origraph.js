@@ -3,12 +3,11 @@ const utils = require('./utils.js');
 
 describe('Sample Tests', () => {
   afterEach(() => {
-    origraph.deleteAllClasses();
-    origraph.deleteAllUnusedTables();
+    origraph.deleteAllModels();
   });
 
   test('Movie + Person + Edge', async () => {
-    expect.assertions(13);
+    expect.assertions(11);
 
     let { people, movies, movieEdges } = await utils.setupMovies();
 
@@ -19,44 +18,12 @@ describe('Sample Tests', () => {
     count = await movieEdges.table.countRows();
     expect(count).toEqual(506);
 
-    let samples = await people.getSampleGraph({
-      nodeLimit: 5
+    let samples = await origraph.currentModel.getFlattenedSamples({
+      branchLimit: 2,
+      tripleLimit: 2
     });
 
-    expect(samples.nodes[0].type).toEqual('Node');
-    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
-
-    samples = {
-      nodes: samples.nodes.map(d => d.row),
-      edges: samples.edges.map(d => d.edgeInstance.row)
-    };
-    expect(samples).toEqual([ null ]);
-
-    samples = await movies.getSampleGraph({
-      nodeLimit: 5
-    });
-
-    expect(samples.nodes[0].type).toEqual('Node');
-    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
-
-    samples = {
-      nodes: samples.nodes.map(d => d.row),
-      edges: samples.edges.map(d => d.edgeInstance.row)
-    };
-    expect(samples).toEqual([ null ]);
-
-    samples = await movieEdges.getSampleGraph({
-      edgeLimit: 5
-    });
-
-    expect(samples.nodes[0].type).toEqual('Node');
-    expect(samples.edges[0].edgeInstance.type).toEqual('Edge');
-
-    samples = {
-      nodes: samples.nodes.map(d => d.row),
-      edges: samples.edges.map(d => d.edgeInstance.row)
-    };
-    expect(samples).toEqual([ null ]);
+    expect(samples).toEqual(require('./data/dump1.json'));
   });
 
   test('Person + Year + Person (as edges)', async () => {
@@ -77,13 +44,16 @@ describe('Sample Tests', () => {
     count = await years.table.countRows();
     expect(count).toEqual(53);
 
-    let samples = years.getSampleGraph({ nodeLimit: 5 });
+    let samples = await origraph.currentModel.getFlattenedSamples({
+      branchLimit: 2,
+      tripleLimit: 2
+    });
 
     expect(samples).toEqual([ null ]);
   });
 
   test('Person + Year (as aggregated nodes)', async () => {
-    expect.assertions(7);
+    expect.assertions(3);
 
     let people = (await utils.loadFiles(['people.csv']))[0];
 
@@ -96,7 +66,10 @@ describe('Sample Tests', () => {
     count = await years.table.countRows();
     expect(count).toEqual(53);
 
-    let samples = years.getSampleGraph({ nodeLimit: 5 });
+    let samples = await origraph.currentModel.getFlattenedSamples({
+      branchLimit: 2,
+      tripleLimit: 2
+    });
 
     expect(samples).toEqual([ null ]);
   });

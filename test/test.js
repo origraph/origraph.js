@@ -4,4 +4,4 @@ require('./basicTests.js');
 require('./docTests.js');
 require('./interpretationTests.js');
 require('./tableTests.js');
-require('./sampleTests.js');
+/* require('./sampleTests.js'); */
