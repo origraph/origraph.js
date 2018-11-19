@@ -3223,7 +3223,7 @@ class Origraph extends TriggerableMixin(class {}) {
 }
 
 var name = "origraph";
-var version = "0.1.5";
+var version = "0.2.0";
 var description = "A library for flexible graph reshaping";
 var main = "dist/origraph.cjs.js";
 var module$1 = "dist/origraph.esm.js";
