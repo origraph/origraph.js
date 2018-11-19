@@ -40,10 +40,10 @@ class Origraph extends TriggerableMixin(class {}) {
     this.trigger('changeCurrentModel');
   }
   get currentModel () {
-    return this.models[this._currentModelId] || this.createModel();
+    return this.models[this._currentModelId] || null;
   }
   set currentModel (model) {
-    this._currentModelId = model.modelId;
+    this._currentModelId = model ? model.modelId : null;
     this.trigger('changeCurrentModel');
   }
   createModel (options = {}) {

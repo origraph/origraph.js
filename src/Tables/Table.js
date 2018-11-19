@@ -172,7 +172,8 @@ class Table extends TriggerableMixin(Introspectable) {
     }
   }
   async countRows () {
-    return Object.keys(await this.buildCache()).length;
+    const cache = await this.buildCache();
+    return cache ? Object.keys(cache).length : -1;
   }
   getIndexDetails () {
     const details = { name: null };

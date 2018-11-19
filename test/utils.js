@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const utils = {
   loadFiles: async function (filenames) {
+    origraph.createModel();
     return Promise.all(filenames.map(async filename => {
       return new Promise((resolve, reject) => {
         fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {

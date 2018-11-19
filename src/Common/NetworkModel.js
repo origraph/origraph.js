@@ -53,18 +53,18 @@ class NetworkModel extends TriggerableMixin(class {}) {
     const tables = {};
     for (const classObj of Object.values(this.classes)) {
       classes[classObj.classId] = classObj._toRawObject();
-      classes[classObj.classId].type = classObj.type;
+      classes[classObj.classId].type = classObj.constructor.name;
     }
     for (const tableObj of Object.values(this.tables)) {
       tables[tableObj.tableId] = tableObj._toRawObject();
-      tables[tableObj.tableId].type = tableObj.type;
+      tables[tableObj.tableId].type = tableObj.constructor.name;
     }
     return {
       modelId: this.modelId,
       name: this.name,
       annotations: this.annotations,
-      classes: this.classes,
-      tables: this.tables
+      classes,
+      tables
     };
   }
   get unsaved () {
@@ -94,6 +94,21 @@ class NetworkModel extends TriggerableMixin(class {}) {
     this.trigger('update');
     return this.classes[options.classId];
   }
+  rename (newName) {
+    this.name = newName;
+    this.trigger('update');
+  }
+  annotate (key, value) {
+    this.annotations[key] = value;
+    this.trigger('update');
+  }
+  deleteAnnotation (key) {
+    delete this.annotations[key];
+    this.trigger('update');
+  }
+  delete () {
+    this._origraph.deleteModel(this.modelId);
+  }
   async addFileAsStaticTable ({
     fileObj,
     encoding = mime.charset(fileObj.type),
@@ -111,7 +126,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
     // extensionOverride allows things like topojson or treejson (that don't
     // have standardized mimeTypes) to be parsed correctly
     let text = await new Promise((resolve, reject) => {
-      let reader = new this.FileReader();
+      let reader = new this._origraph.FileReader();
       reader.onload = () => {
         resolve(reader.result);
       };
@@ -123,8 +138,11 @@ class NetworkModel extends TriggerableMixin(class {}) {
       text
     });
   }
-  addStringAsStaticTable ({ name, extension = 'txt', text }) {
+  addStringAsStaticTable ({ name, extension, text }) {
     let data, attributes;
+    if (!extension) {
+      extension = mime.extension(mime.lookup(name));
+    }
     if (DATALIB_FORMATS[extension]) {
       data = datalib.read(text, { type: extension });
       if (extension === 'csv' || extension === 'tsv') {
@@ -238,7 +256,101 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     return sampleGraph;
   }
-  getNetworkModelGraph (includeDummies = false) {
+  async getInstanceGraph (instances) {
+    if (!instances) {
+      // Without specified instances, just pick the first 5 from each node
+      // and edge class
+      instances = [];
+      for (const classObj of Object.values(this.classes)) {
+        if (classObj.type === 'Node' || classObj.type === 'Edge') {
+          for await (const item of classObj.table.iterate({ limit: 5 })) {
+            instances.push(item);
+          }
+        }
+      }
+    }
+
+    const graph = {
+      nodes: [],
+      nodeLookup: {},
+      edges: []
+    };
+    const edgeTableEntries = [];
+    for (const instance of instances) {
+      if (instance.type === 'Node') {
+        graph.nodeLookup[instance.instanceId] = graph.nodes.length;
+        graph.nodes.push({
+          nodeInstance: instance,
+          dummy: false
+        });
+      } else if (instance.type === 'Edge') {
+        edgeTableEntries.push(instance);
+      }
+    }
+    for (const edgeInstance of edgeTableEntries) {
+      const sources = [];
+      for await (const source of edgeInstance.sourceNodes()) {
+        if (graph.nodeLookup[source.instanceId] !== undefined) {
+          sources.push(graph.nodeLookup[source.instanceId]);
+        }
+      }
+      const targets = [];
+      for await (const target of edgeInstance.targetNodes()) {
+        if (graph.nodeLookup[target.instanceId] !== undefined) {
+          targets.push(graph.nodeLookup[target.instanceId]);
+        }
+      }
+      if (sources.length === 0) {
+        if (targets.length === 0) {
+          // We have completely hanging edges, make dummy nodes for the
+          // source and target
+          graph.edges.push({
+            edgeInstance,
+            source: graph.nodes.length,
+            target: graph.nodes.length + 1
+          });
+          graph.nodes.push({ dummy: true });
+          graph.nodes.push({ dummy: true });
+        } else {
+          // The sources are hanging, but we have targets
+          for (const target of targets) {
+            graph.edges.push({
+              edgeInstance,
+              source: graph.nodes.length,
+              target
+            });
+            graph.nodes.push({ dummy: true });
+          }
+        }
+      } else if (targets.length === 0) {
+        // The targets are hanging, but we have sources
+        for (const source of sources) {
+          graph.edges.push({
+            edgeInstance,
+            source,
+            target: graph.nodes.length
+          });
+          graph.nodes.push({ dummy: true });
+        }
+      } else {
+        // Neither the source, nor the target are hanging
+        for (const source of sources) {
+          for (const target of targets) {
+            graph.edges.push({
+              edgeInstance,
+              source,
+              target
+            });
+          }
+        }
+      }
+    }
+    return graph;
+  }
+  getNetworkModelGraph ({
+    raw = true,
+    includeDummies = false
+  } = {}) {
     const edgeClasses = [];
     let graph = {
       classes: [],
@@ -251,7 +363,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
     for (const classObj of classList) {
       // Add and index the class as a node
       graph.classLookup[classObj.classId] = graph.classes.length;
-      const classSpec = classObj._toRawObject();
+      const classSpec = raw ? classObj._toRawObject() : { classObj };
       classSpec.type = classObj.constructor.name;
       graph.classes.push(classSpec);
 
@@ -261,18 +373,18 @@ class NetworkModel extends TriggerableMixin(class {}) {
       } else if (classObj.type === 'Node' && includeDummies) {
         // Create a "potential" connection + dummy node
         graph.classConnections.push({
-          id: `${classObj.classID}>dummy`,
-          source: graph.classes.length,
+          id: `${classObj.classId}>dummy`,
+          source: graph.classes.length - 1,
           target: graph.classes.length,
           directed: false,
           location: 'node',
           dummy: true
         });
-        graph.nodes.push({ dummy: true });
+        graph.classes.push({ dummy: true });
       }
 
       // Create existing classConnections
-      edgeClasses.forEach(edgeClass => {
+      for (const edgeClass of edgeClasses) {
         if (edgeClass.sourceClassId !== null) {
           // Connect the source node class to the edge class
           graph.classConnections.push({
@@ -315,7 +427,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
           });
           graph.classes.push({ dummy: true });
         }
-      });
+      }
     }
 
     return graph;
