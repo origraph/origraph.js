@@ -15,6 +15,12 @@ class EdgeClass extends GenericClass {
     this.targetTableIds = options.targetTableIds || [];
     this.directed = options.directed || false;
   }
+  get sourceClass () {
+    return (this.sourceClassId && this.model.classes[this.sourceClassId]) || null;
+  }
+  get targetClass () {
+    return (this.targetClassId && this.model.classes[this.targetClassId]) || null;
+  }
   _toRawObject () {
     const result = super._toRawObject();
 

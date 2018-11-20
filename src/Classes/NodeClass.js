@@ -6,6 +6,11 @@ class NodeClass extends GenericClass {
     super(options);
     this.edgeClassIds = options.edgeClassIds || {};
   }
+  * edgeClasses () {
+    for (const edgeClassId of Object.keys(this.edgeClassIds)) {
+      yield this.model.classes[edgeClassId];
+    }
+  }
   _toRawObject () {
     const result = super._toRawObject();
     result.edgeClassIds = this.edgeClassIds;
