@@ -349,7 +349,8 @@ class NetworkModel extends TriggerableMixin(class {}) {
   }
   getNetworkModelGraph ({
     raw = true,
-    includeDummies = false
+    includeDummies = false,
+    classList = Object.values(this.classes)
   } = {}) {
     const edgeClasses = [];
     let graph = {
@@ -357,8 +358,6 @@ class NetworkModel extends TriggerableMixin(class {}) {
       classLookup: {},
       classConnections: []
     };
-
-    const classList = Object.values(this.classes);
 
     for (const classObj of classList) {
       // Add and index the class as a node
