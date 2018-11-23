@@ -22,6 +22,9 @@ class GenericClass extends Introspectable {
       annotations: this.annotations
     };
   }
+  getSortHash () {
+    return this.type + this.className;
+  }
   setClassName (value) {
     this._className = value;
     this.model.trigger('update');

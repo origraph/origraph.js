@@ -3,7 +3,8 @@
   "rules": {
     "semi": [2, "always"],
     "no-extra-semi": 2,
-    "semi-spacing": [2, { "before": false, "after": true }]
+    "semi-spacing": [2, { "before": false, "after": true }],
+    "object-property-newline": 0
   },
   "plugins": ["jest"],
   "env": {

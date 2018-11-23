@@ -1,0 +1,162 @@
+{
+  "classes": [
+    {
+      "classId": 0,
+      "tableId": 6,
+      "className": "Movie Edges",
+      "annotations": {},
+      "sourceClassId": 2,
+      "sourceTableIds": [
+        1,
+        5,
+        3
+      ],
+      "targetClassId": 1,
+      "targetTableIds": [
+        0,
+        4,
+        2
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 1,
+      "tableId": 7,
+      "className": "Movies",
+      "annotations": {},
+      "edgeClassIds": {
+        "0": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 2,
+      "tableId": 8,
+      "className": "People",
+      "annotations": {},
+      "edgeClassIds": {
+        "0": true
+      },
+      "type": "NodeClass"
+    }
+  ],
+  "tables": [
+    {
+      "tableId": 0,
+      "derivedTables": {
+        "4": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "movieID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 1,
+      "derivedTables": {
+        "5": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "personID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 2,
+      "derivedTables": {
+        "4": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "id",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 3,
+      "derivedTables": {
+        "5": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "id",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 4,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 5,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 6,
+      "derivedTables": {
+        "0": true,
+        "1": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "movieEdges.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 7,
+      "derivedTables": {
+        "2": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "movies.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 8,
+      "derivedTables": {
+        "3": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "people.csv",
+      "type": "StaticTable"
+    }
+  ]
+}

@@ -14,6 +14,9 @@ class TransposedTable extends SingleParentMixin(Table) {
     obj.index = this._index;
     return obj;
   }
+  getSortHash () {
+    return super.getSortHash() + this.parentTable.getSortHash() + this._index;
+  }
   get name () {
     return `ᵀ${this._index}`;
   }

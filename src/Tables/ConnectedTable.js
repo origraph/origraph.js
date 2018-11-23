@@ -4,6 +4,9 @@ class ConnectedTable extends Table {
   get name () {
     return this.parentTables.map(parentTable => parentTable.name).join('⨯');
   }
+  getSortHash () {
+    return super.getSortHash() + this.parentTables.map(table => table.getSortHash()).join(',');
+  }
   async * _iterate (options) {
     const parentTables = this.parentTables;
     // Spin through all of the parentTables so that their _cache is pre-built

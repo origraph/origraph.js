@@ -361,9 +361,9 @@ class NetworkModel extends TriggerableMixin(class {}) {
 
     for (const classObj of classList) {
       // Add and index the class as a node
-      graph.classLookup[classObj.classId] = graph.classes.length;
       const classSpec = raw ? classObj._toRawObject() : { classObj };
       classSpec.type = classObj.constructor.name;
+      graph.classLookup[classObj.classId] = graph.classes.length;
       graph.classes.push(classSpec);
 
       if (classObj.type === 'Edge') {
@@ -455,11 +455,76 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     return graph;
   }
-  getFullSchemaGraph () {
-    return Object.assign(this.getNetworkModelGraph(), this.getTableDependencyGraph());
+  getModelDump () {
+    // Because object key orders aren't deterministic, it can be problematic
+    // for testing (because ids can randomly change from test run to test run).
+    // This function sorts each key, and just replaces IDs with index numbers
+    const rawObj = JSON.parse(JSON.stringify(this._toRawObject()));
+    const result = {
+      classes: Object.values(rawObj.classes).sort((a, b) => {
+        const aHash = this.classes[a.classId].getSortHash();
+        const bHash = this.classes[b.classId].getSortHash();
+        if (aHash < bHash) {
+          return -1;
+        } else if (aHash > bHash) {
+          return 1;
+        } else {
+          throw new Error(`class hash collision`);
+        }
+      }),
+      tables: Object.values(rawObj.tables).sort((a, b) => {
+        const aHash = this.tables[a.tableId].getSortHash();
+        const bHash = this.tables[b.tableId].getSortHash();
+        if (aHash < bHash) {
+          return -1;
+        } else if (aHash > bHash) {
+          return 1;
+        } else {
+          throw new Error(`table hash collision`);
+        }
+      })
+    };
+    const classLookup = {};
+    const tableLookup = {};
+    result.classes.forEach((classObj, index) => {
+      classLookup[classObj.classId] = index;
+    });
+    result.tables.forEach((table, index) => {
+      tableLookup[table.tableId] = index;
+    });
+
+    for (const table of result.tables) {
+      table.tableId = tableLookup[table.tableId];
+      for (const tableId of Object.keys(table.derivedTables)) {
+        table.derivedTables[tableLookup[tableId]] = table.derivedTables[tableId];
+        delete table.derivedTables[tableId];
+      }
+      delete table.data; // don't include any of the data; we just want the model structure
+    }
+    for (const classObj of result.classes) {
+      classObj.classId = classLookup[classObj.classId];
+      classObj.tableId = tableLookup[classObj.tableId];
+      if (classObj.sourceClassId) {
+        classObj.sourceClassId = classLookup[classObj.sourceClassId];
+      }
+      if (classObj.sourceTableIds) {
+        classObj.sourceTableIds = classObj.sourceTableIds.map(tableId => tableLookup[tableId]);
+      }
+      if (classObj.targetClassId) {
+        classObj.targetClassId = classLookup[classObj.targetClassId];
+      }
+      if (classObj.targetTableIds) {
+        classObj.targetTableIds = classObj.targetTableIds.map(tableId => tableLookup[tableId]);
+      }
+      for (const classId of Object.keys(classObj.edgeClassIds || {})) {
+        classObj.edgeClassIds[classLookup[classId]] = classObj.edgeClassIds[classId];
+        delete classObj.edgeClassIds[classId];
+      }
+    }
+    return result;
   }
   createSchemaModel () {
-    const graph = this.getFullSchemaGraph();
+    const graph = this.getRawSchemaGraph();
     const newModel = this._origraph.createModel({ name: this.name + '_schema' });
     let classes = newModel.addStaticTable({
       data: graph.classes,

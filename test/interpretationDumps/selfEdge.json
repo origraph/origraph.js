@@ -1,0 +1,84 @@
+{
+  "classes": [
+    {
+      "classId": 0,
+      "tableId": 2,
+      "className": "Edge",
+      "annotations": {},
+      "sourceClassId": 1,
+      "sourceTableIds": [
+        1
+      ],
+      "targetClassId": 1,
+      "targetTableIds": [
+        0
+      ],
+      "directed": true,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 1,
+      "tableId": 3,
+      "className": "Node",
+      "annotations": {},
+      "edgeClassIds": {
+        "0": true
+      },
+      "type": "NodeClass"
+    }
+  ],
+  "tables": [
+    {
+      "tableId": 0,
+      "derivedTables": {
+        "2": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "a",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 1,
+      "derivedTables": {
+        "2": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "is",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 2,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 3,
+      "derivedTables": {
+        "0": true,
+        "1": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "csvTest.csv",
+      "type": "StaticTable"
+    }
+  ]
+}

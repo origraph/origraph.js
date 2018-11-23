@@ -23,6 +23,9 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
     return obj;
   }
+  getSortHash () {
+    return super.getSortHash() + this.parentTable.getSortHash() + this._attribute;
+  }
   get name () {
     return '↦' + this._attribute;
   }

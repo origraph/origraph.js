@@ -35,7 +35,6 @@ class Table extends TriggerableMixin(Introspectable) {
       tableId: this.tableId,
       attributes: this._attributes,
       derivedTables: this._derivedTables,
-      usedByClasses: this._usedByClasses,
       derivedAttributeFunctions: {},
       suppressedAttributes: this._suppressedAttributes,
       suppressIndex: this._suppressIndex,
@@ -49,6 +48,9 @@ class Table extends TriggerableMixin(Introspectable) {
       result.attributeFilters[attr] = this.dehydrateFunction(func);
     }
     return result;
+  }
+  getSortHash () {
+    return this.type;
   }
   hydrateFunction (stringifiedFunc) {
     new Function(`return ${stringifiedFunc}`)(); // eslint-disable-line no-new-func

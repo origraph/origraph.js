@@ -16,6 +16,9 @@ class ExpandedTable extends SingleParentMixin(Table) {
     obj.attribute = this._attribute;
     return obj;
   }
+  getSortHash () {
+    return super.getSortHash() + this.delimiter + this._attribute;
+  }
   get name () {
     return this.parentTable.name + '↤';
   }

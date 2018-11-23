@@ -1,0 +1,815 @@
+{
+  "classes": [
+    {
+      "classId": 0,
+      "tableId": 21,
+      "className": "Customer Orders",
+      "annotations": {},
+      "sourceClassId": 10,
+      "sourceTableIds": [
+        1
+      ],
+      "targetClassId": 12,
+      "targetTableIds": [
+        7
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 1,
+      "tableId": 34,
+      "className": "Employee Territory",
+      "annotations": {},
+      "sourceClassId": 11,
+      "sourceTableIds": [
+        2,
+        22,
+        4
+      ],
+      "targetClassId": 17,
+      "targetTableIds": [
+        3,
+        23,
+        20
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 2,
+      "tableId": 36,
+      "className": "Order Details",
+      "annotations": {},
+      "sourceClassId": 12,
+      "sourceTableIds": [
+        5,
+        25,
+        9
+      ],
+      "targetClassId": 13,
+      "targetTableIds": [
+        6,
+        26,
+        12
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 3,
+      "tableId": 24,
+      "className": "Order Employee",
+      "annotations": {},
+      "sourceClassId": 11,
+      "sourceTableIds": [
+        4
+      ],
+      "targetClassId": 12,
+      "targetTableIds": [
+        8
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 4,
+      "tableId": 27,
+      "className": "Product Category",
+      "annotations": {},
+      "sourceClassId": 13,
+      "sourceTableIds": [
+        11
+      ],
+      "targetClassId": 9,
+      "targetTableIds": [
+        0
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 5,
+      "tableId": 28,
+      "className": "Product Supplier",
+      "annotations": {},
+      "sourceClassId": 13,
+      "sourceTableIds": [
+        13
+      ],
+      "targetClassId": 16,
+      "targetTableIds": [
+        17
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 6,
+      "tableId": 30,
+      "className": "Shipped Via",
+      "annotations": {},
+      "sourceClassId": 15,
+      "sourceTableIds": [
+        15
+      ],
+      "targetClassId": 12,
+      "targetTableIds": [
+        10
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 7,
+      "tableId": 31,
+      "className": "Supplier Territory",
+      "annotations": {},
+      "sourceClassId": 16,
+      "sourceTableIds": [
+        16
+      ],
+      "targetClassId": 17,
+      "targetTableIds": [
+        19
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 8,
+      "tableId": 29,
+      "className": "Territory Region",
+      "annotations": {},
+      "sourceClassId": 14,
+      "sourceTableIds": [
+        14
+      ],
+      "targetClassId": 17,
+      "targetTableIds": [
+        18
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 9,
+      "tableId": 32,
+      "className": "Categories",
+      "annotations": {},
+      "edgeClassIds": {
+        "4": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 10,
+      "tableId": 33,
+      "className": "Customers",
+      "annotations": {},
+      "edgeClassIds": {
+        "0": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 11,
+      "tableId": 35,
+      "className": "Employees",
+      "annotations": {},
+      "edgeClassIds": {
+        "1": true,
+        "3": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 12,
+      "tableId": 37,
+      "className": "Orders",
+      "annotations": {},
+      "edgeClassIds": {
+        "0": true,
+        "2": true,
+        "3": true,
+        "6": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 13,
+      "tableId": 38,
+      "className": "Products",
+      "annotations": {},
+      "edgeClassIds": {
+        "2": true,
+        "4": true,
+        "5": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 14,
+      "tableId": 39,
+      "className": "Regions",
+      "annotations": {},
+      "edgeClassIds": {
+        "8": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 15,
+      "tableId": 40,
+      "className": "Shippers",
+      "annotations": {},
+      "edgeClassIds": {
+        "6": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 16,
+      "tableId": 41,
+      "className": "Suppliers",
+      "annotations": {},
+      "edgeClassIds": {
+        "5": true,
+        "7": true
+      },
+      "type": "NodeClass"
+    },
+    {
+      "classId": 17,
+      "tableId": 42,
+      "className": "Territory",
+      "annotations": {},
+      "edgeClassIds": {
+        "1": true,
+        "7": true,
+        "8": true
+      },
+      "type": "NodeClass"
+    }
+  ],
+  "tables": [
+    {
+      "tableId": 0,
+      "derivedTables": {
+        "27": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "categoryID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 1,
+      "derivedTables": {
+        "21": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "customerID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 2,
+      "derivedTables": {
+        "22": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "employeeID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 3,
+      "derivedTables": {
+        "23": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "territoryID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 4,
+      "derivedTables": {
+        "22": true,
+        "24": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "employeeID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 5,
+      "derivedTables": {
+        "25": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "orderID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 6,
+      "derivedTables": {
+        "26": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "productID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 7,
+      "derivedTables": {
+        "21": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "customerID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 8,
+      "derivedTables": {
+        "24": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "employeeID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 9,
+      "derivedTables": {
+        "25": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "orderID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 10,
+      "derivedTables": {
+        "30": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "shipVia",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 11,
+      "derivedTables": {
+        "27": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "categoryID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 12,
+      "derivedTables": {
+        "26": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "productID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 13,
+      "derivedTables": {
+        "28": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "supplierID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 14,
+      "derivedTables": {
+        "29": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "regionID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 15,
+      "derivedTables": {
+        "30": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "shipperID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 16,
+      "derivedTables": {
+        "31": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "city",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 17,
+      "derivedTables": {
+        "28": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "supplierID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 18,
+      "derivedTables": {
+        "29": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "regionID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 19,
+      "derivedTables": {
+        "31": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "territoryDescription",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 20,
+      "derivedTables": {
+        "23": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "territoryID",
+      "reduceAttributeFunctions": {},
+      "type": "AggregatedTable"
+    },
+    {
+      "tableId": 21,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 22,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 23,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 24,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 25,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 26,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 27,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 28,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 29,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 30,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 31,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 32,
+      "derivedTables": {
+        "0": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/categories.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 33,
+      "derivedTables": {
+        "1": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/customers.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 34,
+      "derivedTables": {
+        "2": true,
+        "3": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/employee_territories.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 35,
+      "derivedTables": {
+        "4": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/employees.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 36,
+      "derivedTables": {
+        "5": true,
+        "6": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/order_details.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 37,
+      "derivedTables": {
+        "7": true,
+        "8": true,
+        "9": true,
+        "10": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/orders.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 38,
+      "derivedTables": {
+        "11": true,
+        "12": true,
+        "13": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/products.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 39,
+      "derivedTables": {
+        "14": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/regions.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 40,
+      "derivedTables": {
+        "15": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/shippers.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 41,
+      "derivedTables": {
+        "16": true,
+        "17": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/suppliers.csv",
+      "type": "StaticTable"
+    },
+    {
+      "tableId": 42,
+      "derivedTables": {
+        "18": true,
+        "19": true,
+        "20": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "name": "northwind/territories.csv",
+      "type": "StaticTable"
+    }
+  ]
+}

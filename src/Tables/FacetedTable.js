@@ -16,6 +16,9 @@ class FacetedTable extends SingleParentMixin(Table) {
     obj.value = this._value;
     return obj;
   }
+  getSortHash () {
+    return super.getSortHash() + this._attribute + this._value;
+  }
   get name () {
     return `[${this._value}]`;
   }
