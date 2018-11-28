@@ -40,7 +40,8 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     // First make sure that all the table caches have been fully built and
     // connected
     await Promise.all(tableIds.map(tableId => {
-      return this.classObj.model.tables[tableId].buildCache();
+      const cachePromise = this.classObj.model.tables[tableId].buildCache();
+      return cachePromise;
     }));
     let i = 0;
     for (const item of this._iterateAcrossConnections(tableIds)) {
