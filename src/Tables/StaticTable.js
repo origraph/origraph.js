@@ -24,7 +24,7 @@ class StaticTable extends Table {
   async * _iterate (options) {
     for (let index = 0; index < this._data.length; index++) {
       const item = this._wrap({ index, row: this._data[index] });
-      if (this._finishItem(item)) {
+      if (await this._finishItem(item)) {
         yield item;
       }
     }

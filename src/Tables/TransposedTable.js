@@ -33,7 +33,7 @@ class TransposedTable extends SingleParentMixin(Table) {
         row: typeof value === 'object' ? value : { value },
         itemsToConnect: [ wrappedParent ]
       });
-      if (this._finishItem(newItem)) {
+      if (await this._finishItem(newItem)) {
         yield newItem;
       }
     }

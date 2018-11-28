@@ -35,7 +35,7 @@ class ExpandedTable extends SingleParentMixin(Table) {
           row,
           itemsToConnect: [ wrappedParent ]
         });
-        if (this._finishItem(newItem)) {
+        if (await this._finishItem(newItem)) {
           yield newItem;
         }
         index++;

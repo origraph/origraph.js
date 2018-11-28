@@ -35,6 +35,14 @@ class GenericClass extends Introspectable {
   get className () {
     return this._className || this.table.name;
   }
+  get variableName () {
+    return this.type.toLocaleLowerCase() + '_' +
+      this.className
+        .split(/\W+/g)
+        .filter(d => d.length > 0)
+        .map(d => d[0].toLocaleUpperCase() + d.slice(1))
+        .join('');
+  }
   get table () {
     return this.model.tables[this.tableId];
   }

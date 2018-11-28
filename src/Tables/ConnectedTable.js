@@ -32,7 +32,7 @@ class ConnectedTable extends Table {
         index,
         itemsToConnect: parentTables.map(table => table._cache[index])
       });
-      if (this._finishItem(newItem)) {
+      if (await this._finishItem(newItem)) {
         yield newItem;
       }
     }

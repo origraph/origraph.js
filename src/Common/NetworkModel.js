@@ -94,6 +94,9 @@ class NetworkModel extends TriggerableMixin(class {}) {
     this.trigger('update');
     return this.classes[options.classId];
   }
+  findClass (className) {
+    return Object.values(this.classes).find(classObj => classObj.className === className);
+  }
   rename (newName) {
     this.name = newName;
     this.trigger('update');
@@ -381,51 +384,51 @@ class NetworkModel extends TriggerableMixin(class {}) {
         });
         graph.classes.push({ dummy: true });
       }
+    }
 
-      // Create existing classConnections
-      for (const edgeClass of edgeClasses) {
-        if (edgeClass.sourceClassId !== null) {
-          // Connect the source node class to the edge class
-          graph.classConnections.push({
-            id: `${edgeClass.sourceClassId}>${edgeClass.classId}`,
-            source: graph.classLookup[edgeClass.sourceClassId],
-            target: graph.classLookup[edgeClass.classId],
-            directed: edgeClass.directed,
-            location: 'source'
-          });
-        } else if (includeDummies) {
-          // Create a "potential" connection + dummy source class
-          graph.classConnections.push({
-            id: `dummy>${edgeClass.classId}`,
-            source: graph.classes.length,
-            target: graph.classLookup[edgeClass.classId],
-            directed: edgeClass.directed,
-            location: 'source',
-            dummy: true
-          });
-          graph.classes.push({ dummy: true });
-        }
-        if (edgeClass.targetClassId !== null) {
-          // Connect the edge class to the target node class
-          graph.classConnections.push({
-            id: `${edgeClass.classId}>${edgeClass.targetClassId}`,
-            source: graph.classLookup[edgeClass.classId],
-            target: graph.classLookup[edgeClass.targetClassId],
-            directed: edgeClass.directed,
-            location: 'target'
-          });
-        } else if (includeDummies) {
-          // Create a "potential" connection + dummy target class
-          graph.classConnections.push({
-            id: `${edgeClass.classId}>dummy`,
-            source: graph.classLookup[edgeClass.classId],
-            target: graph.classes.length,
-            directed: edgeClass.directed,
-            location: 'target',
-            dummy: true
-          });
-          graph.classes.push({ dummy: true });
-        }
+    // Create existing classConnections
+    for (const edgeClass of edgeClasses) {
+      if (edgeClass.sourceClassId !== null) {
+        // Connect the source node class to the edge class
+        graph.classConnections.push({
+          id: `${edgeClass.sourceClassId}>${edgeClass.classId}`,
+          source: graph.classLookup[edgeClass.sourceClassId],
+          target: graph.classLookup[edgeClass.classId],
+          directed: edgeClass.directed,
+          location: 'source'
+        });
+      } else if (includeDummies) {
+        // Create a "potential" connection + dummy source class
+        graph.classConnections.push({
+          id: `dummy>${edgeClass.classId}`,
+          source: graph.classes.length,
+          target: graph.classLookup[edgeClass.classId],
+          directed: edgeClass.directed,
+          location: 'source',
+          dummy: true
+        });
+        graph.classes.push({ dummy: true });
+      }
+      if (edgeClass.targetClassId !== null) {
+        // Connect the edge class to the target node class
+        graph.classConnections.push({
+          id: `${edgeClass.classId}>${edgeClass.targetClassId}`,
+          source: graph.classLookup[edgeClass.classId],
+          target: graph.classLookup[edgeClass.targetClassId],
+          directed: edgeClass.directed,
+          location: 'target'
+        });
+      } else if (includeDummies) {
+        // Create a "potential" connection + dummy target class
+        graph.classConnections.push({
+          id: `${edgeClass.classId}>dummy`,
+          source: graph.classLookup[edgeClass.classId],
+          target: graph.classes.length,
+          directed: edgeClass.directed,
+          location: 'target',
+          dummy: true
+        });
+        graph.classes.push({ dummy: true });
       }
     }
 

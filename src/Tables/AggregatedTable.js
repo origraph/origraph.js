@@ -59,7 +59,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
     // table, we can finish each item
     for (const index in this._partialCache) {
       const wrappedItem = this._partialCache[index];
-      if (!this._finishItem(wrappedItem)) {
+      if (!await this._finishItem(wrappedItem)) {
         delete this._partialCache[index];
       }
     }

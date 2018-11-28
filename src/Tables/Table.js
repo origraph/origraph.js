@@ -53,7 +53,7 @@ class Table extends TriggerableMixin(Introspectable) {
     return this.type;
   }
   hydrateFunction (stringifiedFunc) {
-    new Function(`return ${stringifiedFunc}`)(); // eslint-disable-line no-new-func
+    return new Function(`return ${stringifiedFunc}`)(); // eslint-disable-line no-new-func
   }
   dehydrateFunction (func) {
     let stringifiedFunc = func.toString();
@@ -99,9 +99,10 @@ class Table extends TriggerableMixin(Introspectable) {
         completed = true;
         break;
       } else {
-        this._finishItem(temp.value);
-        this._partialCache[temp.value.index] = temp.value;
-        yield temp.value;
+        if (await this._finishItem(temp.value)) {
+          this._partialCache[temp.value.index] = temp.value;
+          yield temp.value;
+        }
       }
     }
     if (completed) {
@@ -112,9 +113,10 @@ class Table extends TriggerableMixin(Introspectable) {
   async * _iterate (options) {
     throw new Error(`this function should be overridden`);
   }
-  _finishItem (wrappedItem) {
+  async _finishItem (wrappedItem) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
-      wrappedItem.row[attr] = func(wrappedItem);
+      const derivedResult = await func(wrappedItem);
+      wrappedItem.row[attr] = derivedResult;
     }
     for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
@@ -223,6 +225,7 @@ class Table extends TriggerableMixin(Introspectable) {
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
     this.reset();
+    this.model.trigger('update');
   }
   suppressAttribute (attribute) {
     if (attribute === null) {
@@ -231,6 +234,7 @@ class Table extends TriggerableMixin(Introspectable) {
       this._suppressedAttributes[attribute] = true;
     }
     this.reset();
+    this.model.trigger('update');
   }
   addFilter (attribute, func) {
     if (attribute === null) {
@@ -239,6 +243,7 @@ class Table extends TriggerableMixin(Introspectable) {
       this._attributeFilters[attribute] = func;
     }
     this.reset();
+    this.model.trigger('update');
   }
   _deriveTable (options) {
     const newTable = this.model.createTable(options);

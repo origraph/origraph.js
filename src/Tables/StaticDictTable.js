@@ -24,7 +24,7 @@ class StaticDictTable extends Table {
   async * _iterate (options) {
     for (const [index, row] of Object.entries(this._data)) {
       const item = this._wrap({ index, row });
-      if (this._finishItem(item)) {
+      if (await this._finishItem(item)) {
         yield item;
       }
     }

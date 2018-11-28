@@ -11,6 +11,21 @@ class NodeClass extends GenericClass {
       yield this.model.classes[edgeClassId];
     }
   }
+  getEdgeRole (edgeClass) {
+    if (!this.edgeClassIds[edgeClass.classId]) {
+      return null;
+    } else if (edgeClass.sourceClassId === this.classId) {
+      if (edgeClass.targetClassId === this.classId) {
+        return 'both';
+      } else {
+        return 'source';
+      }
+    } else if (edgeClass.targetClassId === this.classId) {
+      return 'target';
+    } else {
+      throw new Error(`Internal mismatch between node and edge classIds`);
+    }
+  }
   _toRawObject () {
     const result = super._toRawObject();
     result.edgeClassIds = this.edgeClassIds;

@@ -33,7 +33,7 @@ class FacetedTable extends SingleParentMixin(Table) {
           row: Object.assign({}, wrappedParent.row),
           itemsToConnect: [ wrappedParent ]
         });
-        if (this._finishItem(newItem)) {
+        if (await this._finishItem(newItem)) {
           yield newItem;
         }
         index++;
