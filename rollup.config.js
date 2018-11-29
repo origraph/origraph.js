@@ -3,6 +3,7 @@ import globals from 'rollup-plugin-node-globals';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
+import istanbul from 'rollup-plugin-istanbul';
 import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
 import pkg from './package.json';
@@ -18,6 +19,9 @@ const commonPlugins = [
   babel({
     exclude: 'node_modules/**',
     externalHelpers: true
+  }),
+  istanbul({
+    exclude: 'test/*'
   })
 ];
 
