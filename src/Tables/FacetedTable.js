@@ -22,10 +22,10 @@ class FacetedTable extends SingleParentMixin(Table) {
   get name () {
     return `[${this._value}]`;
   }
-  async * _iterate (options) {
+  async * _iterate () {
     let index = 0;
     const parentTable = this.parentTable;
-    for await (const wrappedParent of parentTable.iterate(options)) {
+    for await (const wrappedParent of parentTable.iterate()) {
       if (await wrappedParent.row[this._attribute] === this._value) {
         // Normal faceting just gives a subset of the original table
         const newItem = this._wrap({

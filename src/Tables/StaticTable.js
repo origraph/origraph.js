@@ -21,7 +21,7 @@ class StaticTable extends Table {
   getSortHash () {
     return super.getSortHash() + this._name;
   }
-  async * _iterate (options) {
+  async * _iterate () {
     for (let index = 0; index < this._data.length; index++) {
       const item = this._wrap({ index, row: this._data[index] });
       if (await this._finishItem(item)) {

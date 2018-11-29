@@ -9,7 +9,7 @@ describe('Sample Tests', () => {
   test('Movie + Person + Edge', async () => {
     expect.assertions(11);
 
-    let { people, movies, movieEdges } = await utils.setupMovies();
+    let { people, movies, movieEdges } = await utils.setupSmallMovies();
 
     let count = await people.table.countRows();
     expect(count).toEqual(133);
@@ -18,12 +18,13 @@ describe('Sample Tests', () => {
     count = await movieEdges.table.countRows();
     expect(count).toEqual(506);
 
-    let samples = await origraph.currentModel.getFlattenedSamples({
+    let samples = await origraph.currentModel.getSampleGraph({
+      rootClass: people,
       branchLimit: 2,
       tripleLimit: 2
     });
 
-    expect(samples).toEqual(require('./data/dump1.json'));
+    expect(samples).toEqual([ null ]);
   });
 
   test('Person + Year + Person (as edges)', async () => {
@@ -44,7 +45,8 @@ describe('Sample Tests', () => {
     count = await years.table.countRows();
     expect(count).toEqual(53);
 
-    let samples = await origraph.currentModel.getFlattenedSamples({
+    let samples = await origraph.currentModel.getSampleGraph({
+      rootClass: people,
       branchLimit: 2,
       tripleLimit: 2
     });
@@ -66,7 +68,8 @@ describe('Sample Tests', () => {
     count = await years.table.countRows();
     expect(count).toEqual(53);
 
-    let samples = await origraph.currentModel.getFlattenedSamples({
+    let samples = await origraph.currentModel.getSampleGraph({
+      rootClass: people,
       branchLimit: 2,
       tripleLimit: 2
     });

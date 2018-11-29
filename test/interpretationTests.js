@@ -9,7 +9,7 @@ describe('Interpretation Tests', () => {
   test('Movie + Person nodes + Connections', async () => {
     expect.assertions(1);
 
-    await utils.setupMovies();
+    await utils.setupSmallMovies();
 
     expect(origraph.currentModel.getModelDump())
       .toEqual(require('./interpretationDumps/movies.json'));
@@ -36,7 +36,7 @@ describe('Interpretation Tests', () => {
   test('Movies to Edges', async () => {
     expect.assertions(1);
 
-    let { movies } = await utils.setupMovies();
+    let { movies } = await utils.setupSmallMovies();
 
     // Reinterpret Movies as Edges
     movies.interpretAsEdges({ autoconnect: true });
@@ -48,7 +48,7 @@ describe('Interpretation Tests', () => {
   test('Movies to Edges and Back Again', async () => {
     expect.assertions(1);
 
-    let { movies } = await utils.setupMovies();
+    let { movies } = await utils.setupSmallMovies();
 
     // Reinterpret Movies as Edges
     movies = movies.interpretAsEdges({ autoconnect: true });

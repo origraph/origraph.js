@@ -28,13 +28,17 @@ const utils = {
   },
   async getFiveSamples (tableObj) {
     const samples = [];
-    for await (const sample of tableObj.iterate({ limit: 5 })) {
+    for await (const sample of tableObj.iterate(5)) {
       samples.push(sample);
     }
     return samples;
   },
-  setupMovies: async function () {
-    let [ people, movies, movieEdges ] = await utils.loadFiles(['people.csv', 'movies.csv', 'movieEdges.csv']);
+  setupSmallMovies: async function () {
+    let [ people, movies, movieEdges ] = await utils.loadFiles([
+      'movies/small/people.csv',
+      'movies/small/movies.csv',
+      'movies/small/movieEdges.csv'
+    ]);
 
     // Initial interpretation
     people = people.interpretAsNodes();
@@ -126,22 +130,26 @@ const utils = {
       otherNodeClass: territories,
       attribute: 'regionID',
       otherAttribute: 'regionID'
-    }).setClassName('Territory Region');
+    });
+    territoryRegion.setClassName('Territory Region');
     const customerOrders = customers.connectToNodeClass({
       otherNodeClass: orders,
       attribute: 'customerID',
       otherAttribute: 'customerID'
-    }).setClassName('Customer Orders');
+    });
+    customerOrders.setClassName('Customer Orders');
     const orderEmployee = employees.connectToNodeClass({
       otherNodeClass: orders,
       attribute: 'employeeID',
       otherAttribute: 'employeeID'
-    }).setClassName('Order Employee');
+    });
+    orderEmployee.setClassName('Order Employee');
     const shippedVia = shippers.connectToNodeClass({
       otherNodeClass: orders,
       attribute: 'shipperID',
       otherAttribute: 'shipVia'
-    }).setClassName('Shipped Via');
+    });
+    shippedVia.setClassName('Shipped Via');
     orderDetails.connectToNodeClass({
       nodeClass: orders,
       side: 'source',
@@ -158,17 +166,20 @@ const utils = {
       otherNodeClass: suppliers,
       attribute: 'supplierID',
       otherAttribute: 'supplierID'
-    }).setClassName('Product Supplier');
+    });
+    productSupplier.setClassName('Product Supplier');
     const productCategory = products.connectToNodeClass({
       otherNodeClass: categories,
       attribute: 'categoryID',
       otherAttribute: 'categoryID'
-    }).setClassName('Product Category');
+    });
+    productCategory.setClassName('Product Category');
     const supplierTerritory = suppliers.connectToNodeClass({
       otherNodeClass: territories,
       attribute: 'city',
       otherAttribute: 'territoryDescription'
-    }).setClassName('Supplier Territory');
+    });
+    supplierTerritory.setClassName('Supplier Territory');
 
     return {
       categories,
@@ -189,6 +200,73 @@ const utils = {
       productSupplier,
       productCategory,
       supplierTerritory
+    };
+  },
+  setupBigMovies: async () => {
+    const classes = await utils.loadFilesAsDict([
+      'movies/big/movies.json',
+      'movies/big/credits.json',
+      'movies/big/people.json',
+      'movies/big/companies.json'
+    ]);
+
+    let movies = classes['movies/big/movies.json'].interpretAsNodes();
+    movies.setClassName('Movies');
+
+    let [ cast, crew ] = classes['movies/big/credits.json']
+      .closedTranspose(['cast', 'crew']);
+    classes['movies/big/credits.json'].delete();
+
+    cast = cast.interpretAsEdges();
+    cast.setClassName('Cast');
+
+    crew = crew.interpretAsEdges();
+    crew.setClassName('Crew');
+
+    let people = classes['movies/big/people.json'].interpretAsNodes();
+    people.setClassName('People');
+
+    let companies = classes['movies/big/companies.json'].interpretAsNodes();
+    companies.setClassName('Companies');
+
+    cast.connectToNodeClass({
+      nodeClass: movies,
+      side: 'target',
+      nodeAttribute: 'id',
+      edgeAttribute: 'movie_id'
+    });
+    cast.connectToNodeClass({
+      nodeClass: people,
+      side: 'source',
+      nodeAttribute: 'id',
+      edgeAttribute: 'id'
+    });
+    crew.connectToNodeClass({
+      nodeClass: movies,
+      side: 'target',
+      nodeAttribute: 'id',
+      edgeAttribute: 'movie_id'
+    });
+    crew.connectToNodeClass({
+      nodeClass: people,
+      side: 'source',
+      nodeAttribute: 'id',
+      edgeAttribute: 'id'
+    });
+    const companyLinks = companies.connectToNodeClass({
+      otherNodeClass: movies,
+      attribute: 'movie_id',
+      otherAttribute: 'id'
+    });
+    companyLinks.setClassName('Company Links');
+
+    return {
+      movies,
+      cast,
+      crew,
+      people,
+      companies,
+      companyLinks
     };
   }
 };

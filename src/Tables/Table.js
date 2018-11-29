@@ -29,6 +29,10 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const [attr, stringifiedFunc] of Object.entries(options.attributeFilters || {})) {
       this._attributeFilters[attr] = this.hydrateFunction(stringifiedFunc);
     }
+
+    this._limitPromises = {};
+
+    this.iterationReset = new Error('Iteration reset');
   }
   _toRawObject () {
     const result = {
@@ -63,55 +67,121 @@ class Table extends TriggerableMixin(Introspectable) {
     stringifiedFunc = stringifiedFunc.replace(/cov_(.+?)\+\+[,;]?/g, '');
     return stringifiedFunc;
   }
-  async * iterate (options = {}) {
-    // Generic caching stuff; this isn't just for performance. ConnectedTable's
-    // algorithm requires that its parent tables have pre-built indexes (we
-    // technically could implement it differently, but it would be expensive,
-    // requires tricky logic, and we're already building indexes for some tables
-    // like AggregatedTable anyway)
-    if (options.reset) {
-      this.reset();
-    }
-
+  async * iterate (limit = Infinity) {
     if (this._cache) {
-      const limit = options.limit === undefined ? Infinity : options.limit;
-      yield * Object.values(this._cache).slice(0, limit);
-      return;
-    }
-
-    yield * await this._buildCache(options);
-  }
-  async * _buildCache (options = {}) {
-    // TODO: in large data scenarios, we should build the cache / index
-    // externally on disk
-    this._partialCache = {};
-    const limit = options.limit === undefined ? Infinity : options.limit;
-    delete options.limit;
-    const iterator = this._iterate(options);
-    let completed = false;
-    for (let i = 0; i < limit; i++) {
-      const temp = await iterator.next();
-      if (!this._partialCache) {
-        // iteration was cancelled; return immediately
-        return;
+      // The cache has already been built; just grab data from it directly
+      yield * this._cache.slice(0, limit);
+    } else if (this._partialCache && this._partialCache.length >= limit) {
+      // The cache isn't finished, but it's already long enough to satisfy this
+      // request
+      yield * this._partialCache.slice(0, limit);
+    } else {
+      // The cache isn't finished building (and maybe didn't even start yet);
+      // kick it off, and then wait for enough items to be processed to satisfy
+      // the limit
+      try {
+        this.buildCache();
+      } catch (err) {
+        throw err;
       }
-      if (temp.done) {
-        completed = true;
-        break;
-      } else {
-        if (await this._finishItem(temp.value)) {
-          this._partialCache[temp.value.index] = temp.value;
-          yield temp.value;
-        }
-      }
+      yield * await new Promise((resolve, reject) => {
+        this._limitPromises[limit] = this._limitPromises[limit] || [];
+        this._limitPromises[limit].push({ resolve, reject });
+      });
     }
-    if (completed) {
-      this._cache = this._partialCache;
-    }
-    delete this._partialCache;
   }
   async * _iterate (options) {
     throw new Error(`this function should be overridden`);
+  }
+  async buildCache () {
+    if (this._cache) {
+      return this._cache;
+    } else if (this._cachePromise) {
+      return this._cachePromise;
+    }
+    this._cachePromise = new Promise(async (resolve, reject) => {
+      this._partialCache = [];
+      this._partialCacheLookup = {};
+      const iterator = this._iterate();
+      let i = 0;
+      let temp = { done: false };
+      while (!temp.done) {
+        try {
+          temp = await iterator.next();
+        } catch (err) {
+          // Something went wrong upstream (something that this._iterate
+          // depends on was reset or threw a real error)
+          if (err === this.iterationReset) {
+            this.handleReset(reject);
+          } else {
+            throw err;
+          }
+        }
+        if (!this._partialCache) {
+          // reset() was called before we could finish; we need to let everyone
+          // that was waiting on us know that we can't comply
+          this.handleReset(reject);
+          return;
+        }
+        if (!temp.done) {
+          if (await this._finishItem(temp.value)) {
+            // Okay, this item passed all filters, and is ready to be sent out
+            // into the world
+            this._partialCacheLookup[temp.value.index] = this._partialCache.length;
+            this._partialCache.push(temp.value);
+            i++;
+            for (let limit of Object.keys(this._limitPromises)) {
+              limit = Number(limit);
+              // check if we have enough data now to satisfy any waiting requests
+              if (limit <= i) {
+                for (const { resolve } of this._limitPromises[limit]) {
+                  resolve(this._partialCache.slice(0, limit));
+                }
+                delete this._limitPromises[limit];
+              }
+            }
+          }
+        }
+      }
+      // Done iterating! We can graduate the partial cache / lookups into
+      // finished ones, and satisfy all the requests
+      this._cache = this._partialCache;
+      delete this._partialCache;
+      this._cacheLookup = this._partialCacheLookup;
+      delete this._partialCacheLookup;
+      for (let limit of Object.keys(this._limitPromises)) {
+        limit = Number(limit);
+        for (const { resolve } of this._limitPromises[limit]) {
+          resolve(this._cache.slice(0, limit));
+        }
+        delete this._limitPromises[limit];
+      }
+      delete this._cachePromise;
+      this.trigger('cacheBuilt');
+      resolve(this._cache);
+    });
+    return this._cachePromise;
+  }
+  reset () {
+    delete this._cache;
+    delete this._cacheLookup;
+    delete this._partialCache;
+    delete this._partialCacheLookup;
+    delete this._cachePromise;
+    for (const derivedTable of this.derivedTables) {
+      derivedTable.reset();
+    }
+    this.trigger('reset');
+  }
+  handleReset (reject) {
+    for (const limit of Object.keys(this._limitPromises)) {
+      this._limitPromises[limit].reject(this.iterationReset);
+      delete this._limitPromises;
+    }
+    reject(this.iterationReset);
+  }
+  async countRows () {
+    return (await this.buildCache()).length;
   }
   async _finishItem (wrappedItem) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
@@ -149,34 +219,8 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return wrappedItem;
   }
-  reset () {
-    delete this._partialCache;
-    delete this._cache;
-    for (const derivedTable of this.derivedTables) {
-      derivedTable.reset();
-    }
-    this.trigger('reset');
-  }
   get name () {
     throw new Error(`this function should be overridden`);
-  }
-  async buildCache () {
-    if (this._cache) {
-      return this._cache;
-    } else if (this._cachePromise) {
-      return this._cachePromise;
-    } else {
-      this._cachePromise = new Promise(async (resolve, reject) => {
-        for await (const temp of this._buildCache()) {} // eslint-disable-line no-unused-vars
-        delete this._cachePromise;
-        resolve(this._cache);
-      });
-      return this._cachePromise;
-    }
-  }
-  async countRows () {
-    const cache = await this.buildCache();
-    return cache ? Object.keys(cache).length : -1;
   }
   getIndexDetails () {
     const details = { name: null };
@@ -216,8 +260,9 @@ class Table extends TriggerableMixin(Introspectable) {
     return Object.keys(this.getAttributeDetails());
   }
   get currentData () {
+    // Allow probing to see whatever data happens to be available
     return {
-      data: this._cache || this._partialCache || {},
+      data: this._cache || this._partialCache || [],
       complete: !!this._cache
     };
   }
@@ -282,7 +327,7 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   async * openFacet (attribute, limit = Infinity) {
     const values = {};
-    for await (const wrappedItem of this.iterate({ limit })) {
+    for await (const wrappedItem of this.iterate(limit)) {
       const value = await wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
@@ -305,7 +350,7 @@ class Table extends TriggerableMixin(Introspectable) {
     });
   }
   async * openTranspose (limit = Infinity) {
-    for await (const wrappedItem of this.iterate({ limit })) {
+    for await (const wrappedItem of this.iterate(limit)) {
       const options = {
         type: 'TransposedTable',
         index: wrappedItem.index

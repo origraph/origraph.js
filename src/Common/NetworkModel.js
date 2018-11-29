@@ -269,7 +269,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
       instances = [];
       for (const classObj of Object.values(this.classes)) {
         if (classObj.type === 'Node' || classObj.type === 'Edge') {
-          for await (const item of classObj.table.iterate({ limit: 5 })) {
+          for await (const item of classObj.table.iterate(5)) {
             instances.push(item);
           }
         }

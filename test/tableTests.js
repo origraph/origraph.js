@@ -9,7 +9,7 @@ describe('Table Samples', () => {
   test('StaticTable Samples', async () => {
     expect.assertions(1);
 
-    let people = (await utils.loadFiles(['people.csv']))[0].table;
+    let people = (await utils.loadFiles(['movies/small/people.csv']))[0].table;
 
     // Test that the data is what we'd expect
     const samples = await utils.getFiveSamples(people);
@@ -25,14 +25,14 @@ describe('Table Samples', () => {
   test('AggregatedTable Samples', async () => {
     expect.assertions(1);
 
-    let people = (await utils.loadFiles(['people.csv']))[0].table;
+    let people = (await utils.loadFiles(['movies/small/people.csv']))[0].table;
     const born = people.aggregate('born');
 
     const samples = await utils.getFiveSamples(born);
 
     // Test that the indexes are what we'd expect at this point
     expect(samples.map(s => s.index)).toEqual([
-      '1964', '1967', '1961', '1960'
+      '1964', '1967', '1961', '1960', '1967'
     ]);
   });
 

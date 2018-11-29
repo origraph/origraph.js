@@ -12,7 +12,7 @@ describe('Document Tests', () => {
     const testTable = (await utils.loadFiles(['csvTest.csv']))[0].table;
 
     const result = [];
-    for await (const wrappedItem of testTable.iterate({ limit: Infinity })) {
+    for await (const wrappedItem of testTable.iterate()) {
       result.push(wrappedItem.row);
     }
 
@@ -38,7 +38,7 @@ describe('Document Tests', () => {
     let testTable = (await utils.loadFiles(['miserables.json']))[0].table;
 
     let result;
-    for await (const wrappedItem of testTable.iterate({ limit: 1 })) {
+    for await (const wrappedItem of testTable.iterate(1)) {
       result = wrappedItem.row;
     }
 

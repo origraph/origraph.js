@@ -21,7 +21,7 @@ class StaticDictTable extends Table {
   getSortHash () {
     return super.getSortHash() + this._name;
   }
-  async * _iterate (options) {
+  async * _iterate () {
     for (const [index, row] of Object.entries(this._data)) {
       const item = this._wrap({ index, row });
       if (await this._finishItem(item)) {

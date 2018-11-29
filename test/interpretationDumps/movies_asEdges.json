@@ -134,7 +134,7 @@
       "suppressIndex": false,
       "attributeFilters": {},
       "indexFilter": null,
-      "name": "movieEdges.csv",
+      "name": "movies/small/movieEdges.csv",
       "type": "StaticTable"
     },
     {
@@ -147,7 +147,7 @@
       "suppressIndex": false,
       "attributeFilters": {},
       "indexFilter": null,
-      "name": "movies.csv",
+      "name": "movies/small/movies.csv",
       "type": "StaticTable"
     },
     {
@@ -160,7 +160,7 @@
       "suppressIndex": false,
       "attributeFilters": {},
       "indexFilter": null,
-      "name": "people.csv",
+      "name": "movies/small/people.csv",
       "type": "StaticTable"
     }
   ]
