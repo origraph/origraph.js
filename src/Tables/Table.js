@@ -79,11 +79,7 @@ class Table extends TriggerableMixin(Introspectable) {
       // The cache isn't finished building (and maybe didn't even start yet);
       // kick it off, and then wait for enough items to be processed to satisfy
       // the limit
-      try {
-        this.buildCache();
-      } catch (err) {
-        throw err;
-      }
+      this.buildCache();
       yield * await new Promise((resolve, reject) => {
         this._limitPromises[limit] = this._limitPromises[limit] || [];
         this._limitPromises[limit].push({ resolve, reject });
@@ -93,73 +89,80 @@ class Table extends TriggerableMixin(Introspectable) {
   async * _iterate (options) {
     throw new Error(`this function should be overridden`);
   }
-  async buildCache () {
-    if (this._cache) {
-      return this._cache;
-    } else if (this._cachePromise) {
-      return this._cachePromise;
-    }
-    this._cachePromise = new Promise(async (resolve, reject) => {
-      this._partialCache = [];
-      this._partialCacheLookup = {};
-      const iterator = this._iterate();
-      let i = 0;
-      let temp = { done: false };
-      while (!temp.done) {
-        try {
-          temp = await iterator.next();
-        } catch (err) {
-          // Something went wrong upstream (something that this._iterate
-          // depends on was reset or threw a real error)
-          if (err === this.iterationReset) {
-            this.handleReset(reject);
-          } else {
-            throw err;
-          }
-        }
-        if (!this._partialCache) {
-          // reset() was called before we could finish; we need to let everyone
-          // that was waiting on us know that we can't comply
+  async _buildCache (resolve, reject) {
+    this._partialCache = [];
+    this._partialCacheLookup = {};
+    const iterator = this._iterate();
+    let i = 0;
+    let temp = { done: false };
+    while (!temp.done) {
+      try {
+        temp = await iterator.next();
+      } catch (err) {
+        // Something went wrong upstream (something that this._iterate
+        // depends on was reset or threw a real error)
+        if (err === this.iterationReset) {
           this.handleReset(reject);
-          return;
+        } else {
+          throw err;
         }
-        if (!temp.done) {
-          if (await this._finishItem(temp.value)) {
-            // Okay, this item passed all filters, and is ready to be sent out
-            // into the world
-            this._partialCacheLookup[temp.value.index] = this._partialCache.length;
-            this._partialCache.push(temp.value);
-            i++;
-            for (let limit of Object.keys(this._limitPromises)) {
-              limit = Number(limit);
-              // check if we have enough data now to satisfy any waiting requests
-              if (limit <= i) {
-                for (const { resolve } of this._limitPromises[limit]) {
-                  resolve(this._partialCache.slice(0, limit));
-                }
-                delete this._limitPromises[limit];
+      }
+      if (!this._partialCache) {
+        // reset() was called before we could finish; we need to let everyone
+        // that was waiting on us know that we can't comply
+        this.handleReset(reject);
+        return;
+      }
+      if (!temp.done) {
+        if (await this._finishItem(temp.value)) {
+          // Okay, this item passed all filters, and is ready to be sent out
+          // into the world
+          this._partialCacheLookup[temp.value.index] = this._partialCache.length;
+          this._partialCache.push(temp.value);
+          i++;
+          for (let limit of Object.keys(this._limitPromises)) {
+            limit = Number(limit);
+            // check if we have enough data now to satisfy any waiting requests
+            if (limit <= i) {
+              for (const { resolve } of this._limitPromises[limit]) {
+                resolve(this._partialCache.slice(0, limit));
               }
+              delete this._limitPromises[limit];
             }
           }
         }
       }
-      // Done iterating! We can graduate the partial cache / lookups into
-      // finished ones, and satisfy all the requests
-      this._cache = this._partialCache;
-      delete this._partialCache;
-      this._cacheLookup = this._partialCacheLookup;
-      delete this._partialCacheLookup;
-      for (let limit of Object.keys(this._limitPromises)) {
-        limit = Number(limit);
-        for (const { resolve } of this._limitPromises[limit]) {
-          resolve(this._cache.slice(0, limit));
-        }
-        delete this._limitPromises[limit];
+    }
+    // Done iterating! We can graduate the partial cache / lookups into
+    // finished ones, and satisfy all the requests
+    this._cache = this._partialCache;
+    delete this._partialCache;
+    this._cacheLookup = this._partialCacheLookup;
+    delete this._partialCacheLookup;
+    for (let limit of Object.keys(this._limitPromises)) {
+      limit = Number(limit);
+      for (const { resolve } of this._limitPromises[limit]) {
+        resolve(this._cache.slice(0, limit));
       }
-      delete this._cachePromise;
-      this.trigger('cacheBuilt');
-      resolve(this._cache);
-    });
+      delete this._limitPromises[limit];
+    }
+    delete this._cachePromise;
+    this.trigger('cacheBuilt');
+    resolve(this._cache);
+  }
+  buildCache () {
+    if (this._cache) {
+      return this._cache;
+    } else if (!this._cachePromise) {
+      this._cachePromise = new Promise((resolve, reject) => {
+        // The setTimeout here is absolutely necessary, or this._cachePromise
+        // won't be stored in time for the next buildCache() call that comes
+        // through
+        setTimeout(() => {
+          this._buildCache(resolve, reject);
+        }, 0);
+      });
+    }
     return this._cachePromise;
   }
   reset () {

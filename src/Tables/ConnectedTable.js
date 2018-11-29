@@ -11,9 +11,8 @@ class ConnectedTable extends Table {
     const parentTables = this.parentTables;
     // Don't try to connect values until all of the parent tables' caches are
     // built; TODO: might be able to do something more responsive here?
-    for (const parentTable of parentTables) {
-      await parentTable.buildCache();
-    }
+    await Promise.all(parentTables.map(pTable => pTable.buildCache()));
+
     // Now that the caches are built, just iterate their keys directly. We only
     // care about including rows that have exact matches across all tables, so
     // we can just pick one parent table to iterate
