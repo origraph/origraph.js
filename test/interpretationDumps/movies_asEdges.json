@@ -62,7 +62,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "movieID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -76,7 +75,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "personID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -90,7 +88,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "id",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -104,7 +101,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "id",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {

@@ -8,19 +8,10 @@ class AggregatedTable extends SingleParentMixin(Table) {
     if (!this._attribute) {
       throw new Error(`attribute is required`);
     }
-
-    this._reduceAttributeFunctions = {};
-    for (const [attr, stringifiedFunc] of Object.entries(options.reduceAttributeFunctions || {})) {
-      this._reduceAttributeFunctions[attr] = this.model.hydrateFunction(stringifiedFunc);
-    }
   }
   _toRawObject () {
     const obj = super._toRawObject();
     obj.attribute = this._attribute;
-    obj.reduceAttributeFunctions = {};
-    for (const [attr, func] of Object.entries(this._reduceAttributeFunctions)) {
-      obj.reduceAttributeFunctions[attr] = this.model._dehydrateFunction(func);
-    }
     return obj;
   }
   getSortHash () {
@@ -29,18 +20,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
   get name () {
     return '↦' + this._attribute;
   }
-  deriveReducedAttribute (attr, func) {
-    this._reduceAttributeFunctions[attr] = func;
-    this.reset();
-  }
-  _updateItem (originalWrappedItem, newWrappedItem) {
-    for (const [attr, func] of Object.entries(this._reduceAttributeFunctions)) {
-      originalWrappedItem.row[attr] = func(originalWrappedItem, newWrappedItem);
-    }
-    originalWrappedItem.trigger('update');
-  }
   async * _buildCache (options) {
-    // We override _buildCache because so that AggregatedTable can take advantage
+    // We override _buildCache so that AggregatedTable can take advantage
     // of the partially-built cache as it goes, and postpone finishing items
     // until after the parent table has been fully iterated
 
@@ -51,7 +32,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
       this._partialCache[wrappedItem.index] = wrappedItem;
       // Go ahead and yield the unfinished item; this makes it possible for
       // client apps to be more responsive and render partial results, but also
-      // means that they need to watch for wrappedItem.on('update') events
+      // means that they need to watch for wrappedItem.on('finish') events
       yield wrappedItem;
     }
 
@@ -69,7 +50,7 @@ class AggregatedTable extends SingleParentMixin(Table) {
   async * _iterate (options) {
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate(options)) {
-      const index = String(wrappedParent.row[this._attribute]);
+      const index = String(await wrappedParent.row[this._attribute]);
       if (!this._partialCache) {
         // We were reset; return immediately
         return;
@@ -77,24 +58,14 @@ class AggregatedTable extends SingleParentMixin(Table) {
         const existingItem = this._partialCache[index];
         existingItem.connectItem(wrappedParent);
         wrappedParent.connectItem(existingItem);
-        this._updateItem(existingItem, wrappedParent);
       } else {
         const newItem = this._wrap({
           index,
           itemsToConnect: [ wrappedParent ]
         });
-        this._updateItem(newItem, wrappedParent);
         yield newItem;
       }
     }
-  }
-  getAttributeDetails () {
-    const allAttrs = super.getAttributeDetails();
-    for (const attr in this._reduceAttributeFunctions) {
-      allAttrs[attr] = allAttrs[attr] || { name: attr };
-      allAttrs[attr].reduced = true;
-    }
-    return allAttrs;
   }
 }
 export default AggregatedTable;

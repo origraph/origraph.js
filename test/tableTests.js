@@ -23,48 +23,16 @@ describe('Table Samples', () => {
   });
 
   test('AggregatedTable Samples', async () => {
-    expect.assertions(2);
+    expect.assertions(1);
 
     let people = (await utils.loadFiles(['people.csv']))[0].table;
     const born = people.aggregate('born');
-
-    born.deriveReducedAttribute('count', (originalItem, newItem) => {
-      return (originalItem.row.count || 0) + 1;
-    });
 
     const samples = await utils.getFiveSamples(born);
 
     // Test that the indexes are what we'd expect at this point
     expect(samples.map(s => s.index)).toEqual([
       '1964', '1967', '1961', '1960'
-    ]);
-
-    // Test that the data is what we'd expect at this point
-    expect(samples.map(s => s.row)).toEqual([
-      { count: 1 },
-      { count: 2 },
-      { count: 1 },
-      { count: 1 }
-    ]);
-  });
-
-  test('ExpandedTable Samples', async () => {
-    expect.assertions(1);
-
-    // TODO: expand attributes internally to all tables; don't create a new one
-
-    let test = (await utils.loadFiles(['csvTest.csv']))[0].table;
-    const digit = test.expand('this', '.');
-
-    const samples = await utils.getFiveSamples(digit);
-
-    // Test that the data is what we'd expect
-    expect(samples.map(s => s.row)).toEqual([
-      {'this': '3'},
-      {'this': '1'},
-      {'this': '9'},
-      {'this': '2'},
-      {'this': '5'}
     ]);
   });
 

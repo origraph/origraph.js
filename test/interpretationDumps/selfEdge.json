@@ -39,7 +39,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "a",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -53,7 +52,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "is",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {

@@ -115,8 +115,7 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   async _finishItem (wrappedItem) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
-      const derivedResult = await func(wrappedItem);
-      wrappedItem.row[attr] = derivedResult;
+      wrappedItem.row[attr] = func(wrappedItem);
     }
     for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
@@ -129,7 +128,7 @@ class Table extends TriggerableMixin(Introspectable) {
       keep = this._indexFilter(wrappedItem.index);
     }
     for (const [attr, func] of Object.entries(this._attributeFilters)) {
-      keep = keep && func(wrappedItem.row[attr]);
+      keep = keep && await func(await wrappedItem.row[attr]);
       if (!keep) { break; }
     }
     if (keep) {
@@ -271,14 +270,6 @@ class Table extends TriggerableMixin(Introspectable) {
     };
     return this._getExistingTable(options) || this._deriveTable(options);
   }
-  expand (attribute, delimiter) {
-    const options = {
-      type: 'ExpandedTable',
-      attribute,
-      delimiter
-    };
-    return this._getExistingTable(options) || this._deriveTable(options);
-  }
   closedFacet (attribute, values) {
     return values.map(value => {
       const options = {
@@ -292,7 +283,7 @@ class Table extends TriggerableMixin(Introspectable) {
   async * openFacet (attribute, limit = Infinity) {
     const values = {};
     for await (const wrappedItem of this.iterate({ limit })) {
-      const value = wrappedItem.row[attribute];
+      const value = await wrappedItem.row[attribute];
       if (!values[value]) {
         values[value] = true;
         const options = {

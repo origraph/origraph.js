@@ -46,6 +46,9 @@ class GenericClass extends Introspectable {
   get table () {
     return this.model.tables[this.tableId];
   }
+  get deleted () {
+    return !this.model.deleted && this.model.classes[this.classId];
+  }
   _wrap (options) {
     options.classObj = this;
     return new GenericWrapper(options);
@@ -72,9 +75,6 @@ class GenericClass extends Introspectable {
   }
   aggregate (attribute) {
     return this._deriveNewClass(this.table.aggregate(attribute));
-  }
-  expand (attribute, delimiter) {
-    return this._deriveNewClass(this.table.expand(attribute, delimiter));
   }
   closedFacet (attribute, values) {
     return this.table.closedFacet(attribute, values).map(newTable => {

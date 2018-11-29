@@ -264,7 +264,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "categoryID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -278,7 +277,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "customerID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -292,7 +290,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -306,7 +303,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -321,7 +317,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -335,7 +330,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "orderID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -349,7 +343,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "productID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -363,7 +356,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "customerID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -377,7 +369,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -391,7 +382,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "orderID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -405,7 +395,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "shipVia",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -419,7 +408,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "categoryID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -433,7 +421,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "productID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -447,7 +434,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "supplierID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -461,7 +447,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "regionID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -475,7 +460,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "shipperID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -489,7 +473,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "city",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -503,7 +486,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "supplierID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -517,7 +499,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "regionID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -531,7 +512,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryDescription",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {
@@ -545,7 +525,6 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryID",
-      "reduceAttributeFunctions": {},
       "type": "AggregatedTable"
     },
     {

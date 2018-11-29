@@ -112,6 +112,9 @@ class NetworkModel extends TriggerableMixin(class {}) {
   delete () {
     this._origraph.deleteModel(this.modelId);
   }
+  get deleted () {
+    return this._origraph.models[this.modelId];
+  }
   async addFileAsStaticTable ({
     fileObj,
     encoding = mime.charset(fileObj.type),
@@ -527,53 +530,54 @@ class NetworkModel extends TriggerableMixin(class {}) {
     return result;
   }
   createSchemaModel () {
-    const graph = this.getRawSchemaGraph();
+    const graph = this.getModelDump();
+
+    graph.tables.forEach(table => {
+      table.derivedTables = Object.keys(table.derivedTables);
+    });
+
     const newModel = this._origraph.createModel({ name: this.name + '_schema' });
-    let classes = newModel.addStaticTable({
-      data: graph.classes,
-      name: 'Classes'
-    }).interpretAsNodes();
-    let classConnections = newModel.addStaticTable({
-      data: graph.classConnections,
-      name: 'Class Connections'
-    }).interpretAsEdges();
-    let tables = newModel.addStaticTable({
-      data: graph.tables,
-      name: 'Tables'
-    }).interpretAsNodes();
-    let tableLinks = newModel.addStaticTable({
-      data: graph.tableLinks,
-      name: 'Table Links'
-    }).interpretAsEdges();
-    classes.connectToEdgeClass({
-      edgeClass: classConnections,
-      side: 'source',
-      nodeAttribute: null,
-      edgeAttribute: 'source'
+    const raw = newModel.addStaticTable({
+      data: graph,
+      name: 'Raw Dump'
     });
-    classes.connectToEdgeClass({
-      edgeClass: classConnections,
-      side: 'target',
-      nodeAttribute: null,
-      edgeAttribute: 'target'
+    let [ classes, tables ] = raw.closedTranspose(['classes', 'tables']);
+    classes = classes.interpretAsNodes();
+    classes.setClassName('Classes');
+    raw.delete();
+
+    const sourceClasses = classes.connectToNodeClass({
+      otherNodeClass: classes,
+      attribute: 'sourceClassId',
+      otherAttribute: null
     });
-    tables.connectToEdgeClass({
-      edgeClass: tableLinks,
-      side: 'source',
-      nodeAttribute: null,
-      edgeAttribute: 'source'
+    sourceClasses.setClassName('Source Class');
+    sourceClasses.toggleDirection();
+    const targetClasses = classes.connectToNodeClass({
+      otherNodeClass: classes,
+      attribute: 'targetClassId',
+      otherAttribute: null
     });
-    tables.connectToEdgeClass({
-      edgeClass: tableLinks,
-      side: 'target',
-      nodeAttribute: null,
-      edgeAttribute: 'target'
+    targetClasses.setClassName('Target Class');
+    targetClasses.toggleDirection();
+
+    tables = tables.interpretAsNodes();
+    tables.setClassName('Tables');
+
+    const tableDependencies = tables.connectToNodeClass({
+      otherNodeClass: tables,
+      attribute: 'derivedTables',
+      otherAttribute: null
     });
-    classes.connectToNodeClass({
+    tableDependencies.setClassName('Is Parent Of');
+    tableDependencies.toggleDirection();
+
+    const coreTables = classes.connectToNodeClass({
       otherNodeClass: tables,
       attribute: 'tableId',
-      otherAttribute: 'tableId'
-    }).setClassName('Core Tables');
+      otherAttribute: null
+    });
+    coreTables.setClassName('Core Table');
     return newModel;
   }
 }

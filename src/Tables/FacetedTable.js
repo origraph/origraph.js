@@ -26,7 +26,7 @@ class FacetedTable extends SingleParentMixin(Table) {
     let index = 0;
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate(options)) {
-      if (wrappedParent.row[this._attribute] === this._value) {
+      if (await wrappedParent.row[this._attribute] === this._value) {
         // Normal faceting just gives a subset of the original table
         const newItem = this._wrap({
           index,
