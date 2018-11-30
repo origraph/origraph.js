@@ -57,18 +57,27 @@ describe('Sample Tests', () => {
     count = await years.table.countRows();
     expect(count).toEqual(53);
 
-    // Cherry-picked 1962 to give us more interesting results
-    const testYear = years.table.currentData.data[years.table.currentData.lookup['1962']];
+    // Cherry-picked 1958 to give us interesting, but small results
+    const testYear = years.table.currentData.data[years.table.currentData.lookup['1958']];
     const samples = [];
     for await (const person1 of testYear.sourceNodes()) {
       for await (const person2 of testYear.targetNodes()) {
-        samples.push({
-          person1: person1.row.name,
-          person2: person2.row.name,
-          born: testYear.index
-        });
+        if (person1.row.name !== person2.row.name) {
+          samples.push({
+            person1: person1.row.name,
+            person2: person2.row.name,
+            born: testYear.index
+          });
+        }
       }
     }
-    expect(samples).toEqual([ null ]);
+    expect(samples).toEqual([
+      {'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Ice-T'},
+      {'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Chris Columbus'},
+      {'born': '1958', 'person1': 'Ice-T', 'person2': 'Kevin Bacon'},
+      {'born': '1958', 'person1': 'Ice-T', 'person2': 'Chris Columbus'},
+      {'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Kevin Bacon'},
+      {'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Ice-T'}
+    ]);
   });
 });

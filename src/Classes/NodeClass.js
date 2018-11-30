@@ -145,11 +145,7 @@ class NodeClass extends GenericClass {
       otherHash = otherNodeClass.table.aggregate(otherAttribute);
       targetTableIds = [ otherHash.tableId ];
     }
-    // If we have a self edge connecting the same attribute, we can just use
-    // the AggregatedTable as the edge table; otherwise we need to create a
-    // ConnectedTable
-    const connectedTable = this === otherNodeClass && attribute === otherAttribute
-      ? thisHash : thisHash.connect([otherHash]);
+    const connectedTable = thisHash.connect([otherHash]);
     const newEdgeClass = this.model.createClass({
       type: 'EdgeClass',
       tableId: connectedTable.tableId,
