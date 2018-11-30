@@ -23,7 +23,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
   async _buildCache (resolve, reject) {
     // We override _buildCache because we don't actually want to call _finishItem
     // until all unique values have been seen
-    const tempCache = [];
+    this._unfinishedCache = [];
+    this._unfinishedCacheLookup = {};
     this._partialCache = [];
     this._partialCacheLookup = {};
     const iterator = this._iterate();
@@ -47,13 +48,14 @@ class AggregatedTable extends SingleParentMixin(Table) {
         return;
       }
       if (!temp.done) {
-        tempCache.push(temp.value);
+        this._unfinishedCacheLookup[temp.value.index] = this._unfinishedCache.length;
+        this._unfinishedCache.push(temp.value);
       }
     }
     // Okay, now we've seen everything; we can call _finishItem on each of the
     // unique values
     let i = 0;
-    for (const value of tempCache) {
+    for (const value of this._unfinishedCache) {
       if (await this._finishItem(value)) {
         // Okay, this item passed all filters, and is ready to be sent out
         // into the world
@@ -74,6 +76,8 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
     // Done iterating! We can graduate the partial cache / lookups into
     // finished ones, and satisfy all the requests
+    delete this._unfinishedCache;
+    delete this._unfinishedCacheLookup;
     this._cache = this._partialCache;
     delete this._partialCache;
     this._cacheLookup = this._partialCacheLookup;
@@ -94,10 +98,10 @@ class AggregatedTable extends SingleParentMixin(Table) {
     for await (const wrappedParent of parentTable.iterate()) {
       const index = String(await wrappedParent.row[this._attribute]);
       if (!this._partialCache) {
-        // We were reset; return immediately
-        return;
-      } else if (this._partialCache[index]) {
-        const existingItem = this._partialCache[index];
+        // We were reset!
+        throw this.iterationReset;
+      } else if (this._unfinishedCacheLookup[index] !== undefined) {
+        const existingItem = this._unfinishedCache[this._unfinishedCacheLookup[index]];
         existingItem.connectItem(wrappedParent);
         wrappedParent.connectItem(existingItem);
       } else {

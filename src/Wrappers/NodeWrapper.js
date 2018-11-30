@@ -7,41 +7,29 @@ class NodeWrapper extends GenericWrapper {
       throw new Error(`classObj is required`);
     }
   }
-  async * edges (options = { limit: Infinity }) {
+  async * edges (options) {
     let edgeIds = options.classes
       ? options.classes.map(classObj => classObj.classId)
       : options.classIds || Object.keys(this.classObj.edgeClassIds);
-    let i = 0;
+    const iterators = [];
     for (const edgeId of edgeIds) {
       if (!this.classObj.edgeClassIds[edgeId]) {
         continue;
       }
       const edgeClass = this.classObj.model.classes[edgeId];
       const role = this.classObj.getEdgeRole(edgeClass);
-      options.tableIds = [];
       if (role === 'both' || role === 'source') {
-        options.tableIds = edgeClass.sourceTableIds.slice().reverse()
+        const tableIds = edgeClass.sourceTableIds.slice().reverse()
           .concat([edgeClass.tableId]);
-        for await (const item of this.iterateAcrossConnections(options)) {
-          yield item;
-          i++;
-          if (i >= options.limit) {
-            return;
-          }
-        }
+        iterators.push(this.iterateAcrossConnections(tableIds));
       }
       if (role === 'both' || role === 'target') {
-        options.tableIds = edgeClass.targetTableIds.slice().reverse()
+        const tableIds = edgeClass.targetTableIds.slice().reverse()
           .concat([edgeClass.tableId]);
-        for await (const item of this.iterateAcrossConnections(options)) {
-          yield item;
-          i++;
-          if (i >= options.limit) {
-            return;
-          }
-        }
+        iterators.push(this.iterateAcrossConnections(tableIds));
       }
     }
+    yield * this.handleLimit(options, iterators);
   }
   async * pairwiseNeighborhood (options) {
     for await (const edge of this.edges(options)) {

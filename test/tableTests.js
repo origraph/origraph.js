@@ -32,7 +32,7 @@ describe('Table Samples', () => {
 
     // Test that the indexes are what we'd expect at this point
     expect(samples.map(s => s.index)).toEqual([
-      '1964', '1967', '1961', '1960', '1967'
+      '1964', '1967', '1961', '1960', '1965'
     ]);
   });
 

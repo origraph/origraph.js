@@ -19,9 +19,6 @@ const commonPlugins = [
   babel({
     exclude: 'node_modules/**',
     externalHelpers: true
-  }),
-  istanbul({
-    exclude: 'test/*'
   })
 ];
 
@@ -30,6 +27,10 @@ let targets = {
   umd: !process.env.TARGET || process.env.TARGET === 'umd' || process.env.TARGET === 'all',
   esm: !process.env.TARGET || process.env.TARGET === 'esm' || process.env.TARGET === 'all'
 };
+
+if (process.env.SOURCEMAP !== 'false') {
+  commonPlugins.push(istanbul());
+}
 
 let sourcemap = process.env.SOURCEMAP === 'false' ? false
   : process.env.SOURCEMAP === 'true' ? true : 'inline';

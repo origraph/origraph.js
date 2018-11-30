@@ -266,6 +266,7 @@ class Table extends TriggerableMixin(Introspectable) {
     // Allow probing to see whatever data happens to be available
     return {
       data: this._cache || this._partialCache || [],
+      lookup: this._cacheLookup || this._partialCacheLookup || {},
       complete: !!this._cache
     };
   }

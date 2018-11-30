@@ -36,20 +36,30 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
   equals (item) {
     return this.instanceId === item.instanceId;
   }
-  async * iterateAcrossConnections ({ tableIds, limit = Infinity }) {
+  async * handleLimit (options, iterators) {
+    let limit = Infinity;
+    if (options.limit !== undefined) {
+      limit = options.limit;
+      delete options.limit;
+    }
+    let i = 0;
+    for (const iterator of iterators) {
+      for await (const item of iterator) {
+        yield item;
+        i++;
+        if (i >= limit) {
+          return;
+        }
+      }
+    }
+  }
+  async * iterateAcrossConnections (tableIds) {
     // First make sure that all the table caches have been fully built and
     // connected
     await Promise.all(tableIds.map(tableId => {
       return this.classObj.model.tables[tableId].buildCache();
     }));
-    let i = 0;
-    for (const item of this._iterateAcrossConnections(tableIds)) {
-      yield item;
-      i++;
-      if (i >= limit) {
-        return;
-      }
-    }
+    yield * this._iterateAcrossConnections(tableIds);
   }
   * _iterateAcrossConnections (tableIds) {
     if (tableIds.length === 1) {

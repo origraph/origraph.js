@@ -15,9 +15,10 @@ class EdgeWrapper extends GenericWrapper {
     }
     const sourceTableId = this.classObj.model
       .classes[this.classObj.sourceClassId].tableId;
-    options.tableIds = this.classObj.sourceTableIds
-      .concat([ sourceTableId ]);
-    yield * this.iterateAcrossConnections(options);
+    const tableIds = this.classObj.sourceTableIds.concat([ sourceTableId ]);
+    yield * this.handleLimit(options, [
+      this.iterateAcrossConnections(tableIds)
+    ]);
   }
   async * targetNodes (options = {}) {
     if (this.classObj.targetClassId === null ||
@@ -27,32 +28,22 @@ class EdgeWrapper extends GenericWrapper {
     }
     const targetTableId = this.classObj.model
       .classes[this.classObj.targetClassId].tableId;
-    options.tableIds = this.classObj.targetTableIds
-      .concat([ targetTableId ]);
-    yield * this.iterateAcrossConnections(options);
+    const tableIds = this.classObj.targetTableIds.concat([ targetTableId ]);
+    yield * this.handleLimit(options, [
+      this.iterateAcrossConnections(tableIds)
+    ]);
   }
   async * nodes (options) {
-    yield * this.sourceNodes(options);
-    yield * this.targetNodes(options);
+    yield * this.handleLimit(options, [
+      this.sourceNodes(options),
+      this.targetNodes(options)
+    ]);
   }
   async * pairwiseEdges (options) {
     for await (const source of this.sourceNodes(options)) {
       for await (const target of this.targetNodes(options)) {
         yield { source, edge: this, target };
       }
-    }
-  }
-  async hyperedge (options) {
-    const result = {
-      sources: [],
-      targets: [],
-      edge: this
-    };
-    for await (const source of this.sourceNodes(options)) {
-      result.push(source);
-    }
-    for await (const target of this.targetNodes(options)) {
-      result.push(target);
     }
   }
 }
