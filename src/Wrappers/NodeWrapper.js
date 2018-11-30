@@ -7,7 +7,7 @@ class NodeWrapper extends GenericWrapper {
       throw new Error(`classObj is required`);
     }
   }
-  async * edges (options) {
+  async * edges (options = {}) {
     let edgeIds = options.classes
       ? options.classes.map(classObj => classObj.classId)
       : options.classIds || Object.keys(this.classObj.edgeClassIds);
@@ -31,7 +31,7 @@ class NodeWrapper extends GenericWrapper {
     }
     yield * this.handleLimit(options, iterators);
   }
-  async * pairwiseNeighborhood (options) {
+  async * pairwiseNeighborhood (options = {}) {
     for await (const edge of this.edges(options)) {
       yield * edge.pairwiseEdges(options);
     }

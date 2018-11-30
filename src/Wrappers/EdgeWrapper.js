@@ -33,13 +33,13 @@ class EdgeWrapper extends GenericWrapper {
       this.iterateAcrossConnections(tableIds)
     ]);
   }
-  async * nodes (options) {
+  async * nodes (options = {}) {
     yield * this.handleLimit(options, [
       this.sourceNodes(options),
       this.targetNodes(options)
     ]);
   }
-  async * pairwiseEdges (options) {
+  async * pairwiseEdges (options = {}) {
     for await (const source of this.sourceNodes(options)) {
       for await (const target of this.targetNodes(options)) {
         yield { source, edge: this, target };

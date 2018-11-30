@@ -28,10 +28,6 @@ let targets = {
   esm: !process.env.TARGET || process.env.TARGET === 'esm' || process.env.TARGET === 'all'
 };
 
-if (process.env.SOURCEMAP !== 'false') {
-  commonPlugins.push(istanbul());
-}
-
 let sourcemap = process.env.SOURCEMAP === 'false' ? false
   : process.env.SOURCEMAP === 'true' ? true : 'inline';
 
@@ -48,7 +44,7 @@ if (targets.cjs) {
       sourcemap
     },
     external: allExternals,
-    plugins: commonPlugins
+    plugins: commonPlugins.concat(process.env.SOURCEMAP !== false ? [istanbul()] : [])
   });
 }
 
