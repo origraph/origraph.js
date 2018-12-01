@@ -22,11 +22,11 @@ describe('Table Samples', () => {
     ]);
   });
 
-  test('AggregatedTable Samples', async () => {
+  test('PromotedTable Samples', async () => {
     expect.assertions(1);
 
     let people = (await utils.loadFiles(['movies/small/people.csv']))[0].table;
-    const born = people.aggregate('born');
+    const born = people.promote('born');
 
     const samples = await utils.getFiveSamples(born);
 

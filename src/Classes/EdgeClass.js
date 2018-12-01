@@ -173,8 +173,8 @@ class EdgeClass extends GenericClass {
     const sourceClass = this.model.classes[this.sourceClassId];
     sourceClass.edgeClassIds[this.classId] = true;
 
-    const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
-    const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.table.aggregate(nodeAttribute);
+    const edgeHash = edgeAttribute === null ? this.table : this.table.promote(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? sourceClass.table : sourceClass.table.promote(nodeAttribute);
     this.sourceTableIds = [ edgeHash.connect([nodeHash]).tableId ];
     if (edgeAttribute !== null) {
       this.sourceTableIds.unshift(edgeHash.tableId);
@@ -196,8 +196,8 @@ class EdgeClass extends GenericClass {
     const targetClass = this.model.classes[this.targetClassId];
     targetClass.edgeClassIds[this.classId] = true;
 
-    const edgeHash = edgeAttribute === null ? this.table : this.table.aggregate(edgeAttribute);
-    const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.table.aggregate(nodeAttribute);
+    const edgeHash = edgeAttribute === null ? this.table : this.table.promote(edgeAttribute);
+    const nodeHash = nodeAttribute === null ? targetClass.table : targetClass.table.promote(nodeAttribute);
     this.targetTableIds = [ edgeHash.connect([nodeHash]).tableId ];
     if (edgeAttribute !== null) {
       this.targetTableIds.unshift(edgeHash.tableId);
@@ -225,12 +225,12 @@ class EdgeClass extends GenericClass {
     this.targetClassId = null;
     this.model.trigger('update');
   }
-  aggregate (attribute) {
+  promote (attribute) {
     if (this.sourceClassId && this.targetClassId) {
-      return super.aggregate();
+      return super.promote();
     } else {
       const newNodeClass = this.model.createClass({
-        tableId: this.table.aggregate(attribute).tableId,
+        tableId: this.table.promote(attribute).tableId,
         type: 'NodeClass'
       });
       this.connectToNodeClass({

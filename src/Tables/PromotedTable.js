@@ -1,7 +1,7 @@
 import Table from './Table.js';
 import SingleParentMixin from './SingleParentMixin.js';
 
-class AggregatedTable extends SingleParentMixin(Table) {
+class PromotedTable extends SingleParentMixin(Table) {
   constructor (options) {
     super(options);
     this._attribute = options.attribute;
@@ -114,4 +114,4 @@ class AggregatedTable extends SingleParentMixin(Table) {
     }
   }
 }
-export default AggregatedTable;
+export default PromotedTable;

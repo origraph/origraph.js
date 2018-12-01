@@ -135,14 +135,14 @@ class NodeClass extends GenericClass {
       thisHash = this.table;
       sourceTableIds = [];
     } else {
-      thisHash = this.table.aggregate(attribute);
+      thisHash = this.table.promote(attribute);
       sourceTableIds = [ thisHash.tableId ];
     }
     if (otherAttribute === null) {
       otherHash = otherNodeClass.table;
       targetTableIds = [];
     } else {
-      otherHash = otherNodeClass.table.aggregate(otherAttribute);
+      otherHash = otherNodeClass.table.promote(otherAttribute);
       targetTableIds = [ otherHash.tableId ];
     }
     const connectedTable = thisHash.connect([otherHash]);
@@ -165,9 +165,9 @@ class NodeClass extends GenericClass {
     options.nodeClass = this;
     return edgeClass.connectToNodeClass(options);
   }
-  aggregate (attribute) {
+  promote (attribute) {
     const newNodeClass = this.model.createClass({
-      tableId: this.table.aggregate(attribute).tableId,
+      tableId: this.table.promote(attribute).tableId,
       type: 'NodeClass'
     });
     this.connectToNodeClass({

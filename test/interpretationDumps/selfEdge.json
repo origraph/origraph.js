@@ -2,16 +2,16 @@
   "classes": [
     {
       "classId": 0,
-      "tableId": 2,
+      "tableId": 0,
       "className": "Edge",
       "annotations": {},
       "sourceClassId": 1,
       "sourceTableIds": [
-        1
+        2
       ],
       "targetClassId": 1,
       "targetTableIds": [
-        0
+        1
       ],
       "directed": true,
       "type": "EdgeClass"
@@ -30,32 +30,6 @@
   "tables": [
     {
       "tableId": 0,
-      "derivedTables": {
-        "2": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "attribute": "a",
-      "type": "AggregatedTable"
-    },
-    {
-      "tableId": 1,
-      "derivedTables": {
-        "2": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "attribute": "is",
-      "type": "AggregatedTable"
-    },
-    {
-      "tableId": 2,
       "derivedTables": {},
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -65,10 +39,36 @@
       "type": "ConnectedTable"
     },
     {
+      "tableId": 1,
+      "derivedTables": {
+        "0": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "a",
+      "type": "PromotedTable"
+    },
+    {
+      "tableId": 2,
+      "derivedTables": {
+        "0": true
+      },
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "attribute": "is",
+      "type": "PromotedTable"
+    },
+    {
       "tableId": 3,
       "derivedTables": {
-        "0": true,
-        "1": true
+        "1": true,
+        "2": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},

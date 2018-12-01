@@ -7,15 +7,15 @@
       "annotations": {},
       "sourceClassId": 2,
       "sourceTableIds": [
+        3,
         1,
-        5,
-        3
+        5
       ],
       "targetClassId": 1,
       "targetTableIds": [
+        2,
         0,
-        4,
-        2
+        4
       ],
       "directed": false,
       "type": "EdgeClass"
@@ -44,8 +44,28 @@
   "tables": [
     {
       "tableId": 0,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 1,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 2,
       "derivedTables": {
-        "4": true
+        "0": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -53,12 +73,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "movieID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 1,
+      "tableId": 3,
       "derivedTables": {
-        "5": true
+        "1": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -66,59 +86,39 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "personID",
-      "type": "AggregatedTable"
-    },
-    {
-      "tableId": 2,
-      "derivedTables": {
-        "4": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "attribute": "id",
-      "type": "AggregatedTable"
-    },
-    {
-      "tableId": 3,
-      "derivedTables": {
-        "5": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "attribute": "id",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
       "tableId": 4,
-      "derivedTables": {},
+      "derivedTables": {
+        "0": true
+      },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
       "suppressIndex": false,
       "attributeFilters": {},
       "indexFilter": null,
-      "type": "ConnectedTable"
+      "attribute": "id",
+      "type": "PromotedTable"
     },
     {
       "tableId": 5,
-      "derivedTables": {},
+      "derivedTables": {
+        "1": true
+      },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
       "suppressIndex": false,
       "attributeFilters": {},
       "indexFilter": null,
-      "type": "ConnectedTable"
+      "attribute": "id",
+      "type": "PromotedTable"
     },
     {
       "tableId": 6,
       "derivedTables": {
-        "0": true,
-        "1": true
+        "2": true,
+        "3": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -131,7 +131,7 @@
     {
       "tableId": 7,
       "derivedTables": {
-        "2": true
+        "4": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -144,7 +144,7 @@
     {
       "tableId": 8,
       "derivedTables": {
-        "3": true
+        "5": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},

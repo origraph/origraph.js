@@ -2,16 +2,16 @@
   "classes": [
     {
       "classId": 0,
-      "tableId": 21,
+      "tableId": 0,
       "className": "Customer Orders",
       "annotations": {},
       "sourceClassId": 10,
       "sourceTableIds": [
-        1
+        12
       ],
       "targetClassId": 12,
       "targetTableIds": [
-        7
+        18
       ],
       "directed": false,
       "type": "EdgeClass"
@@ -23,15 +23,15 @@
       "annotations": {},
       "sourceClassId": 11,
       "sourceTableIds": [
-        2,
-        22,
-        4
+        13,
+        1,
+        15
       ],
       "targetClassId": 17,
       "targetTableIds": [
-        3,
-        23,
-        20
+        14,
+        2,
+        31
       ],
       "directed": false,
       "type": "EdgeClass"
@@ -43,93 +43,29 @@
       "annotations": {},
       "sourceClassId": 12,
       "sourceTableIds": [
-        5,
-        25,
-        9
+        16,
+        4,
+        20
       ],
       "targetClassId": 13,
       "targetTableIds": [
-        6,
-        26,
-        12
+        17,
+        5,
+        23
       ],
       "directed": false,
       "type": "EdgeClass"
     },
     {
       "classId": 3,
-      "tableId": 24,
+      "tableId": 3,
       "className": "Order Employee",
       "annotations": {},
       "sourceClassId": 11,
       "sourceTableIds": [
-        4
-      ],
-      "targetClassId": 12,
-      "targetTableIds": [
-        8
-      ],
-      "directed": false,
-      "type": "EdgeClass"
-    },
-    {
-      "classId": 4,
-      "tableId": 27,
-      "className": "Product Category",
-      "annotations": {},
-      "sourceClassId": 13,
-      "sourceTableIds": [
-        11
-      ],
-      "targetClassId": 9,
-      "targetTableIds": [
-        0
-      ],
-      "directed": false,
-      "type": "EdgeClass"
-    },
-    {
-      "classId": 5,
-      "tableId": 28,
-      "className": "Product Supplier",
-      "annotations": {},
-      "sourceClassId": 13,
-      "sourceTableIds": [
-        13
-      ],
-      "targetClassId": 16,
-      "targetTableIds": [
-        17
-      ],
-      "directed": false,
-      "type": "EdgeClass"
-    },
-    {
-      "classId": 6,
-      "tableId": 30,
-      "className": "Shipped Via",
-      "annotations": {},
-      "sourceClassId": 15,
-      "sourceTableIds": [
         15
       ],
       "targetClassId": 12,
-      "targetTableIds": [
-        10
-      ],
-      "directed": false,
-      "type": "EdgeClass"
-    },
-    {
-      "classId": 7,
-      "tableId": 31,
-      "className": "Supplier Territory",
-      "annotations": {},
-      "sourceClassId": 16,
-      "sourceTableIds": [
-        16
-      ],
-      "targetClassId": 17,
       "targetTableIds": [
         19
       ],
@@ -137,17 +73,81 @@
       "type": "EdgeClass"
     },
     {
+      "classId": 4,
+      "tableId": 6,
+      "className": "Product Category",
+      "annotations": {},
+      "sourceClassId": 13,
+      "sourceTableIds": [
+        22
+      ],
+      "targetClassId": 9,
+      "targetTableIds": [
+        11
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 5,
+      "tableId": 7,
+      "className": "Product Supplier",
+      "annotations": {},
+      "sourceClassId": 13,
+      "sourceTableIds": [
+        24
+      ],
+      "targetClassId": 16,
+      "targetTableIds": [
+        28
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 6,
+      "tableId": 9,
+      "className": "Shipped Via",
+      "annotations": {},
+      "sourceClassId": 15,
+      "sourceTableIds": [
+        26
+      ],
+      "targetClassId": 12,
+      "targetTableIds": [
+        21
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
+      "classId": 7,
+      "tableId": 10,
+      "className": "Supplier Territory",
+      "annotations": {},
+      "sourceClassId": 16,
+      "sourceTableIds": [
+        27
+      ],
+      "targetClassId": 17,
+      "targetTableIds": [
+        30
+      ],
+      "directed": false,
+      "type": "EdgeClass"
+    },
+    {
       "classId": 8,
-      "tableId": 29,
+      "tableId": 8,
       "className": "Territory Region",
       "annotations": {},
       "sourceClassId": 14,
       "sourceTableIds": [
-        14
+        25
       ],
       "targetClassId": 17,
       "targetTableIds": [
-        18
+        29
       ],
       "directed": false,
       "type": "EdgeClass"
@@ -255,8 +255,118 @@
   "tables": [
     {
       "tableId": 0,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 1,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 2,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 3,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 4,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 5,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 6,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 7,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 8,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 9,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 10,
+      "derivedTables": {},
+      "derivedAttributeFunctions": {},
+      "suppressedAttributes": {},
+      "suppressIndex": false,
+      "attributeFilters": {},
+      "indexFilter": null,
+      "type": "ConnectedTable"
+    },
+    {
+      "tableId": 11,
       "derivedTables": {
-        "27": true
+        "6": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -264,12 +374,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "categoryID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 1,
+      "tableId": 12,
       "derivedTables": {
-        "21": true
+        "0": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -277,12 +387,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "customerID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 2,
+      "tableId": 13,
       "derivedTables": {
-        "22": true
+        "1": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -290,12 +400,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 3,
+      "tableId": 14,
       "derivedTables": {
-        "23": true
+        "2": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -303,13 +413,13 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 4,
+      "tableId": 15,
       "derivedTables": {
-        "22": true,
-        "24": true
+        "1": true,
+        "3": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -317,12 +427,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 5,
+      "tableId": 16,
       "derivedTables": {
-        "25": true
+        "4": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -330,12 +440,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "orderID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 6,
+      "tableId": 17,
       "derivedTables": {
-        "26": true
+        "5": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -343,12 +453,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "productID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 7,
+      "tableId": 18,
       "derivedTables": {
-        "21": true
+        "0": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -356,12 +466,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "customerID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 8,
+      "tableId": 19,
       "derivedTables": {
-        "24": true
+        "3": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -369,12 +479,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "employeeID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 9,
+      "tableId": 20,
       "derivedTables": {
-        "25": true
+        "4": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -382,12 +492,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "orderID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 10,
+      "tableId": 21,
       "derivedTables": {
-        "30": true
+        "9": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -395,12 +505,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "shipVia",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 11,
+      "tableId": 22,
       "derivedTables": {
-        "27": true
+        "6": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -408,12 +518,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "categoryID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 12,
+      "tableId": 23,
       "derivedTables": {
-        "26": true
+        "5": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -421,12 +531,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "productID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 13,
+      "tableId": 24,
       "derivedTables": {
-        "28": true
+        "7": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -434,12 +544,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "supplierID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 14,
+      "tableId": 25,
       "derivedTables": {
-        "29": true
+        "8": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -447,12 +557,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "regionID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 15,
+      "tableId": 26,
       "derivedTables": {
-        "30": true
+        "9": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -460,12 +570,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "shipperID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 16,
+      "tableId": 27,
       "derivedTables": {
-        "31": true
+        "10": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -473,12 +583,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "city",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 17,
+      "tableId": 28,
       "derivedTables": {
-        "28": true
+        "7": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -486,12 +596,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "supplierID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 18,
+      "tableId": 29,
       "derivedTables": {
-        "29": true
+        "8": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -499,12 +609,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "regionID",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 19,
+      "tableId": 30,
       "derivedTables": {
-        "31": true
+        "10": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -512,12 +622,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryDescription",
-      "type": "AggregatedTable"
+      "type": "PromotedTable"
     },
     {
-      "tableId": 20,
+      "tableId": 31,
       "derivedTables": {
-        "23": true
+        "2": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -525,122 +635,12 @@
       "attributeFilters": {},
       "indexFilter": null,
       "attribute": "territoryID",
-      "type": "AggregatedTable"
-    },
-    {
-      "tableId": 21,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 22,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 23,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 24,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 25,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 26,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 27,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 28,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 29,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 30,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
-    },
-    {
-      "tableId": 31,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "type": "ConnectedTable"
+      "type": "PromotedTable"
     },
     {
       "tableId": 32,
       "derivedTables": {
-        "0": true
+        "11": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -653,7 +653,7 @@
     {
       "tableId": 33,
       "derivedTables": {
-        "1": true
+        "12": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -666,8 +666,8 @@
     {
       "tableId": 34,
       "derivedTables": {
-        "2": true,
-        "3": true
+        "13": true,
+        "14": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -680,7 +680,7 @@
     {
       "tableId": 35,
       "derivedTables": {
-        "4": true
+        "15": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -693,8 +693,8 @@
     {
       "tableId": 36,
       "derivedTables": {
-        "5": true,
-        "6": true
+        "16": true,
+        "17": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -707,10 +707,10 @@
     {
       "tableId": 37,
       "derivedTables": {
-        "7": true,
-        "8": true,
-        "9": true,
-        "10": true
+        "18": true,
+        "19": true,
+        "20": true,
+        "21": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -723,9 +723,9 @@
     {
       "tableId": 38,
       "derivedTables": {
-        "11": true,
-        "12": true,
-        "13": true
+        "22": true,
+        "23": true,
+        "24": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -738,7 +738,7 @@
     {
       "tableId": 39,
       "derivedTables": {
-        "14": true
+        "25": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -751,7 +751,7 @@
     {
       "tableId": 40,
       "derivedTables": {
-        "15": true
+        "26": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -764,8 +764,8 @@
     {
       "tableId": 41,
       "derivedTables": {
-        "16": true,
-        "17": true
+        "27": true,
+        "28": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},
@@ -778,9 +778,9 @@
     {
       "tableId": 42,
       "derivedTables": {
-        "18": true,
-        "19": true,
-        "20": true
+        "29": true,
+        "30": true,
+        "31": true
       },
       "derivedAttributeFunctions": {},
       "suppressedAttributes": {},

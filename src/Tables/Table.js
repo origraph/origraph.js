@@ -312,9 +312,9 @@ class Table extends TriggerableMixin(Introspectable) {
     });
     return (existingTable && this.model.tables[existingTable.tableId]) || null;
   }
-  aggregate (attribute) {
+  promote (attribute) {
     const options = {
-      type: 'AggregatedTable',
+      type: 'PromotedTable',
       attribute
     };
     return this._getExistingTable(options) || this._deriveTable(options);
