@@ -166,7 +166,10 @@ class NodeClass extends GenericClass {
     return edgeClass.connectToNodeClass(options);
   }
   aggregate (attribute) {
-    const newNodeClass = super.aggregate(attribute);
+    const newNodeClass = this.model.createClass({
+      tableId: this.table.aggregate(attribute).tableId,
+      type: 'NodeClass'
+    });
     this.connectToNodeClass({
       otherNodeClass: newNodeClass,
       attribute,

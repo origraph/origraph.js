@@ -225,6 +225,23 @@ class EdgeClass extends GenericClass {
     this.targetClassId = null;
     this.model.trigger('update');
   }
+  aggregate (attribute) {
+    if (this.sourceClassId && this.targetClassId) {
+      return super.aggregate();
+    } else {
+      const newNodeClass = this.model.createClass({
+        tableId: this.table.aggregate(attribute).tableId,
+        type: 'NodeClass'
+      });
+      this.connectToNodeClass({
+        nodeClass: newNodeClass,
+        side: !this.sourceClassId ? 'source' : 'target',
+        nodeAttribute: null,
+        edgeAttribute: attribute
+      });
+      return newNodeClass;
+    }
+  }
   delete () {
     this.disconnectSource();
     this.disconnectTarget();

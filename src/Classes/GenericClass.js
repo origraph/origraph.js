@@ -74,7 +74,10 @@ class GenericClass extends Introspectable {
     });
   }
   aggregate (attribute) {
-    return this._deriveNewClass(this.table.aggregate(attribute));
+    return this.model.createClass({
+      tableId: this.table.aggregate(attribute).tableId,
+      type: 'GenericClass'
+    });
   }
   closedFacet (attribute, values) {
     return this.table.closedFacet(attribute, values).map(newTable => {

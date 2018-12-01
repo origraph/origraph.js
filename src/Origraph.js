@@ -4,10 +4,10 @@ import NetworkModel from './Common/NetworkModel.js';
 let NEXT_MODEL_ID = 1;
 
 class Origraph extends TriggerableMixin(class {}) {
-  constructor (FileReader, localStorage) {
+  constructor (FileReader, PouchDB) {
     super();
     this.FileReader = FileReader; // either window.FileReader or one from Node
-    this.localStorage = localStorage; // either window.localStorage or null
+    this.PouchDB = PouchDB; // either pouchdb-browser or pouchdb-node
 
     this.plugins = {};
 
@@ -26,14 +26,14 @@ class Origraph extends TriggerableMixin(class {}) {
     this.plugins[name] = plugin;
   }
   save () {
-    if (this.localStorage) {
+    /*if (this.localStorage) {
       const models = {};
       for (const [modelId, model] of Object.entries(this.models)) {
         models[modelId] = model._toRawObject();
       }
       this.localStorage.setItem('origraph_models', JSON.stringify(models));
       this.trigger('save');
-    }
+    }*/
   }
   closeCurrentModel () {
     this._currentModelId = null;
