@@ -15,7 +15,9 @@ class DuplicatedTable extends SingleParentMixin(Table) {
       const newItem = this._wrap({
         index: item.index,
         row: item.row,
-        itemsToConnect: Object.values(item.connectedItems)
+        itemsToConnect: Object.values(item.connectedItems).reduce((agg, itemList) => {
+          return agg.concat(itemList);
+        }, [])
       });
       item.registerDuplicate(newItem);
       if (await this._finishItem(newItem)) {
