@@ -4,6 +4,7 @@ import PromotedTable from './PromotedTable.js';
 import FacetedTable from './FacetedTable.js';
 import TransposedTable from './TransposedTable.js';
 import ConnectedTable from './ConnectedTable.js';
+import DuplicatedTable from './DuplicatedTable.js';
 
 export {
   StaticTable,
@@ -11,5 +12,6 @@ export {
   PromotedTable,
   FacetedTable,
   ConnectedTable,
-  TransposedTable
+  TransposedTable,
+  DuplicatedTable
 };

@@ -12,11 +12,19 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     this.classObj = options.classObj || null;
     this.row = options.row || {};
     this.connectedItems = options.connectedItems || {};
+    this.duplicateItems = options.duplicateItems || [];
+  }
+  registerDuplicate (item) {
+    this.duplicateItems.push(item);
   }
   connectItem (item) {
     this.connectedItems[item.table.tableId] = this.connectedItems[item.table.tableId] || [];
     if (this.connectedItems[item.table.tableId].indexOf(item) === -1) {
       this.connectedItems[item.table.tableId].push(item);
+    }
+    for (const dup of this.duplicateItems) {
+      item.connectItem(dup);
+      dup.connectItem(item);
     }
   }
   disconnect () {

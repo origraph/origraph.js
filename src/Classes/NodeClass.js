@@ -177,6 +177,68 @@ class NodeClass extends GenericClass {
     });
     return newNodeClass;
   }
+  projectNewEdge (classIdList) {
+    const classList = classIdList.map(classId => {
+      return this.model.classes[classId];
+    });
+    if (classList.length < 2 || classList[classList.length - 1].type !== 'Node') {
+      throw new Error(`Invalid classIdList`);
+    }
+    const sourceClassId = this.classId;
+    const targetClassId = classList[classList.length - 1].classId;
+    const sourceTableIds = [];
+    const targetTableIds = [];
+    let tableId;
+    const middleIndex = Math.floor((classList.length - 1) / 2);
+    for (let i = 0; i < classList.length - 1; i++) {
+      if (i < middleIndex) {
+        if (classList[i].type === 'Node') {
+          sourceTableIds.unshift(classList[i].tableId);
+        } else {
+          const temp = Array.from(classList[i].sourceTableIds).reverse();
+          for (const tableId of temp) {
+            sourceTableIds.unshift(tableId);
+          }
+          sourceTableIds.unshift(classList[i].tableId);
+          for (const tableId of classList[i].targetTableIds) {
+            sourceTableIds.unshift(tableId);
+          }
+        }
+      } else if (i === middleIndex) {
+        tableId = classList[i].table.duplicate().tableId;
+        if (classList[i].type === 'Edge') {
+          const temp = Array.from(classList[i].sourceTableIds).reverse();
+          for (const tableId of temp) {
+            sourceTableIds.unshift(tableId);
+          }
+          for (const tableId of classList[i].targetTableIds) {
+            targetTableIds.unshift(tableId);
+          }
+        }
+      } else {
+        if (classList[i].type === 'Node') {
+          targetTableIds.unshift(classList[i].tableId);
+        } else {
+          const temp = Array.from(classList[i].sourceTableIds).reverse();
+          for (const tableId of temp) {
+            targetTableIds.unshift(tableId);
+          }
+          targetTableIds.unshift(classList[i].tableId);
+          for (const tableId of classList[i].targetTableIds) {
+            targetTableIds.unshift(tableId);
+          }
+        }
+      }
+    }
+    return this.model.createClass({
+      type: 'EdgeClass',
+      tableId,
+      sourceClassId,
+      targetClassId,
+      sourceTableIds,
+      targetTableIds
+    });
+  }
   disconnectAllEdges (options) {
     for (const edgeClass of this.connectedClasses()) {
       if (edgeClass.sourceClassId === this.classId) {

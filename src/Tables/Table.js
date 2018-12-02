@@ -362,6 +362,11 @@ class Table extends TriggerableMixin(Introspectable) {
       yield this._getExistingTable(options) || this._deriveTable(options);
     }
   }
+  duplicate () {
+    return this._deriveTable({
+      type: 'DuplicatedTable'
+    });
+  }
   connect (otherTableList) {
     const newTable = this.model.createTable({
       type: 'ConnectedTable'

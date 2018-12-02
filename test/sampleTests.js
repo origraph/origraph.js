@@ -80,4 +80,57 @@ describe('Sample Tests', () => {
       {'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Ice-T'}
     ]);
   });
+
+  test('Projected Edge Test', async () => {
+    expect.assertions(2);
+
+    const { people, movieEdges, movies } = await utils.setupSmallMovies();
+
+    const collabEdges = people.projectNewEdge([
+      movieEdges.classId,
+      movies.classId,
+      movieEdges.classId,
+      people.classId
+    ]);
+
+    let count = await collabEdges.table.countRows();
+    expect(count).toEqual(38);
+
+    const samples = [];
+    const limitPairsPerMovie = 3;
+    for (const testIndex of [0, 1, 2]) {
+      const movie = collabEdges.table.currentData.data[testIndex];
+      let pairs = 0;
+      for await (const person1 of movie.sourceNodes()) {
+        if (pairs >= limitPairsPerMovie) {
+          break;
+        }
+        for await (const person2 of movie.targetNodes()) {
+          if (person1.index !== person2.index) {
+            samples.push({
+              person1: person1.row.name,
+              person2: person2.row.name,
+              movie: movie.row.title
+            });
+            pairs++;
+            if (pairs >= limitPairsPerMovie) {
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    expect(samples).toEqual([
+      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
+      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
+      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'},
+      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
+      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
+      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'},
+      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
+      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
+      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'}
+    ]);
+  });
 });

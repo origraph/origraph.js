@@ -44,7 +44,7 @@ if (targets.cjs) {
       sourcemap
     },
     external: allExternals,
-    plugins: commonPlugins.concat(process.env.SOURCEMAP !== false ? [istanbul()] : [])
+    plugins: commonPlugins.concat(process.env.SOURCEMAP !== 'false' ? [istanbul()] : [])
   });
 }
 

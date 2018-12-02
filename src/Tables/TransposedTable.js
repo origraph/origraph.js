@@ -22,11 +22,10 @@ class TransposedTable extends SingleParentMixin(Table) {
   }
   async * _iterate () {
     // Pre-build the parent table's cache
-    const parentTable = this.parentTable;
-    await parentTable.buildCache();
+    await this.parentTable.buildCache();
 
     // Iterate the row's attributes as indexes
-    const wrappedParent = parentTable._cache[parentTable._cacheLookup[this._index]] || { row: {} };
+    const wrappedParent = this.parentTable._cache[this.parentTable._cacheLookup[this._index]] || { row: {} };
     for (const [ index, value ] of Object.entries(wrappedParent.row)) {
       const newItem = this._wrap({
         index,
