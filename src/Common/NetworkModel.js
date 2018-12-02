@@ -262,91 +262,136 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     return sampleGraph;
   }
-  async getInstanceGraph (instances) {
-    if (!instances) {
+  async getInstanceGraph (instanceIdList) {
+    if (!instanceIdList) {
       // Without specified instances, just pick the first 5 from each node
       // and edge class
-      instances = [];
+      instanceIdList = [];
       for (const classObj of Object.values(this.classes)) {
         if (classObj.type === 'Node' || classObj.type === 'Edge') {
           for await (const item of classObj.table.iterate(5)) {
-            instances.push(item);
+            instanceIdList.push(item.instanceId);
           }
         }
       }
     }
 
+    // Get the specified items
+    const nodeInstances = {};
+    const edgeInstances = {};
+    for (const instanceId of instanceIdList) {
+      const { classId, index } = JSON.parse(instanceId);
+      const instance = await this.classes[classId].table.getItem(index);
+      if (instance.type === 'Node') {
+        nodeInstances[instanceId] = instance;
+      } else if (instance.type === 'Edge') {
+        edgeInstances[instanceId] = instance;
+      }
+    }
+    // Add any nodes connected to our edges
+    const extraNodes = {};
+    for (const edgeId in edgeInstances) {
+      for await (const node of edgeInstances[edgeId].nodes()) {
+        if (!nodeInstances[node.instanceId]) {
+          extraNodes[node.instanceId] = node;
+        }
+      }
+    }
+    // Add any edges that connect our nodes
+    const extraEdges = {};
+    for (const nodeId in nodeInstances) {
+      for await (const edge of nodeInstances[nodeId].edges()) {
+        if (!edgeInstances[edge.instanceId]) {
+          // Check that both ends of the edge connect at least one
+          // of our nodes
+          let connectsSource = false;
+          let connectsTarget = false;
+          for await (const node of edge.sourceNodes()) {
+            if (nodeInstances[node.instanceId]) {
+              connectsSource = true;
+              break;
+            }
+          }
+          for await (const node of edge.targetNodes()) {
+            if (nodeInstances[node.instanceId]) {
+              connectsTarget = true;
+              break;
+            }
+          }
+          if (connectsSource && connectsTarget) {
+            extraEdges[edge.instanceId] = edge;
+          }
+        }
+      }
+    }
+
+    // Okay, now we have a complete set of nodes and edges that we want to
+    // include; create pairwise edge entries for every connection
     const graph = {
       nodes: [],
       nodeLookup: {},
       edges: []
     };
-    const edgeTableEntries = [];
-    for (const instance of instances) {
-      if (instance.type === 'Node') {
-        graph.nodeLookup[instance.instanceId] = graph.nodes.length;
-        graph.nodes.push({
-          nodeInstance: instance,
-          dummy: false
-        });
-      } else if (instance.type === 'Edge') {
-        edgeTableEntries.push(instance);
-      }
+
+    // Add all the nodes, and populate a lookup for where they are in the list
+    for (const node of Object.values(nodeInstances).concat(Object.values(extraNodes))) {
+      graph.nodeLookup[node.instanceId] = graph.nodes.length;
+      graph.nodes.push({
+        nodeInstance: node,
+        dummy: false
+      });
     }
-    for (const edgeInstance of edgeTableEntries) {
-      const sources = [];
-      for await (const source of edgeInstance.sourceNodes()) {
-        if (graph.nodeLookup[source.instanceId] !== undefined) {
-          sources.push(graph.nodeLookup[source.instanceId]);
-        }
-      }
-      const targets = [];
-      for await (const target of edgeInstance.targetNodes()) {
-        if (graph.nodeLookup[target.instanceId] !== undefined) {
-          targets.push(graph.nodeLookup[target.instanceId]);
-        }
-      }
-      if (sources.length === 0) {
-        if (targets.length === 0) {
-          // We have completely hanging edges, make dummy nodes for the
-          // source and target
+
+    // Add all the edges...
+    for (const edge of Object.values(edgeInstances).concat(Object.values(extraEdges))) {
+      if (!edge.classObj.sourceClassId) {
+        if (!edge.classObj.targetClassId) {
+          // Missing both source and target classes; add dummy nodes for both ends
           graph.edges.push({
-            edgeInstance,
+            edgeInstance: edge,
             source: graph.nodes.length,
             target: graph.nodes.length + 1
           });
           graph.nodes.push({ dummy: true });
           graph.nodes.push({ dummy: true });
         } else {
-          // The sources are hanging, but we have targets
-          for (const target of targets) {
+          // Add dummy source nodes
+          for await (const node of edge.targetNodes()) {
+            if (graph.nodeLookup[node.instanceId] !== undefined) {
+              graph.edges.push({
+                edgeInstance: edge,
+                source: graph.nodes.length,
+                target: graph.nodeLookup[node.instanceId]
+              });
+              graph.nodes.push({ dummy: true });
+            }
+          }
+        }
+      } else if (!edge.classObj.targetClassId) {
+        // Add dummy target nodes
+        for await (const node of edge.sourceNodes()) {
+          if (graph.nodeLookup[node.instanceId] !== undefined) {
             graph.edges.push({
-              edgeInstance,
-              source: graph.nodes.length,
-              target
+              edgeInstance: edge,
+              source: graph.nodeLookup[node.instanceId],
+              target: graph.nodes.length
             });
             graph.nodes.push({ dummy: true });
           }
         }
-      } else if (targets.length === 0) {
-        // The targets are hanging, but we have sources
-        for (const source of sources) {
-          graph.edges.push({
-            edgeInstance,
-            source,
-            target: graph.nodes.length
-          });
-          graph.nodes.push({ dummy: true });
-        }
       } else {
-        // Neither the source, nor the target are hanging
-        for (const source of sources) {
-          for (const target of targets) {
-            graph.edges.push({
-              edgeInstance,
-              source,
-              target
-            });
+        // There should be both source and target nodes for each edge
+        for await (const sourceNode of edge.sourceNodes()) {
+          if (graph.nodeLookup[sourceNode.instanceId] !== undefined) {
+            for await (const targetNode of edge.targetNodes()) {
+              if (graph.nodeLookup[targetNode.instanceId] !== undefined) {
+                graph.edges.push({
+                  edgeInstance: edge,
+                  source: graph.nodeLookup[sourceNode.instanceId],
+                  target: graph.nodeLookup[targetNode.instanceId]
+                });
+              }
+            }
           }
         }
       }

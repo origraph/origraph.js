@@ -270,6 +270,21 @@ class Table extends TriggerableMixin(Introspectable) {
       complete: !!this._cache
     };
   }
+  async getItem (index) {
+    if (this._cacheLookup) {
+      return this._cache[this._cacheLookup[index]];
+    } else if (this._partialCacheLookup && this._partialCacheLookup[index] !== undefined) {
+      return this._partialCache[index];
+    }
+    // Stupid approach when the cache isn't built: interate until we see the
+    // index. Subclasses should override this
+    for await (const item of this.iterate()) {
+      if (item.index === index) {
+        return item;
+      }
+    }
+    return null;
+  }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
     this.reset();
