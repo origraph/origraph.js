@@ -38,7 +38,7 @@ class NodeClass extends GenericClass {
   interpretAsNodes () {
     return this;
   }
-  interpretAsEdges ({ autoconnect = false }) {
+  interpretAsEdges ({ autoconnect = false } = {}) {
     const edgeClassIds = Object.keys(this.edgeClassIds);
     const options = super._toRawObject();
 

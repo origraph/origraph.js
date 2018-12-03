@@ -274,7 +274,7 @@ class Table extends TriggerableMixin(Introspectable) {
     if (this._cacheLookup) {
       return this._cache[this._cacheLookup[index]];
     } else if (this._partialCacheLookup && this._partialCacheLookup[index] !== undefined) {
-      return this._partialCache[index];
+      return this._partialCache[this._partialCacheLookup[index]];
     }
     // Stupid approach when the cache isn't built: interate until we see the
     // index. Subclasses should override this

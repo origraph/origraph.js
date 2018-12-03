@@ -242,6 +242,33 @@ class EdgeClass extends GenericClass {
       return newNodeClass;
     }
   }
+  closedFacet (attribute, values) {
+    const newClasses = super.closedFacet(attribute, values);
+    for (const newClass of newClasses) {
+      if (this.sourceClassId) {
+        newClass.sourceClassId = this.sourceClassId;
+        newClass.sourceTableIds = Array.from(this.sourceTableIds);
+      }
+      if (this.targetClassId) {
+        newClass.targetClassId = this.targetClassId;
+        newClass.targetTableIds = Array.from(this.targetTableIds);
+      }
+    }
+    return newClasses;
+  }
+  async * openFacet (attribute) {
+    for await (const newClass of super.openFacet(attribute)) {
+      if (this.sourceClassId) {
+        newClass.sourceClassId = this.sourceClassId;
+        newClass.sourceTableIds = Array.from(this.sourceTableIds);
+      }
+      if (this.targetClassId) {
+        newClass.targetClassId = this.targetClassId;
+        newClass.targetTableIds = Array.from(this.targetTableIds);
+      }
+      yield newClass;
+    }
+  }
   delete () {
     this.disconnectSource();
     this.disconnectTarget();
