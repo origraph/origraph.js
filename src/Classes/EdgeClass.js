@@ -248,10 +248,12 @@ class EdgeClass extends GenericClass {
       if (this.sourceClassId) {
         newClass.sourceClassId = this.sourceClassId;
         newClass.sourceTableIds = Array.from(this.sourceTableIds);
+        this.sourceClass.edgeClassIds[newClass.classId] = true;
       }
       if (this.targetClassId) {
         newClass.targetClassId = this.targetClassId;
         newClass.targetTableIds = Array.from(this.targetTableIds);
+        this.targetClass.edgeClassIds[newClass.classId] = true;
       }
     }
     return newClasses;
@@ -261,10 +263,12 @@ class EdgeClass extends GenericClass {
       if (this.sourceClassId) {
         newClass.sourceClassId = this.sourceClassId;
         newClass.sourceTableIds = Array.from(this.sourceTableIds);
+        this.sourceClass.edgeClassIds[newClass.classId] = true;
       }
       if (this.targetClassId) {
         newClass.targetClassId = this.targetClassId;
         newClass.targetTableIds = Array.from(this.targetTableIds);
+        this.targetClass.edgeClassIds[newClass.classId] = true;
       }
       yield newClass;
     }
