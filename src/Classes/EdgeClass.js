@@ -242,34 +242,34 @@ class EdgeClass extends GenericClass {
       return newNodeClass;
     }
   }
+  connectFacetedClass (newEdgeClass) {
+    // When an edge class is faceted, we want to keep the same connections. This
+    // means we need to clone each table chain, and add our own table to it
+    // (because our table is the parentTable of the new one)
+    if (this.sourceClassId) {
+      newEdgeClass.sourceClassId = this.sourceClassId;
+      newEdgeClass.sourceTableIds = Array.from(this.sourceTableIds);
+      newEdgeClass.sourceTableIds.unshift(this.tableId);
+      this.sourceClass.edgeClassIds[newEdgeClass.classId] = true;
+    }
+    if (this.targetClassId) {
+      newEdgeClass.targetClassId = this.targetClassId;
+      newEdgeClass.targetTableIds = Array.from(this.targetTableIds);
+      newEdgeClass.targetTableIds.unshift(this.tableId);
+      this.targetClass.edgeClassIds[newEdgeClass.classId] = true;
+    }
+    this.model.trigger('update');
+  }
   closedFacet (attribute, values) {
     const newClasses = super.closedFacet(attribute, values);
     for (const newClass of newClasses) {
-      if (this.sourceClassId) {
-        newClass.sourceClassId = this.sourceClassId;
-        newClass.sourceTableIds = Array.from(this.sourceTableIds);
-        this.sourceClass.edgeClassIds[newClass.classId] = true;
-      }
-      if (this.targetClassId) {
-        newClass.targetClassId = this.targetClassId;
-        newClass.targetTableIds = Array.from(this.targetTableIds);
-        this.targetClass.edgeClassIds[newClass.classId] = true;
-      }
+      this.connectFacetedClass(newClass);
     }
     return newClasses;
   }
   async * openFacet (attribute) {
     for await (const newClass of super.openFacet(attribute)) {
-      if (this.sourceClassId) {
-        newClass.sourceClassId = this.sourceClassId;
-        newClass.sourceTableIds = Array.from(this.sourceTableIds);
-        this.sourceClass.edgeClassIds[newClass.classId] = true;
-      }
-      if (this.targetClassId) {
-        newClass.targetClassId = this.targetClassId;
-        newClass.targetTableIds = Array.from(this.targetTableIds);
-        this.targetClass.edgeClassIds[newClass.classId] = true;
-      }
+      this.connectFacetedClass(newClass);
       yield newClass;
     }
   }
