@@ -133,4 +133,73 @@ describe('Sample Tests', () => {
       {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'}
     ]);
   });
+
+  test('Unroll test', async () => {
+    expect.assertions(3);
+
+    let { movies } = await utils.setupBigMovies();
+
+    let genreLinks = movies.unroll('genres');
+
+    let samples = [];
+    for await (const genreLink of genreLinks.table.iterate(3)) {
+      for await (const intermediate of genreLink.edges()) {
+        for await (const movie of intermediate.nodes({ classes: [movies] })) {
+          samples.push({
+            genre: genreLink.row.name,
+            movie: movie.row.title
+          });
+        }
+      }
+    }
+    expect(samples).toEqual([
+      { 'genre': 'Science Fiction', 'movie': 'Venom' },
+      { 'genre': 'Action', 'movie': 'Mission: Impossible - Fallout' },
+      { 'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout' }
+    ]);
+
+    const genres = genreLinks.promote('name');
+
+    samples = [];
+    for await (const genre of genres.table.iterate(3)) {
+      for await (const genreInt of genre.edges()) {
+        for await (const genreLink of genreInt.nodes({ classes: [ genreLinks ], limit: 3 })) {
+          for await (const movieInt of genreLink.edges()) {
+            for await (const movie of movieInt.nodes({ classes: [ movies ] })) {
+              samples.push({
+                genre: genre.index,
+                movie: movie.row.title
+              });
+            }
+          }
+        }
+      }
+    }
+    expect(samples).toEqual([
+      {'genre': 'Science Fiction', 'movie': 'Venom'},
+      {'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War'},
+      {'genre': 'Science Fiction', 'movie': 'The Predator'},
+      {'genre': 'Action', 'movie': 'Mission: Impossible - Fallout'},
+      {'genre': 'Action', 'movie': 'Avengers: Infinity War'},
+      {'genre': 'Action', 'movie': 'The Predator'},
+      {'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout'},
+      {'genre': 'Thriller', 'movie': 'The Predator'},
+      {'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web'}
+    ]);
+
+    genreLinks = genreLinks.interpretAsEdges({ autoconnect: true });
+
+    samples = [];
+    for await (const genre of genres.table.iterate(3)) {
+      for await (const genreLink of genre.edges({ classes: [ genreLinks ], limit: 3 })) {
+        for await (const movie of genreLink.nodes({ classes: [movies] })) {
+          samples.push({
+            genre: genre.index,
+            movie: movie.row.title
+          });
+        }
+      }
+    }
+    expect(samples).toEqual([ null ]);
+  });
 });

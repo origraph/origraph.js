@@ -1,7 +1,7 @@
 import Table from './Table.js';
-import SingleParentMixin from './SingleParentMixin.js';
+import ChildTableMixin from './ChildTableMixin.js';
 
-class ExpandedTable extends SingleParentMixin(Table) {
+class ExpandedTable extends ChildTableMixin(Table) {
   constructor (options) {
     super(options);
     this._attribute = options.attribute;
@@ -26,12 +26,16 @@ class ExpandedTable extends SingleParentMixin(Table) {
     for await (const wrappedParent of parentTable.iterate()) {
       const row = wrappedParent.row[this._attribute];
       if (row !== undefined && row !== null && Object.keys(row).length > 0) {
-        yield this._wrap({
+        const newItem = this._wrap({
           index,
           row,
-          itemsToConnect: [ wrappedParent ]
+          itemsToConnect: [ wrappedParent ],
+          parentIndex: wrappedParent.index
         });
-        index++;
+        if (await this._finishItem(newItem)) {
+          yield newItem;
+          index++;
+        }
       }
     }
   }

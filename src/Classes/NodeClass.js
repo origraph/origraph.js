@@ -174,22 +174,28 @@ class NodeClass extends GenericClass {
     });
     return newNodeClass;
   }
+  connectToChildNodeClass (childClass) {
+    const connectedTable = this.table.connect([childClass.table], 'ParentChildTable');
+    const newEdgeClass = this.model.createClass({
+      type: 'EdgeClass',
+      tableId: connectedTable.tableId,
+      sourceClassId: this.classId,
+      sourceTableIds: [],
+      targetClassId: childClass.classId,
+      targetTableIds: []
+    });
+    this.edgeClassIds[newEdgeClass.classId] = true;
+    childClass.edgeClassIds[newEdgeClass.classId] = true;
+    this.model.trigger('update');
+  }
   expand (attribute) {
     const newNodeClass = this._deriveNewClass(this.table.expand(attribute), 'NodeClass');
-    this.connectToNodeClass({
-      otherNodeClass: newNodeClass,
-      attribute: null,
-      otherAttribute: null
-    });
+    this.connectToChildNodeClass(newNodeClass);
     return newNodeClass;
   }
   unroll (attribute) {
     const newNodeClass = this._deriveNewClass(this.table.unroll(attribute), 'NodeClass');
-    this.connectToNodeClass({
-      otherNodeClass: newNodeClass,
-      attribute: null,
-      otherAttribute: null
-    });
+    this.connectToChildNodeClass(newNodeClass);
     return newNodeClass;
   }
   projectNewEdge (classIdList) {

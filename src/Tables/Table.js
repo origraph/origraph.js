@@ -402,10 +402,8 @@ class Table extends TriggerableMixin(Introspectable) {
       type: 'DuplicatedTable'
     });
   }
-  connect (otherTableList) {
-    const newTable = this.model.createTable({
-      type: 'ConnectedTable'
-    });
+  connect (otherTableList, type = 'ConnectedTable') {
+    const newTable = this.model.createTable({ type });
     this._derivedTables[newTable.tableId] = true;
     for (const otherTable of otherTableList) {
       otherTable._derivedTables[newTable.tableId] = true;

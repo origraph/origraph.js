@@ -1,25 +1,7 @@
 import Table from './Table.js';
-import SingleParentMixin from './SingleParentMixin.js';
+import AttrTableMixin from './AttrTableMixin.js';
 
-class PromotedTable extends SingleParentMixin(Table) {
-  constructor (options) {
-    super(options);
-    this._attribute = options.attribute;
-    if (!this._attribute) {
-      throw new Error(`attribute is required`);
-    }
-  }
-  _toRawObject () {
-    const obj = super._toRawObject();
-    obj.attribute = this._attribute;
-    return obj;
-  }
-  getSortHash () {
-    return super.getSortHash() + this.parentTable.getSortHash() + this._attribute;
-  }
-  get name () {
-    return this._attribute;
-  }
+class PromotedTable extends AttrTableMixin(Table) {
   async _buildCache (resolve, reject) {
     // We override _buildCache because we don't actually want to call _finishItem
     // until all unique values have been seen

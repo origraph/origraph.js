@@ -7,6 +7,7 @@ import ConnectedTable from './ConnectedTable.js';
 import DuplicatedTable from './DuplicatedTable.js';
 import ExpandedTable from './ExpandedTable.js';
 import UnrolledTable from './UnrolledTable.js';
+import ParentChildTable from './ParentChildTable.js';
 
 export {
   StaticTable,
@@ -17,5 +18,6 @@ export {
   TransposedTable,
   DuplicatedTable,
   ExpandedTable,
-  UnrolledTable
+  UnrolledTable,
+  ParentChildTable
 };
