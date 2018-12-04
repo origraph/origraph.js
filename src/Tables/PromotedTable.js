@@ -18,7 +18,7 @@ class PromotedTable extends SingleParentMixin(Table) {
     return super.getSortHash() + this.parentTable.getSortHash() + this._attribute;
   }
   get name () {
-    return '↦' + this._attribute;
+    return this._attribute;
   }
   async _buildCache (resolve, reject) {
     // We override _buildCache because we don't actually want to call _finishItem

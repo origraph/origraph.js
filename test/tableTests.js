@@ -113,8 +113,8 @@ describe('Table Samples', () => {
 
     // Test that the table names are what we'd expect
     expect(tables.map(table => table.name)).toEqual([
-      'ᵀnodes',
-      'ᵀlinks'
+      'nodes',
+      'links'
     ]);
 
     // Test that we get the rows that we'd expect

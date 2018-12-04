@@ -18,7 +18,7 @@ class ExpandedTable extends SingleParentMixin(Table) {
     return super.getSortHash() + this.parentTable.getSortHash() + this._attribute;
   }
   get name () {
-    return '+' + this._attribute;
+    return this._attribute;
   }
   async * _iterate () {
     const parentTable = this.parentTable;

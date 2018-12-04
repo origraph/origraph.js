@@ -3,7 +3,7 @@ import SingleParentMixin from './SingleParentMixin.js';
 
 class DuplicatedTable extends SingleParentMixin(Table) {
   get name () {
-    return this.parentTable.name + '*';
+    return this.parentTable.name;
   }
   getSortHash () {
     return super.getSortHash() + this.parentTable.getSortHash();

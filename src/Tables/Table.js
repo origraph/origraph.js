@@ -189,6 +189,12 @@ class Table extends TriggerableMixin(Introspectable) {
   async _finishItem (wrappedItem) {
     for (const [attr, func] of Object.entries(this._derivedAttributeFunctions)) {
       wrappedItem.row[attr] = func(wrappedItem);
+      if (wrappedItem.row[attr] instanceof Promise) {
+        (async () => {
+          wrappedItem.delayedRow = wrappedItem.delayedRow || {};
+          wrappedItem.delayedRow[attr] = await wrappedItem.row[attr];
+        })();
+      }
     }
     for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
