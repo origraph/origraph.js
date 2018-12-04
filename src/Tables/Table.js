@@ -334,6 +334,20 @@ class Table extends TriggerableMixin(Introspectable) {
     };
     return this._getExistingTable(options) || this._deriveTable(options);
   }
+  expand (attribute) {
+    const options = {
+      type: 'ExpandedTable',
+      attribute
+    };
+    return this._getExistingTable(options) || this._deriveTable(options);
+  }
+  unroll (attribute) {
+    const options = {
+      type: 'UnrolledTable',
+      attribute
+    };
+    return this._getExistingTable(options) || this._deriveTable(options);
+  }
   closedFacet (attribute, values) {
     return values.map(value => {
       const options = {

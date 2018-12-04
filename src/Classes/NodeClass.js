@@ -101,8 +101,8 @@ class NodeClass extends GenericClass {
         }
       }
       // Okay, now we know how to set source / target ids
-      options.sourceClassId = sourceEdgeClass.classId;
-      options.targetClassId = targetEdgeClass.classId;
+      options.sourceClassId = sourceEdgeClass.sourceClassId;
+      options.targetClassId = targetEdgeClass.targetClassId;
       // Add this class to the source's / target's edgeClassIds
       this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
       this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
@@ -166,13 +166,28 @@ class NodeClass extends GenericClass {
     return edgeClass.connectToNodeClass(options);
   }
   promote (attribute) {
-    const newNodeClass = this.model.createClass({
-      tableId: this.table.promote(attribute).tableId,
-      type: 'NodeClass'
-    });
+    const newNodeClass = this._deriveNewClass(this.table.promote(attribute), 'NodeClass');
     this.connectToNodeClass({
       otherNodeClass: newNodeClass,
       attribute,
+      otherAttribute: null
+    });
+    return newNodeClass;
+  }
+  expand (attribute) {
+    const newNodeClass = this._deriveNewClass(this.table.expand(attribute), 'NodeClass');
+    this.connectToNodeClass({
+      otherNodeClass: newNodeClass,
+      attribute: null,
+      otherAttribute: null
+    });
+    return newNodeClass;
+  }
+  unroll (attribute) {
+    const newNodeClass = this._deriveNewClass(this.table.unroll(attribute), 'NodeClass');
+    this.connectToNodeClass({
+      otherNodeClass: newNodeClass,
+      attribute: null,
       otherAttribute: null
     });
     return newNodeClass;

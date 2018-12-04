@@ -5,6 +5,8 @@ import FacetedTable from './FacetedTable.js';
 import TransposedTable from './TransposedTable.js';
 import ConnectedTable from './ConnectedTable.js';
 import DuplicatedTable from './DuplicatedTable.js';
+import ExpandedTable from './ExpandedTable.js';
+import UnrolledTable from './UnrolledTable.js';
 
 export {
   StaticTable,
@@ -13,5 +15,7 @@ export {
   FacetedTable,
   ConnectedTable,
   TransposedTable,
-  DuplicatedTable
+  DuplicatedTable,
+  ExpandedTable,
+  UnrolledTable
 };
