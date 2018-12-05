@@ -26,14 +26,16 @@ class Origraph extends TriggerableMixin(class {}) {
     this.plugins[name] = plugin;
   }
   save () {
-    /*if (this.localStorage) {
+    /*
+    if (this.localStorage) {
       const models = {};
       for (const [modelId, model] of Object.entries(this.models)) {
         models[modelId] = model._toRawObject();
       }
       this.localStorage.setItem('origraph_models', JSON.stringify(models));
       this.trigger('save');
-    }*/
+    }
+    */
   }
   closeCurrentModel () {
     this._currentModelId = null;
