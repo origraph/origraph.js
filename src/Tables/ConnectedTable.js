@@ -21,6 +21,7 @@ class ConnectedTable extends Table {
     for (const index in baseParentTable._cacheLookup) {
       if (!parentTables.every(table => table._cacheLookup)) {
         // One of the parent tables was reset
+        this.reset();
         return;
       }
       if (!otherParentTables.every(table => table._cacheLookup[index] !== undefined)) {

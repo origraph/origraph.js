@@ -3,18 +3,22 @@ const mime = require('mime-types');
 const fs = require('fs');
 
 const utils = {
+  loadRawText: async function (filename) {
+    return new Promise((resolve, reject) => {
+      fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
+        if (err) { reject(err); }
+        resolve(text);
+      });
+    });
+  },
   loadFiles: async function (filenames) {
     origraph.createModel();
     return Promise.all(filenames.map(async filename => {
-      return new Promise((resolve, reject) => {
-        fs.readFile(`test/data/${filename}`, 'utf8', async (err, text) => {
-          if (err) { reject(err); }
-          resolve(await origraph.currentModel.addStringAsStaticTable({
-            name: filename,
-            extension: mime.extension(mime.lookup(filename)),
-            text
-          }));
-        });
+      const text = await utils.loadRawText(filename);
+      return origraph.currentModel.addTextFile({
+        name: filename,
+        format: mime.extension(mime.lookup(filename)),
+        text: text
       });
     }));
   },

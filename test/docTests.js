@@ -54,4 +54,39 @@ describe('Document Tests', () => {
     // Verify that it was a StaticDictTable
     expect(testTable.type).toEqual('StaticDict');
   });
+
+  test('load a D3Json file', async () => {
+    expect.assertions(4);
+
+    const model = await origraph.loadModel({
+      format: 'D3Json',
+      text: await utils.loadRawText('miserables.json'),
+      name: 'Les Miserables'
+    });
+
+    // Verify that it contains what we expect
+    const nodes = await model.findClass('nodes');
+    expect(await nodes.table.countRows()).toEqual(77);
+    const edges = await model.findClass('links');
+    expect(await edges.table.countRows()).toEqual(254);
+
+    let samples = [];
+    const testItem = await nodes.table.getItem(0);
+    expect(testItem.row).toEqual({ 'name': 'Myriel', 'group': 1, 'index': 0 });
+    for await (const edge of testItem.edges()) {
+      samples.push(edge.row);
+    }
+    expect(samples).toEqual([
+      {'source': 1, 'target': 0, 'value': 1},
+      {'source': 2, 'target': 0, 'value': 8},
+      {'source': 3, 'target': 0, 'value': 10},
+      {'source': 4, 'target': 0, 'value': 1},
+      {'source': 5, 'target': 0, 'value': 1},
+      {'source': 6, 'target': 0, 'value': 1},
+      {'source': 7, 'target': 0, 'value': 1},
+      {'source': 8, 'target': 0, 'value': 2},
+      {'source': 9, 'target': 0, 'value': 1},
+      {'source': 11, 'target': 0, 'value': 5}
+    ]);
+  });
 });

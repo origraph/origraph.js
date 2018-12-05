@@ -4,6 +4,7 @@ import datalib from 'datalib';
 
 import * as TABLES from '../Tables/Tables.js';
 import * as CLASSES from '../Classes/Classes.js';
+import * as FILE_FORMATS from '../FileFormats/FileFormats.js';
 
 const DATALIB_FORMATS = {
   'json': 'json',
@@ -115,64 +116,32 @@ class NetworkModel extends TriggerableMixin(class {}) {
   get deleted () {
     return this._origraph.models[this.modelId];
   }
-  async addFileAsStaticTable ({
-    fileObj,
-    encoding = mime.charset(fileObj.type),
-    extensionOverride = null,
-    skipSizeCheck = false
-  } = {}) {
-    const fileMB = fileObj.size / 1048576;
-    if (fileMB >= 30) {
-      if (skipSizeCheck) {
-        console.warn(`Attempting to load ${fileMB}MB file into memory`);
-      } else {
-        throw new Error(`${fileMB}MB file is too large to load statically`);
-      }
+  async addTextFile ({ name, format, text }) {
+    if (!format) {
+      format = mime.extension(mime.lookup(name));
     }
-    // extensionOverride allows things like topojson or treejson (that don't
-    // have standardized mimeTypes) to be parsed correctly
-    let text = await new Promise((resolve, reject) => {
-      let reader = new this._origraph.FileReader();
-      reader.onload = () => {
-        resolve(reader.result);
-      };
-      reader.readAsText(fileObj, encoding);
-    });
-    return this.addStringAsStaticTable({
-      name: fileObj.name,
-      extension: extensionOverride || mime.extension(fileObj.type),
-      text
-    });
-  }
-  addStringAsStaticTable ({ name, extension, text }) {
-    let data, attributes;
-    if (!extension) {
-      extension = mime.extension(mime.lookup(name));
-    }
-    if (DATALIB_FORMATS[extension]) {
-      data = datalib.read(text, { type: extension });
-      if (extension === 'csv' || extension === 'tsv') {
+    if (FILE_FORMATS[format]) {
+      return FILE_FORMATS[format].importData({ model: this, text });
+    } else if (DATALIB_FORMATS[format]) {
+      let data, attributes;
+      data = datalib.read(text, { type: format });
+      if (format === 'csv' || format === 'tsv') {
         attributes = {};
         for (const attr of data.columns) {
           attributes[attr] = true;
         }
         delete data.columns;
       }
-    } else if (extension === 'xml') {
-      throw new Error('unimplemented');
-    } else if (extension === 'txt') {
-      throw new Error('unimplemented');
+      return this.addStaticTable({ name, data, attributes });
     } else {
-      throw new Error(`Unsupported file extension: ${extension}`);
+      throw new Error(`Unsupported file format: ${format}`);
     }
-    return this.addStaticTable({ name, data, attributes });
   }
   addStaticTable (options) {
     options.type = options.data instanceof Array ? 'StaticTable' : 'StaticDictTable';
     let newTable = this.createTable(options);
     return this.createClass({
       type: 'GenericClass',
-      name: options.name,
       tableId: newTable.tableId
     });
   }
