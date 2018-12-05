@@ -200,6 +200,16 @@ describe('Sample Tests', () => {
         }
       }
     }
-    expect(samples).toEqual([ null ]);
+    expect(samples).toEqual([
+      {'genre': 'Science Fiction', 'movie': 'Venom'},
+      {'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War'},
+      {'genre': 'Science Fiction', 'movie': 'The Predator'},
+      {'genre': 'Action', 'movie': 'Mission: Impossible - Fallout'},
+      {'genre': 'Action', 'movie': 'Avengers: Infinity War'},
+      {'genre': 'Action', 'movie': 'The Predator'},
+      {'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout'},
+      {'genre': 'Thriller', 'movie': 'The Predator'},
+      {'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web'}
+    ]);
   });
 });

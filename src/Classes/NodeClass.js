@@ -114,9 +114,9 @@ class NodeClass extends GenericClass {
       if (sourceEdgeClass.targetClassId === this.classId) {
         options.sourceTableIds.reverse();
       }
-      options.targetTableIds = targetEdgeClass.targetTableIds.slice().reverse()
+      options.targetTableIds = targetEdgeClass.sourceTableIds.slice().reverse()
         .concat([ targetEdgeClass.tableId ])
-        .concat(targetEdgeClass.sourceTableIds);
+        .concat(targetEdgeClass.targetTableIds);
       if (targetEdgeClass.targetClassId === this.classId) {
         options.targetTableIds.reverse();
       }
