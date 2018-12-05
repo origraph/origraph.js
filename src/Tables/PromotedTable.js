@@ -12,18 +12,8 @@ class PromotedTable extends AttrTableMixin(Table) {
     const iterator = this._iterate();
     let temp = { done: false };
     while (!temp.done) {
-      try {
-        temp = await iterator.next();
-      } catch (err) {
-        // Something went wrong upstream (something that this._iterate
-        // depends on was reset or threw a real error)
-        if (err === this.iterationReset) {
-          this.handleReset(reject);
-        } else {
-          throw err;
-        }
-      }
-      if (!this._partialCache) {
+      temp = await iterator.next();
+      if (!this._partialCache || temp === null) {
         // reset() was called before we could finish; we need to let everyone
         // that was waiting on us know that we can't comply
         this.handleReset(reject);
@@ -81,7 +71,7 @@ class PromotedTable extends AttrTableMixin(Table) {
       const index = String(await wrappedParent.row[this._attribute]);
       if (!this._partialCache) {
         // We were reset!
-        throw this.iterationReset;
+        return;
       } else if (this._unfinishedCacheLookup[index] !== undefined) {
         const existingItem = this._unfinishedCache[this._unfinishedCacheLookup[index]];
         existingItem.connectItem(wrappedParent);

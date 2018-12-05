@@ -1,4 +1,4 @@
-import TriggerableMixin from '../Common/TriggerableMixin.js';
+import TriggerableMixin from './TriggerableMixin.js';
 import mime from 'mime-types';
 import datalib from 'datalib';
 
@@ -189,78 +189,6 @@ class NetworkModel extends TriggerableMixin(class {}) {
       }
     }
     this.trigger('update');
-  }
-  async getSampleGraph ({
-    rootClass = null,
-    branchLimit = Infinity,
-    nodeLimit = Infinity,
-    edgeLimit = Infinity,
-    tripleLimit = Infinity
-  } = {}) {
-    const sampleGraph = {
-      nodes: [],
-      nodeLookup: {},
-      edges: [],
-      edgeLookup: {},
-      links: []
-    };
-
-    let numTriples = 0;
-    const addNode = node => {
-      if (sampleGraph.nodeLookup[node.instanceId] === undefined) {
-        sampleGraph.nodeLookup[node.instanceId] = sampleGraph.nodes.length;
-        sampleGraph.nodes.push(node);
-      }
-      return sampleGraph.nodes.length <= nodeLimit;
-    };
-    const addEdge = edge => {
-      if (sampleGraph.edgeLookup[edge.instanceId] === undefined) {
-        sampleGraph.edgeLookup[edge.instanceId] = sampleGraph.edges.length;
-        sampleGraph.edges.push(edge);
-      }
-      return sampleGraph.edges.length <= edgeLimit;
-    };
-    const addTriple = (source, edge, target) => {
-      if (addNode(source) && addNode(target) && addEdge(edge)) {
-        sampleGraph.links.push({
-          source: sampleGraph.nodeLookup[source.instanceId],
-          target: sampleGraph.nodeLookup[target.instanceId],
-          edge: sampleGraph.edgeLookup[edge.instanceId]
-        });
-        numTriples++;
-        return numTriples <= tripleLimit;
-      } else {
-        return false;
-      }
-    };
-
-    let classList = rootClass ? [rootClass] : Object.values(this.classes);
-    for (const classObj of classList) {
-      if (classObj.type === 'Node') {
-        for await (const node of classObj.table.iterate()) {
-          if (!addNode(node)) {
-            return sampleGraph;
-          }
-          for await (const { source, edge, target } of node.pairwiseNeighborhood({ limit: branchLimit })) {
-            if (!addTriple(source, edge, target)) {
-              return sampleGraph;
-            }
-          }
-        }
-      } else if (classObj.type === 'Edge') {
-        for await (const edge of classObj.table.iterate()) {
-          if (!addEdge(edge)) {
-            return sampleGraph;
-          }
-          for await (const { source, target } of edge.pairwiseEdges({ limit: branchLimit })) {
-            if (!addTriple(source, edge, target)) {
-              return sampleGraph;
-            }
-          }
-        }
-      }
-    }
-    return sampleGraph;
   }
   async getInstanceGraph (instanceIdList) {
     if (!instanceIdList) {

@@ -20,8 +20,8 @@ class ConnectedTable extends Table {
     const otherParentTables = parentTables.slice(1);
     for (const index in baseParentTable._cacheLookup) {
       if (!parentTables.every(table => table._cacheLookup)) {
-        // One of the parent tables was reset, meaning we need to reset as well
-        throw this.iterationReset;
+        // One of the parent tables was reset
+        return;
       }
       if (!otherParentTables.every(table => table._cacheLookup[index] !== undefined)) {
         // No match in one of the other tables; omit this item

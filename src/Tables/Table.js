@@ -31,8 +31,6 @@ class Table extends TriggerableMixin(Introspectable) {
     }
 
     this._limitPromises = {};
-
-    this.iterationReset = new Error('Iteration reset');
   }
   _toRawObject () {
     const result = {
@@ -96,18 +94,8 @@ class Table extends TriggerableMixin(Introspectable) {
     let i = 0;
     let temp = { done: false };
     while (!temp.done) {
-      try {
-        temp = await iterator.next();
-      } catch (err) {
-        // Something went wrong upstream (something that this._iterate
-        // depends on was reset or threw a real error)
-        if (err === this.iterationReset) {
-          this.handleReset(reject);
-        } else {
-          throw err;
-        }
-      }
-      if (!this._partialCache) {
+      temp = await iterator.next();
+      if (!this._partialCache || temp === null) {
         // reset() was called before we could finish; we need to let everyone
         // that was waiting on us know that we can't comply
         this.handleReset(reject);
@@ -166,6 +154,11 @@ class Table extends TriggerableMixin(Introspectable) {
     return this._cachePromise;
   }
   reset () {
+    const itemsToReset = (this._cache || [])
+      .concat(this._partialCache || []);
+    for (const item of itemsToReset) {
+      item.reset = true;
+    }
     delete this._cache;
     delete this._cacheLookup;
     delete this._partialCache;
@@ -178,10 +171,10 @@ class Table extends TriggerableMixin(Introspectable) {
   }
   handleReset (reject) {
     for (const limit of Object.keys(this._limitPromises)) {
-      this._limitPromises[limit].reject(this.iterationReset);
+      this._limitPromises[limit].reject();
       delete this._limitPromises;
     }
-    reject(this.iterationReset);
+    reject();
   }
   async countRows () {
     return (await this.buildCache()).length;
@@ -285,7 +278,7 @@ class Table extends TriggerableMixin(Introspectable) {
     // Stupid approach when the cache isn't built: interate until we see the
     // index. Subclasses should override this
     for await (const item of this.iterate()) {
-      if (item.index === index) {
+      if (item === null || item.index === index) {
         return item;
       }
     }

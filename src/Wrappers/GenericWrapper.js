@@ -55,7 +55,7 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
       for await (const item of iterator) {
         yield item;
         i++;
-        if (i >= limit) {
+        if (item === null || i >= limit) {
           return;
         }
       }
@@ -70,12 +70,15 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
     yield * this._iterateAcrossConnections(tableIds);
   }
   * _iterateAcrossConnections (tableIds) {
+    if (this.reset) {
+      return;
+    }
+    const nextTableId = tableIds[0];
     if (tableIds.length === 1) {
-      yield * (this.connectedItems[tableIds[0]] || []);
+      yield * (this.connectedItems[nextTableId] || []);
     } else {
-      const thisTableId = tableIds[0];
       const remainingTableIds = tableIds.slice(1);
-      for (const item of this.connectedItems[thisTableId] || []) {
+      for (const item of this.connectedItems[nextTableId] || []) {
         yield * item._iterateAcrossConnections(remainingTableIds);
       }
     }
