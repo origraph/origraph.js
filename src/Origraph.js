@@ -47,9 +47,9 @@ class Origraph extends TriggerableMixin(class {}) {
     this._currentModelId = model ? model.modelId : null;
     this.trigger('changeCurrentModel');
   }
-  async loadModel ({ name, format, text }) {
-    const newModel = this.createModel({ modelId: name });
-    await newModel.addTextFile({ name, format, text });
+  async loadModel (options) {
+    const newModel = this.createModel({ modelId: options.name });
+    await newModel.addTextFile(options);
     return newModel;
   }
   createModel (options = {}) {

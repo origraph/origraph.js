@@ -9,9 +9,7 @@ import * as FILE_FORMATS from '../FileFormats/FileFormats.js';
 const DATALIB_FORMATS = {
   'json': 'json',
   'csv': 'csv',
-  'tsv': 'tsv',
-  'topojson': 'topojson',
-  'treejson': 'treejson'
+  'tsv': 'tsv'
 };
 
 class NetworkModel extends TriggerableMixin(class {}) {
@@ -116,25 +114,35 @@ class NetworkModel extends TriggerableMixin(class {}) {
   get deleted () {
     return this._origraph.models[this.modelId];
   }
-  async addTextFile ({ name, format, text }) {
-    if (!format) {
-      format = mime.extension(mime.lookup(name));
+  async addTextFile (options) {
+    if (!options.format) {
+      options.format = mime.extension(mime.lookup(options.name));
     }
-    if (FILE_FORMATS[format]) {
-      return FILE_FORMATS[format].importData({ model: this, text });
-    } else if (DATALIB_FORMATS[format]) {
-      let data, attributes;
-      data = datalib.read(text, { type: format });
-      if (format === 'csv' || format === 'tsv') {
-        attributes = {};
-        for (const attr of data.columns) {
-          attributes[attr] = true;
+    if (FILE_FORMATS[options.format]) {
+      options.model = this;
+      return FILE_FORMATS[options.format].importData(options);
+    } else if (DATALIB_FORMATS[options.format]) {
+      options.data = datalib.read(options.text, { type: options.format });
+      if (options.format === 'csv' || options.format === 'tsv') {
+        options.attributes = {};
+        for (const attr of options.data.columns) {
+          options.attributes[attr] = true;
         }
-        delete data.columns;
+        delete options.data.columns;
       }
-      return this.addStaticTable({ name, data, attributes });
+      return this.addStaticTable(options);
     } else {
-      throw new Error(`Unsupported file format: ${format}`);
+      throw new Error(`Unsupported file format: ${options.format}`);
+    }
+  }
+  async formatData (options) {
+    options.model = this;
+    if (FILE_FORMATS[options.format]) {
+      return FILE_FORMATS[options.format].formatData(options);
+    } else if (DATALIB_FORMATS[options.format]) {
+      throw new Error(`Raw ${options.format} export not yet supported`);
+    } else {
+      throw new Error(`Can't export unknown format: ${options.format}`);
     }
   }
   addStaticTable (options) {

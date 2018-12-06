@@ -46,7 +46,8 @@
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-globals": "^1.4.0",
     "rollup-plugin-node-resolve": "^3.4.0",
-    "rollup-plugin-string": "^2.0.2"
+    "rollup-plugin-string": "^2.0.2",
+    "sha1": "^1.1.1"
   },
   "dependencies": {
     "datalib": "^1.9.2",

@@ -20,7 +20,7 @@ class FacetedTable extends SingleParentMixin(Table) {
     return super.getSortHash() + this._attribute + this._value;
   }
   get name () {
-    return `[${this._value}]`;
+    return String(this._value);
   }
   async * _iterate () {
     let index = 0;

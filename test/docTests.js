@@ -1,5 +1,6 @@
 const origraph = require('../dist/origraph.cjs.js');
 const utils = require('./utils.js');
+const sha1 = require('sha1');
 
 describe('Document Tests', () => {
   afterAll(async () => {
@@ -61,7 +62,8 @@ describe('Document Tests', () => {
     const model = await origraph.loadModel({
       format: 'D3Json',
       text: await utils.loadRawText('miserables.json'),
-      name: 'Les Miserables'
+      name: 'Les Miserables',
+      nodeAttribute: 'index'
     });
 
     // Verify that it contains what we expect
@@ -71,7 +73,7 @@ describe('Document Tests', () => {
     expect(await edges.table.countRows()).toEqual(254);
 
     let samples = [];
-    const testItem = await nodes.table.getItem(0);
+    const testItem = await nodes.table.getItem();
     expect(testItem.row).toEqual({ 'name': 'Myriel', 'group': 1, 'index': 0 });
     for await (const edge of testItem.edges()) {
       samples.push(edge.row);
