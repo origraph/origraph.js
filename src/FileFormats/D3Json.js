@@ -121,6 +121,9 @@ class D3Json extends FileFormat {
         if (nodeAttribute) {
           row[nodeAttribute] = node.exportId;
         }
+        if (classAttribute) {
+          row[classAttribute] = node.classObj.className;
+        }
         result.nodes.push(row);
       }
     }
