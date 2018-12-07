@@ -435,14 +435,14 @@ class Table extends TriggerableMixin(Introspectable) {
         classObj.targetTableIds.indexOf(this.tableId) !== -1;
     });
   }
-  delete () {
-    if (this.inUse) {
+  delete (force = false) {
+    if (!force && this.inUse) {
       const err = new Error(`Can't delete in-use table ${this.tableId}`);
       err.inUse = true;
       throw err;
     }
     for (const parentTable of this.parentTables) {
-      delete parentTable.derivedTables[this.tableId];
+      delete parentTable._derivedTables[this.tableId];
     }
     delete this.model.tables[this.tableId];
     this.model.trigger('update');

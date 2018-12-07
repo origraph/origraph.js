@@ -95,7 +95,7 @@ class D3Json extends FileFormat {
     if (classAttribute && !nodeAttribute) {
       throw new Error(`Can't export D3-style JSON with classes, without a nodeAttribute`);
     }
-    const result = {
+    let result = {
       nodes: [],
       links: []
     };
@@ -144,17 +144,22 @@ class D3Json extends FileFormat {
     }
     if (pretty) {
       result.nodes = '  "nodes": [\n    ' + result.nodes.map(row => JSON.stringify(row))
-        .join('    ,\n') + '\n  ]';
+        .join(',\n    ') + '\n  ]';
       result.links = '  "links": [\n    ' + result.links.map(row => JSON.stringify(row))
-        .join('    ,\n') + '\n  ]';
+        .join(',\n    ') + '\n  ]';
       if (result.other) {
         result.other = ',\n  "other": [\n    ' + result.other.map(row => JSON.stringify(row))
-          .join('    ,\n') + '\n  ]';
+          .join(',\n    ') + '\n  ]';
       }
-      return `{\n${result.nodes},\n${result.links}${result.other || ''}\n}\n`;
+      result = `{\n${result.nodes},\n${result.links}${result.other || ''}\n}\n`;
     } else {
-      return JSON.stringify(result);
+      result = JSON.stringify(result);
     }
+    return {
+      data: 'data:text/json;base64,' + Buffer.from(result).toString('base64'),
+      type: 'text/json',
+      extension: 'json'
+    };
   }
 }
 export default new D3Json();

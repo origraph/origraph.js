@@ -88,6 +88,9 @@ class NetworkModel extends TriggerableMixin(class {}) {
       options.classId = `class${this._nextClassId}`;
       this._nextClassId += 1;
     }
+    if (this.tables[options.tableId].classObj !== null) {
+      options.tableId = this.tables[options.tableId].duplicate().tableId;
+    }
     options.model = this;
     this.classes[options.classId] = new CLASSES[options.type](options);
     this.trigger('update');
@@ -153,19 +156,37 @@ class NetworkModel extends TriggerableMixin(class {}) {
       tableId: newTable.tableId
     });
   }
-  deleteAllUnusedTables () {
-    for (const tableId in this.tables) {
-      if (this.tables[tableId]) {
-        try {
-          this.tables[tableId].delete();
-        } catch (err) {
-          if (!err.inUse) {
-            throw err;
-          }
+  optimizeTables () {
+    const tablesInUse = {};
+    for (const classObj of Object.values(this.classes)) {
+      tablesInUse[classObj.tableId] = true;
+      for (const tableId of classObj.sourceTableIds || []) {
+        tablesInUse[tableId] = true;
+      }
+      for (const tableId of classObj.targetTableIds || []) {
+        tablesInUse[tableId] = true;
+      }
+    }
+    const parentsVisited = {};
+    const queue = Object.keys(tablesInUse);
+    while (queue.length > 0) {
+      const tableId = queue.shift();
+      if (!parentsVisited[tableId]) {
+        tablesInUse[tableId] = true;
+        parentsVisited[tableId] = true;
+        const table = this.tables[tableId];
+        for (const parentTable of table.parentTables) {
+          queue.push(parentTable.tableId);
         }
       }
     }
-    this.trigger('update');
+    for (const tableId of Object.keys(this.tables)) {
+      const table = this.tables[tableId];
+      if (!tablesInUse[tableId] && table.type !== 'Static' && table.type !== 'StaticDict') {
+        table.delete(true);
+      }
+    }
+    // TODO: If any DuplicatedTable is in use, but the original isn't, swap for the real one
   }
   async getInstanceGraph (instanceIdList) {
     if (!instanceIdList) {

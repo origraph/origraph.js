@@ -104,6 +104,7 @@ class GenericClass extends Introspectable {
   }
   delete () {
     delete this.model.classes[this.classId];
+    this.model.optimizeTables();
     this.model.trigger('update');
   }
 }
