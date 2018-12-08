@@ -11,7 +11,7 @@ describe('Derivation Tests', () => {
 
     const { people } = await utils.setupBigMovies();
 
-    people.table.addFilter('gender', gender => gender > 0);
+    people.table.addFilter(item => item.row.gender > 0, 'gender');
 
     const samples = [];
     for await (const person of people.table.iterate(5)) {

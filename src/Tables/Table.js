@@ -199,8 +199,8 @@ class Table extends TriggerableMixin(Introspectable) {
     if (this._indexFilter) {
       keep = this._indexFilter(wrappedItem.index);
     }
-    for (const [attr, func] of Object.entries(this._attributeFilters)) {
-      keep = keep && await func(await wrappedItem.row[attr]);
+    for (const func of Object.values(this._attributeFilters)) {
+      keep = keep && await func(wrappedItem);
       if (!keep) { break; }
     }
     if (keep) {
@@ -301,7 +301,7 @@ class Table extends TriggerableMixin(Introspectable) {
     this.reset();
     this.model.trigger('update');
   }
-  addFilter (attribute, func) {
+  addFilter (func, attribute = null) {
     if (attribute === null) {
       this._indexFilter = func;
     } else {

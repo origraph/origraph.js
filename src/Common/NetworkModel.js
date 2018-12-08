@@ -88,7 +88,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
       options.classId = `class${this._nextClassId}`;
       this._nextClassId += 1;
     }
-    if (this.tables[options.tableId].classObj !== null) {
+    if (this.tables[options.tableId].classObj && !options.overwrite) {
       options.tableId = this.tables[options.tableId].duplicate().tableId;
     }
     options.model = this;

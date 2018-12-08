@@ -1,170 +1,181 @@
 {
   "classes": [
     {
-      "classId": 0,
-      "tableId": 6,
-      "className": "Movie Edges",
       "annotations": {},
+      "classId": 0,
+      "className": "Movie Edges",
+      "directed": false,
       "sourceClassId": 3,
       "sourceTableIds": [
-        3,
+        4,
         1,
-        5
+        6
       ],
+      "tableId": 7,
       "targetClassId": null,
       "targetTableIds": [],
-      "directed": false,
       "type": "EdgeClass"
     },
     {
-      "classId": 1,
-      "tableId": 6,
-      "className": null,
       "annotations": {},
+      "classId": 1,
+      "className": null,
+      "directed": false,
       "sourceClassId": 3,
       "sourceTableIds": [],
+      "tableId": 2,
       "targetClassId": 2,
       "targetTableIds": [
-        3,
+        4,
         1,
-        5
+        6
       ],
-      "directed": false,
       "type": "EdgeClass"
     },
     {
-      "classId": 2,
-      "tableId": 7,
-      "className": "Movies",
       "annotations": {},
+      "classId": 2,
+      "className": "Movies",
       "edgeClassIds": {
         "1": true
       },
+      "tableId": 8,
       "type": "NodeClass"
     },
     {
-      "classId": 3,
-      "tableId": 8,
-      "className": "People",
       "annotations": {},
+      "classId": 3,
+      "className": "People",
       "edgeClassIds": {
         "0": true,
         "1": true
       },
+      "tableId": 9,
       "type": "NodeClass"
     }
   ],
   "tables": [
     {
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {},
+      "indexFilter": null,
+      "suppressIndex": false,
+      "suppressedAttributes": {},
       "tableId": 0,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
       "type": "ConnectedTable"
     },
     {
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {},
+      "indexFilter": null,
+      "suppressIndex": false,
+      "suppressedAttributes": {},
       "tableId": 1,
-      "derivedTables": {},
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
       "type": "ConnectedTable"
     },
     {
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {},
+      "indexFilter": null,
+      "suppressIndex": false,
+      "suppressedAttributes": {},
       "tableId": 2,
-      "derivedTables": {
-        "0": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
+      "type": "DuplicatedTable"
+    },
+    {
       "attribute": "movieID",
-      "type": "PromotedTable"
-    },
-    {
-      "tableId": 3,
-      "derivedTables": {
-        "1": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
       "attributeFilters": {},
-      "indexFilter": null,
-      "attribute": "personID",
-      "type": "PromotedTable"
-    },
-    {
-      "tableId": 4,
+      "derivedAttributeFunctions": {},
       "derivedTables": {
         "0": true
       },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
       "indexFilter": null,
-      "attribute": "id",
+      "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 3,
       "type": "PromotedTable"
     },
     {
-      "tableId": 5,
+      "attribute": "personID",
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
       "derivedTables": {
         "1": true
       },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
       "indexFilter": null,
-      "attribute": "id",
+      "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 4,
       "type": "PromotedTable"
     },
     {
+      "attribute": "id",
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {
+        "0": true
+      },
+      "indexFilter": null,
+      "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 5,
+      "type": "PromotedTable"
+    },
+    {
+      "attribute": "id",
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {
+        "1": true
+      },
+      "indexFilter": null,
+      "suppressIndex": false,
+      "suppressedAttributes": {},
       "tableId": 6,
+      "type": "PromotedTable"
+    },
+    {
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
       "derivedTables": {
         "2": true,
-        "3": true
-      },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
-      "indexFilter": null,
-      "name": "movies/small/movieEdges.csv",
-      "type": "StaticTable"
-    },
-    {
-      "tableId": 7,
-      "derivedTables": {
+        "3": true,
         "4": true
       },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
-      "suppressIndex": false,
-      "attributeFilters": {},
       "indexFilter": null,
-      "name": "movies/small/movies.csv",
+      "name": "movies/small/movieEdges.csv",
+      "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 7,
       "type": "StaticTable"
     },
     {
-      "tableId": 8,
+      "attributeFilters": {},
+      "derivedAttributeFunctions": {},
       "derivedTables": {
         "5": true
       },
-      "derivedAttributeFunctions": {},
-      "suppressedAttributes": {},
+      "indexFilter": null,
+      "name": "movies/small/movies.csv",
       "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 8,
+      "type": "StaticTable"
+    },
+    {
       "attributeFilters": {},
+      "derivedAttributeFunctions": {},
+      "derivedTables": {
+        "6": true
+      },
       "indexFilter": null,
       "name": "movies/small/people.csv",
+      "suppressIndex": false,
+      "suppressedAttributes": {},
+      "tableId": 9,
       "type": "StaticTable"
     }
   ]

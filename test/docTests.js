@@ -1,6 +1,5 @@
 const origraph = require('../dist/origraph.cjs.js');
 const utils = require('./utils.js');
-const sha1 = require('sha1');
 
 describe('Document Tests', () => {
   afterAll(async () => {
