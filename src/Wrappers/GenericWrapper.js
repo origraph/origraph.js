@@ -44,6 +44,9 @@ class GenericWrapper extends TriggerableMixin(Introspectable) {
   get exportId () {
     return `${this.classObj.classId}_${this.index}`;
   }
+  get label () {
+    return this.classObj.annotations.labelAttr ? this.row[this.classObj.annotations.labelAttr] : this.index;
+  }
   equals (item) {
     return this.instanceId === item.instanceId;
   }

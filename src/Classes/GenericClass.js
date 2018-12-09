@@ -29,6 +29,14 @@ class GenericClass extends Introspectable {
     this._className = value;
     this.model.trigger('update');
   }
+  setAnnotation (key, value) {
+    this.annotations[key] = value;
+    this.model.trigger('update');
+  }
+  deleteAnnotation (key) {
+    delete this.annotations[key];
+    this.model.trigger('update');
+  }
   get hasCustomName () {
     return this._className !== null;
   }
