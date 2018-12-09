@@ -2,10 +2,10 @@ import Table from './Table.js';
 
 class ConnectedTable extends Table {
   get name () {
-    return this.parentTables.map(parentTable => parentTable.name).join('⨯');
+    return this.parentTables.map(parentTable => parentTable.name).join('=');
   }
   getSortHash () {
-    return super.getSortHash() + this.parentTables.map(table => table.getSortHash()).join(',');
+    return super.getSortHash() + this.parentTables.map(table => table.getSortHash()).join('=');
   }
   async * _iterate () {
     const parentTables = this.parentTables;

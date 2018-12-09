@@ -94,43 +94,38 @@ describe('Sample Tests', () => {
     ]);
 
     let count = await collabEdges.table.countRows();
-    expect(count).toEqual(38);
+    expect(count).toEqual(1928);
 
     const samples = [];
-    const limitPairsPerMovie = 3;
-    for (const testIndex of [0, 1, 2]) {
-      const movie = collabEdges.table.currentData.data[testIndex];
-      let pairs = 0;
-      for await (const person1 of movie.sourceNodes()) {
-        if (pairs >= limitPairsPerMovie) {
+    for await (const pair of collabEdges.table.iterate(5)) {
+      let source;
+      for await (const sourceActor of pair.sourceNodes()) {
+        // TODO: multiple sourceNodes() can occur because this is a self edge
+        // (so both the target and source will be connectedItems for both
+        // sourceNodes() and targetNodes()... ignoring this error for now)
+        if (source) { break; }
+        source = sourceActor;
+      }
+      let target;
+      for await (const targetActor of pair.targetNodes()) {
+        if (target && target !== source) {
           break;
         }
-        for await (const person2 of movie.targetNodes()) {
-          if (person1.index !== person2.index) {
-            samples.push({
-              person1: person1.row.name,
-              person2: person2.row.name,
-              movie: movie.row.title
-            });
-            pairs++;
-            if (pairs >= limitPairsPerMovie) {
-              break;
-            }
-          }
-        }
+        target = targetActor;
       }
+      samples.push({
+        index: pair.index,
+        source: source.row.name,
+        target: target.row.name
+      });
     }
 
     expect(samples).toEqual([
-      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
-      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
-      {'movie': 'The Matrix', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'},
-      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
-      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
-      {'movie': 'The Matrix Reloaded', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'},
-      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Carrie-Anne Moss'},
-      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Laurence Fishburne'},
-      {'movie': 'The Matrix Revolutions', 'person1': 'Keanu Reeves', 'person2': 'Hugo Weaving'}
+      {'index': '0⨯0', 'source': 'Keanu Reeves', 'target': 'Keanu Reeves'},
+      {'index': '0⨯12', 'source': 'Keanu Reeves', 'target': 'Jack Nicholson'},
+      {'index': '0⨯121', 'source': 'Keanu Reeves', 'target': 'Diane Keaton'},
+      {'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers'},
+      {'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers'}
     ]);
   });
 

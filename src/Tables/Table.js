@@ -407,6 +407,19 @@ class Table extends TriggerableMixin(Introspectable) {
     this.model.trigger('update');
     return newTable;
   }
+  project (tableIds) {
+    const newTable = this.model.createTable({
+      type: 'ProjectedTable',
+      tableOrder: [this.tableId].concat(tableIds)
+    });
+    this._derivedTables[newTable.tableId] = true;
+    for (const otherTableId of tableIds) {
+      const otherTable = this.model.tables[otherTableId];
+      otherTable._derivedTables[newTable.tableId] = true;
+    }
+    this.model.trigger('update');
+    return newTable;
+  }
   get classObj () {
     return Object.values(this.model.classes).find(classObj => {
       return classObj.table === this;

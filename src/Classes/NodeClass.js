@@ -199,65 +199,42 @@ class NodeClass extends GenericClass {
     return newNodeClass;
   }
   projectNewEdge (classIdList) {
-    const classList = classIdList.map(classId => {
+    const classList = [this].concat(classIdList.map(classId => {
       return this.model.classes[classId];
-    });
-    if (classList.length < 2 || classList[classList.length - 1].type !== 'Node') {
+    }));
+    if (classList.length < 3 || classList[classList.length - 1].type !== 'Node') {
       throw new Error(`Invalid classIdList`);
     }
     const sourceClassId = this.classId;
     const targetClassId = classList[classList.length - 1].classId;
-    const sourceTableIds = [];
-    const targetTableIds = [];
-    let tableId;
-    const middleIndex = Math.floor((classList.length - 1) / 2);
-    for (let i = 0; i < classList.length - 1; i++) {
-      if (i < middleIndex) {
-        if (classList[i].type === 'Node') {
-          sourceTableIds.unshift(classList[i].tableId);
-        } else {
-          const temp = Array.from(classList[i].sourceTableIds).reverse();
-          for (const tableId of temp) {
-            sourceTableIds.unshift(tableId);
-          }
-          sourceTableIds.unshift(classList[i].tableId);
-          for (const tableId of classList[i].targetTableIds) {
-            sourceTableIds.unshift(tableId);
-          }
-        }
-      } else if (i === middleIndex) {
-        tableId = classList[i].table.duplicate().tableId;
-        if (classList[i].type === 'Edge') {
-          const temp = Array.from(classList[i].sourceTableIds).reverse();
-          for (const tableId of temp) {
-            sourceTableIds.unshift(tableId);
-          }
-          for (const tableId of classList[i].targetTableIds) {
-            targetTableIds.unshift(tableId);
-          }
-        }
+    let tableOrder = [];
+    for (let i = 1; i < classList.length; i++) {
+      const classObj = classList[i];
+      if (classObj.type === 'Node') {
+        tableOrder.push(classObj.tableId);
       } else {
-        if (classList[i].type === 'Node') {
-          targetTableIds.unshift(classList[i].tableId);
+        const edgeRole = classList[i - 1].getEdgeRole(classObj);
+        if (edgeRole === 'source' || edgeRole === 'both') {
+          tableOrder = tableOrder.concat(
+            Array.from(classObj.sourceTableIds).reverse());
+          tableOrder.push(classObj.tableId);
+          tableOrder = tableOrder.concat(classObj.targetTableIds);
         } else {
-          const temp = Array.from(classList[i].sourceTableIds).reverse();
-          for (const tableId of temp) {
-            targetTableIds.unshift(tableId);
-          }
-          targetTableIds.unshift(classList[i].tableId);
-          for (const tableId of classList[i].targetTableIds) {
-            targetTableIds.unshift(tableId);
-          }
+          tableOrder = tableOrder.concat(
+            Array.from(classObj.targetTableIds).reverse());
+          tableOrder.push(classObj.tableId);
+          tableOrder = tableOrder.concat(classObj.sourceTableIds);
         }
       }
     }
+    const newTable = this.table.project(tableOrder);
     return this.model.createClass({
       type: 'EdgeClass',
-      tableId,
+      tableId: newTable.tableId,
       sourceClassId,
       targetClassId,
-      sourceTableIds,
-      targetTableIds
+      sourceTableIds: [],
+      targetTableIds: []
     });
   }
   disconnectAllEdges (options) {

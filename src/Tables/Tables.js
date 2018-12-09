@@ -8,6 +8,7 @@ import DuplicatedTable from './DuplicatedTable.js';
 import ExpandedTable from './ExpandedTable.js';
 import UnrolledTable from './UnrolledTable.js';
 import ParentChildTable from './ParentChildTable.js';
+import ProjectedTable from './ProjectedTable.js';
 
 export {
   StaticTable,
@@ -19,5 +20,6 @@ export {
   DuplicatedTable,
   ExpandedTable,
   UnrolledTable,
-  ParentChildTable
+  ParentChildTable,
+  ProjectedTable
 };
