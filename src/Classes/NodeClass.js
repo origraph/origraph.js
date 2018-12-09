@@ -228,7 +228,7 @@ class NodeClass extends GenericClass {
       }
     }
     const newTable = this.table.project(tableOrder);
-    return this.model.createClass({
+    const newClass = this.model.createClass({
       type: 'EdgeClass',
       tableId: newTable.tableId,
       sourceClassId,
@@ -236,6 +236,9 @@ class NodeClass extends GenericClass {
       sourceTableIds: [],
       targetTableIds: []
     });
+    this.edgeClassIds[newClass.classId] = true;
+    classList[classList.length - 1].edgeClassIds[newClass.classId] = true;
+    return newClass;
   }
   disconnectAllEdges (options) {
     for (const edgeClass of this.connectedClasses()) {
