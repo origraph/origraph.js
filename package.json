@@ -52,6 +52,7 @@
   "dependencies": {
     "datalib": "^1.9.2",
     "filereader": "^0.10.3",
+    "jszip": "^3.1.5",
     "mime-types": "^2.1.21"
   },
   "peerDependencies": {
