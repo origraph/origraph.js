@@ -31,6 +31,11 @@ class NodeWrapper extends GenericWrapper {
     }
     yield * this.handleLimit(options, iterators);
   }
+  async * pairwiseNeighborhood (options) {
+    for await (const edge of this.edges()) {
+      yield * edge.pairwiseNeighborhood(options);
+    }
+  }
 }
 
 export default NodeWrapper;
