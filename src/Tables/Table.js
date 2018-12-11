@@ -192,9 +192,6 @@ class Table extends TriggerableMixin(Introspectable) {
     for (const attr in wrappedItem.row) {
       this._observedAttributes[attr] = true;
     }
-    for (const attr in this._suppressedAttributes) {
-      delete wrappedItem.row[attr];
-    }
     let keep = true;
     if (this._indexFilter) {
       keep = this._indexFilter(wrappedItem.index);

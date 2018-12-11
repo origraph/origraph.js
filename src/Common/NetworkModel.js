@@ -202,7 +202,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
 
     const populateClassCounts = async (instance) => {
-      if (instance === null) {
+      if (!instance || !instance.classObj) {
         iterationReset = true;
         return false;
       }
