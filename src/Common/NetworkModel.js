@@ -188,43 +188,124 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     // TODO: If any DuplicatedTable is in use, but the original isn't, swap for the real one
   }
+  async getArbitraryInstanceList (seedCount = 2, nodeCount = 5, edgeCount = 10) {
+    // Try to get instancesPerClass instances from each class, starting with the
+    // class that was passed in as an argument
+    let iterationReset = false;
+    const nodeInstances = {};
+    const edgeInstances = {};
+    const nodeCounts = {};
+    const edgeCounts = {};
+    const unSeenClassIds = {};
+    for (const classId of Object.keys(this.classes)) {
+      unSeenClassIds[classId] = true;
+    }
+
+    const populateClassCounts = async (instance) => {
+      if (instance === null) {
+        iterationReset = true;
+        return false;
+      }
+      const classId = instance.classObj.classId;
+      const instanceId = instance.instanceId;
+      if (instance.type === 'Node') {
+        nodeCounts[classId] = nodeCounts[classId] || 0;
+        if (nodeCounts[classId] >= nodeCount || nodeInstances[instanceId]) {
+          return false;
+        }
+        delete unSeenClassIds[classId];
+        nodeCounts[classId]++;
+        nodeInstances[instanceId] = instance;
+        for await (const edge of instance.edges({ limit: seedCount, classIds: Object.keys(unSeenClassIds) })) {
+          if (!await populateClassCounts(edge)) {
+            break;
+          }
+        }
+      } else if (instance.type === 'Edge') {
+        edgeCounts[classId] = edgeCounts[classId] || 0;
+        if (edgeCounts[classId] >= edgeCount || edgeInstances[instanceId]) {
+          return false;
+        }
+        delete unSeenClassIds[classId];
+        edgeCounts[classId]++;
+        edgeInstances[instanceId] = instance;
+        for await (const node of instance.nodes({ limit: seedCount, classIds: Object.keys(unSeenClassIds) })) {
+          if (!await populateClassCounts(node)) {
+            break;
+          }
+        }
+      } else {
+        return false;
+      }
+      return true;
+    };
+    for (const classObj of Object.values(this.classes)) {
+      await classObj.table.buildCache();
+      for (let i = 0; i < seedCount; i++) {
+        if (iterationReset) {
+          return null;
+        }
+        const randIndex = Math.floor(Math.random() * classObj.table._cache.length);
+        const instance = classObj.table._cache[randIndex];
+        if (!await populateClassCounts(instance)) {
+          break;
+        }
+      }
+    }
+    return Object.keys(nodeInstances).concat(Object.keys(edgeInstances));
+  }
   async getInstanceGraph (instanceIdList) {
+    const nodeInstances = {};
+    const edgeInstances = {};
+    const extraNodes = {};
+    const extraEdges = {};
+    const graph = {
+      nodes: [],
+      nodeLookup: {},
+      edges: []
+    };
+
     if (!instanceIdList) {
-      // Without specified instances, just pick the first 5 from each node
-      // and edge class
-      instanceIdList = [];
-      for (const classObj of Object.values(this.classes)) {
-        if (classObj.type === 'Node' || classObj.type === 'Edge') {
-          for await (const item of classObj.table.iterate(5)) {
-            instanceIdList.push(item.instanceId);
+      return graph;
+    } else {
+      // Get the specified items
+      for (const instanceId of instanceIdList) {
+        const { classId, index } = JSON.parse(instanceId);
+        const instance = await this.classes[classId].table.getItem(index);
+        if (instance) {
+          if (instance.type === 'Node') {
+            nodeInstances[instanceId] = instance;
+          } else if (instance.type === 'Edge') {
+            edgeInstances[instanceId] = instance;
           }
         }
       }
     }
 
-    // Get the specified items
-    const nodeInstances = {};
-    const edgeInstances = {};
-    for (const instanceId of instanceIdList) {
-      const { classId, index } = JSON.parse(instanceId);
-      const instance = await this.classes[classId].table.getItem(index);
-      if (instance.type === 'Node') {
-        nodeInstances[instanceId] = instance;
-      } else if (instance.type === 'Edge') {
-        edgeInstances[instanceId] = instance;
-      }
-    }
-    // Add any nodes connected to our edges
-    const extraNodes = {};
-    for (const edgeId in edgeInstances) {
-      for await (const node of edgeInstances[edgeId].nodes()) {
-        if (!nodeInstances[node.instanceId]) {
-          extraNodes[node.instanceId] = node;
+    // At this point, we have all the nodes that we NEED, but for a cleaner
+    // graph, we want to make sure to only show dangling edges that are actually
+    // dangling in the network model (need to make sure each edge has at least
+    // one source and one target node)
+    const seedSide = async (edgeId, iterFunc) => {
+      let aNode;
+      let isSeeded = false;
+      for await (const source of edgeInstances[edgeId][iterFunc]()) {
+        aNode = aNode || source;
+        if (nodeInstances[source.instanceId]) {
+          isSeeded = true;
+          break;
         }
       }
+      if (!isSeeded && aNode) {
+        extraNodes[aNode.instanceId] = aNode;
+      }
+    };
+    for (const edgeId in edgeInstances) {
+      seedSide(edgeId, 'sourceNodes');
+      seedSide(edgeId, 'targetNodes');
     }
-    // Add any edges that connect our nodes
-    const extraEdges = {};
+    // We also want to add any edges that exist that connect any of the nodes
+    // that we've included
     for (const nodeId in nodeInstances) {
       for await (const edge of nodeInstances[nodeId].edges()) {
         if (!edgeInstances[edge.instanceId]) {
@@ -251,15 +332,10 @@ class NetworkModel extends TriggerableMixin(class {}) {
       }
     }
 
-    // Okay, now we have a complete set of nodes and edges that we want to
-    // include; create pairwise edge entries for every connection
-    const graph = {
-      nodes: [],
-      nodeLookup: {},
-      edges: []
-    };
+    // At this point we have a complete set of nodes and edges that we want to
+    // include. Now we need to populate the graph:
 
-    // Add all the nodes, and populate a lookup for where they are in the list
+    // Add all the nodes to the graph, and populate a lookup for where they are in the list
     for (const node of Object.values(nodeInstances).concat(Object.values(extraNodes))) {
       graph.nodeLookup[node.instanceId] = graph.nodes.length;
       graph.nodes.push({
@@ -268,7 +344,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
       });
     }
 
-    // Add all the edges...
+    // Add all the edges, including dummy nodes for dangling edges
     for (const edge of Object.values(edgeInstances).concat(Object.values(extraEdges))) {
       if (!edge.classObj.sourceClassId) {
         if (!edge.classObj.targetClassId) {

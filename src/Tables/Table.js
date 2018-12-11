@@ -292,11 +292,23 @@ class Table extends TriggerableMixin(Introspectable) {
     this.reset();
     this.model.trigger('update');
   }
+  get suppressedAttributes () {
+    return Object.keys(this._suppressedAttributes);
+  }
   suppressAttribute (attribute) {
     if (attribute === null) {
       this._suppressIndex = true;
     } else {
       this._suppressedAttributes[attribute] = true;
+    }
+    this.reset();
+    this.model.trigger('update');
+  }
+  unSuppressAttribute (attribute) {
+    if (attribute === null) {
+      this._suppressIndex = false;
+    } else {
+      delete this._suppressedAttributes[attribute];
     }
     this.reset();
     this.model.trigger('update');
