@@ -16,11 +16,14 @@ class CsvZip extends FileFormat {
     const zip = new JSZip();
 
     for (const classObj of includeClasses) {
-      const attributes = classObj.table.attributes;
+      const attributes = classObj.table.unSuppressedAttributes;
       let contents = `${indexName},${attributes.join(',')}\n`;
       for await (const item of classObj.table.iterate()) {
-        const row = attributes.map(attr => item.row[attr]);
-        contents += `${item.index},${row.join(',')}\n`;
+        contents += `${item.index}`;
+        for (const attr of attributes) {
+          contents += `,${await item.row[attr]}`;
+        }
+        contents += `\n`;
       }
       zip.file(classObj.className + '.csv', contents);
     }

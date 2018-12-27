@@ -292,6 +292,9 @@ class Table extends TriggerableMixin(Introspectable) {
   get suppressedAttributes () {
     return Object.keys(this._suppressedAttributes);
   }
+  get unSuppressedAttributes () {
+    return this.attributes.filter(attr => !this._suppressedAttributes[attr]);
+  }
   suppressAttribute (attribute) {
     if (attribute === null) {
       this._suppressIndex = true;
