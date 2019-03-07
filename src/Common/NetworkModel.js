@@ -400,6 +400,24 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     return graph;
   }
+  async * iterAllPairwiseMatches (sourceClass, targetClass) {
+    for await (const source of sourceClass.table.iterate()) {
+      for await (const target of targetClass.table.iterate()) {
+        for (const [sourceAttr, sourceValue] of Object.entries(source.row)) {
+          for (const [targetAttr, targetValue] of Object.entries(target.row)) {
+            yield {
+              type: sourceValue === targetValue ? 'match' : 'miss',
+              sourceIndex: source.index,
+              targetIndex: target.index,
+              sourceAttr,
+              targetAttr,
+              value: sourceValue
+            };
+          }
+        }
+      }
+    }
+  }
   getNetworkModelGraph ({
     raw = true,
     includeDummies = false,

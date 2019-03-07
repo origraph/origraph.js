@@ -4,7 +4,6 @@ import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
 import istanbul from 'rollup-plugin-istanbul';
-import string from 'rollup-plugin-string';
 import json from 'rollup-plugin-json';
 import pkg from './package.json';
 
@@ -14,7 +13,6 @@ const allExternals = peerDependencies.concat(
   Object.keys(pkg.dependencies || {})).concat(
   Object.keys(pkg.devDependencies || {}));
 const commonPlugins = [
-  string({ include: '**/*.text.*' }), // allow us to import files as strings
   json(), // import json files as modules
   babel({
     exclude: 'node_modules/**',
@@ -27,7 +25,6 @@ let targets = {
   umd: !process.env.TARGET || process.env.TARGET === 'umd' || process.env.TARGET === 'all',
   esm: !process.env.TARGET || process.env.TARGET === 'esm' || process.env.TARGET === 'all'
 };
-
 let sourcemap = process.env.SOURCEMAP === 'false' ? false
   : process.env.SOURCEMAP === 'true' ? true : 'inline';
 
