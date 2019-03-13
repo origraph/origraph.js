@@ -68,7 +68,12 @@ class PromotedTable extends AttrTableMixin(Table) {
   async * _iterate () {
     const parentTable = this.parentTable;
     for await (const wrappedParent of parentTable.iterate()) {
-      const index = String(await wrappedParent.row[this._attribute]);
+      let index = await wrappedParent.row[this._attribute];
+      if (typeof index === 'object') {
+        // Don't promote [object Object] as a value (ignore unhashable values)
+        continue;
+      }
+      index = String(index);
       if (!this._partialCache) {
         // We were reset!
         return;

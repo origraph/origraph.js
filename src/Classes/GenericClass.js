@@ -115,6 +115,29 @@ class GenericClass extends Introspectable {
     this.model.optimizeTables();
     this.model.trigger('update');
   }
+  async countAllUniqueValues () {
+    // TODO: this is wildly inefficient, especially for quantitative
+    // attributes... currently doing this (under protest) for stats in the
+    // connect interface. Maybe useful for writing histogram functions in
+    // the future?
+    const hashableBins = {};
+    const unHashableCounts = {};
+    const indexBin = {};
+    for await (const item of this.table.iterate()) {
+      indexBin[item.index] = 1; // always 1
+      for (const [attr, value] of Object.entries(item.row)) {
+        if (value === undefined || typeof value === 'object') {
+          unHashableCounts[attr] = unHashableCounts[attr] || 0;
+          unHashableCounts[attr]++;
+        } else {
+          hashableBins[attr] = hashableBins[attr] || {};
+          hashableBins[attr][value] = hashableBins[attr][value] || 0;
+          hashableBins[attr][value]++;
+        }
+      }
+    }
+    return { hashableBins, unHashableCounts, indexBin };
+  }
 }
 Object.defineProperty(GenericClass, 'type', {
   get () {
