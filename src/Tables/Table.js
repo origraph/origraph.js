@@ -266,6 +266,16 @@ class Table extends TriggerableMixin(Introspectable) {
       complete: !!this._cache
     };
   }
+  async _getItem (index = null) {
+    // Stupid approach when the cache isn't built: interate until we see the
+    // index. Subclasses could override this
+    for await (const item of this.iterate()) {
+      if (item === null || item.index === index) {
+        return item;
+      }
+    }
+    return null;
+  }
   async getItem (index = null) {
     if (this._cacheLookup) {
       return index === null ? this._cache[0] : this._cache[this._cacheLookup[index]];
@@ -275,14 +285,7 @@ class Table extends TriggerableMixin(Introspectable) {
       return index === null ? this._partialCache[0]
         : this._partialCache[this._partialCacheLookup[index]];
     }
-    // Stupid approach when the cache isn't built: interate until we see the
-    // index. Subclasses could override this
-    for await (const item of this.iterate()) {
-      if (item === null || item.index === index) {
-        return item;
-      }
-    }
-    return null;
+    return this._getItem(index);
   }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;

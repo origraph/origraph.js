@@ -39,6 +39,9 @@ class EdgeWrapper extends GenericWrapper {
       this.targetNodes(options)
     ]);
   }
+  async * neighbors (options = {}) {
+    yield * this.nodes(options);
+  }
   async * pairwiseNeighborhood (options) {
     for await (const source of this.sourceNodes(options)) {
       for await (const target of this.targetNodes(options)) {
