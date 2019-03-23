@@ -18,14 +18,14 @@ describe('Document Tests', () => {
 
     // Verify that it matches what we expect
     expect(result).toEqual([
-      {'a': '1', 'is': '4', 'test': 'five', 'this': '3.1'},
-      {'a': '5', 'is': '6', 'test': 'three', 'this': '9.2'},
-      {'a': '7', 'is': '9', 'test': 'nine', 'this': '5.8'},
-      {'a': '8', 'is': '3', 'test': 'four', 'this': '3.2'},
-      {'a': '4', 'is': '6', 'test': 'three', 'this': '6.2'},
-      {'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8'},
-      {'a': '2', 'is': '0', 'test': 'eight', 'this': '9.5'},
-      {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
+      { 'a': '1', 'is': '4', 'test': 'five', 'this': '3.1' },
+      { 'a': '5', 'is': '6', 'test': 'three', 'this': '9.2' },
+      { 'a': '7', 'is': '9', 'test': 'nine', 'this': '5.8' },
+      { 'a': '8', 'is': '3', 'test': 'four', 'this': '3.2' },
+      { 'a': '4', 'is': '6', 'test': 'three', 'this': '6.2' },
+      { 'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8' },
+      { 'a': '2', 'is': '0', 'test': 'eight', 'this': '9.5' },
+      { 'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4' }
     ]);
 
     // Verify that it was a StaticTable
@@ -44,11 +44,11 @@ describe('Document Tests', () => {
 
     // Verify that it matches what we expect
     expect(result.slice(0, 5)).toEqual([
-      {'group': 1, 'index': 0, 'name': 'Myriel'},
-      {'group': 1, 'index': 1, 'name': 'Napoleon'},
-      {'group': 1, 'index': 2, 'name': 'Mlle.Baptistine'},
-      {'group': 1, 'index': 3, 'name': 'Mme.Magloire'},
-      {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
+      { 'group': 1, 'index': 0, 'name': 'Myriel' },
+      { 'group': 1, 'index': 1, 'name': 'Napoleon' },
+      { 'group': 1, 'index': 2, 'name': 'Mlle.Baptistine' },
+      { 'group': 1, 'index': 3, 'name': 'Mme.Magloire' },
+      { 'group': 1, 'index': 4, 'name': 'CountessdeLo' }
     ]);
 
     // Verify that it was a StaticDictTable
@@ -78,16 +78,16 @@ describe('Document Tests', () => {
       samples.push(edge.row);
     }
     expect(samples).toEqual([
-      {'source': 1, 'target': 0, 'value': 1},
-      {'source': 2, 'target': 0, 'value': 8},
-      {'source': 3, 'target': 0, 'value': 10},
-      {'source': 4, 'target': 0, 'value': 1},
-      {'source': 5, 'target': 0, 'value': 1},
-      {'source': 6, 'target': 0, 'value': 1},
-      {'source': 7, 'target': 0, 'value': 1},
-      {'source': 8, 'target': 0, 'value': 2},
-      {'source': 9, 'target': 0, 'value': 1},
-      {'source': 11, 'target': 0, 'value': 5}
+      { 'source': 1, 'target': 0, 'value': 1 },
+      { 'source': 2, 'target': 0, 'value': 8 },
+      { 'source': 3, 'target': 0, 'value': 10 },
+      { 'source': 4, 'target': 0, 'value': 1 },
+      { 'source': 5, 'target': 0, 'value': 1 },
+      { 'source': 6, 'target': 0, 'value': 1 },
+      { 'source': 7, 'target': 0, 'value': 1 },
+      { 'source': 8, 'target': 0, 'value': 2 },
+      { 'source': 9, 'target': 0, 'value': 1 },
+      { 'source': 11, 'target': 0, 'value': 5 }
     ]);
   });
 });

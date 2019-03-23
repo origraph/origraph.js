@@ -14,11 +14,11 @@ describe('Table Samples', () => {
     // Test that the data is what we'd expect
     const samples = await utils.getFiveSamples(people);
     expect(samples.map(s => s.row)).toEqual([
-      {'born': '1964', 'id': '1', 'name': 'Keanu Reeves'},
-      {'born': '1967', 'id': '2', 'name': 'Carrie-Anne Moss'},
-      {'born': '1961', 'id': '3', 'name': 'Laurence Fishburne'},
-      {'born': '1960', 'id': '4', 'name': 'Hugo Weaving'},
-      {'born': '1967', 'id': '5', 'name': 'Andy Wachowski'}
+      { 'born': '1964', 'id': '1', 'name': 'Keanu Reeves' },
+      { 'born': '1967', 'id': '2', 'name': 'Carrie-Anne Moss' },
+      { 'born': '1961', 'id': '3', 'name': 'Laurence Fishburne' },
+      { 'born': '1960', 'id': '4', 'name': 'Hugo Weaving' },
+      { 'born': '1967', 'id': '5', 'name': 'Andy Wachowski' }
     ]);
   });
 
@@ -65,14 +65,14 @@ describe('Table Samples', () => {
     // Test that the data is what we'd expect
     let samples = await utils.getFiveSamples(three);
     expect(samples.map(s => s.row)).toEqual([
-      {'a': '5', 'is': '6', 'test': 'three', 'this': '9.2'},
-      {'a': '4', 'is': '6', 'test': 'three', 'this': '6.2'}
+      { 'a': '5', 'is': '6', 'test': 'three', 'this': '9.2' },
+      { 'a': '4', 'is': '6', 'test': 'three', 'this': '6.2' }
     ]);
 
     samples = await utils.getFiveSamples(seven);
     expect(samples.map(s => s.row)).toEqual([
-      {'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8'},
-      {'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4'}
+      { 'a': '2', 'is': '3', 'test': 'seven', 'this': '3.8' },
+      { 'a': '9', 'is': '1', 'test': 'seven', 'this': '8.4' }
     ]);
   });
 
@@ -120,20 +120,20 @@ describe('Table Samples', () => {
     // Test that we get the rows that we'd expect
     let samples = await utils.getFiveSamples(tables[0]);
     expect(samples.map(s => s.row)).toEqual([
-      {'group': 1, 'index': 0, 'name': 'Myriel'},
-      {'group': 1, 'index': 1, 'name': 'Napoleon'},
-      {'group': 1, 'index': 2, 'name': 'Mlle.Baptistine'},
-      {'group': 1, 'index': 3, 'name': 'Mme.Magloire'},
-      {'group': 1, 'index': 4, 'name': 'CountessdeLo'}
+      { 'group': 1, 'index': 0, 'name': 'Myriel' },
+      { 'group': 1, 'index': 1, 'name': 'Napoleon' },
+      { 'group': 1, 'index': 2, 'name': 'Mlle.Baptistine' },
+      { 'group': 1, 'index': 3, 'name': 'Mme.Magloire' },
+      { 'group': 1, 'index': 4, 'name': 'CountessdeLo' }
     ]);
 
     samples = await utils.getFiveSamples(tables[1]);
     expect(samples.map(s => s.row)).toEqual([
-      {'source': 1, 'target': 0, 'value': 1},
-      {'source': 2, 'target': 0, 'value': 8},
-      {'source': 3, 'target': 0, 'value': 10},
-      {'source': 3, 'target': 2, 'value': 6},
-      {'source': 4, 'target': 0, 'value': 1}
+      { 'source': 1, 'target': 0, 'value': 1 },
+      { 'source': 2, 'target': 0, 'value': 8 },
+      { 'source': 3, 'target': 0, 'value': 10 },
+      { 'source': 3, 'target': 2, 'value': 6 },
+      { 'source': 4, 'target': 0, 'value': 1 }
     ]);
   });
 });

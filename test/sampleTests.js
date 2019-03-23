@@ -31,11 +31,11 @@ describe('Sample Tests', () => {
     }
 
     expect(samples).toEqual([
-      {'actor': 'Chris Pratt', 'character': 'Peter Quill / Star-Lord', 'movie': 'Guardians of the Galaxy'},
-      {'actor': 'Zoe Saldana', 'character': 'Gamora', 'movie': 'Guardians of the Galaxy'},
-      {'actor': 'Dave Bautista', 'character': 'Drax the Destroyer', 'movie': 'Guardians of the Galaxy'},
-      {'actor': 'Vin Diesel', 'character': 'Groot (voice)', 'movie': 'Guardians of the Galaxy'},
-      {'actor': 'Bradley Cooper', 'character': 'Rocket (voice)', 'movie': 'Guardians of the Galaxy'}
+      { 'actor': 'Chris Pratt', 'character': 'Peter Quill / Star-Lord', 'movie': 'Guardians of the Galaxy' },
+      { 'actor': 'Zoe Saldana', 'character': 'Gamora', 'movie': 'Guardians of the Galaxy' },
+      { 'actor': 'Dave Bautista', 'character': 'Drax the Destroyer', 'movie': 'Guardians of the Galaxy' },
+      { 'actor': 'Vin Diesel', 'character': 'Groot (voice)', 'movie': 'Guardians of the Galaxy' },
+      { 'actor': 'Bradley Cooper', 'character': 'Rocket (voice)', 'movie': 'Guardians of the Galaxy' }
     ]);
   });
 
@@ -72,12 +72,12 @@ describe('Sample Tests', () => {
       }
     }
     expect(samples).toEqual([
-      {'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Ice-T'},
-      {'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Chris Columbus'},
-      {'born': '1958', 'person1': 'Ice-T', 'person2': 'Kevin Bacon'},
-      {'born': '1958', 'person1': 'Ice-T', 'person2': 'Chris Columbus'},
-      {'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Kevin Bacon'},
-      {'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Ice-T'}
+      { 'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Ice-T' },
+      { 'born': '1958', 'person1': 'Kevin Bacon', 'person2': 'Chris Columbus' },
+      { 'born': '1958', 'person1': 'Ice-T', 'person2': 'Kevin Bacon' },
+      { 'born': '1958', 'person1': 'Ice-T', 'person2': 'Chris Columbus' },
+      { 'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Kevin Bacon' },
+      { 'born': '1958', 'person1': 'Chris Columbus', 'person2': 'Ice-T' }
     ]);
   });
 
@@ -121,11 +121,11 @@ describe('Sample Tests', () => {
     }
 
     expect(samples).toEqual([
-      {'index': '0⨯0', 'source': 'Keanu Reeves', 'target': 'Keanu Reeves'},
-      {'index': '0⨯12', 'source': 'Keanu Reeves', 'target': 'Jack Nicholson'},
-      {'index': '0⨯121', 'source': 'Keanu Reeves', 'target': 'Diane Keaton'},
-      {'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers'},
-      {'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers'}
+      { 'index': '0⨯0', 'source': 'Keanu Reeves', 'target': 'Keanu Reeves' },
+      { 'index': '0⨯12', 'source': 'Keanu Reeves', 'target': 'Jack Nicholson' },
+      { 'index': '0⨯121', 'source': 'Keanu Reeves', 'target': 'Diane Keaton' },
+      { 'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers' },
+      { 'index': '0⨯122', 'source': 'Keanu Reeves', 'target': 'Nancy Meyers' }
     ]);
   });
 
@@ -171,15 +171,15 @@ describe('Sample Tests', () => {
       }
     }
     expect(samples).toEqual([
-      {'genre': 'Science Fiction', 'movie': 'Venom'},
-      {'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War'},
-      {'genre': 'Science Fiction', 'movie': 'The Predator'},
-      {'genre': 'Action', 'movie': 'Mission: Impossible - Fallout'},
-      {'genre': 'Action', 'movie': 'Avengers: Infinity War'},
-      {'genre': 'Action', 'movie': 'The Predator'},
-      {'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout'},
-      {'genre': 'Thriller', 'movie': 'The Predator'},
-      {'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web'}
+      { 'genre': 'Science Fiction', 'movie': 'Venom' },
+      { 'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War' },
+      { 'genre': 'Science Fiction', 'movie': 'The Predator' },
+      { 'genre': 'Action', 'movie': 'Mission: Impossible - Fallout' },
+      { 'genre': 'Action', 'movie': 'Avengers: Infinity War' },
+      { 'genre': 'Action', 'movie': 'The Predator' },
+      { 'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout' },
+      { 'genre': 'Thriller', 'movie': 'The Predator' },
+      { 'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web' }
     ]);
 
     genreLinks = genreLinks.interpretAsEdges({ autoconnect: true });
@@ -196,15 +196,15 @@ describe('Sample Tests', () => {
       }
     }
     expect(samples).toEqual([
-      {'genre': 'Science Fiction', 'movie': 'Venom'},
-      {'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War'},
-      {'genre': 'Science Fiction', 'movie': 'The Predator'},
-      {'genre': 'Action', 'movie': 'Mission: Impossible - Fallout'},
-      {'genre': 'Action', 'movie': 'Avengers: Infinity War'},
-      {'genre': 'Action', 'movie': 'The Predator'},
-      {'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout'},
-      {'genre': 'Thriller', 'movie': 'The Predator'},
-      {'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web'}
+      { 'genre': 'Science Fiction', 'movie': 'Venom' },
+      { 'genre': 'Science Fiction', 'movie': 'Avengers: Infinity War' },
+      { 'genre': 'Science Fiction', 'movie': 'The Predator' },
+      { 'genre': 'Action', 'movie': 'Mission: Impossible - Fallout' },
+      { 'genre': 'Action', 'movie': 'Avengers: Infinity War' },
+      { 'genre': 'Action', 'movie': 'The Predator' },
+      { 'genre': 'Thriller', 'movie': 'Mission: Impossible - Fallout' },
+      { 'genre': 'Thriller', 'movie': 'The Predator' },
+      { 'genre': 'Thriller', 'movie': 'The Girl in the Spider\'s Web' }
     ]);
   });
 });

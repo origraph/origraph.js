@@ -22,11 +22,11 @@ describe('Derivation Tests', () => {
     }
 
     expect(samples).toEqual([
-      {'gender': 2, 'name': 'Tom Hardy'},
-      {'gender': 1, 'name': 'Michelle Williams'},
-      {'gender': 2, 'name': 'Riz Ahmed'},
-      {'gender': 2, 'name': 'Scott Haze'},
-      {'gender': 2, 'name': 'Reid Scott'}
+      { 'gender': 2, 'name': 'Tom Hardy' },
+      { 'gender': 1, 'name': 'Michelle Williams' },
+      { 'gender': 2, 'name': 'Riz Ahmed' },
+      { 'gender': 2, 'name': 'Scott Haze' },
+      { 'gender': 2, 'name': 'Reid Scott' }
     ]);
   });
 
@@ -62,11 +62,11 @@ describe('Derivation Tests', () => {
       }));
 
     expect(samples).toEqual([
-      {'castBias': 0.52, 'title': 'Venom'},
-      {'castBias': 0.68, 'title': 'Mission: Impossible - Fallout'},
-      {'castBias': 0.8823529411764706, 'title': 'Bohemian Rhapsody'},
-      {'castBias': 0.6792452830188679, 'title': 'Avengers: Infinity War'},
-      {'castBias': 0.875, 'title': 'The Predator'}
+      { 'castBias': 0.52, 'title': 'Venom' },
+      { 'castBias': 0.68, 'title': 'Mission: Impossible - Fallout' },
+      { 'castBias': 0.8823529411764706, 'title': 'Bohemian Rhapsody' },
+      { 'castBias': 0.6792452830188679, 'title': 'Avengers: Infinity War' },
+      { 'castBias': 0.875, 'title': 'The Predator' }
     ]);
 
     people.table.deriveAttribute('avgBiasWhenCast', async person => {
@@ -97,11 +97,11 @@ describe('Derivation Tests', () => {
       }));
 
     expect(samples).toEqual([
-      {'avgBiasWhenCast': 0.6236363636363637, 'gender': 2, 'name': 'Tom Hardy'},
-      {'avgBiasWhenCast': 0.51, 'gender': 1, 'name': 'Michelle Williams'},
-      {'avgBiasWhenCast': 0.585, 'gender': 2, 'name': 'Riz Ahmed'},
-      {'avgBiasWhenCast': 0.52, 'gender': 2, 'name': 'Scott Haze'},
-      {'avgBiasWhenCast': 0.52, 'gender': 2, 'name': 'Reid Scott'}
+      { 'avgBiasWhenCast': 0.6236363636363637, 'gender': 2, 'name': 'Tom Hardy' },
+      { 'avgBiasWhenCast': 0.51, 'gender': 1, 'name': 'Michelle Williams' },
+      { 'avgBiasWhenCast': 0.585, 'gender': 2, 'name': 'Riz Ahmed' },
+      { 'avgBiasWhenCast': 0.52, 'gender': 2, 'name': 'Scott Haze' },
+      { 'avgBiasWhenCast': 0.52, 'gender': 2, 'name': 'Reid Scott' }
     ]);
   });
 });

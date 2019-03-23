@@ -31,6 +31,25 @@ class NodeWrapper extends GenericWrapper {
     }
     yield * this.handleLimit(options, iterators);
   }
+  async * neighborNodes (options = {}) {
+    for await (const edge of this.edges()) {
+      const role = this.classObj.getEdgeRole(edge.classObj);
+      if (role === 'both' || role === 'source') {
+        for await (const target of edge.targetNodes(options)) {
+          if (this !== target) {
+            yield target;
+          }
+        }
+      }
+      if (role === 'both' || role === 'source') {
+        for await (const source of edge.sourceNodes(options)) {
+          if (this !== source) {
+            yield source;
+          }
+        }
+      }
+    }
+  }
   async * neighbors (options = {}) {
     yield * this.edges(options);
   }

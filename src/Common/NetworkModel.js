@@ -188,8 +188,11 @@ class NetworkModel extends TriggerableMixin(class {}) {
     }
     // TODO: If any DuplicatedTable is in use, but the original isn't, swap for the real one
   }
-  async getInstanceSample (seedCount = 20, clusterLimit = 3, classCount = 2) {
-    // Try to get at least seedCount nodes / edges, in clusters of about
+  async getInstanceSample () {
+    const seedLimit = 100;
+    const clusterLimit = 5;
+    const classCount = 5;
+    // Try to get at most roughly seedCount nodes / edges, in clusters of about
     // clusterLimit, and try to include at least classCount instances per class
     // (may return null if caches are invalidated during iteration)
     let iterationReset = false;
@@ -213,7 +216,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
       classCounts[instance.classObj.classId] = classCounts[instance.classObj.classId] || 0;
       classCounts[instance.classObj.classId]++;
 
-      if (totalCount >= seedCount) {
+      if (totalCount >= seedLimit) {
         // We have enough; stop iterating
         return false;
       }
@@ -233,7 +236,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
       return true;
     };
     for (const [classId, classObj] of Object.entries(this.classes)) {
-      const rowCount = await classObj.countRows();
+      const rowCount = await classObj.table.countRows();
       // Get at least classCount instances from this class (as long as we
       // haven't exhausted all the instances the class has to give)
       while ((classCounts[classId] || 0) < classCount && (classCounts[classId] || 0) < rowCount) {
@@ -241,11 +244,8 @@ class NetworkModel extends TriggerableMixin(class {}) {
           // Cache invalidated; bail immediately
           return null;
         }
-        // Add a random instance from this class
-        const randIndex = Math.floor(Math.random() * rowCount);
-        const instance = classObj.table.getItem(randIndex);
-        // Add the instance, and try to prioritize its neighbors in other classes
-        if (!await populateClassCounts(instance)) {
+        // Add a random instance, and try to prioritize its neighbors in other classes
+        if (!await populateClassCounts(await classObj.table.getRandomItem())) {
           break;
         }
       }

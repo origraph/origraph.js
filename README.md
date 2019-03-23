@@ -16,7 +16,7 @@ Expect frequent sweeping changes and poor documentation for now, especially as w
 ## Basic use in the browser
 This will make the `window.origraph` global available to your scripts:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/origraph@0.2.6/dist/origraph.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/origraph@0.2.7/dist/origraph.umd.js"></script>
 ```
 
 ## Server-side apps or pre-bundled browser apps

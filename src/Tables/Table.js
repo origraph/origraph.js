@@ -287,6 +287,10 @@ class Table extends TriggerableMixin(Introspectable) {
     }
     return this._getItem(index);
   }
+  async getRandomItem () {
+    const randIndex = Math.floor(Math.random() * await this.countRows());
+    return this._cache[randIndex];
+  }
   deriveAttribute (attribute, func) {
     this._derivedAttributeFunctions[attribute] = func;
     this.reset();
