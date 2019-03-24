@@ -83,7 +83,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
     this.trigger('update');
     return this.tables[options.tableId];
   }
-  createClass (options = { selector: `empty` }) {
+  createClass (options = {}) {
     while (!options.classId || (!options.overwrite && this.classes[options.classId])) {
       options.classId = `class${this._nextClassId}`;
       this._nextClassId += 1;

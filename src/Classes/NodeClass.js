@@ -166,13 +166,46 @@ class NodeClass extends GenericClass {
     return edgeClass.connectToNodeClass(options);
   }
   promote (attribute) {
-    const newNodeClass = this._deriveNewClass(this.table.promote(attribute), 'NodeClass');
+    const newNodeClass = this.model.createClass({
+      tableId: this.table.promote(attribute).tableId,
+      type: 'NodeClass'
+    });
     this.connectToNodeClass({
       otherNodeClass: newNodeClass,
       attribute,
       otherAttribute: null
     });
     return newNodeClass;
+  }
+  aggregate (attribute, options = {}) {
+    const newClass = super.aggregate(attribute, options);
+    for (const edgeClass of newClass.edgeClasses()) {
+      const role = this.getEdgeRole(edgeClass);
+      if (role === 'source' || role === 'both') {
+        edgeClass.sourceTableIds.push(this.tableId);
+      }
+      if (role === 'target' || role === 'both') {
+        edgeClass.targetTableIds.push(this.tableId);
+      }
+    }
+    return newClass;
+  }
+  dissolve (options = {}) {
+    const newClass = super.dissolve(options);
+    for (const edgeClass of newClass.edgeClasses()) {
+      const role = this.getEdgeRole(edgeClass);
+      if (role === 'source' || role === 'both') {
+        if (edgeClass.sourceTableIds.pop() !== newClass.tableId) {
+          throw new Error(`Inconsistent tableIds when dissolving a node class`);
+        }
+      }
+      if (role === 'target' || role === 'both') {
+        if (edgeClass.targetTableIds.pop() !== newClass.tableId) {
+          throw new Error(`Inconsistent tableIds when dissolving a node class`);
+        }
+      }
+    }
+    return newClass;
   }
   connectToChildNodeClass (childClass) {
     const connectedTable = this.table.connect([childClass.table], 'ParentChildTable');
@@ -189,12 +222,12 @@ class NodeClass extends GenericClass {
     this.model.trigger('update');
   }
   expand (attribute) {
-    const newNodeClass = this._deriveNewClass(this.table.expand(attribute), 'NodeClass');
+    const newNodeClass = super.expand(attribute);
     this.connectToChildNodeClass(newNodeClass);
     return newNodeClass;
   }
   unroll (attribute) {
-    const newNodeClass = this._deriveNewClass(this.table.unroll(attribute), 'NodeClass');
+    const newNodeClass = super.unroll(attribute);
     this.connectToChildNodeClass(newNodeClass);
     return newNodeClass;
   }

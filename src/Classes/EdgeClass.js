@@ -236,6 +236,22 @@ class EdgeClass extends GenericClass {
       return newNodeClass;
     }
   }
+  aggregate (attribute, options = {}) {
+    const newClass = super.aggregate(attribute, options);
+    newClass.sourceTableIds.unshift(this.tableId);
+    newClass.targetTableIds.unshift(this.tableId);
+    return newClass;
+  }
+  dissolve (options = {}) {
+    const newClass = super.dissolve(options);
+    if (newClass.sourceTableIds.shift() !== newClass.tableId) {
+      throw new Error(`Inconsistent tableIds when dissolving an edge class`);
+    }
+    if (newClass.targetTableIds.shift() !== newClass.tableId) {
+      throw new Error(`Inconsistent tableIds when dissolving an edge class`);
+    }
+    return newClass;
+  }
   connectFacetedClass (newEdgeClass) {
     // When an edge class is faceted, we want to keep the same connections. This
     // means we need to clone each table chain, and add our own table to it

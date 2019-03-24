@@ -75,39 +75,72 @@ class GenericClass extends Introspectable {
     this.table.reset();
     return this.model.createClass(options);
   }
-  _deriveNewClass (newTable, type = this.constructor.name) {
+  expand (attribute) {
     return this.model.createClass({
-      tableId: newTable.tableId,
-      type
+      tableId: this.table.expand(attribute).tableId,
+      type: this.constructor.name
     });
   }
-  promote (attribute) {
-    return this._deriveNewClass(this.table.promote(attribute).tableId, 'GenericClass');
-  }
-  expand (attribute) {
-    return this._deriveNewClass(this.table.expand(attribute));
-  }
   unroll (attribute) {
-    return this._deriveNewClass(this.table.unroll(attribute));
+    return this.model.createClass({
+      tableId: this.table.unroll(attribute).tableId,
+      type: this.constructor.name
+    });
+  }
+  aggregate (attribute, options = {}) {
+    options = Object.assign(this._toRawObject(), options, {
+      classId: this.classId,
+      overwrite: true,
+      tableId: this.table.promote(attribute).tableId,
+      type: this.constructor.name
+    });
+    return this.model.createClass(options);
+  }
+  dissolve (options = {}) {
+    if (!this.canDissolve) {
+      throw new Error(`Can't dissolve class that has table of type ${this.table.type}`);
+    }
+    options = Object.assign(this._toRawObject(), options, {
+      classId: this.classId,
+      overwrite: true,
+      tableId: this.table.parentTable.tableId,
+      type: this.constructor.name
+    });
+    return this.model.createClass(options);
+  }
+  get canDissolve () {
+    return this.table.type === 'Promoted';
   }
   closedFacet (attribute, values) {
     return this.table.closedFacet(attribute, values).map(newTable => {
-      return this._deriveNewClass(newTable);
+      return this.model.createClass({
+        tableId: newTable.tableId,
+        type: this.constructor.name
+      });
     });
   }
   async * openFacet (attribute) {
     for await (const newTable of this.table.openFacet(attribute)) {
-      yield this._deriveNewClass(newTable);
+      yield this.model.createClass({
+        tableId: newTable.tableId,
+        type: this.constructor.name
+      });
     }
   }
   closedTranspose (indexes) {
     return this.table.closedTranspose(indexes).map(newTable => {
-      return this._deriveNewClass(newTable);
+      return this.model.createClass({
+        tableId: newTable.tableId,
+        type: this.constructor.name
+      });
     });
   }
   async * openTranspose () {
     for await (const newTable of this.table.openTranspose()) {
-      yield this._deriveNewClass(newTable);
+      yield this.model.createClass({
+        tableId: newTable.tableId,
+        type: this.constructor.name
+      });
     }
   }
   delete () {
