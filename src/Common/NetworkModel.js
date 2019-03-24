@@ -273,7 +273,7 @@ class NetworkModel extends TriggerableMixin(class {}) {
         if (!this.classes[classId]) {
           delete instances[instanceId];
         } else {
-          const newInstance = await this.classes[classId].getItem(index);
+          const newInstance = await this.classes[classId].table.getItem(index);
           if (newInstance) {
             result[instanceId] = newInstance;
           }
