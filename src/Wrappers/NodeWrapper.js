@@ -41,7 +41,7 @@ class NodeWrapper extends GenericWrapper {
           }
         }
       }
-      if (role === 'both' || role === 'source') {
+      if (role === 'both' || role === 'target') {
         for await (const source of edge.sourceNodes(options)) {
           if (this !== source) {
             yield source;
