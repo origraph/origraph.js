@@ -166,10 +166,7 @@ class NodeClass extends GenericClass {
     return edgeClass.connectToNodeClass(options);
   }
   promote (attribute) {
-    const newNodeClass = this.model.createClass({
-      tableId: this.table.promote(attribute).tableId,
-      type: 'NodeClass'
-    });
+    const newNodeClass = super.promote(attribute);
     this.connectToNodeClass({
       otherNodeClass: newNodeClass,
       attribute,

@@ -221,7 +221,7 @@ class EdgeClass extends GenericClass {
   }
   promote (attribute) {
     if (this.sourceClassId && this.targetClassId) {
-      return super.promote();
+      return super.promote(attribute);
     } else {
       const newNodeClass = this.model.createClass({
         tableId: this.table.promote(attribute).tableId,

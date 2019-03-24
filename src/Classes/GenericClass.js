@@ -87,6 +87,12 @@ class GenericClass extends Introspectable {
       type: this.constructor.name
     });
   }
+  promote (attribute) {
+    return this.model.createClass({
+      tableId: this.table.promote(attribute).tableId,
+      type: this.constructor.name
+    });
+  }
   aggregate (attribute, options = {}) {
     options = Object.assign(this._toRawObject(), options, {
       classId: this.classId,
