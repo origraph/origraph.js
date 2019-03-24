@@ -26,7 +26,8 @@ class TransposedTable extends SingleParentMixin(Table) {
 
     // Iterate the row's attributes as indexes
     const wrappedParent = this.parentTable._cache[this.parentTable._cacheLookup[this._index]] || { row: {} };
-    for (const [ index, value ] of Object.entries(wrappedParent.row)) {
+    for (let [ index, value ] of Object.entries(wrappedParent.row)) {
+      value = await value;
       const newItem = this._wrap({
         index,
         row: typeof value === 'object' ? value : { value },

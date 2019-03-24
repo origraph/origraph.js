@@ -45,7 +45,7 @@ class D3Json extends FileFormat {
       for await (const edgeClass of edges.openFacet(classAttribute)) {
         edgeClasses.push(edgeClass.interpretAsEdges());
         const sample = await edgeClass.table.getItem();
-        const sourceClassName = sample.row[sourceAttribute + '_' + classAttribute];
+        const sourceClassName = await sample.row[sourceAttribute + '_' + classAttribute];
         if (nodeClassLookup[sourceClassName] !== undefined) {
           edgeClass.connectToNodeClass({
             nodeClass: nodeClasses[nodeClassLookup[sourceClassName]],
@@ -54,7 +54,7 @@ class D3Json extends FileFormat {
             edgeAttribute: sourceAttribute
           });
         }
-        const targetClassName = sample.row[targetAttribute + '_' + classAttribute];
+        const targetClassName = await sample.row[targetAttribute + '_' + classAttribute];
         if (nodeClassLookup[targetClassName] !== undefined) {
           edgeClass.connectToNodeClass({
             nodeClass: nodeClasses[nodeClassLookup[targetClassName]],

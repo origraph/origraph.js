@@ -27,7 +27,7 @@ class UnrolledTable extends ChildTableMixin(Table) {
       const rows = wrappedParent.row[this._attribute];
       if (rows !== undefined && rows !== null &&
           typeof rows[Symbol.iterator] === 'function') {
-        for (const row of rows) {
+        for await (const row of rows) {
           const newItem = this._wrap({
             index,
             row,

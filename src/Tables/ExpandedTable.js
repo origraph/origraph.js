@@ -24,7 +24,7 @@ class ExpandedTable extends ChildTableMixin(Table) {
     const parentTable = this.parentTable;
     let index = 0;
     for await (const wrappedParent of parentTable.iterate()) {
-      const row = wrappedParent.row[this._attribute];
+      const row = await wrappedParent.row[this._attribute];
       if (row !== undefined && row !== null && Object.keys(row).length > 0) {
         const newItem = this._wrap({
           index,
