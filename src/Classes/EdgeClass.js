@@ -240,20 +240,26 @@ class EdgeClass extends GenericClass {
       return newNodeClass;
     }
   }
-  aggregate (attribute, options = {}) {
-    const newClass = super.aggregate(attribute, options);
-    newClass.sourceTableIds.unshift(this.tableId);
-    newClass.targetTableIds.unshift(this.tableId);
-    return newClass;
-  }
-  dissolve (options = {}) {
-    const newClass = super.dissolve(options);
-    if (newClass.sourceTableIds.shift() !== newClass.tableId) {
-      throw new Error(`Inconsistent tableIds when dissolving an edge class`);
+  rollup (attribute) {
+    const newTable = this.table.promote(attribute);
+    const sourceTableIds = this.sourceClassId ? [this.tableId].concat(this.sourceTableIds) : [];
+    const targetTableIds = this.targetClassId ? [this.tableId].concat(this.targetTableIds) : [];
+    const newClass = this.model.createClass({
+      tableId: newTable.tableId,
+      type: 'EdgeClass',
+      directed: this.directed,
+      sourceClassId: this.sourceClassId,
+      sourceTableIds,
+      targetClassId: this.targetClassId,
+      targetTableIds
+    });
+    if (this.sourceClassId) {
+      this.sourceClass.edgeClassIds[newClass.classId] = true;
     }
-    if (newClass.targetTableIds.shift() !== newClass.tableId) {
-      throw new Error(`Inconsistent tableIds when dissolving an edge class`);
+    if (this.targetClassId) {
+      this.targetClass.edgeClassIds[newClass.classId] = true;
     }
+    this.model.trigger('update');
     return newClass;
   }
   connectFacetedClass (newEdgeClass) {

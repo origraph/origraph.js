@@ -177,35 +177,34 @@ class NodeClass extends GenericClass {
     });
     return newNodeClass;
   }
-  aggregate (attribute, options = {}) {
-    const newClass = super.aggregate(attribute, options);
-    for (const edgeClass of newClass.edgeClasses()) {
+  createSupernodes (attribute) {
+    const existingEdgeClassIds = Object.keys(this.edgeClassIds);
+    const newNodeClass = super.promote(attribute);
+    const newEdgeClass = this.connectToNodeClass({
+      otherNodeClass: newNodeClass,
+      attribute,
+      otherAttribute: null
+    });
+    for (const edgeClassId of existingEdgeClassIds) {
+      const edgeClass = this.model.classes[edgeClassId];
       const role = this.getEdgeRole(edgeClass);
-      if (role === 'source' || role === 'both') {
-        edgeClass.sourceTableIds.push(this.tableId);
-      }
-      if (role === 'target' || role === 'both') {
-        edgeClass.targetTableIds.push(this.tableId);
+      if (role === 'both') {
+        newNodeClass.projectNewEdge([
+          newEdgeClass.classId,
+          this.classId,
+          newEdgeClass.classId,
+          newNodeClass.classId
+        ]).setClassName(edgeClass.className);
+      } else {
+        newNodeClass.projectNewEdge([
+          newEdgeClass.classId,
+          this.classId,
+          edgeClass.classId,
+          role === 'source' ? edgeClass.targetClassId : edgeClass.sourceClassId
+        ]).setClassName(edgeClass.className);
       }
     }
-    return newClass;
-  }
-  dissolve (options = {}) {
-    const newClass = super.dissolve(options);
-    for (const edgeClass of newClass.edgeClasses()) {
-      const role = this.getEdgeRole(edgeClass);
-      if (role === 'source' || role === 'both') {
-        if (edgeClass.sourceTableIds.pop() !== newClass.tableId) {
-          throw new Error(`Inconsistent tableIds when dissolving a node class`);
-        }
-      }
-      if (role === 'target' || role === 'both') {
-        if (edgeClass.targetTableIds.pop() !== newClass.tableId) {
-          throw new Error(`Inconsistent tableIds when dissolving a node class`);
-        }
-      }
-    }
-    return newClass;
+    return newNodeClass;
   }
   connectToChildNodeClass (childClass) {
     const connectedTable = this.table.connect([childClass.table], 'ParentChildTable');

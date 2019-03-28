@@ -97,30 +97,6 @@ class GenericClass extends Introspectable {
       type: this.constructor.name
     });
   }
-  aggregate (attribute, options = {}) {
-    options = Object.assign(this._toRawObject(), options, {
-      classId: this.classId,
-      overwrite: true,
-      tableId: this.table.promote(attribute).tableId,
-      type: this.constructor.name
-    });
-    return this.model.createClass(options);
-  }
-  dissolve (options = {}) {
-    if (!this.canDissolve) {
-      throw new Error(`Can't dissolve class that has table of type ${this.table.type}`);
-    }
-    options = Object.assign(this._toRawObject(), options, {
-      classId: this.classId,
-      overwrite: true,
-      tableId: this.table.parentTable.tableId,
-      type: this.constructor.name
-    });
-    return this.model.createClass(options);
-  }
-  get canDissolve () {
-    return this.table.type === 'Promoted';
-  }
   closedFacet (attribute, values) {
     return this.table.closedFacet(attribute, values).map(newTable => {
       return this.model.createClass({
