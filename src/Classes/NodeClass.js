@@ -192,6 +192,8 @@ class NodeClass extends GenericClass {
         newNodeClass.projectNewEdge([
           newEdgeClass.classId,
           this.classId,
+          edgeClass.classId,
+          this.classId,
           newEdgeClass.classId,
           newNodeClass.classId
         ]).setClassName(edgeClass.className);
