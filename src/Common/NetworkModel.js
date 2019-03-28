@@ -240,6 +240,11 @@ class NetworkModel extends TriggerableMixin(class {}) {
     };
     for (const [classId, classObj] of Object.entries(this.classes)) {
       const rowCount = await classObj.table.countRows();
+      // Don't sample from GenericClasses
+      if (classObj.type === 'Generic') {
+        continue;
+      }
+
       // Get at least classCount instances from this class (as long as we
       // haven't exhausted all the instances the class has to give)
       while ((classCounts[classId] || 0) < classCount && (classCounts[classId] || 0) < rowCount) {
