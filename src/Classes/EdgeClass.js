@@ -21,6 +21,14 @@ class EdgeClass extends GenericClass {
   get targetClass () {
     return (this.targetClassId && this.model.classes[this.targetClassId]) || null;
   }
+  * connectedClasses () {
+    if (this.sourceClassId) {
+      yield this.model.classes[this.sourceClassId];
+    }
+    if (this.targetClassId) {
+      yield this.model.classes[this.targetClassId];
+    }
+  }
   _toRawObject () {
     const result = super._toRawObject();
 
@@ -112,20 +120,16 @@ class EdgeClass extends GenericClass {
       targetClass.edgeClassIds[targetEdgeClass.classId] = true;
       newNodeClass.edgeClassIds[targetEdgeClass.classId] = true;
     }
-    this.table.reset();
     this.model.trigger('update');
     return newNodeClass;
   }
-  * connectedClasses () {
-    if (this.sourceClassId) {
-      yield this.model.classes[this.sourceClassId];
-    }
-    if (this.targetClassId) {
-      yield this.model.classes[this.targetClassId];
-    }
-  }
   interpretAsEdges () {
     return this;
+  }
+  intepretAsGeneric () {
+    this.disconnectSource();
+    this.disconnectTarget();
+    return super.interpretAsGeneric();
   }
   connectToNodeClass (options) {
     if (options.side === 'source') {

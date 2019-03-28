@@ -65,14 +65,18 @@ class GenericClass extends Introspectable {
     const options = this._toRawObject();
     options.type = 'NodeClass';
     options.overwrite = true;
-    this.table.reset();
     return this.model.createClass(options);
   }
   interpretAsEdges () {
     const options = this._toRawObject();
     options.type = 'EdgeClass';
     options.overwrite = true;
-    this.table.reset();
+    return this.model.createClass(options);
+  }
+  intepretAsGeneric () {
+    const options = this._toRawObject();
+    options.type = 'GenericClass';
+    options.overwrite = true;
     return this.model.createClass(options);
   }
   expand (attribute) {

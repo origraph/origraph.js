@@ -126,8 +126,11 @@ class NodeClass extends GenericClass {
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
     options.overwrite = true;
-    this.table.reset();
     return this.model.createClass(options);
+  }
+  intepretAsGeneric () {
+    this.disconnectAllEdges();
+    return super.interpretAsGeneric();
   }
   connectToNodeClass ({ otherNodeClass, attribute, otherAttribute }) {
     let thisHash, otherHash, sourceTableIds, targetTableIds;
