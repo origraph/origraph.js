@@ -90,7 +90,8 @@ class D3Json extends FileFormat {
     nodeAttribute = null,
     sourceAttribute = 'source',
     targetAttribute = 'target',
-    classAttribute = null
+    classAttribute = null,
+    rawText = false
   }) {
     if (classAttribute && !nodeAttribute) {
       throw new Error(`Can't export D3-style JSON with classes, without a nodeAttribute`);
@@ -158,8 +159,11 @@ class D3Json extends FileFormat {
     } else {
       result = JSON.stringify(result);
     }
+    if (!rawText) {
+      result = 'data:text/json;base64,' + Buffer.from(result).toString('base64');
+    }
     return {
-      data: 'data:text/json;base64,' + Buffer.from(result).toString('base64'),
+      data: result,
       type: 'text/json',
       extension: 'json'
     };

@@ -24,7 +24,8 @@ class GEXF extends FileFormat {
   async formatData ({
     model,
     includeClasses = Object.values(model.classes),
-    classAttribute = 'class'
+    classAttribute = 'class',
+    rawText = false
   }) {
     let nodeChunk = '';
     let edgeChunk = '';
@@ -55,7 +56,7 @@ class GEXF extends FileFormat {
       }
     }
 
-    const result = `\
+    let result = `\
 <?xml version="1.0" encoding="UTF-8"?>
 <gexf  xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
 <meta lastmodifieddate="2009-03-20">
@@ -74,11 +75,12 @@ class GEXF extends FileFormat {
   <edges>${edgeChunk}
   </edges>
 </graph>
-</gexf>
-  `;
-
+</gexf>`;
+    if (!rawText) {
+      result = 'data:text/xml;base64,' + Buffer.from(result).toString('base64');
+    }
     return {
-      data: 'data:text/xml;base64,' + Buffer.from(result).toString('base64'),
+      data: result,
       type: 'text/xml',
       extension: 'gexf'
     };
