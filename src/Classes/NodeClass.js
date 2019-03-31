@@ -38,24 +38,26 @@ class NodeClass extends GenericClass {
   interpretAsNodes () {
     return this;
   }
+  get canAutoConnect () {
+    const allRoles = Object.keys(this.edgeClassIds).map(id => this.getEdgeRole(this.model.classes[id]));
+    return allRoles.length > 0 && allRoles.length <= 2 && allRoles.indexOf('both') === -1;
+  }
   interpretAsEdges ({ autoconnect = false } = {}) {
     const edgeClassIds = Object.keys(this.edgeClassIds);
+    const roles = edgeClassIds.map(id => this.getEdgeRole(this.model.classes[id]));
     const options = super._toRawObject();
 
-    if (!autoconnect || edgeClassIds.length > 2) {
-      // If there are more than two edges, break all connections and make
+    if (!autoconnect || edgeClassIds.length > 2 || roles.indexOf('both') !== -1) {
+      // If there are more than two connections, break all connections and make
       // this a floating edge (for now, we're not dealing in hyperedges)
       this.disconnectAllEdges();
     } else if (autoconnect && edgeClassIds.length === 1) {
       // With only one connection, this node should become a self-edge
       const edgeClass = this.model.classes[edgeClassIds[0]];
-      // Are we the source or target of the existing edge (internally, in terms
-      // of sourceId / targetId, not edgeClass.direction)?
-      const isSource = edgeClass.sourceClassId === this.classId;
 
       // As we're converted to an edge, our new resulting source AND target
       // should be whatever is at the other end of edgeClass (if anything)
-      if (isSource) {
+      if (roles[0] === 'source') {
         options.sourceClassId = options.targetClassId = edgeClass.targetClassId;
         edgeClass.disconnectSource();
       } else {
@@ -75,7 +77,7 @@ class NodeClass extends GenericClass {
       let tableIdList = edgeClass.targetTableIds.slice().reverse()
         .concat([ edgeClass.tableId ])
         .concat(edgeClass.sourceTableIds);
-      if (!isSource) {
+      if (roles[0] === 'target') {
         // Whoops, got it backwards!
         tableIdList.reverse();
       }
@@ -84,40 +86,78 @@ class NodeClass extends GenericClass {
     } else if (autoconnect && edgeClassIds.length === 2) {
       // Okay, we've got two edges, so this is a little more straightforward
       let sourceEdgeClass = this.model.classes[edgeClassIds[0]];
+      let mySourceRole = roles[0];
       let targetEdgeClass = this.model.classes[edgeClassIds[1]];
+      let myTargetRole = roles[1];
+      if (mySourceRole === 'source' && myTargetRole === 'target') {
+        // Swap if the source points away and the target points at me
+        sourceEdgeClass = this.model.classes[edgeClassIds[1]];
+        mySourceRole = roles[1];
+        targetEdgeClass = this.model.classes[edgeClassIds[0]];
+        myTargetRole = roles[0];
+      }
+
       // Figure out the direction, if there is one
       options.directed = false;
       if (sourceEdgeClass.directed && targetEdgeClass.directed) {
-        if (sourceEdgeClass.targetClassId === this.classId &&
-            targetEdgeClass.sourceClassId === this.classId) {
-          // We happened to get the edges in order; set directed to true
-          options.directed = true;
-        } else if (sourceEdgeClass.sourceClassId === this.classId &&
-                   targetEdgeClass.targetClassId === this.classId) {
-          // We got the edges backwards; swap them and set directed to true
-          targetEdgeClass = this.model.classes[edgeClassIds[0]];
-          sourceEdgeClass = this.model.classes[edgeClassIds[1]];
-          options.directed = true;
+        // Only stay directed if both edges are pointing in the same direction
+        // (if both are pointing at, or away from this node class, then the
+        // resulting edge shouldn't be directed)
+        options.directed = mySourceRole !== myTargetRole;
+      } else if (sourceEdgeClass.directed) {
+        // Only the source edge is directed; keep the direction, and swap
+        // classes if it's actually pointing inward (then we'd want it to
+        // be on the target side)
+        options.directed = true;
+        if (mySourceRole === 'target') {
+          let temp = sourceEdgeClass;
+          sourceEdgeClass = targetEdgeClass;
+          targetEdgeClass = temp;
+          temp = mySourceRole;
+          mySourceRole = myTargetRole;
+          myTargetRole = temp;
+        }
+      } else if (targetEdgeClass.directed) {
+        // Only the target edge is directed; keep the direction, and swap
+        // classes if it's actually pointing inward (then we'd want it to
+        // be on the source side)
+        options.directed = true;
+        if (myTargetRole === 'target') {
+          let temp = sourceEdgeClass;
+          sourceEdgeClass = targetEdgeClass;
+          targetEdgeClass = temp;
+          temp = mySourceRole;
+          mySourceRole = myTargetRole;
+          myTargetRole = temp;
         }
       }
-      // Okay, now we know how to set source / target ids
-      options.sourceClassId = sourceEdgeClass.sourceClassId;
-      options.targetClassId = targetEdgeClass.targetClassId;
-      // Add this class to the source's / target's edgeClassIds
-      this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
-      this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
+      // Okay, set source / target ids
+      options.sourceClassId = mySourceRole === 'target'
+        ? sourceEdgeClass.sourceClassId : sourceEdgeClass.targetClassId;
+      options.targetClassId = myTargetRole === 'source'
+        ? targetEdgeClass.targetClassId : targetEdgeClass.sourceClassId;
+
+      // Connect this class to the node classes on the other end of source /
+      // target (if they're connected)
+      if (this.model.classes[options.sourceClassId]) {
+        this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
+      }
+      if (this.model.classes[options.targetClassId]) {
+        this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
+      }
+
       // Concatenate the intermediate tableId lists, emanating out from the
       // (new) edge table
-      options.sourceTableIds = sourceEdgeClass.targetTableIds.slice().reverse()
+      options.sourceTableIds = (sourceEdgeClass.targetTableIds || []).slice().reverse()
         .concat([ sourceEdgeClass.tableId ])
-        .concat(sourceEdgeClass.sourceTableIds);
-      if (sourceEdgeClass.targetClassId === this.classId) {
+        .concat(sourceEdgeClass.sourceTableIds || []);
+      if (mySourceRole === 'source') {
         options.sourceTableIds.reverse();
       }
-      options.targetTableIds = targetEdgeClass.sourceTableIds.slice().reverse()
+      options.targetTableIds = (targetEdgeClass.sourceTableIds || []).slice().reverse()
         .concat([ targetEdgeClass.tableId ])
-        .concat(targetEdgeClass.targetTableIds);
-      if (targetEdgeClass.targetClassId === this.classId) {
+        .concat(targetEdgeClass.targetTableIds || []);
+      if (myTargetRole === 'target') {
         options.targetTableIds.reverse();
       }
       // Disconnect the existing edge classes from the new (now edge) class
@@ -128,7 +168,7 @@ class NodeClass extends GenericClass {
     options.overwrite = true;
     return this.model.createClass(options);
   }
-  intepretAsGeneric () {
+  interpretAsGeneric () {
     this.disconnectAllEdges();
     return super.interpretAsGeneric();
   }

@@ -73,7 +73,7 @@ class GenericClass extends Introspectable {
     options.overwrite = true;
     return this.model.createClass(options);
   }
-  intepretAsGeneric () {
+  interpretAsGeneric () {
     const options = this._toRawObject();
     options.type = 'GenericClass';
     options.overwrite = true;

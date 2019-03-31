@@ -126,7 +126,7 @@ class EdgeClass extends GenericClass {
   interpretAsEdges () {
     return this;
   }
-  intepretAsGeneric () {
+  interpretAsGeneric () {
     this.disconnectSource();
     this.disconnectTarget();
     return super.interpretAsGeneric();
