@@ -137,15 +137,6 @@ class NodeClass extends GenericClass {
       options.targetClassId = myTargetRole === 'source'
         ? targetEdgeClass.targetClassId : targetEdgeClass.sourceClassId;
 
-      // Connect this class to the node classes on the other end of source /
-      // target (if they're connected)
-      if (this.model.classes[options.sourceClassId]) {
-        this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
-      }
-      if (this.model.classes[options.targetClassId]) {
-        this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
-      }
-
       // Concatenate the intermediate tableId lists, emanating out from the
       // (new) edge table
       options.sourceTableIds = (sourceEdgeClass.targetTableIds || []).slice().reverse()
@@ -162,6 +153,15 @@ class NodeClass extends GenericClass {
       }
       // Disconnect the existing edge classes from the new (now edge) class
       this.disconnectAllEdges();
+
+      // Connect this class to the node classes on the other end of source /
+      // target (if they're connected)
+      if (this.model.classes[options.sourceClassId]) {
+        this.model.classes[options.sourceClassId].edgeClassIds[this.classId] = true;
+      }
+      if (this.model.classes[options.targetClassId]) {
+        this.model.classes[options.targetClassId].edgeClassIds[this.classId] = true;
+      }
     }
     delete options.edgeClassIds;
     options.type = 'EdgeClass';
